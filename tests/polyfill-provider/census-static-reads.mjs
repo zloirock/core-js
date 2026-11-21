@@ -32,6 +32,23 @@ for (const parser of adapters) {
     inspections.push(reads);
   }
   check(`${ parser.name }: own query reuses the resolved slot`, inspections[1], inspections[0]);
+  const factory = 'class Lists { static make(C) { return new Lists(C.from("ab")); } }';
+  for (const [name, source, whole] of [
+    ['returned instance', `${ factory } export const list = Lists.make(Array);`, false],
+    ['class passed after lookup', `${ factory } Lists.make(Array); hand(Lists);`, false],
+    ['class passed before lookup', `${ factory } hand(Lists); Lists.make(Array);`, true],
+    ['class exposed during definition', 'class Lists { static { hand(Lists); } static make(C) { return C.from("ab"); } } Lists.make(Array);', true],
+    ['instance passed before lookup', `${ factory } hand(new Lists()); Lists.make(Array);`, true],
+    ['repeated lookup', `${ factory } export function get() { return Lists.make(Array); }`, true],
+    ['loop back edge', `${ factory } for (const item of items) hand(Lists.make(Array), item);`, true],
+    ['argument passed on', 'class Lists { static make(C) { hand(C); return new Lists(C.from("ab")); } } Lists.make(Array);', true],
+    ['closed method forwards argument', 'class Lists { static make(C) { hand(C); return C.from("ab"); } } Lists.make(Array);', true],
+    ['replaced writer', 'class Lists { static make(C) { C.mark = 1; } } hand(Lists); Lists.make(Array);', true],
+    ['method replaced during key evaluation', `${ factory } function key() { hand(Lists); return "make"; } Lists[key()](Array);`, true],
+    ['unknown static', 'class Lists { static make(C) { return new Lists(C[key]("ab")); } } Lists.make(Array);', true],
+  ]) {
+    check(`${ parser.name }/static call before escape/${ name }`, census(parser, source).readsUnnamedStatic('Array'), whole);
+  }
   for (const [name, source, own, constructor = 'Map'] of [
     ['base', 'const M = Map; hand(M); class Sub extends M {} Sub.groupBy;', true],
     ['subclass', 'class Sub extends Map {} hand(Sub); Sub.groupBy;', false],

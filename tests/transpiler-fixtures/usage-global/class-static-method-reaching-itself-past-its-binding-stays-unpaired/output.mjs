@@ -1,7 +1,13 @@
-// a class reaching itself past its binding has no fixed static: `this` in a static member is the class or
-// a subclass, a class expression's own name is a binding only its body sees, a write replaces the static
-// from where it runs, and a static under a key no canon names may be the one called. each call hands its
-// constructor to code no census pairs
+import "core-js/modules/es.object.from-entries";
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.array.from";
+import "core-js/modules/es.math.trunc";
+import "core-js/modules/es.string.from-code-point";
+import "core-js/modules/es.string.iterator";
+import "core-js/modules/es.string.raw";
+// These mutable or self-referencing classes have open callers. A visible call still contributes
+// the statics its argument can supply, while the body must keep reads from a user receiver.
 class Self {
   static fromText(C, text) {
     return C.from(text);

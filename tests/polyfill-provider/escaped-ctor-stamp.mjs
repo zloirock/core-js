@@ -429,16 +429,16 @@ const NAME_ROWS = [
     ['concise arrow', 'const f = () => flag ? Map : Set; f().groupBy([], x => x);'],
     ['alias of the result', 'function f() { return flag ? Map : Set; } const ns = f(); ns.groupBy([], x => x);'],
     // ... whatever spelling reads the call
-    ['destructured result', 'function f() { return flag ? Map : Set; } const { groupBy } = f();'],
-    ['destructured result with a default', 'function f() { return flag ? Map : Set; } const { groupBy = null } = f();'],
     ['result in an array slot', 'function f() { return flag ? Map : Set; } const list = [f()]; list[0].groupBy([], x => x);'],
   ].map(([name, code]) => ({ name: `unsupported selecting return: ${ name }`, code, homeOnly: ['Map'], withContainerCensus: true })),
-  // A native loop pattern reads the substituted constructor, even when the return
-  // cannot be extracted. Its family is retained for pure without creating a global escape.
+  // A retained destructuring pattern reads the substituted constructor, even when
+  // the return cannot be extracted. Its family is retained for pure without creating a global escape.
   ...[
+    ['destructured result', 'function f() { return flag ? Map : Set; } const { groupBy } = f();'],
+    ['destructured result with a default', 'function f() { return flag ? Map : Set; } const { groupBy = null } = f();'],
     ['constructor return', 'class K { constructor() { return Map; } } for (const { groupBy } of [new K()]) groupBy([], x => x);'],
     ['selecting return', 'function f() { return flag ? Map : Set; } for (const { groupBy } of [f()]) groupBy([], x => x);'],
-  ].map(([name, code]) => ({ name: `retained for-of result: ${ name }`, code, heldInSlot: ['Map'], withContainerCensus: true })),
+  ].map(([name, code]) => ({ name: `retained pattern over result: ${ name }`, code, heldInSlot: ['Map'], withContainerCensus: true })),
   // ... and where the constructor stays home - read by name off its class or literal, constructed,
   // discarded, read for a key no static has - the census owes nothing either
   ...[

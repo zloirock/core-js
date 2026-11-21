@@ -4,3 +4,9 @@ function f(...[a, { entries } = Map]) {
   return [a, entries];
 }
 export { f };
+export function shadow(...[a, { entries: Array } = Map]) {
+  return Array.from(a);
+}
+export function unshadowed(...[a, { entries } = Map]) {
+  return [Array.from(a), entries];
+}

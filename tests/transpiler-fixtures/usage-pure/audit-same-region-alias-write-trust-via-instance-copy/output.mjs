@@ -1,3 +1,4 @@
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _self from "@core-js/pure/actual/self";
 // A sole alias write is trusted when it dominates the read in the same execution region.
@@ -8,5 +9,7 @@ let v, out;
 // ... and the receiver a claim COPIES into its helper argument carries the same trust: the copy
 // keeps no source positions of its own, so it is stamped from the original before the collapse runs
 let g6;
-export const viaInstanceCopy = (g6 = _globalThis, v = _self).Array.prototype.indexOf.call([5], 5);
+export const viaInstanceCopy = (g6 = _globalThis, v = _self).Array.prototype.indexOf.call([5], 0);
+let g7;
+export const viaPolyfilledInstanceCopy = _atMaybeArray((g7 = _globalThis, v = _self).Array.prototype).call([5], 0);
 export { v };

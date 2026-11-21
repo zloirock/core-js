@@ -6,3 +6,6 @@ function process(...rest: Array<Set<number>>) {
   return rest.flatMap(s => Array.from(s));
 }
 process(new Set([1]));
+export function first(...rest: Array<string>) {
+  return rest[0].at(0);
+}

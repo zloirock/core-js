@@ -231,7 +231,7 @@ function createResolveNodeType(babelNodeType, t, {
   // every type-layer binding lookup routes through this wrap: the violation list is merged with
   // the canonical AST scan (the native scope models mis-attribute e.g. switch-DISCRIMINANT
   // writes under a case-level shadow), and the per-binding cache keeps identity compares stable
-  getScopeBinding = wrapScopeBindingLookup(getScopeBinding, nestedTSRuntimeDeclarations, () => currentLookupPath());
+  getScopeBinding = wrapScopeBindingLookup(getScopeBinding, nestedTSRuntimeDeclarations, () => currentValueLookupPath());
   const babelBindingAdapter = makeBabelBindingAdapter(
     getPolyfillBindingHint, babelNodeType, getScopeBinding, isMutatedStatic, getDecisionAdapter,
   );
@@ -761,6 +761,7 @@ function createResolveNodeType(babelNodeType, t, {
   const {
     withLookupPath,
     currentLookupPath,
+    currentValueLookupPath,
     isFunctionLike,
     isFunctionOrClassDeclaration,
     isClassLikeDeclaration,
@@ -1332,6 +1333,7 @@ function createResolveNodeType(babelNodeType, t, {
     // so it passes by value. its two neighbours are pattern-bindings cluster exports assigned
     // later, so those keep the thunk (a direct read would capture undefined)
     findPatternKeyPath,
+    foldWithPatternDefault: (...args) => patternBindingsCluster.foldWithPatternDefault(...args),
     resolveDestructuredMember: (...args) => resolveDestructuredMember(...args),
     resolveObjectMemberPath: (...args) => resolveObjectMemberPath(...args),
     walkObjectLiteralPropertyPath,
@@ -2457,6 +2459,7 @@ function createResolveNodeType(babelNodeType, t, {
   // forward-declared `findExpressionAnnotation` + `buildCallSiteSubst`; typeQuery
   // (instantiated earlier) sees the latter via a thunk
   const callResolutionCluster = createCallResolution({
+    callbackParameterAnnotation: patternBindingsCluster.callbackParameterAnnotation,
     foldUnionArmTypes,
     resolveMemberPropertyName,
     t,
@@ -3536,13 +3539,13 @@ function createResolveNodeType(babelNodeType, t, {
           ? findExpressionAnnotation(initPath) : null;
         const castType = annotated
           ? resolveAnnotatedMemberPath(annotated.annotation, keyPath, annotated.scope) : null;
-        if (castType) return castType;
         // ... and where it names nothing, the VALUE routes read THROUGH it: both dialects spell the
         // wrapper `TSAsExpression`, and only its expression carries what runs
         const valueInit = annotated ? initPath.get('expression') ?? initPath : initPath;
         // ... and a default the init's LITERAL provably leaves firing is the receiver ALONE: the slot's
         // own arm never runs (`{ A: { at } = fa() } = {}` reads `at` off `fa()` and nothing else)
         if (slotDefault?.node && slotDefaultFiresCertainly(valueInit, keyPath, parent)) return resolveNodeType(slotDefault);
+        if (castType) return foldDefault(castType);
         // the init path travels UNRESOLVED as well: the slot read asks it whether a binding stands
         // between the literal and this read, and answers flow-aware where one does
         const member = resolveObjectMemberPath(resolveRuntimeExpression(valueInit), keyPath, valueInit, false,

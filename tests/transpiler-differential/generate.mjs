@@ -2443,6 +2443,77 @@ function * generateClassFieldContracts() {
   };
 }
 
+// Keep each call's import obligations isolated from constructors loaded by another row.
+function * generateFunctionArgumentContracts() {
+  const cases = [
+    ['escaped-instance', 'function run(use) { class C { static read(A) { return A.from([1])[0]; } }'
+      + ' C.read(Array); return use(new C()); }', 'run(v => v.constructor.read({ from: () => [9] }))'],
+    ['factory-before-escape', 'class Lists { static make(C, text) { return new Lists(C.from(text)); } constructor(items) { this.items = items; } }'
+      + " const list = Lists.make(Array, 'ab'); const custom = { from() { effects.push(this === custom); return [9]; } };",
+    "[list.items, list.constructor.make(custom, 'cd').items]"],
+    ['static-forwards-argument', "const observe = Function('value', 'return value.name');"
+      + " class Lists { static make(C) { return [observe(C), C.from('ab')]; } }", 'Lists.make(Array)'],
+    ['escaped-instance-method', 'function run(hand) { class C { handTo(f) { return f(this); } static read(A) { return A.from([1])[0]; } }'
+      + ' C.read(Array); const value = new C(); return value.handTo(hand); }', 'run(v => v.constructor.read({ from: () => [19] }))'],
+    ['member-default', "function f({ x = 'ab' } = { x: [7] }) { return x; }",
+      '[f({ x: undefined }).at(0), f().at(0), f({ x: null }) === null]'],
+    ['ancestor-default', "function f({ a: { v = 'ab' } = { v: [7] } }) { return v; }", '[f({}).at(0), f({ a: {} }).at(0)]'],
+    ['rest-pattern', 'function first(...[x]) { return x; } function zero(...{ 0: x }) { return x; } function all(...xs) { return xs; }',
+      "[first('abc').at(0), zero('abc').at(0), all('abc').at(0)]"],
+    ['redeclared', "function f(x = [], change) { if (change) { var x = 'abc'; } return x; }", '[f([7], false).at(0), f([7], true).at(0)]'],
+    ['catch-shadow', "function f(x = []) { try { throw 'abc'; } catch (x) { return x; } }", 'f([7]).at(0)'],
+    ['custom-builtin-member', "Object.defineProperty(Array, 'consumeGroup', { configurable: true, value: C => C.groupBy([7], Boolean).get(true)[0] });",
+      '(() => { try { return Array.consumeGroup(Map); } finally { delete Array.consumeGroup; } })()'],
+    ['mutated-callee-capture', "const change = Function('a', 'a[0] = { allSettled(C) { return C.groupBy([3], Boolean).get(true)[0]; } }');"
+      + ' let box = [Object], saved; box = saved = [Promise]; change(saved); const [{ allSettled }] = box;',
+    'allSettled.call(Promise, Map)'],
+    ['inheritable-factory', 'class Lists { constructor(xs) { this.xs = xs; } static make(C, text) { return new this(C.from(text)); } }',
+      "Lists.make(Array, 'ab').xs"],
+    ['escaped-class-replaces-method', 'class C { static read(M) { return M.name; } } const alias = C;'
+      + " Function('C', 'C.read = M => M.groupBy([7], Boolean).get(true)[0]')(alias);", 'C.read(Map)'],
+    ['escaped-instance-replaces-method', 'class C { static read(M) { return M.name; } } const value = new C();'
+      + " Function('v', 'v.constructor.read = M => M.groupBy([7], Boolean).get(true)[0]')(value);", 'C.read(Map)'],
+    ['retained-map', 'function make(flag) { return flag ? Map : Set; }'
+      + ' function read(flag) { const { groupBy = null } = make(flag); return groupBy ? groupBy([7], Boolean).get(true)[0] : null; }',
+    '[read(true), read(false)]'],
+    ['retained-iterator', 'function read(pick) { const { from } = (() => pick ? Array : Iterator)(); return from([2])[Symbol.iterator]().next().value; }',
+      'read(false)'],
+    ['explicit-this', 'function root() { return this; } const user = { Array: { from() { effects.push(this === user.Array); return 21; } } };',
+      'root.call(user).Array.from([1])'],
+    ['pattern-tdz', 'let result; try { result = make().Array.from([3]); } catch (e) { result = e.name; } const { make } = { make() { return globalThis; } };',
+      'result'],
+    ['assigned-closure', 'const Family = Object; let factory = () => Family; if (globalThis.choice ?? true) { const Family = Array; factory = () => Family; }',
+      'factory().from([42])', false, false],
+    ['reflected-spread', "function pick(C) { return C; } Reflect.apply(...[pick, null, [Array]]).from = () => 'installed';", 'Array.from([1])'],
+    ['own-invoker', "const helper = { call(C) { return C; }, apply(C) { return C; } }; helper.call(Array).from = () => 'installed';",
+      '[Array.from([1]), helper.apply(Object) === Object]'],
+    ['own-apply-with-owner', 'const methods = { apply(C) { return C; } }; Reflect.apply(methods.apply, methods, [Array]).from = () => [9];',
+      'Array.from([3])[0]'],
+    ['cast-default', "const { row: { at } = 'xy' } = ({} as { row?: number[] });", "at.call('xy', 0)", true],
+    ['optional-parent', "const source: { box?: { value: string } } = JSON.parse('{}'); const { box: { value } = { value: [7] } } = source;",
+      'value.at(0)', true],
+    ['signature-scope', "type Shape = string; function check(value: Shape = 'hello') { type Shape = number[]; return value.at(0); }",
+      "[check(), check('there')]", true],
+    ['tuple-rest', 'function first(...[value]: [string]) { return value.at(0); }', "first('abc')", true],
+    ['deferred-nullish', "let xs = [7]; function read() { return (xs ?? 'abc').at(0); } const first = read(); xs = null;", '[first, read()]'],
+    ['contextual-member', 'type Pair<T> = { items: T }; type Holder<U> = { use(cb: (p: Pair<U>) => void): void };'
+      + ' const h: Holder<number[]> = { use(cb) { cb({ items: [9] }); } }; let value; h.use(p => { value = p.items.at(0); });', 'value', true],
+    ['forwarded-writer', 'function fill(t) { t.C = Map; } function read(flag) { function run(f, b) { if (flag) f(b); }'
+      + ' const box = { C: Object }; run(fill, box); const { C: { groupBy } } = box; const grouped = groupBy([7], Boolean);'
+      + ' return grouped.true ? grouped.true[0] : grouped.get(true)[0]; }', '[read(true), read(false)]'],
+  ];
+  for (const [name, setup, observed, ts = false, strip = true] of cases) yield {
+    name: `function-arguments/${ name }`, ts, strip, isolated: true,
+    code: `export const effects = []; ${ setup }\nexport const r = ${ observed };`,
+  };
+  for (const strict of [false, true]) yield {
+    name: `function-arguments/mapped-arguments/${ strict ? 'strict' : 'sloppy' }`, sourceType: 'script', strip: true, isolated: true,
+    code: `${ strict ? '"use strict";' : '' } function factory(value) {
+      arguments[0] = { Array: { from() { return ['custom']; } } }; return value;
+    } module.exports = { r: factory(globalThis).Array.from([3])[0], effects: [] };`,
+  };
+}
+
 // A constructor's visible call can prove a candidate while a second caller supplies an
 // override. Compare actual results in fresh realms so no other case can install a static.
 function * generateClassReceiverContracts() {
@@ -28609,5 +28680,6 @@ export function * generate() {
   yield * generateExtractedArrayMethodReads();
   yield * generateContainerMutationContracts();
   yield * generateClassFieldContracts();
+  yield * generateFunctionArgumentContracts();
   yield * generateClassReceiverContracts();
 }

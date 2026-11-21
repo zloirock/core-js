@@ -82,3 +82,18 @@ QUnit.test('type calls: nullable and specialized overloads', assert => {
   function selected(value: string, mode?: 'rows'): any { return [47]; }
   assert.same(selected('present').at(-1), 47);
 });
+
+QUnit.test('function results follow their actual slots and receiver', assert => {
+  function read({ x = 'ab' }: { x?: string | number[] } = { x: [7] }) { return x; }
+  function first(...[x]: [string]) { return x; }
+  function receiver(this: any) { return this; }
+  const owner = { Array: { from() { return this === owner.Array ? [9] : []; } } };
+  assert.same(read({ x: undefined }).at(0), 'a');
+  assert.same(read().at(0), 7);
+  assert.same(first('abc').at(0), 'a');
+  assert.deepEqual(receiver.call(owner).Array.from([1]), [9]);
+  function shadow(value: number[]) {
+    try { throw 'abc'; } catch (value: any) { return value; }
+  }
+  assert.same(shadow([7]).at(0), 'a');
+});

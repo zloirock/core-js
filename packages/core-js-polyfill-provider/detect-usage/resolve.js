@@ -80,6 +80,8 @@ import {
   isReassignedBeyondDeclarator,
   isRenderedStoredValue,
   isTopLevelThisContext,
+  isSloppyAtPath,
+  referencesArgumentsObject,
   isTransparentWrapper,
   isUndefinedNode,
   isValidIdentifierName,
@@ -131,7 +133,6 @@ import {
   reassignmentBlocksGlobalResolve,
   reassignmentValueEnumeration,
   bindingWrittenBeforeUsage,
-  reassignmentValueNodes,
   readsOffBindingItself,
   requireCallSource,
   resolveCallArgument,
@@ -1495,7 +1496,7 @@ export function withBindingLookupGuard(owner, name, question) {
 // (unplugin has no AST re-visit to recover it otherwise); a non-proxy self-cycle (`var Map = Map`)
 // stays false
 export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding = null, usageNode = null, readNode = null }) {
-  if (node?.type === 'ThisExpression') return isTopLevelThisContext(path) ? 'globalThis' : null;
+  if (node?.type === 'ThisExpression') return isTopLevelThisContext(pathOfNode(path, node) ?? path) ? 'globalThis' : null;
   if (node?.type !== 'Identifier') return null;
   // the identifier being classified IS the read: anchor the order proofs (the trusted write's span
   // gate, the reaching-definition cut) at its own span when the caller brought no anchor. the PATH
@@ -2988,7 +2989,7 @@ function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNod
       }
     // top-level `this` roots the chain as the global proxy (pragmatic assumption shared with
     // the type resolver via the same canon)
-    } else if (obj.type === 'ThisExpression') return isTopLevelThisContext(path);
+    } else if (obj.type === 'ThisExpression') return isTopLevelThisContext(pathOfNode(path, obj) ?? path);
     // A constructor reached through a selecting realm receiver still owns statics above it.
     // Ask the same selection proof as the direct receiver so a constructor-only claim cannot
     // strand a later static read on an entry that does not install that method.
@@ -3422,15 +3423,15 @@ export function reachableAliasValues({
       if (binding && isReassignedBeyondDeclarator(binding)) {
         // pass the factory name so pattern-LHS reassignments (`[f] = [() => Array]`) pair via
         // patternSlotValues - the Identifier-receiver branch above passes it for the same reason
-        for (const rhs of reassignmentValueNodes({
-          binding, usagePath: path, name: callee.name, ctx: { scope, adapter, path, resolveKey }, usageNode,
+        for (const { node: rhs, scope: valueScope, path: valuePath } of reassignedAliasValues({
+          binding, name: callee.name, scope, declScope, adapter, path, usageNode, seen: pathSeen,
         })) {
           const fn = unwrapTransparentSeq(rhs);
           if ((fn.type === 'ArrowFunctionExpression' || fn.type === 'FunctionExpression')
             && !fn.params?.length && !fn.async && !fn.generator) {
             const ret = singleReturnBodyExpression(fn.body);
-            yield { value: ret && resolve({ node: ret, ctx: { scope: declScope, adapter, path } }) };
-          } else yield hop(rhs, callee.name, true, declScope); // a factory bound through an Identifier alias
+            yield { value: ret && resolve({ node: ret, ctx: { scope: valueScope, adapter, path: valuePath ?? path } }) };
+          } else yield hop(rhs, callee.name, true, valueScope, valuePath ?? path); // a factory bound through an Identifier alias
         }
       }
       if (binding) yield hop(identifierDeclaratorInit(binding), callee.name, true, declScope);
@@ -3498,6 +3499,7 @@ function pairedCallView(node, { scope, adapter, path }, getBinding = null) {
   const pairing = callPairing(node, null, {
     nameIsShadowed: (name, read) => adapter.hasBinding({ scope, name, path, read }),
     staticIsMutated: adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic ?? null,
+    ownInvoker: member => !!sourceCensusFact(LOCAL_MEMBER_CALLEES, member, path),
     getCalleeEntry: callee => pureImportSourceEntry(pureImportSubpath(
       moduleDefaultSource({ node: callee, scope, adapter, path, getBinding }), adapter.packages,
     )),
@@ -3925,12 +3927,12 @@ function patternBoundCallee({ binding, name, hop, scope, readPath, readNode, ini
   })) return { open: true };
   const paired = withBindingLookupGuard(declarator, name,
     () => certainPairedSlotValue({ pattern: declarator.id, init: declarator.init, name, ctx }));
-  if (paired) {
-    return initAvailable({ declaratorNode: declarator, usagePath: readPath, usageNode: readNode, kind: binding.kind })
-      ? { callee: unwrapTransparentSeq(paired.node), scope: paired.scope } : { declined: true };
+  const method = !paired && patternMethodSlot(declarator, name, { ...hop.ctx, scope, path: readPath });
+  if (!paired && !method) return null;
+  if (!initAvailable({ declaratorNode: declarator, usagePath: readPath, usageNode: readNode, kind: binding.kind })) {
+    return { declined: true };
   }
-  const method = patternMethodSlot(declarator, name, { ...hop.ctx, scope, path: readPath });
-  return method ? { callee: method } : null;
+  return paired ? { callee: unwrapTransparentSeq(paired.node), scope: paired.scope } : { callee: method };
 }
 
 // the METHOD a pattern name takes off a literal its declarator spells or aliases (`const { make } =
@@ -4020,6 +4022,8 @@ export function inlineCallReturnExpression(hop, {
     // Only the returned parameter needs this proof. Scanning the first parameter while
     // resolving every callee repeated whole-body walks even when no argument was returned.
     if (paramReboundInBody(callee.body, returnedName)) return null;
+    if (callee.type !== 'ArrowFunctionExpression' && referencesArgumentsObject(callee)
+      && callee.params.every(param => param.type === 'Identifier') && isSloppyAtPath(pathOfNode(hop.ctx.path, callee))) return null;
     // a slot that is not a plain Identifier carries expressions of its own, and a DEFAULT may write
     // the returned slot (`(value, n = (value = Other)) => value`): the argument then describes a
     // value the call no longer hands back. asked only of a list that HAS such a slot - a plain

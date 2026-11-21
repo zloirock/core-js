@@ -156,6 +156,23 @@ function isValueDeclarator(node) {
   return node?.type === 'VariableDeclarator';
 }
 
+// A signature may query a function-body value with typeof, but type declarations
+// in that body do not shadow the types visible where the parameters are declared.
+function signatureFunction(path) {
+  const param = path?.parentPath?.node?.type === 'TSParameterProperty' ? path.parentPath : path;
+  const fn = param?.parentPath;
+  return fn?.node.params?.includes(param.node) ? fn : null;
+}
+
+function valueLookupPath(path) {
+  return signatureFunction(path)?.get('body') ?? path;
+}
+
+function signatureTypeScope(scope, path) {
+  const fn = signatureFunction(path);
+  return fn && (scope === path.scope || scope === fn.get('body')?.scope) ? fn.parentPath?.scope ?? scope : scope;
+}
+
 export function createNameResolution({ t, getScopeBinding = () => null }) {
   function isFunctionLike(node) {
     return !!node && (t.isFunction(node) || AMBIENT_FUNCTION_TYPES.has(node.type));
@@ -248,7 +265,7 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
   // declarations written inside it and the call resolves to nothing at all
   let lookupPathAmbientCache = new WeakMap();
   function ambientInLookupPath({ name, matchType, firstMatch = true }) {
-    const path = lookupPathStack.at(-1);
+    const path = valueLookupPath(currentLookupPath());
     if (!path) return firstMatch ? null : [];
     const byName = getOrInitMap(getOrInitMap(lookupPathAmbientCache, path), matchType);
     const cacheKey = `${ firstMatch ? '1' : '*' }${ name }`;
@@ -574,6 +591,7 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
   }
 
   function lookupTypeDeclInScope(name, scope) {
+    scope = signatureTypeScope(scope, currentLookupPath());
     const key = nameCacheKey(name);
     if (key === null) return findFirstDecl({ name, scope, leafMatch: isTypeBearingDeclaration });
     const byName = getOrInitMap(typeDeclCache, scope);
@@ -691,6 +709,7 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
   let allTypeDeclCache = new WeakMap();
   function findAllTypeDeclarations(name, scope) {
     if (!scope) return [];
+    scope = signatureTypeScope(scope, currentLookupPath());
     const anchored = findTypeDeclInLookupPath(name, true);
     if (anchored.length) return anchored;
     const cacheKey = nameCacheKey(name) ?? '';
@@ -835,6 +854,7 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
   return {
     withLookupPath,
     currentLookupPath,
+    currentValueLookupPath: () => valueLookupPath(currentLookupPath()),
     isFunctionLike,
     isFunctionOrClassDeclaration,
     isClassLikeDeclaration,

@@ -1624,7 +1624,8 @@ export function collectMemberUnionCandidates(options) {
   }) : null;
   const parameterNode = parameterBinding?.path?.node ?? parameterBinding?.node;
   const parameterSource = parameterBinding?.kind === 'param' ? sourceCensusFact(PARAMETER_STATIC_SOURCES, parameterNode, path) : null;
-  const slotCandidates = [];
+  const slotCandidates = parameterSource?.guarded && (computedKeyNode || primaryKey === null || hasStaticDefinitionKey(primaryKey))
+    ? [...parameterSource.guarded] : [];
   const objects = reachableAliasValues({
     values: slotCandidates,
     aliasNode: objectNode,

@@ -42,6 +42,7 @@ import {
   isVoidExpression,
   objectLiteralPrototypeValue,
   prototypeChainMayLend,
+  programExposesDeclaration,
   spreadAtOrBefore,
   argumentOverridesSlot,
   effectiveArgsLength,
@@ -185,6 +186,7 @@ function findBindingPattern(node, type) {
   if (node.type === type) return node;
   if (node.id?.type === type) return node.id;
   if (node.left?.type === type) return node.left;
+  if (node.type === 'RestElement' && node.argument?.type === type) return node.argument;
   return null;
 }
 
@@ -482,10 +484,11 @@ export function createPatternBindings({
   // returning the default's type alone narrowed a foreign-typed member to the default's flavor
   // (dropped es.string.at for a string member with an array default), and the member's type
   // alone dropped the default's flavor symmetrically
-  function foldWithPatternDefault(memberType, pattern, varName, bindingPath) {
+  function foldWithPatternDefault(memberType, pattern, varName, bindingPath, source = null) {
     const defaultPath = findDestructuringDefaultPath(pattern, varName, bindingPath);
     if (!defaultPath) return memberType;
-    const presence = staticMemberPresence(pattern, varName, bindingPath);
+    const init = source ?? (t.isVariableDeclarator(bindingPath.node) && bindingPath.get('init'));
+    const presence = staticMemberPresence(pattern, varName, init);
     // a statically PRESENT member (`const [a = 0] = ['x']`) keeps the default DEAD - the
     // member's type alone is precise. `staticMemberPresence` is purely SYNTACTIC (any
     // non-`undefined` value node reads as present), so a mayBeNullish member value
@@ -493,7 +496,9 @@ export function createPatternBindings({
     // the default still fires on the nullish path, and the member's type alone narrows to
     // the wrong family; fall through to the member x default fold instead
     if (memberType && presence === 'present' && !memberType.mayBeNullish) return memberType;
-    const defaultType = resolveNodeType(defaultPath);
+    const defaultType = defaultPath.keys
+      ? resolveObjectMemberPath(resolveRuntimeExpression(defaultPath.source), defaultPath.keys, defaultPath.source)
+      : resolveNodeType(defaultPath);
     // a statically ABSENT member (`const [a = 'x'] = []`, `const { a = 'x' } = {}`) means the
     // default always fires - its type alone is precise
     if (defaultType && presence === 'absent') return defaultType;
@@ -507,12 +512,12 @@ export function createPatternBindings({
   // (out of range / hole / missing key - the default always fires). a literal `undefined`
   // value counts as absent. nested patterns, spreads, computed keys and dynamic inits stay
   // undecided (null -> the member x default fold)
-  function staticMemberPresence(pattern, varName, bindingPath) {
-    if (!t.isVariableDeclarator(bindingPath.node)) return null;
-    const { init } = bindingPath.node;
+  function staticMemberPresence(pattern, varName, source) {
+    if (!source?.node) return null;
+    const init = source.node;
     // a SHADOWED `undefined` is an ordinary value, so the slot is present and its default stays
     // dead - the same scope gate every other bare-`undefined` read in this file applies
-    const undefinedShadowed = !!getScopeBinding({ scope: bindingPath.scope, name: 'undefined' });
+    const undefinedShadowed = !!getScopeBinding({ scope: source.scope, name: 'undefined' });
     function valuePresence(value) {
       if (!value) return 'absent';
       if (isBareUndefinedIdentifier(value) && !undefinedShadowed) return 'absent';
@@ -536,7 +541,7 @@ export function createPatternBindings({
       return valuePresence(value);
     }
     if (pattern.type === 'ObjectPattern' && init?.type === 'ObjectExpression') {
-      const keyPath = findDestructuredKeyPath(pattern, varName, bindingPath.scope);
+      const keyPath = findDestructuredKeyPath(pattern, varName, source.scope);
       if (keyPath?.length !== 1 || typeof keyPath[0] !== 'string') return null;
       if (init.properties.some(prop => prop.type === 'SpreadElement' || prop.computed)) return null;
       // a literal that installs a PROTOTYPE can supply the key without owning it, so a missing own
@@ -577,6 +582,8 @@ export function createPatternBindings({
         if (isDestructurePattern(innerLeft.node)) {
           const found = walkDestructuringForDefault(innerLeft, innerLeft.node, varName);
           if (found) return found;
+          const keys = findPatternKeyPath(innerLeft.node, varName, innerLeft.scope);
+          if (keys) return { source: valuePath.get('right'), keys };
         }
       } else if (isDestructurePattern(valuePath.node)) {
         const found = walkDestructuringForDefault(valuePath, valuePath.node, varName);
@@ -702,9 +709,8 @@ export function createPatternBindings({
       || (t.isAssignmentPattern(bindingPath.node) && node.left?.typeAnnotation);
   }
 
-  // Parameter annotations see the function's body declarations in TypeScript's lexical
-  // scope, even when the parser gives their defaults a separate runtime environment.
-  // Only annotation lookup moves; evaluating the default keeps its original path/scope.
+  // A typeof query in the signature can see a body value declaration. Ordinary type
+  // names use the lexical lookup path of the annotation itself.
   function bindingAnnotationPath(bindingPath) {
     const parameter = bindingPath.parentPath?.node.type === 'TSParameterProperty' ? bindingPath.parentPath : bindingPath;
     const parent = parameter.parentPath;
@@ -714,7 +720,7 @@ export function createPatternBindings({
 
   function resolveBindingAnnotation(bindingPath, annotation) {
     const path = bindingAnnotationPath(bindingPath);
-    return withLookupPath(path, () => resolveTypeAnnotation(annotation, path.scope));
+    return withLookupPath(bindingPath, () => resolveTypeAnnotation(annotation, path.scope));
   }
 
   // classify a rest binding at any depth of an array OR object destructuring: an array-rest (`[...v]`,
@@ -761,10 +767,11 @@ export function createPatternBindings({
     // `resolveArrayPatternBinding`, and the two runtime lanes scanned again on their own
     const index = findPatternIndex(arrayPattern, varName);
     // annotation on the pattern itself: function foo([a]: string[]) or const [a]: string[] = ...
-    if (arrayPattern.typeAnnotation) {
+    const annotation = arrayPattern.typeAnnotation ?? (bindingPath.node.type === 'RestElement' && bindingPath.node.typeAnnotation);
+    if (annotation) {
       const path = bindingAnnotationPath(bindingPath);
-      const result = withLookupPath(path, () => resolveArrayPatternBinding({
-        arrayPattern, varName, annotation: arrayPattern.typeAnnotation, scope: path.scope, index,
+      const result = withLookupPath(bindingPath, () => resolveArrayPatternBinding({
+        arrayPattern, varName, annotation, scope: path.scope, index,
       }));
       if (result) return result;
     }
@@ -1145,7 +1152,7 @@ export function createPatternBindings({
     // annotation on the pattern: const { items }: { items: number[] } = ...
     if (objectPattern.typeAnnotation) {
       const path = bindingAnnotationPath(bindingPath);
-      const result = withLookupPath(path, () => resolveAnnotatedMemberPath(objectPattern.typeAnnotation, keyPath, path.scope));
+      const result = withLookupPath(bindingPath, () => resolveAnnotatedMemberPath(objectPattern.typeAnnotation, keyPath, path.scope));
       if (result) return result;
     }
     if (t.isVariableDeclarator(bindingPath.node) && bindingPath.node.init) {
@@ -1187,7 +1194,9 @@ export function createPatternBindings({
   // `findTypeMember` deep-substitutes the receiver's alias type-args into the returned method
   // node, so the callback parameter slot already carries the concrete type before unwrap.
   // non-Identifier callee property, non-method member, or positional mismatch bail to null
-  function inferCallbackParamType(bindingPath) {
+  function callbackParameterAnnotation(binding, path) {
+    const bindingPath = binding.path;
+    if (bindingPath.node.type !== 'Identifier' || structuralNarrowInvalidated(binding, path)) return null;
     const fnPath = bindingPath.parentPath;
     if (!fnPath?.node || !t.isFunction(fnPath.node)) return null;
     // index in the this-dropped cb params, to align with the this-dropped cb-type param slots below
@@ -1218,8 +1227,7 @@ export function createPatternBindings({
     if (!isFunctionTypeNode(cbFnType)) return null;
     const target = dropLeadingThisParam(functionTypeParams(cbFnType))?.[paramIndex];
     const annotation = unwrapTypeAnnotation(target?.typeAnnotation);
-    if (!annotation) return null;
-    return resolveTypeAnnotation(annotation, objInfo.scope);
+    return annotation ? { ...objInfo, annotation } : null;
   }
 
   // does this function's NAME leave the file, so that callers this module cannot see may pass an
@@ -1230,9 +1238,7 @@ export function createPatternBindings({
   // for cross-parser parity. covers declaration exports (`export function f` / `export default
   // function f` / `export const f = () =>`, reached via the decl wrappers) AND a separate
   // `export { f }` / `export default f` specifier elsewhere in the module.
-  // a sloppy host opens no second hole: it is a CommonJS wrapper, whose top level is a function
-  // body, so a declaration there keeps the narrow - `module.exports = f` is an assignment
-  // reference the call-site scan already refuses
+  // A bare script also shares its top-level declarations with subsequent scripts.
   function functionNameEscapesFile(fnPath, fnName) {
     let program = null;
     for (let p = fnPath.parentPath; p; p = p.parentPath) {
@@ -1247,6 +1253,7 @@ export function createPatternBindings({
     }
     if (!program) return false;
     if (!fnName) return false;
+    if (programExposesDeclaration(program.node, fnPath)) return true;
     for (const stmt of program.node.body ?? []) {
       // a re-export (`export { f } from './x'`) carries a source and re-exports a DIFFERENT module's
       // binding, so it does not make THIS function escape - require no source
@@ -1623,8 +1630,8 @@ export function createPatternBindings({
     // `items` to the raw `T[]` from the method signature and dispatches the generic polyfill
     // instead of the array-specific helper
     if (node?.type === 'Identifier' && bindingPath.parentPath?.node && t.isFunction(bindingPath.parentPath.node)) {
-      const inferred = !structuralNarrowInvalidated(binding, path) && inferCallbackParamType(bindingPath);
-      if (inferred) return inferred;
+      const info = callbackParameterAnnotation(binding, path);
+      if (info) return resolveTypeAnnotation(info.annotation, info.scope);
     }
     // unannotated Identifier param with default value (`function f(x = [1,2,3])`). the default's
     // TYPE narrows the param ONLY if no call site overrides it with a real arg: a caller-passed
@@ -1736,7 +1743,7 @@ export function createPatternBindings({
     const types = [];
     // a NULLISH arm dispatches nothing - a member access on it throws natively and no polyfill
     // changes that - so it neither narrows nor widens the set
-    if (!isNullishInit(initPath.node, bindingPath.scope, bindingPath)) {
+    if (!unionHints || !isNullishInit(initPath.node, bindingPath.scope, bindingPath)) {
       types.push(unionHints ? mergeArmHints([initPath], depth) : resolveNodeType(initPath));
     }
     for (const violation of binding.constantViolations ?? []) {
@@ -1750,7 +1757,7 @@ export function createPatternBindings({
       // the scope gate reads the binding chain directly rather than through the resolver, so it needs
       // the same anchoring the resolver entry applies - an unanchored write path answers "no shadow"
       const anchored = anchorPathScope(assignPath);
-      if (plain && isNullishInit(valuePath.node, anchored.scope, anchored)) continue;
+      if (unionHints && plain && isNullishInit(valuePath.node, anchored.scope, anchored)) continue;
       types.push(assignedValueType(assignPath, name, unionHints, depth));
     }
     return types;
@@ -1845,6 +1852,8 @@ export function createPatternBindings({
     annotationAtKeyPath,
     findBindingAnnotation,
     bindingAnnotationPath,
+    foldWithPatternDefault,
+    callbackParameterAnnotation,
     bindingDestructuringPattern,
     findNameAnnotation,
     isOwnBindingWrite,

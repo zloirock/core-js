@@ -1,10 +1,13 @@
-// a class reaching itself past its binding has no fixed static: `this` in a static member is the class or
-// a subclass, a class expression's own name is a binding only its body sees, a write replaces the static
-// from where it runs, and a static under a key no canon names may be the one called. each call hands its
-// constructor to code no census pairs
+import _Array$from from "@core-js/pure/actual/array/from";
+import _Math$trunc from "@core-js/pure/actual/math/trunc";
+import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
+import _String$fromCodePoint from "@core-js/pure/actual/string/from-code-point";
+import _String$raw from "@core-js/pure/actual/string/raw";
+// These mutable or self-referencing classes have open callers. A visible call still contributes
+// the statics its argument can supply, while the body must keep reads from a user receiver.
 class Self {
   static fromText(C, text) {
-    return C.from(text);
+    return (C === Array ? _Array$from : C.from.bind(C))(text);
   }
   static me() {
     return this;
@@ -12,7 +15,7 @@ class Self {
 }
 const Named = class Inner {
   static cut(M, value) {
-    return M.trunc(value);
+    return (M === Math ? _Math$trunc : M.trunc.bind(M))(value);
   }
   static again(value) {
     return Inner.cut(Math, value);
@@ -20,13 +23,13 @@ const Named = class Inner {
 };
 class Over {
   static plain(S, strings) {
-    return S.raw(strings);
+    return (S === String ? _String$raw : S.raw.bind(S))(strings);
   }
 }
-Over.plain = (S, codes) => S.fromCodePoint(codes);
+Over.plain = (S, codes) => (S === String ? _String$fromCodePoint : S.fromCodePoint.bind(S))(codes);
 class Dynamic {
   static build(O, pairs) {
-    return O.fromEntries(pairs);
+    return (O === Object ? _Object$fromEntries : O.fromEntries.bind(O))(pairs);
   }
   static [key]() {}
 }

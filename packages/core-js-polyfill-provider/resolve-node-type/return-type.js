@@ -31,7 +31,7 @@
 // `hasAnyParamTypeRef`, `isStructuralAnnotation`.
 import {
   MAX_DEPTH, firstTypeParamIsInner, $Object, $Primitive,
-  argIndexForParam, callArgumentPaths, dropLeadingThisParam,
+  argIndexForParam, callArgumentPaths, canonicalArrayIndex, dropLeadingThisParam,
 } from './base.js';
 import { isTypeQueryOverImportType, typeRefName } from './ast-shapes.js';
 import {
@@ -39,12 +39,13 @@ import {
   effectiveArgsLength,
   getCallSiteTypeArgs,
   getTypeArgs,
-  isDestructurePattern,
   patternSlotTarget,
+  patternSlotHasDefault,
   positionalPathAt,
   peelSkippableWrapperPath,
   peelTSParenthesized,
   propertyInstallsPrototype,
+  varInitStaleByRedecl,
 } from '../helpers/ast-patterns.js';
 import { EXIT_STATEMENTS, nodeAlwaysExits } from './exit-analysis.js';
 
@@ -76,6 +77,7 @@ export function createReturnType({
   mergeArmHints,
   annotationUnionHints,
   findPatternKeyPath,
+  foldWithPatternDefault,
   resolveDestructuredMember,
   resolveObjectMemberPath,
   walkObjectLiteralPropertyPath,
@@ -147,7 +149,7 @@ export function createReturnType({
   // element - conservative bail. when no call arg is passed, an outer
   // AssignmentPattern default (`function f({a} = {a: [1,2,3]})` called as `f()` or `f(undefined)`)
   // is the fallback
-  function resolvePatternParam(param, keyPath, i, args, fnPath, unionHints = false) {
+  function resolvePatternParam(param, keyPath, i, args, fnPath, name, unionHints = false) {
     // dual index, like resolveDirectParam: `argIndex` aligns the call args past a leading `this`, raw
     // `i` keeps the AST `params` path on the real slot
     const argIndex = argIndexForParam(fnPath.node.params, i);
@@ -169,7 +171,10 @@ export function createReturnType({
         const value = walkObjectLiteralPropertyPath(literal, keyPath[0]);
         return value ? mergeArmHints([value], 0) : null;
       }
-      return arg ? resolveDestructuredMember(arg, keyPath, unionHints) : null;
+      if (!arg) return null;
+      if (!patternSlotHasDefault(pattern, name)) return resolveDestructuredMember(arg, keyPath, unionHints);
+      const type = foldWithPatternDefault(resolveDestructuredMember(arg, keyPath), pattern, name, fnPath.get('params')[i], arg);
+      return unionHints ? type && mergeArmHints([arg], 0, () => type) : type;
     }
     if (param.type === 'AssignmentPattern') {
       return resolveObjectMemberPath(fnPath.get('params')[i].get('right'), keyPath, null, unionHints);
@@ -177,51 +182,43 @@ export function createReturnType({
     return null;
   }
 
-  // locate the param that binds `targetName` - direct Identifier (`x` / `x = D`), destructure
-  // pattern (`{a}` / `[a]`, possibly defaulted), or rest (`...args`). returns { index, param,
-  // keyPath } or null. `param` keeps the outer AssignmentPattern wrapper intact so callers can
-  // test for a default; `keyPath` is non-null only for destructure-pattern matches. NAME match
-  // (not identity) - babel sets `binding.path.node` to the ObjectPattern container for
-  // destructure, conflating direct and destructured cases. shared by resolveParamType +
-  // paramHasOverridingArg so both agree on the binding-to-param mapping
+  // Use the declaration site: a catch or nested function may bind the same spelling.
   function findBindingParam(binding, fnPath) {
-    const targetName = binding.identifier?.name ?? binding.name ?? null;
-    const { params } = fnPath.node;
-    for (let i = 0; i < params.length; i++) {
-      const param = params[i];
-      if (param.type === 'RestElement') {
-        if (param === binding.path.node) return { index: i, param, keyPath: null };
-        continue;
-      }
-      // peel outer AssignmentPattern wrapper (`function f(x = 0)` / `function f({a} = {})`)
-      const patternParam = patternSlotTarget(param);
-      if (patternParam?.type === 'Identifier' && patternParam.name === targetName) {
-        return { index: i, param, keyPath: null };
-      }
-      if (!targetName) continue;
-      if (!isDestructurePattern(patternParam)) continue;
-      // findPatternKeyPath returns null when the target name isn't in this pattern (continue
-      // scanning siblings); a non-null keyPath is definitive - resolution succeeds or fails AT
-      // this param, no later param can match
-      const keyPath = findPatternKeyPath(patternParam, targetName, binding.scope ?? fnPath.scope);
-      if (keyPath) return { index: i, param, keyPath };
-    }
-    return null;
+    if (binding.kind !== 'param') return null;
+    let site = binding.path;
+    while (site?.parentPath && site.parentPath.node !== fnPath.node) site = site.parentPath;
+    const index = fnPath.node.params.indexOf(site?.node);
+    if (index === -1) return null;
+    const param = site.node;
+    const name = binding.identifier?.name ?? binding.name;
+    const pattern = patternSlotTarget(param.type === 'RestElement' ? param.argument : param);
+    if (pattern?.type === 'Identifier') return pattern.name === name ? { index, param, name } : null;
+    const keyPath = findPatternKeyPath(pattern, name, binding.scope ?? fnPath.scope);
+    return keyPath ? { index, param, name, keyPath } : null;
   }
 
   // resolve parameter type from call-site argument, default value, or rest-element shape.
   // takes the binding-to-param record rather than the binding: the caller has to run the scan
   // anyway to decide whether the override lane applies, and the scan walks every ObjectPattern /
   // ArrayPattern param through `findPatternKeyPath` once per collected return of the body
-  function resolveParamType({ index, param, keyPath }, fnPath, callPath, unionHints = false, depth = 0) {
-    if (param.type === 'RestElement') return unionHints ? new Set(['array']) : new $Object('Array');
+  function resolveParamType({ index, param, name, keyPath }, fnPath, callPath, unionHints = false, depth = 0) {
     const args = callArgumentPaths(callPath);
+    if (param.type === 'RestElement') {
+      if (!keyPath) return unionHints ? new Set(['array']) : new $Object('Array');
+      const [slot, ...keys] = keyPath;
+      const offset = canonicalArrayIndex(slot);
+      if (offset === null) return null;
+      const arg = positionalPathAt(args, argIndexForParam(fnPath.node.params, index) + offset, isMutatedStatic);
+      if (!arg) return null;
+      if (keys.length) return resolveDestructuredMember(arg, keys, unionHints);
+      return unionHints ? mergeArmHints([arg], depth) : resolveCallArgType(arg);
+    }
     return keyPath
       ? unionHints
         ? mergeArmHints([fnPath], depth,
-          () => resolvePatternParam(param, keyPath, index, args, fnPath),
-          () => resolvePatternParam(param, keyPath, index, args, fnPath, true))
-        : resolvePatternParam(param, keyPath, index, args, fnPath)
+          () => resolvePatternParam(param, keyPath, index, args, fnPath, name),
+          () => resolvePatternParam(param, keyPath, index, args, fnPath, name, true))
+        : resolvePatternParam(param, keyPath, index, args, fnPath, name)
       : resolveDirectParam(param, index, args, fnPath, unionHints, depth);
   }
 
@@ -245,7 +242,8 @@ export function createReturnType({
       ? getScopeBinding({ scope: resolved.scope, name: resolved.node.name, path: resolved }) : null;
     const validBinding = refBinding && !refBinding.constantViolations?.length ? refBinding : null;
     // one scan for all three readers below
-    const found = validBinding ? findBindingParam(validBinding, fnPath) : null;
+    const found = validBinding && findBindingParam(validBinding, fnPath);
+    if (found && varInitStaleByRedecl({ binding: validBinding, usagePath: path, name: found.name })) return null;
     // a positional arg overrides a param's default - prefer the arg over the body-local type,
     // which would surface the default and mask the argument. `validBinding` is null for a param
     // reassigned in the body (its constantViolations), so the body-local `resolveNodeType` below

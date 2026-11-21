@@ -9306,17 +9306,24 @@ function invocationEntryOf(bound, programNode, getCalleeEntry) {
 // binding's `apply` read reaches the same invoker through the entry the ROOT is bound to
 export function callPairing(node, programNode = null, options = {}) {
   let pairing = directCallPairing(node, programNode, options);
-  for (let next; pairing && (next = composedInvocation(pairing, options.staticIsMutated));) pairing = next;
+  for (let next; pairing && (next = composedInvocation(pairing, options));) pairing = next;
   return pairing;
+}
+
+// Invokers consume their control arguments by position. Expand a known leading
+// spread before taking the function, this or apply array from those positions.
+function invokerSlots(args, staticIsMutated) {
+  return args.some(arg => arg?.type === 'SpreadElement') ? positionalElements(args, staticIsMutated) ?? args : args;
 }
 
 // the invocation a BIND defers: `f.bind(t, x)` runs `f` with the receiver `t` and `x` ahead of whatever
 // the bound function is later called with - null for any other node
-export function boundInvocation(node, staticIsMutated = null) {
+export function boundInvocation(node, staticIsMutated = null, ownInvoker = null) {
   if (node?.type !== 'CallExpression') return null;
   const inner = peelToBareExpr(node.callee);
-  if (!isMemberAccessNode(inner) || memberKeyName(inner) !== 'bind' || staticIsMutated?.('Function.prototype', 'bind')) return null;
-  const captured = node.arguments ?? [];
+  if (!isMemberAccessNode(inner) || memberKeyName(inner) !== 'bind'
+    || staticIsMutated?.('Function.prototype', 'bind') || ownInvoker?.(inner)) return null;
+  const captured = invokerSlots(node.arguments ?? [], staticIsMutated);
   return {
     callee: peelToBareExpr(inner.object), args: captured.slice(1), argsUnknown: captured[0]?.type === 'SpreadElement', thisArg: captured[0],
   };
@@ -9325,11 +9332,12 @@ export function boundInvocation(node, staticIsMutated = null) {
 // ... and where the invoked value is itself an invoker: a bound function runs its target with the
 // receiver the bind fixed, whatever receiver the outer invoker passes, and `call` / `apply` handed a
 // receiver run THAT receiver - `Function.prototype.call.call(f, t)` is `f.call(t)`
-function composedInvocation({ callee, args, argsUnknown, thisArg }, staticIsMutated) {
-  const bound = boundInvocation(callee, staticIsMutated);
+function composedInvocation({ callee, args, argsUnknown, thisArg }, { staticIsMutated, ownInvoker }) {
+  const bound = boundInvocation(callee, staticIsMutated, ownInvoker);
   if (bound) return { ...bound, args: [...bound.args, ...args], argsUnknown: bound.argsUnknown || !!argsUnknown };
   if (!isMemberAccessNode(callee) || !thisArg || thisArg.type === 'SpreadElement' || argsUnknown) return null;
   const key = memberKeyName(callee);
+  if ((key === 'call' || key === 'apply') && ownInvoker?.(callee)) return null;
   if (key === 'call' && !staticIsMutated?.('Function.prototype', 'call')) {
     return { callee: peelToBareExpr(thisArg), args: args.slice(1), argsUnknown: args[0]?.type === 'SpreadElement', thisArg: args[0] };
   }
@@ -9339,37 +9347,33 @@ function composedInvocation({ callee, args, argsUnknown, thisArg }, staticIsMuta
   ) ? spreadArrayPairing(thisArg, args[1], args[0], staticIsMutated) : null;
 }
 
-function directCallPairing(node, programNode, { nameIsShadowed = null, staticIsMutated = null, getCalleeEntry = null }) {
+function directCallPairing(node, programNode, { nameIsShadowed = null, staticIsMutated = null, getCalleeEntry = null, ownInvoker = null }) {
   if (node.type === 'TaggedTemplateExpression') {
     return { callee: peelToBareExpr(node.tag), args: [node.quasi, ...node.quasi.expressions] };
   }
   if (node.type !== 'CallExpression' && node.type !== 'OptionalCallExpression' && node.type !== 'NewExpression') return null;
   const args = node.arguments ?? [];
   const callee = peelToBareExpr(node.callee);
-  if (invocationEntryOf(
-    callee,
-    programNode,
-    getCalleeEntry,
-  ) === 'reflect/apply') return spreadArrayPairing(args[0], args[2], args[1], staticIsMutated);
+  function reflectApply() {
+    const [fn, thisArg, list] = invokerSlots(args, staticIsMutated);
+    return spreadArrayPairing(fn, list, thisArg, staticIsMutated);
+  }
+  if (invocationEntryOf(callee, programNode, getCalleeEntry) === 'reflect/apply') return reflectApply();
   if (callee?.type === 'MemberExpression' || callee?.type === 'OptionalMemberExpression') {
     const key = memberKeyName(callee);
     const target = peelToBareExpr(callee.object);
     if (key === 'apply' && target?.type === 'Identifier' && target.name === 'Reflect' && !nameIsShadowed?.('Reflect', target)
       && !staticIsMutated?.('Reflect', 'apply')) {
-      return spreadArrayPairing(args[0], args[2], args[1], staticIsMutated);
+      return reflectApply();
     }
     if (key === 'apply' && invocationEntryOf(target, programNode, getCalleeEntry) === 'reflect') {
-      return spreadArrayPairing(args[0], args[2], args[1], staticIsMutated);
+      return reflectApply();
     }
-    if (key === 'call' && !staticIsMutated?.('Function.prototype', 'call')) {
-      return {
-        callee: peelToBareExpr(callee.object), args: args.slice(1), argsUnknown: args[0]?.type === 'SpreadElement', thisArg: args[0],
-      };
+    if ((key === 'call' || key === 'apply') && !staticIsMutated?.('Function.prototype', key) && !ownInvoker?.(callee)) {
+      const slots = invokerSlots(args, staticIsMutated);
+      if (key === 'apply') return spreadArrayPairing(target, slots[1], slots[0], staticIsMutated);
+      return { callee: target, args: slots.slice(1), argsUnknown: slots[0]?.type === 'SpreadElement', thisArg: slots[0] };
     }
-    if (key === 'apply' && !staticIsMutated?.(
-      'Function.prototype',
-      'apply',
-    )) return spreadArrayPairing(callee.object, args[1], args[0], staticIsMutated);
   }
   return { callee, args };
 }
@@ -12570,12 +12574,12 @@ export function writeScopeAt(anchorPath, write, fallback = null) {
   return pathOfNode(anchorPath, write)?.scope ?? fallback;
 }
 
+const childSpanIndexes = new WeakMap();
 // which item of a child list holds `node`'s span, -1 when none does: the items of one list do not
 // nest, so the span index answers it by halving (`spanIndexOwner`) - a scan per descent of a flat
 // program's body is quadratic over the calls. the index is kept per list, and rebuilt once the list
 // no longer matches it (an emitter inserted or replaced an item)
-const childSpanIndexes = new WeakMap();
-function childSpanOwnerIndex(items, node) {
+export function childSpanOwnerIndex(items, node) {
   let index = childSpanIndexes.get(items);
   if (index?.length !== items.length) {
     const spans = [];
@@ -15173,6 +15177,18 @@ export function programTopLevelIsRealm(program) {
   return PROGRAM_FORMAT.get(program)?.realmTopLevel === true;
 }
 
+// A subsequent classic script can reach top-level lexical bindings and sloppy block functions.
+export function programExposesDeclaration(program, path) {
+  if (!programTopLevelIsRealm(program)) return false;
+  const holder = path.parentPath;
+  if (holder?.node === program) return true;
+  if (holder?.node.type === 'VariableDeclaration') {
+    return holder.parentPath?.node === program || holder.node.kind === 'var' && findNearestVarScopeOwner(holder)?.node === program;
+  }
+  return path.node.type === 'FunctionDeclaration' && !nodeHasUseStrict(program)
+    && cachedScopeBlockFunctions(program).get(path.node.id?.name) === path.node;
+}
+
 // The extension's default loading format: `.mjs` / `.mts` are Modules and `.cjs` / `.cts`
 // are CommonJS. An explicit bundler module kind or surviving ESM can override this default.
 function moduleExtensionGoal(id) {
@@ -15209,6 +15225,7 @@ export function resolveModuleFormat({
   declaredSourceType = null,
   importStyleOption = null,
   consumesESM = null,
+  mayRunAsScript = false,
   moduleFormat = null,
   moduleType = null,
 }) {
@@ -15231,8 +15248,8 @@ export function resolveModuleFormat({
   // ... and a script no CommonJS wrapper is known to host - its body spells no CommonJS, its id no CommonJS
   // extension - may run its top level in the realm itself, where a top-level `var` or function IS the global
   // object's slot. Webpack-family modules always have a module wrapper.
-  const realmTopLevel = sourceType === 'script' && !moduleType && !markers.hasCJS
-    && extensionGoal !== 'script' && declaredSourceType !== 'commonjs';
+  const realmTopLevel = !moduleType && !markers.hasCJS && !markers.hasLiveESM && !extensionGoal
+    && declaredSourceType !== 'commonjs' && (sourceType === 'script' || mayRunAsScript);
   PROGRAM_FORMAT.set(program, { sourceType, realmTopLevel });
   // does the file's own live ESM OUTLIVE this pass? Only a caller knows: `entry-global` removes the
   // entry imports it recognises and nothing else does, so it hands in the test and everyone else

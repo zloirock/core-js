@@ -1,5 +1,5 @@
 import _at from "@core-js/pure/actual/instance/at";
-import _Iterator from "@core-js/pure/actual/iterator/constructor";
+import _Iterator from "@core-js/pure/actual/iterator";
 var _ref;
 // pure-version of nested IIFE: `(() => (() => cond ? Array : Iterator)())()`. exercises
 // the loop-to-stable peel design through both wrapper layers. same fallback emission

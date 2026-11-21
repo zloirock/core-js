@@ -7,3 +7,4 @@ type Result = ReturnType<MakeArr<string>>;
 declare const v: Result;
 v.at(0);
 v.findLast(x => true);
+v[0].at(0);

@@ -705,6 +705,8 @@ export default function createPlugin(options) {
       id: cleanId,
       program: ast,
       declaredSourceType: ast.sourceType,
+      // An unpinned, markerless require-output file can share its top level with another script.
+      mayRunAsScript: !sourceDialect.esm && importStyleOption === 'require',
       moduleType: hostOptions.moduleType,
       importStyleOption,
       // only this method removes an ESM statement, and only the entry shape it recognises; a

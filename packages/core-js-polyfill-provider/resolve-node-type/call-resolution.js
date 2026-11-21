@@ -113,6 +113,7 @@ export function createCallResolution({
   getTypeMembers,
   keyMatchesName,
   findBindingAnnotation,
+  callbackParameterAnnotation,
   bindingAnnotationPath,
   narrowUnionByAssignmentLiteral,
   buildSubstMap,
@@ -759,8 +760,8 @@ export function createCallResolution({
   // names resolve, and the path is the lookup anchor for a container the parser opened no scope
   // for. one constructor for both fields - a site that set only `scope` left the anchor pointing
   // at the USE, which resolves a name against whatever namespace the use sits in
-  function annotationAt(annotation, declPath) {
-    return { annotation, scope: declPath.scope, path: declPath };
+  function annotationAt(annotation, declPath, scope = declPath.scope) {
+    return { annotation, scope, path: declPath };
   }
 
   // find the raw type annotation of an expression (follows bindings and const chains).
@@ -790,16 +791,15 @@ export function createCallResolution({
     // path.node may be null on orphaned paths or stub slots - bail safely instead of
     // crashing on `.type` access. matches the defensive shape used elsewhere
     // ESTree preserves ParenthesizedExpression - unwrap
-    if (path.node.type === 'ParenthesizedExpression') return findExpressionAnnotation(path.get('expression'), depth + 1);
     // ESTree wraps optional chains in ChainExpression (babel inlines); peel so the
     // inner MemberExpression hits its own branch below and resolves through the object
-    if (path.node.type === 'ChainExpression') return findExpressionAnnotation(path.get('expression'), depth + 1);
+    if (path.node.type === 'ChainExpression' || path.node.type === 'ParenthesizedExpression'
+      || path.node.type === 'TSNonNullExpression' || path.node.type === 'TSInstantiationExpression') {
+      return findExpressionAnnotation(path.get('expression'), depth + 1);
+    }
     if (path.node.type === 'TSAsExpression' || path.node.type === 'TSSatisfiesExpression'
       || path.node.type === 'TSTypeAssertion' || path.node.type === 'TypeCastExpression') {
       return annotationAt(path.node.typeAnnotation, path);
-    }
-    if (path.node.type === 'TSNonNullExpression' || path.node.type === 'TSInstantiationExpression') {
-      return findExpressionAnnotation(path.get('expression'), depth + 1);
     }
     if (t.isIdentifier(path.node)) {
       const binding = getScopeBinding({ scope: path.scope, name: path.node.name, path });
@@ -814,7 +814,12 @@ export function createCallResolution({
         const narrowed = narrowUnionByAssignmentLiteral(path, annotation, annotationPath.scope);
         // the annotation of a destructured binding describes its CONTAINER (`function f({ m }: I)`),
         // so the same key-path descent the initializer lane needs applies here too
-        return destructuredMemberAnnotation(annotationAt(narrowed ?? annotation, annotationPath), binding.path, path.node.name);
+        return destructuredMemberAnnotation(
+          annotationAt(narrowed ?? annotation, binding.path, annotationPath.scope), binding.path, path.node.name,
+        );
+      }
+      if (binding.path.node.type === 'Identifier' && t.isFunction(binding.path.parentPath?.node)) {
+        return callbackParameterAnnotation(binding, path);
       }
       if (!binding.constantViolations?.length && t.isVariableDeclarator(binding.path.node)) {
         const init = binding.path.get('init');

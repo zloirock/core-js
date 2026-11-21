@@ -1,5 +1,5 @@
 import _at from "@core-js/pure/actual/instance/at";
-import _Iterator from "@core-js/pure/actual/iterator/constructor";
+import _Iterator from "@core-js/pure/actual/iterator";
 var _ref;
 // pure-version of zero-arg IIFE wrapping ConditionalExpression. since runtime value may
 // come from either branch (`fromFallback` flag), destructure rewrite leaves the pattern

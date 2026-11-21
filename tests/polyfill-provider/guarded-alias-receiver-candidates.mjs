@@ -137,6 +137,8 @@ for (const [shape, head, source] of [
 for (const [shape, source, expected] of [
   ['reassigned factory', 'let f = () => Map; if (flag) f = () => Set; observe(f());', ['Set']],
   ['factory through an alias', 'let g = () => Object; let f = () => Map; if (flag) f = g; observe(f());', ['Object']],
+  ['factory closes over the conditional write scope', 'const C = Object; let f = () => C; if (flag) { const C = Array; f = () => C; } observe(f());', ['Array']],
+  ['factory closes over the unconditional write scope', 'const C = Object; let f = () => C; { const C = Array; f = () => C; } observe(f());', ['Array']],
 ]) for (const parser of adapters) for (const method of ['usage-global', 'usage-pure']) {
   const program = parser.parseAndScope(source);
   const [usage] = parser.pickPath(program, 'CallExpression', path => path.node.callee.name === 'observe').get('arguments');

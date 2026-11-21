@@ -1,6 +1,5 @@
-// a class this file also constructs or extends keeps its statics' callers where the file sees every one: an
-// instance reaches the statics only through a `constructor` read, which this file never spells, and a subclass
-// calls them as its own. a class handed out pairs nothing: its callers outside pass whatever they pass
+// An exported instance exposes its class through constructor. The visible call supplies Array,
+// while external callers can supply their own from method. A private subclass calls its inherited static.
 class Lists {
   static fromText(C, text) { return new Lists(C.from(text)); }
   constructor(items) { this.items = items; }

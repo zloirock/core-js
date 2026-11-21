@@ -187,6 +187,29 @@ try {
         await execute(bare(output), false, strip), 'OK|4|[]');
     }
   }
+  // The second script shares the realm, but its argument cannot occur in the first script's caller census.
+  const caller = 'var result = first([123]);';
+  for (const [kind, definition] of [
+    ['declaration', "function first(x = 'ab') { return x.at(0); }"],
+    ['arrow', "const first = (x = 'ab') => x.at(0);"],
+    ['expression', "const first = function inner(x = 'ab') { return x.at(0); };"],
+    ['block', "if (true) { function first(x = 'ab') { return x.at(0); } }"],
+  ]) {
+    const input = `${ definition }\nfirst();`;
+    const scriptOptions = { ...options, importStyle: 'require' };
+    const outputs = {
+      native: input,
+      babel: (await transformAsync(input, {
+        configFile: false, babelrc: false, filename: '/first.js', sourceType: 'script', plugins: [[babelPlugin, scriptOptions]],
+      })).code,
+      unplugin: createUnplugin(scriptOptions).transform(input, '/first.js').code,
+    };
+    for (const [host, output] of Object.entries(outputs)) {
+      const script = `global.require = require; const vm = require('node:vm'); vm.runInThisContext(${ JSON.stringify(output) });`
+        + ` vm.runInThisContext(${ JSON.stringify(caller) }); var result = global.result;`;
+      check(`second script/${ kind }/${ host }`, await execute(script, false, host !== 'native'), 'OK|123|[]');
+    }
+  }
 } finally {
   await fs.remove(DIR);
 }

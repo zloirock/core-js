@@ -165,7 +165,7 @@ export function createMemberResolve({
     // answer in whatever container the USE happens to sit in - a namespace-local namesake of a
     // type declared outside it is the wrong family, not a missed narrowing. the scope beside it
     // already comes from the declaration for the same reason
-    return withLookupPath(bindingAnnotationPath(binding.path), () => resolveMemberChainFrom(binding, props));
+    return withLookupPath(binding.path, () => resolveMemberChainFrom(binding, props));
   }
 
   // the walk itself, split out so the caller can anchor the WHOLE of it on the declaration rather
@@ -433,8 +433,8 @@ export function createMemberResolve({
       // `rest[0]` the source's element 0). `findNameAnnotation` reads none there, and the
       // `findExpressionAnnotation` fallback below walks the destructure key path to the binding's own slot
       annotation = unwrapTypeAnnotation(findNameAnnotation(binding.path));
-      anchorPath = bindingAnnotationPath(binding.path);
-      scope = anchorPath.scope;
+      anchorPath = binding.path;
+      scope = bindingAnnotationPath(anchorPath).scope;
       // identifier without explicit annotation: route through findExpressionAnnotation so
       // binding init chains get traversed (`const obj = wrap('a')` -> wrap's substituted
       // return -> TSTypeLiteral). without this, `obj.foo()` where obj has no `: T` annotation

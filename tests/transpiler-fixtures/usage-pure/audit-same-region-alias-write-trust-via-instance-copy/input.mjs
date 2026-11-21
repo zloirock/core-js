@@ -6,5 +6,7 @@ let v, out;
 // ... and the receiver a claim COPIES into its helper argument carries the same trust: the copy
 // keeps no source positions of its own, so it is stamped from the original before the collapse runs
 let g6;
-export const viaInstanceCopy = (g6 = globalThis, v = g6.self).Array.prototype.indexOf.call([5], 5);
+export const viaInstanceCopy = (g6 = globalThis, v = g6.self).Array.prototype.indexOf.call([5], 0);
+let g7;
+export const viaPolyfilledInstanceCopy = (g7 = globalThis, v = g7.self).Array.prototype.at.call([5], 0);
 export { v };

@@ -4095,9 +4095,12 @@ for (const width of [32, 64]) {
 for (const [name, source, mutated, certain] of [
   ['pristine empty literal', 'const [value = [1]] = [];', false, true],
   ['changed iterator', 'const [value = [1]] = [];', true, false],
+  ['assignment with pristine iterator', 'let value; [value = [1]] = [];', false, true],
   ['assignment host', 'let value; [value = [1]] = [];', true, false],
+  ['parameter with pristine iterator', 'function read([value = [1]] = []) {}', false, true],
   ['parameter host', 'function read([value = [1]] = []) {}', true, false],
   ['numeric object property', 'const { 0: value = [1] } = {};', true, true],
+  ['IIFE spread with pristine iterator', 'const [value = [1]] = ((arg) => arg)(...[[]]);', false, true],
   ['IIFE receiver spread', 'const [value = [1]] = ((arg) => arg)(...[[]]);', true, false],
 ]) runBoth(`certain default protocol/${ name }`, source, (parser, program, label) => {
   const wrapper = parser.pickPath(program, 'AssignmentPattern', path => path.node.left?.name === 'value');
