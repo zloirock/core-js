@@ -48,9 +48,11 @@ QUnit.test('clearImmediate does not cancel other callbacks', assert => {
     clearImmediate(id);
     clearImmediate(id);
     clearImmediate(undefined);
-    setImmediate(() => {
+    setImmediate((value, marker) => {
       assert.required('other callback runs');
+      assert.same(value, 7, 'forwards the callback arguments after cancellation');
+      assert.same(marker, id);
       resolve();
-    });
+    }, 7, id);
   });
 });

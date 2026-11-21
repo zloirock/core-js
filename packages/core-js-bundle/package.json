@@ -80,6 +80,6 @@
   "sideEffects": true,
   "main": "index.js",
   "engines": {
-    "node": ">=0.11"
+    "node": ">=0.11.15"
   }
 }

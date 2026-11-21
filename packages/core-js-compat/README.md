@@ -63,7 +63,7 @@ console.log(targets);
 // object (all these fields are optional):
 ({
   android: '38',            // Android WebView version
-  bun: '0.1.2',             // Bun version
+  bun: '0.4.0',             // Bun version
   chrome: '38',             // Chrome version
   'chrome-android': '38',   // Chrome for Android version
   deno: '1.12',             // Deno version
