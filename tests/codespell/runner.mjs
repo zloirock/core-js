@@ -8,6 +8,8 @@ const skip = [
   './deno/corejs/index.js',
   './tests/bundles/**',
   './tests/**/bundles/**',
+  // Generated e2e-libs output contains third-party identifiers.
+  './tests/e2e-libs/artifacts/**',
   './packages/core-js-bundle/*.js',
   './website/dist/**',
   './website/templates/**',
@@ -21,6 +23,7 @@ const ignoreWords = [
   'forIn',
   'importEnd',
   'larg',
+  'ontext',
   'outLow',
   'prevEnd',
   'statics',

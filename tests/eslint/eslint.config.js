@@ -2506,6 +2506,11 @@ const transpilerPerfPackageJSON = {
   'depend/ban-dependencies': [ERROR, { allowed: ['globalthis'] }],
 };
 
+const e2eLibsCorpus = {
+  // allow a library the e2e-libs corpus exercises: it is chosen for the code it ships, not as a dependency
+  'depend/ban-dependencies': [ERROR, { allowed: ['lodash-es'] }],
+};
+
 const nodeDependencies = {
   // enforce the versions of the engines of the dependencies to be compatible
   'node-dependencies/compat-engines': [ERROR, { devDependencies: true }],
@@ -2562,6 +2567,23 @@ const markdown = {
   // specify the maximum length of a line in your program
   '@stylistic/max-len': [ERROR, { ...base['@stylistic/max-len'][1], code: 200 }],
 };
+
+const e2eHarness = {
+  ...useES5Syntax,
+  ...forbidModernBuiltIns,
+  // the three the shared ES2015 set omits, and `no-undef` cannot stand in for them: flat config
+  // MERGES `languageOptions.globals` across every matching block, so an earlier one goes on
+  // declaring the modern globals whatever this one lists. Named here rather than added to the
+  // shared set, which core-js's own `Map`/`Set` sources are held to
+  'es/no-map': ERROR,
+  'es/no-set': ERROR,
+  'es/no-weak-map': ERROR,
+};
+
+// Flat config merges globals. Remove host-only names inherited from the common binding.
+const e2eHarnessHostGlobals = Object.fromEntries(Object.keys({ ...globals.node, ...globals.worker })
+  .filter(name => !Object.hasOwn(globals.browser, name) && !Object.hasOwn(globals.es5, name))
+  .map(name => [name, 'off']));
 
 const globalsESNext = {
   AsyncIterator: READONLY,
@@ -2622,6 +2644,7 @@ export default [
       'tests/**/bundles/**',
       'tests/compat/compat-data.js',
       'tests/@(unit-@(global|pure)|e2e-usage-pure)/index.js',
+      'tests/e2e-libs/artifacts/**',
       'tests/transpiler-differential/tmp/**',
       'tests/type-definitions/tmp/**',
       'website/dist/**',
@@ -2797,6 +2820,7 @@ export default [
       'tests/@(compat|unit-bun|unit-deno)/*.js',
       'tests/compat/deno-runner.mjs',
       'tests/@(helpers|unit-@(browser|global|pure)|e2e-usage-pure|wpt-url-resources)/**',
+      'tests/e2e-libs/harness/*.js',
       // inputs of the bundlers under test
       'tests/transpiler-integration/@(input-*|lazy-chunk).js',
       'tests/transpiler-integration/*/src/**',
@@ -2845,6 +2869,25 @@ export default [
       // import used for tasks
       'import/first': OFF,
     },
+  },
+  {
+    // the page programs of tests/e2e-libs and the helper they share: hand-written ES5, loaded
+    // into a browser by a `<script>`. The suite declares the two extra globals below.
+    files: [
+      'tests/e2e-libs/harness/*.js',
+    ],
+    languageOptions: {
+      ecmaVersion: 5,
+      sourceType: 'script',
+      globals: {
+        ...e2eHarnessHostGlobals,
+        ...globals.es5,
+        ...globals.browser,
+        E2E: READONLY,
+        QUnit: READONLY,
+      },
+    },
+    rules: e2eHarness,
   },
   {
     files: tsFiles,
@@ -2911,6 +2954,10 @@ export default [
   {
     files: ['tests/transpiler-perf/package.json'],
     rules: transpilerPerfPackageJSON,
+  },
+  {
+    files: ['tests/e2e-libs/package.json', 'tests/e2e-libs/exercises/*.mjs'],
+    rules: e2eLibsCorpus,
   },
   {
     files: ['**/*.md'],

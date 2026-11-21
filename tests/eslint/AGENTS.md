@@ -12,7 +12,7 @@ Rule sets are declared as plain objects at the top - `base` and `baseStyle` firs
 
 That bottom part decides what actually applies to a file, and it is dozens of bindings with deliberately overlapping globs - no summary here can replace reading the ones that match. Three examples, picked because they carry product consequences rather than style:
 
-- ES5 *syntax* is bound to `packages/core-js?(-pure)/**` and to `tests/compat/*.js`, and to nothing else
+- ES5 *syntax* is bound to `packages/core-js?(-pure)/**` and to `tests/compat/*.js`, and also to `tests/unit-browser/*.js` and `tests/e2e-libs/harness/*.js`
 - the forbidden built-ins are a separate set, and it reaches further: the same runtime packages, plus `tests/helpers/` and `tests/unit-pure/` - the pure tests import those helpers - plus the compat runners, but not `tests/compat/tests.js`, where touching a modern built-in is the whole point of the file
 - fenced `js` blocks in markdown are linted like any other source, but `docs/**` is ignored, so the snippets on the site are checked by nothing
 
