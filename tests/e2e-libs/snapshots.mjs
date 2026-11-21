@@ -4,6 +4,7 @@
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { allCells } from './cells.mjs';
+import { PLAIN_SEGMENT } from './libraries.mjs';
 import { HERE, SNAPSHOTS } from './paths.mjs';
 
 const { OVERWRITE } = process.env;
@@ -73,13 +74,21 @@ export async function compare(cell, lines, origins) {
   return 'drift';
 }
 
+// Follow the same matrix and library-name grammar used to create baselines.
+const suffixes = allCells([{ name: '' }]).map(cell => cell.snapshot).filter(Boolean);
+
+export function isSnapshotName(name) {
+  return suffixes.some(suffix => name.endsWith(suffix) && PLAIN_SEGMENT.test(name.slice(0, -suffix.length)));
+}
+
 // A baseline with no cell behind it is invisible to everything else - nothing reads it, so nothing
 // notices, and it sits in git looking like coverage. Derived from the REGISTRY rather than from this
 // run, so a filtered run does not accuse the libraries it skipped.
 export async function orphans(libraries) {
   const expected = new Set(allCells(libraries).filter(cell => cell.snapshot).map(cell => pathOf(cell)));
-  const found = (await readdir(SNAPSHOTS)).map(name => join(SNAPSHOTS, name));
-  const stale = found.filter(file => !expected.has(file));
+  const entries = await readdir(SNAPSHOTS, { withFileTypes: true });
+  const stale = entries.filter(entry => entry.isFile() && isSnapshotName(entry.name))
+    .map(entry => join(SNAPSHOTS, entry.name)).filter(file => !expected.has(file));
   for (const file of stale) {
     if (OVERWRITE) await rm(file);
     echo(chalk[OVERWRITE ? 'yellow' : 'red'](`${ OVERWRITE ? 'removed orphan' : 'FAIL orphan' } snapshot ${ chalk.cyan(relative(HERE, file)) }`

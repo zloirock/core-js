@@ -37,7 +37,7 @@ function fakeDialect(respond, log) {
     // so nothing here spells a generator or a symbol
     streamQuery: compiled => {
       log.push(compiled.sql);
-      return [{ rows: respond(compiled.sql) }];
+      return respond(compiled.sql).map(row => ({ rows: [row] }));
     },
   };
   function done() {
@@ -139,7 +139,10 @@ export function run() {
       const release = sent('select release_lock(');
       check('migrate_lock', [/^select get_lock\('[^']+', \d+\)$/.test(lock), /^select release_lock\('[^']+'\)$/.test(release),
         release.split("'", 2)[1] === lock.split("'", 2)[1],
-        has('create table `person`'), has('create table `pet`'), has('`meta`.`kysely_migration`')], [true, true, true, true, true, true]);
+        log.indexOf(lock) < log.indexOf(sent('create table `person`')),
+        log.indexOf(sent('create table `person`')) < log.indexOf(sent('create table `pet`')),
+        log.indexOf(sent('create table `pet`')) < log.indexOf(release),
+        has('`meta`.`kysely_migration`')], [true, true, true, true, true, true, true]);
       return db.introspection.getTables();
     })
     .then(tables => {

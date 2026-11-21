@@ -22,12 +22,12 @@
 // gains `String#matchAll` and `Promise.allSettled`, `usage-pure` those two and the array `flat` and
 // `entries`. `matchAll` is `getLocation`, run for every error location here; `flat` joins the
 // fields of a conflict found in subfields, which `validate_conflict` provokes; `allSettled` and the
-// array `entries` sit on the asynchronous execution path, which nothing here takes.
+// array `entries` are exercised by the async union query below.
 import {
-  GraphQLSchema, buildClientSchema, buildSchema, getIntrospectionQuery, graphqlSync, isObjectType, isScalarType,
+  GraphQLSchema, buildClientSchema, buildSchema, getIntrospectionQuery, graphql, graphqlSync, isObjectType, isScalarType,
   parse, print, printSchema, validate, visit,
 } from 'graphql';
-import { checker } from './checks.mjs';
+import { checker, deepEqual } from './checks.mjs';
 
 const SDL = `
   interface Node { id: ID! }
@@ -113,9 +113,9 @@ export function run() {
 
   // --- the document round trip: printing what was parsed parses back to the same document, and a
   // visitor that renames a field reaches every occurrence of it ---
-  const document = parse('query Q($x: Int = 3) { a: sum(a: $x, b: 1) ...F } fragment F on Query { sum(a: 1, b: 1) }');
+  const document = parse('query Q($x: Int = 3) { a: sum(a: $x, b: 1) ...F } fragment F on Query { sum(a: 1, b: 1) }', { noLocation: true });
   const printed = print(document);
-  check('print_stable', [print(parse(printed)) === printed, printed.indexOf('fragment F on Query') !== -1], [true, true]);
+  check('print_stable', deepEqual(parse(printed, { noLocation: true }), document), true);
   const renamed = print(visit(document, {
     Name: node => node.value === 'sum' ? { kind: node.kind, value: 'total', loc: node.loc } : undefined,
   }));
@@ -130,5 +130,15 @@ export function run() {
   const names = meta.types.map(type => type.name);
   check('spec_types', ['Int', 'String', 'Boolean', 'ID', '__Schema', '__Type'].map(name => names.indexOf(name) !== -1), [true, true, true, true, true, true]);
 
-  return { checks };
+  // A pending Book predicate comes before the matching Author. GraphQL settles the unused
+  // predicate and assembles the fields of the asynchronous result.
+  schema.getType('Item').resolveType = undefined;
+  schema.getType('Book').isTypeOf = () => new Promise(resolve => resolve(false));
+  schema.getType('Author').isTypeOf = value => value === AUTHOR;
+  const rootValue = { items: () => new Promise(resolve => resolve([AUTHOR])) };
+  // eslint-disable-next-line promise/prefer-await-to-then -- keep async execution in graphql
+  return graphql({ schema, source: '{ items { ... on Author { name } } }', rootValue }).then(result => {
+    check('execute_async_union', result.data, { items: [{ name: 'Ann' }] });
+    return { checks };
+  });
 }

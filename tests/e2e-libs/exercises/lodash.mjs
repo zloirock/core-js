@@ -45,7 +45,7 @@ export function run() {
   const copy = cloneDeep(source);
   check('clone_deep', [
     copy.m.get('k'), copy.m.get('k') !== source.m.get('k'), copy.s.has(2), copy.d.getTime(),
-    copy.t instanceof Uint8Array && copy.t !== source.t ? Array.from(copy.t) : null, copy[key], isEqual(copy, source),
+    copy.t instanceof Uint8Array && copy.t.buffer !== source.t.buffer ? Array.from(copy.t) : null, copy[key], isEqual(copy, source),
   ], [{ n: [1] }, true, true, 0, [3, 4], 5, true]);
 
   check('equal', [

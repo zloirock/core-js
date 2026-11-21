@@ -8,10 +8,9 @@
     if (window.e2eOnUncaughtError) window.e2eOnUncaughtError();
   }
 
-  window.onerror = function (message, source, line) {
-    record({ message: String(message) + ' (' + source + ':' + line + ')' });
-    return false;
-  };
+  window.addEventListener('error', function (event) {
+    record({ message: event.message + ' (' + event.filename + ':' + event.lineno + ')' });
+  });
 
   window.addEventListener('unhandledrejection', function (event) {
     record({ rejection: event.reason });

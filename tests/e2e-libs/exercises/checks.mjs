@@ -14,7 +14,8 @@ const { hasOwnProperty } = Object.prototype;
 // cost is that a value compares EQUAL to what its `toJSON` renders, so where the point of a check is
 // that something WAS rendered, assert its `typeof` alongside it.
 export function unwrap(value) {
-  return typeof value?.toJSON === 'function' ? value.toJSON() : value;
+  const toJSON = value?.toJSON;
+  return typeof toJSON === 'function' ? toJSON.call(value) : value;
 }
 
 export function deepEqual(rawA, rawB) {

@@ -20,7 +20,8 @@ export function run() {
   check('unicode_letters', XRegExp.match('Привет, мир! ok', XRegExp('\\p{L}+'), 'all'), ['Привет', 'мир', 'ok']);
   check('recursive', XRegExp.matchRecursive('(a(b)c)(d)', '\\(', '\\)', 'g'), ['a(b)c', 'd']);
   // the backreferenced parts built by XRegExp, which `union` renumbers when it joins them
-  check('union', XRegExp.union(['a+b*c', XRegExp('(dogs)\\1'), XRegExp('(cats)\\1')], 'i').test('DOGSdogs'), true);
+  const union = XRegExp.union(['a+b*c', XRegExp('(dogs)\\1'), XRegExp('(cats)\\1')], 'i');
+  check('union', [union.test('DOGSdogs'), union.test('catscats'), union.test('cats')], [true, true, false]);
   check('split_escape', [XRegExp.split('a1b2c', /\d/), XRegExp.escape('a.b*c')], [['a', 'b', 'c'], 'a\\.b\\*c']);
   return { checks };
 }

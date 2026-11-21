@@ -16,6 +16,7 @@ const engine = new Liquid({
   templates: { greeting: 'Hi {{ who }}', row: '<li>{{ item.name }}</li>' },
 });
 engine.registerFilter('twice', value => value + value);
+engine.registerFilter('asyncPlusTen', value => Promise.resolve(value + 10));
 
 export function run() {
   const { checks, check } = checker();
@@ -35,7 +36,7 @@ export function run() {
   check('nested_loops', sync('{% for row in rows %}{% for v in row %}{{ v | times: 2 }}{% endfor %};{% endfor %}', { rows: [[1, 2], [3]] }), '24;6;');
   // `.then` rather than `async`: the async machinery under test is the engine's
   // eslint-disable-next-line promise/prefer-await-to-then -- see above
-  return engine.parseAndRender('{% for i in (1..3) %}{{ i | plus: 10 }}{% endfor %}').then(text => {
+  return engine.parseAndRender('{% for i in (1..3) %}{{ i | asyncPlusTen }}{% endfor %}').then(text => {
     check('async_render', text, '111213');
     return { checks };
   });

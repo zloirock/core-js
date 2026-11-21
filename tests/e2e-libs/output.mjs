@@ -2,7 +2,6 @@
 // one tier repeats - one worded in two places is worded two ways. zx-bound, unlike `diagnostics.mjs`
 // beside it, so `preflight-child.mjs` may never import this one.
 import { METHODS, PROVIDERS } from './cells.mjs';
-import { checkFailureLine } from './diagnostics.mjs';
 import { MANIFEST } from './manifest.mjs';
 import { ARTIFACTS } from './paths.mjs';
 import { FIXTURE_SHARD } from '../babel-plugin/fixture-shards.mjs';
@@ -90,7 +89,7 @@ export function reportCell(cell, { ok, checks, failingChecks, injected, delta, s
     + `${ stripped?.ok ? `, stripped realm ${ cyan(`${ stripped.count }/${ stripped.count }`) }` : '' } `
     + `(${ cyan(rawKb) }kb raw${ wire.gzKb === null ? '' : ` -> ${ cyan(wire.minKb) }kb min -> ${ cyan(wire.gzKb) }kb gzip` }`
     + `, built in ${ cyan(buildMs.toFixed(0)) }ms)`));
-  for (const check of failingChecks) echo(red(`    FAIL ${ checkFailureLine(check) }`));
+  for (const check of failingChecks) echo(red(`    FAIL ${ check.failure }`));
   if (stripped && !stripped.ok) {
     const what = `stripped realm: ${ stripped.reason }`;
     echo(strippedFailed ? red(`    FAIL ${ what }`) : yellow(`    ${ preDiagnostic(what) }`));
@@ -110,7 +109,7 @@ export function warnWireSize(label, reason) {
 export function announceArtifacts() {
   echo(green(`\nartifacts -> ${ cyan(ARTIFACTS) }`));
   // by the manifest rather than by what is in the directory: the file is what this run stands behind
-  echo(green(`Upload the page of each cell the manifest lists - ${ cyan('<lib>/<provider>/<method>[/<phase>]/index.html') },`));
+  echo(green(`For manifest rows without an error, upload the page - ${ cyan('<lib>/<provider>/<method>[/<phase>]/index.html') },`));
   echo(green(`${ cyan('bundle.js') } beside it - to BrowserStack/SauceLabs IE11 for a manual real-engine check.`));
   echo(green(`\nmanifest -> ${ cyan(MANIFEST) }`));
 }

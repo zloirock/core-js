@@ -93,10 +93,13 @@ export function run() {
   const multi = new Subject();
   const seenA = [];
   const seenB = [];
-  multi.subscribe(value => seenA.push(value));
-  multi.subscribe(value => seenB.push(value));
+  multi.subscribe(value => {
+    seenA.push(value);
+    if (value === 'x') multi.subscribe(next => seenB.push(next));
+  });
   multi.next('x');
-  check('subject_multicast', [seenA, seenB], [['x'], ['x']]);
+  multi.next('y');
+  check('subject_multicast', [seenA, seenB], [['x', 'y'], ['y']]);
 
   const asyncSubject = new AsyncSubject();
   const asyncSeen = [];
@@ -124,8 +127,9 @@ export function run() {
   p1.add(child);
   p2.add(child);
   p1.add(child); // the second add from the same parent is what makes `_hasParent` matter
-  check('subscription_two_parents', child.closed, false);
+  p1.remove(child);
   p1.unsubscribe();
+  check('subscription_two_parents', child.closed, false);
   p2.unsubscribe();
   check('subscription_closed_after_parents', child.closed, true);
 
@@ -182,7 +186,7 @@ export function run() {
   const conn = connectable(of('c1', 'c2'));
   const connSeen = [];
   conn.subscribe(value => connSeen.push(value));
-  check('connectable_before_connect', connSeen, []);
+  check('connectable_before_connect', connSeen.length, 0);
   conn.connect();
   check('connectable_after_connect', connSeen, ['c1', 'c2']);
 
@@ -233,6 +237,33 @@ export function run() {
   // via a var: the Set dedups at runtime, without tripping a literal-duplicate lint rule
   const setInput = [3, 1, 3, 2, 1];
 
+  const scheduledOn = [];
+  function recordSchedule(name, scheduler) {
+    return {
+      schedule(work, delay, state) {
+        scheduledOn.push(name);
+        return scheduler.schedule(work, delay, state);
+      },
+    };
+  }
+
+  // The second stream starts emitting while the first is still active.
+  function overlap(operator) {
+    const outer = new Subject();
+    const firstInner = new Subject();
+    const secondInner = new Subject();
+    const result = collect(outer.pipe(operator(inner => inner)));
+    outer.next(firstInner);
+    outer.next(secondInner);
+    firstInner.next('old');
+    secondInner.next('new');
+    firstInner.complete();
+    secondInner.next('last');
+    secondInner.complete();
+    outer.complete();
+    return result;
+  }
+
   return Promise.all([
     // --- innerFrom: every branch of rxjs's interop hub ---
     collect(from(new Set(setInput))),
@@ -242,8 +273,8 @@ export function run() {
     collect(from(interopObservable([9, 10]))),
     collect(from(Promise.resolve('promised'))),
     collect(from({ length: 3, 0: 'l0', 1: 'l1', 2: 'l2' })),
-    collect(scheduled(new Set(['s1', 's2']), queueScheduler)),
-    collect(scheduled(customAsyncIterable(['a1']), asyncScheduler)),
+    collect(scheduled(new Set(['s1', 's2']), recordSchedule('queue', queueScheduler))),
+    collect(scheduled(customAsyncIterable(['a1']), recordSchedule('async', asyncScheduler))),
     // Merged with a SYNCHRONOUS emission in both cases. A scheduler decides when a value arrives, and
     // a single value collected into an array cannot show that - both operators could be deleted from
     // these pipes and the checks below stayed green. Against a synchronous neighbour the order is the
@@ -275,8 +306,8 @@ export function run() {
     collect(combineLatest([of(1), of(2)])),
     collect(forkJoin([of(1, 2), of(3, 4)])),
     collect(of(1, 2).pipe(mergeMap(x => of(x, x * 10)))),
-    collect(of(1, 2, 3).pipe(switchMap(x => of(x * 10)))),
-    collect(of(1, 2).pipe(concatMap(x => of(x, x)))),
+    overlap(switchMap),
+    overlap(concatMap),
     collect(of(1).pipe(expand(x => x < 8 ? of(x * 2) : EMPTY))),
     collect(of(1, 2, 3).pipe(mergeScan((acc, x) => of(acc + x), 0))),
     collect(of('w').pipe(withLatestFrom(of('L')))),
@@ -326,8 +357,8 @@ export function run() {
     check('from_interop_observable', take(), [9, 10]);
     check('from_promise', take(), ['promised']);
     check('from_array_like', take(), ['l0', 'l1', 'l2']);
-    check('scheduled_iterable_queue', take(), ['s1', 's2']);
-    check('scheduled_async_iterable', take(), ['a1']);
+    check('scheduled_iterable_queue', [take(), scheduledOn.indexOf('queue') !== -1], [['s1', 's2'], true]);
+    check('scheduled_async_iterable', [take(), scheduledOn.indexOf('async') !== -1], [['a1'], true]);
     check('observeOn_asap', take(), ['sync', 'asap']);
     check('subscribeOn_async', take(), ['sync', 'queued']);
     check('pairs_object_entries', take(), [['p', 1], ['q', 2]]);
@@ -349,8 +380,8 @@ export function run() {
     check('combineLatest', take(), [[1, 2]]);
     check('forkJoin', take(), [[2, 4]]);
     check('mergeMap', take(), [1, 10, 2, 20]);
-    check('switchMap', take(), [10, 20, 30]);
-    check('concatMap', take(), [1, 1, 2, 2]);
+    check('switchMap', take(), ['new', 'last']);
+    check('concatMap', take(), ['old', 'last']);
     check('expand', take(), [1, 2, 4, 8]);
     check('mergeScan', take(), [1, 3, 6]);
     check('withLatestFrom', take(), [['w', 'L']]);

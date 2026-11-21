@@ -10,7 +10,7 @@ const NAMES = [
   'xregexp', 'highlight', 'lodash',
 ];
 
-const PLAIN_SEGMENT = /^[\w\-.]+$/;
+export const PLAIN_SEGMENT = /^[\w\-.]+$/;
 for (const name of NAMES) {
   if (!PLAIN_SEGMENT.test(name)) {
     throw new Error(`library name '${ name }' is not a plain path segment - a cell's identity is split back into a directory`);

@@ -13,18 +13,24 @@ export async function runWithDeadline(module, method, args, { ms, what }) {
   });
   const closed = new Promise(resolve => child.once('close', resolve));
   let timer;
+  let timedOut = false;
   try {
     return await new Promise((resolve, reject) => {
-      function arm() {
+      function arm(budget) {
         clearTimeout(timer);
-        timer = setTimeout(() => reject(new Error(`${ what } did not finish within ${ ms }ms`)), ms);
+        timer = setTimeout(() => {
+          timedOut = true;
+          reject(new Error(`${ what } did not finish within ${ budget }ms`));
+        }, budget);
       }
 
-      arm();
+      // Reserve time for Node to load the driver before timing the exercise.
+      arm(120_000);
       child.on('message', message => {
         // An exercise can also use process.send(). Only the driver's messages settle the run.
         switch (message?.type) {
-          case 'e2e-libs:repeat': arm(); break;
+          case 'e2e-libs:ready':
+          case 'e2e-libs:repeat': arm(ms); break;
           case 'e2e-libs:failure': reject(new ChildExerciseError(message.error)); break;
           case 'e2e-libs:result': resolve(message.result); break;
         }
@@ -35,7 +41,14 @@ export async function runWithDeadline(module, method, args, { ms, what }) {
     });
   } finally {
     clearTimeout(timer);
-    if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
-    await closed;
+    try {
+      if (timedOut && child.exitCode === null && child.signalCode === null) {
+        const { kill } = await import('zx');
+        await kill(child.pid, 'SIGKILL');
+      }
+    } finally {
+      if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+      await closed;
+    }
   }
 }

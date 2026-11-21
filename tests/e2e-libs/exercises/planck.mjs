@@ -31,7 +31,7 @@
 // behind `Vec2.isValid`, `indexOf` and `splice` over the listener list behind `world.off`, and
 // `JSON.stringify` behind `Vec2#toString`. The serializer is NOT one of them: it builds plain objects
 // and never calls `JSON` itself, so the text the round-trip travels as is this file's own.
-import { AABB, Box, Circle, DistanceJoint, Edge, RevoluteJoint, Rot, Serializer, Transform, Vec2, World, testOverlap } from 'planck';
+import planck, { AABB, Box, Circle, DistanceJoint, Edge, RevoluteJoint, Rot, Serializer, Transform, Vec2, World, testOverlap } from 'planck';
 import { checker } from './checks.mjs';
 
 const STEP = 1 / 60;
@@ -77,6 +77,7 @@ function massOf(shape, density) {
 
 export function run() {
   const { checks, check } = checker();
+  check('default_world', planck.World === World, true);
 
   // --- vector and transform math, planck's own ---
   check('vec_sub', xy(new Vec2(5, 3).sub(new Vec2(2, 1))), [3, 2]); // the String#sub collision

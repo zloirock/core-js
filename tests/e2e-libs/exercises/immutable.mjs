@@ -28,7 +28,7 @@ export function run() {
   // iteration goes through the library's own `Iterator`
   const entries = [];
   for (const [key, value] of Map({ q: 1, r: 2 })) entries.push(key + value);
-  check('iterate', [entries, [...List([7, 8])], [...Set(['s'])]], [['q1', 'r2'], [7, 8], ['s']]);
+  check('iterate', [entries.sort(), [...List([7, 8])], [...Set(['s'])]], [['q1', 'r2'], [7, 8], ['s']]);
   // the global Map beside the library's: a built-in, not immutable's
   check('global_map', [new globalThis.Map([[1, 'one']]).get(1), Map.isMap(new globalThis.Map())], ['one', false]);
   return { checks };

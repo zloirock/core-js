@@ -67,7 +67,8 @@ export function tsSources() {
       }
       const [name, ...rest] = source.split('/');
       if (!TS_SOURCE_PACKAGES.has(name)) return null;
-      const sub = (rest.length ? rest.join('/') : 'index').replace(/\.[cm]?js$/, '');
+      const entry = name === 'planck' ? 'main' : 'index';
+      const sub = (rest.length ? rest.join('/') : entry).replace(/\.[cm]?js$/, '');
       const file = firstExistingFile([join(NODE_MODULES, name, 'src', `${ sub }.ts`), join(NODE_MODULES, name, 'src', sub, 'index.ts')]);
       if (file) return file;
       throw new Error(`TS_SOURCE_PACKAGES: '${ source }' has no TypeScript source under node_modules/${ name }/src `

@@ -45,13 +45,13 @@
     var mode = window.e2eCompatibilityMode();
     if (mode !== undefined) {
       paint(FAIL, 'IE compatibility mode - documentMode=' + mode + '. These checks ran, but not on the floor this page is for.');
-      tableSays('the rows above are the node pre-flight; this browser is not the target engine');
+      tableSays('Browser results unavailable in IE compatibility mode.');
       return;
     }
     var problem = window.e2eLabelProblem(checks, EXPECTED);
     if (problem !== null) {
       paint(FAIL, 'FAIL - ' + problem);
-      tableSays('the rows above are the node pre-flight, which this browser did not reproduce');
+      tableSays('Browser checks differ from the raw exercise.');
       return;
     }
     var bad = 0,
@@ -61,11 +61,8 @@
       ? ('FAIL - ' + bad + '/' + checks.length + ' checks failed in this browser')
       : ('PASS - all ' + checks.length + ' checks green in this browser');
     var tbody = tbodyOf();
-    // the verdict is the banner's and is painted either way; the rows under it are the node
-    // pre-flight's until this browser replaces them, so a table this page cannot find leaves that
-    // verdict standing over someone else's results, and says so rather than exiting quiet
     if (!tbody) {
-      paint(bad ? FAIL : PASS, text + ' - results table missing, the rows below are the node pre-flight');
+      paint(bad ? FAIL : PASS, text + ' - browser results table missing');
       return;
     }
     paint(bad ? FAIL : PASS, text);
@@ -87,14 +84,14 @@
     if (settled) return;
     settled = true;
     paint(FAIL, 'ERROR - ' + window.e2eReason(err));
-    tableSays('the rows above are the node pre-flight; this browser did not finish');
+    tableSays('The browser exercise ended with an error.');
   }
 
   setTimeout(function () {
     if (settled) return;
     settled = true;
     paint(FAIL, 'FAIL - run() did not settle within ' + CELL.timeout + 'ms in this browser');
-    tableSays('the rows above are the node pre-flight; this browser never finished the run');
+    tableSays('The browser exercise timed out.');
   }, CELL.timeout);
 
   window.e2eRun(render, showError);

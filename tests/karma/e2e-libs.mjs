@@ -8,7 +8,7 @@
 // Usage:  npm run test-e2e-libs-karma-run [libFilter]
 import * as manifest from '../e2e-libs/manifest.mjs';
 import './e2e-libs-tests.mjs';
-import { browserOutcome, hasFailingModernBrowser, hasUnexpectedBrowserFailure } from './e2e-libs-results.mjs';
+import { browserOutcome, hasLoggedFailure, hasUnexpectedBrowserFailure } from './e2e-libs-results.mjs';
 import { announceBrowserRun, announceScopedRun, reportBrowserCell, reportBrowserTally } from '../e2e-libs/output.mjs';
 import { RUN_TIMEOUT_MS } from '../e2e-libs/page.mjs';
 import { ARTIFACTS } from '../e2e-libs/paths.mjs';
@@ -25,6 +25,10 @@ const parsed = await manifest.read();
 // a cell that failed to build has no page, and its own tier has already reddened the run
 const runnable = parsed.cells.filter(cell => !cell.error && (libFilter === undefined || cell.lib === libFilter));
 if (!runnable.length) throw new Error(`no e2e-libs pages to run${ libFilter ? ` for '${ libFilter }'` : '' }`);
+
+// A previous session's result is no longer valid once this session starts.
+for (const cell of runnable) cell.karma = 'not run';
+await manifest.save(parsed);
 
 // relative to `frames.js` itself, which sits in `artifacts/` - the driver reads its own anchor from it
 const CONTROLS = ['control/poison', 'control/clean'];
@@ -51,7 +55,7 @@ async function hasTestFailure(output) {
     if (hasUnexpectedBrowserFailure(await readReport())) return true;
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
-    return hasFailingModernBrowser(output);
+    return hasLoggedFailure(output);
   }
   // The next attempt must write its own report.
   await rm(RESULTS, { force: true });
@@ -62,6 +66,7 @@ async function hasTestFailure(output) {
 // a diagnostic cell also failed. Individual verdicts come from the reporter.
 await start(['tests/e2e-libs/harness/shared', 'tests/e2e-libs/artifacts/frames', 'tests/e2e-libs/harness/qunit'], {
   config: 'e2e-libs.conf.js',
+  timeout: 300_000,
   env: { E2E_LIBS_BROWSER_RESULTS: RESULTS },
   hasTestFailure,
 });
