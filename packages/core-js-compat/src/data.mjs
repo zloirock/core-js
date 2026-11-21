@@ -983,6 +983,7 @@ export const data = {
     safari: '7.1',
   },
   'es.math.cbrt': {
+    bun: '1.2.6', // earlier glibc builds round cbrt(27) up
     chrome: '38',
     edge: '12',
     // https://bugzilla.mozilla.org/show_bug.cgi?id=933257

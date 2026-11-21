@@ -230,6 +230,7 @@
       - `toPrecision` is no longer marked as supported in IE, EdgeHTML-based Edge and Rhino
     - Because of imprecision on powers of their respective bases (see above), `Math.log2` and `Math.log10` are marked as properly supported from Chrome 41, and `Math.log2` from FF48 and Rhino 1.9.2
     - `Math.{ acosh, asinh }` marked as supported from [Rhino 1.9.2](https://github.com/mozilla/rhino/releases/tag/Rhino1_9_2_Release)
+    - `Math.cbrt` marked as properly supported from Bun 1.2.6 because earlier glibc builds return `3.0000000000000004` for `Math.cbrt(27)`
     - `Math.tanh` marked as properly supported from Chrome 48, `Math.atanh` - from Chrome 53 and Rhino 1.9.2, `Math.log1p` - from Chrome 39, `Math.{ acosh, asinh, atanh, expm1, log1p }` - from FF48 because of the bugs above
     - `Math.sumPrecise` marked as properly supported from [V8 ~ Chrome 158](https://github.com/v8/v8/commit/b8851805ce36c5db7c2be14d94bef42b8baf5dbf) where the bug with modified prototypes of array iterators was fixed
     - `Math.sumPrecise` marked as [properly supported](https://github.com/WebKit/WebKit/pull/65558) from Bun 1.4.5
