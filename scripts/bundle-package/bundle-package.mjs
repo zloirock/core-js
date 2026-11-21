@@ -1,5 +1,5 @@
 import { minify } from 'terser';
-import builder from 'core-js-builder';
+import builder, { formatSize } from 'core-js-builder';
 import config from 'core-js-builder/config.js';
 
 const args = argv._.values();
@@ -22,8 +22,7 @@ const MINIFIED_NAME = cliOptions.get('minified-name') ?? 'minified';
 const PATH = DENO ? 'deno/corejs/' : 'packages/core-js-bundle/';
 
 function log(kind, name, code) {
-  const size = (code.length / 1024).toFixed(2);
-  echo(green(`${ kind }: ${ cyan(`${ PATH }${ name }.js`) }, size: ${ cyan(`${ size }KB`) }`));
+  echo(green(`${ kind }: ${ cyan(`${ PATH }${ name }.js`) }, size: ${ cyan(formatSize(code)) }`));
 }
 
 async function bundle({ bundled, minified, options = {} }) {

@@ -186,6 +186,7 @@
   - Fixed `exclude: null` throwing in `core-js-compat` and `core-js-builder`; it now behaves like an omitted option
   - Fixed loading and target parsing of `core-js-compat` on NodeJS 6.4
   - `core-js-builder` now builds bundles in memory without creating a temporary file
+  - Fixed the reported size of bundles containing non-ASCII characters in `core-js-builder` and `bundle-package`
 - Compat data improvements:
   - *Added Safari 27.3 compat data*:
     - Shipped [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) features

@@ -2,6 +2,7 @@ import builder from 'core-js-builder';
 
 const a: Promise<string> = builder({ targets: { node: 17 } });
 const b: string = await builder({ targets: { node: 17 } });
+const size: string = builder.formatSize(b);
 
 await builder();
 await builder({});

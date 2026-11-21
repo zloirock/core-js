@@ -10,6 +10,10 @@ const webpack = promisify(require('webpack'));
 const compat = require('core-js-compat/compat');
 const { banner } = require('./config');
 
+function formatSize(source) {
+  return `${ (Buffer.byteLength(source) / 1024).toFixed(2) }KB`;
+}
+
 function normalizeSummary(unit = {}) {
   let size, modules;
   if (typeof unit != 'object') {
@@ -66,14 +70,12 @@ module.exports = async function ({
     }
   }
 
-  if (summary.comment.size) script += `/*\n * size: ${ (code.length / 1024).toFixed(2) }KB w/o comments\n */`;
+  if (summary.comment.size) script += `/*\n * size: ${ formatSize(code) } w/o comments\n */`;
   if (summary.comment.modules) script += `/*\n * modules:\n${ list.map(it => ` * ${ it }\n`).join('') } */`;
   if (code) script += `\n${ code }`;
 
   if (summary.console.size) {
-    console.log(`\u001B[32mbundling \u001B[36m${ TITLE }\u001B[32m, size: \u001B[36m${
-      (script.length / 1024).toFixed(2)
-    }KB\u001B[0m`);
+    console.log(`\u001B[32mbundling \u001B[36m${ TITLE }\u001B[32m, size: \u001B[36m${ formatSize(script) }\u001B[0m`);
   }
 
   if (summary.console.modules) {
@@ -90,3 +92,5 @@ module.exports = async function ({
 
   return script;
 };
+
+module.exports.formatSize = formatSize;
