@@ -54,6 +54,16 @@ deepEqual(targetsParser({ browsers: 'ie 11, chrome 56, ios_saf 12.2' }), new Map
   ['ios', '12.2-12.5'],
 ]), 'targets.browsers');
 
+deepEqual(targetsParser({ Chrome: 50, IOS_SAF: '12.2' }), new Map([
+  ['chrome', '50'],
+  ['ios', '12.2'],
+]), 'engine names are case-insensitive');
+
+deepEqual(targetsParser({ browsers: { Chrome: 50, IOS_SAF: '12.2' } }), new Map([
+  ['chrome', '50'],
+  ['ios', '12.2'],
+]), 'engine names in a targets.browsers object are case-insensitive');
+
 deepEqual(targetsParser({ esmodules: true }), new Map([
   ['android', '61'],
   ['bun', '0.1.1'],

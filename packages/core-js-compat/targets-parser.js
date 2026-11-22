@@ -70,7 +70,7 @@ module.exports = function (targets) {
     if (typeof browsers == 'string' || Array.isArray(browsers)) {
       list.push(...browserslist(browsers, { mobileToDesktop: true }).map(it => it.split(' ')));
     } else {
-      list.push(...entries(browsers));
+      list.push(...entries(toLowerKeys(browsers)));
     }
   }
 
