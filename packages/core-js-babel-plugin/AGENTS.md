@@ -33,6 +33,6 @@ Build-time only, ESM. Node `^22.18.0 || >=24.11.0`; Babel 7 and 8. Keep `@core-j
 
 For behavior changes, run bare `npm run test-transpiler-differential` and `npm run test-e2e-usage-pure`; the `babel` filter is diagnostic and omits import parity. Babel has a runtime bundle and a stripped-realm leg. Use `npm run test-transpiler-integration` for pipeline changes.
 
-At final handoff of code changes, run `npm run test-transpiling` once, then the performance gate specified by [the shared validation rules](../core-js-polyfill-provider/AGENTS.md#validation). Do not also run composite members on the same invocation line.
+At final handoff of code changes, run, once, the members of `npm run test-transpiling` that execute the changed code, then the performance gate specified by [the shared validation rules](../core-js-polyfill-provider/AGENTS.md#validation). Do not also run composite members on the same invocation line.
 
 For independent manual output/import-set comparisons, normalize formatting and use one probe per process to exclude prior module state. The differential harness deliberately runs both emitters in one process; retain that coverage.

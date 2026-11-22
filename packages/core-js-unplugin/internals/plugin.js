@@ -371,12 +371,17 @@ function parseDisableState(code, ast, comments) {
   return { offsetToLine, disabledLines };
 }
 
-// codeframe is preferred (ASCII pointer with line:col baked in); labels are the fallback so
-// a bundler-less caller still sees WHERE the syntax broke. helpMessage tails both paths
+// oxc frames whole lines and whole multi-line spans, so past this size a frame dumps the
+// source (a minified line, a span to the end of the file) instead of pointing into it
+const MAX_CODEFRAME_LENGTH = 4096;
+
+// codeframe is preferred (ASCII pointer with line:col baked in) while it fits
+// MAX_CODEFRAME_LENGTH; labels are the fallback so a bundler-less caller still sees WHERE the
+// syntax broke. helpMessage tails both paths
 function buildParseErrorBody(error, code) {
   const tail = nonEmptyString(error.helpMessage);
   const codeframe = nonEmptyString(error.codeframe);
-  if (codeframe) return tail ? `${ codeframe }\n${ tail }` : codeframe;
+  if (codeframe && codeframe.length <= MAX_CODEFRAME_LENGTH) return tail ? `${ codeframe }\n${ tail }` : codeframe;
   const label = error.labels?.[0];
   const chunks = [];
   if (label) {
@@ -563,8 +568,9 @@ export default function createPlugin(options) {
 
   function runTransform(code, id, pass = 'single', environment = '', hostOptions = {}) {
     try {
-      // thread bundler's `this` (Vite/Rollup/Webpack stage context with `.warn`) through
-      // to runTransformInner so internal warnings reach the bundler's diagnostic channel.
+      // thread the host's context through to runTransformInner so a warning reaches the
+      // bundler's diagnostic channel. only its `warn` is read - esbuild and farm get one that
+      // carries nothing else (host-loading.js).
       // injector save/restore happens INSIDE runTransformInner so early-returns before
       // its installation point don't disturb a re-entrant outer transform's slot
       return runTransformInner.call(this, code, id, pass, environment, hostOptions);
@@ -670,8 +676,8 @@ export default function createPlugin(options) {
     }
     if (fatal) {
       // emit a tagged breadcrumb so the user knows core-js saw the bad source first.
-      // a caller without a `warn` hook (direct tests / bare invocations - the real bundlers
-      // supply one via unplugin's context) gets a throw instead, so the breadcrumb propagates
+      // a caller without a `warn` hook (direct tests / bare invocations - index.js hands one in
+      // for every bundler) gets a throw instead, so the breadcrumb propagates
       // rather than silently dropping the file
       if (typeof this?.warn !== 'function') throw new Error(formatParseErrorForThrow({ error: fatal, code }));
       this.warn(formatParseErrorForWarn({ id, error: fatal, code }));

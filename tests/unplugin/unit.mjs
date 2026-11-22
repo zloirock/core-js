@@ -763,6 +763,35 @@ function checkTransformParseErrorThrowsWhenNoWarn() {
 }
 checkTransformParseErrorThrowsWhenNoWarn();
 
+// oxc frames whole lines and whole multi-line spans: a minified line or a span to the end of
+// the file would ship the source itself as the warning. past the size cap the labels'
+// `line:col` stands in for the frame, on the throw path too; a moderately long line keeps it
+function checkTransformParseErrorOversizedCodeframe() {
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const longLine = `${ 'var x=1;'.repeat(1024) }export const a = +;`;
+  for (const [shape, code, location, framed] of [
+    ['moderate line', `${ 'var x=1;'.repeat(128) }export const a = +;`, '1:1043', true],
+    ['long line', longLine, '1:8211', false],
+    ['long span', `const t = \`${ 'line\n'.repeat(1000) }`, '1:11', false],
+  ]) {
+    let warned = '';
+    const result = plugin.transform.call({ warn(message) { warned = message; } }, code, '/oversized.mjs');
+    check(`transform/parse-error ${ shape } returns null`, result, null);
+    check(`transform/parse-error ${ shape } frame`, warned.includes('[/oversized.mjs:'), framed);
+    check(`transform/parse-error ${ shape } location`,
+      warned.includes(framed ? `[/oversized.mjs:${ location }]` : `\nat ${ location }`), true);
+  }
+  let thrown = null;
+  try {
+    plugin.transform.call({}, longLine, '/oversized.mjs');
+  } catch (error) {
+    thrown = error;
+  }
+  check('transform/parse-error long line thrown msg falls back to labels',
+    thrown?.message.includes('\nat 1:8211') && !thrown.message.includes('[/oversized.mjs:'), true);
+}
+checkTransformParseErrorOversizedCodeframe();
+
 // formatParseErrorForWarn labels-only fallback: oxc currently always emits codeframe, but
 // future versions might omit it for synthetic / degraded errors. helper must still build
 // an actionable message from labels + label.message + helpMessage. test with a

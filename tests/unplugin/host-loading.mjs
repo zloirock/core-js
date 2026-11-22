@@ -80,4 +80,24 @@ for (const rule of [/lib\.js$/g, [/lib\.js$/g]]) {
   }
 }
 
+// farm's native `warn` takes nothing but a string and aborts the process otherwise. Through
+// unplugin's own farm adapter a parse failure reaches it as one; every other host keeps the
+// context it calls the transform with
+const farmWarnings = [];
+const farmStage = unplugin.farm({ method: 'usage-pure', phase: 'post', targets: { ie: 11 } });
+const farmResult = await farmStage.transform.executor({ resolvedPath: '/app/broken.mjs', query: [], content: 'class { method( ' }, {
+  warn(message) { farmWarnings.push(message); },
+  error(message) { throw new Error(`farm error: ${ message }`); },
+});
+check('farm/parse failure declines', farmResult, null);
+checkDeep('farm/parse failure reaches farm as a string', farmWarnings.map(message => typeof message), ['string']);
+checkTruthy('farm/parse failure names the file', String(farmWarnings[0]).startsWith('[core-js] could not parse /app/broken.mjs:'));
+for (const host of ['bun', 'rolldown', 'rollup', 'rsbuild', 'rspack', 'vite', 'webpack']) {
+  const warnings = [];
+  const [{ transform }] = unplugin.raw({ method: 'usage-pure', phase: 'post', targets: { ie: 11 } }, { framework: host });
+  const result = (transform.handler ?? transform).call({ warn(message) { warnings.push(message); } }, 'class { method( ', '/app/broken.mjs');
+  check(`${ host }/parse failure declines`, result, null);
+  checkDeep(`${ host }/parse failure reaches the host context`, warnings.map(message => typeof message), ['string']);
+}
+
 finish();

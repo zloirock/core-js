@@ -2,7 +2,7 @@ import { createUnplugin } from 'unplugin';
 import createPlugin from './internals/plugin.js';
 import { moduleIdLanguage, stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { brand } from '@core-js/polyfill-provider/helpers/error-tag';
-import { esbuildSetup, webpackModuleType } from './internals/host-loading.js';
+import { esbuildSetup, farmTransformContext, webpackModuleType } from './internals/host-loading.js';
 import { externalRequireHooks, webpackExternalRequires } from './internals/external-requires.js';
 import {
   isHtmlProxyScript,
@@ -86,9 +86,9 @@ const unplugin = createUnplugin((options, meta) => {
     function environmentOf(context, hookOptions) {
       return context?.environment?.name ?? (hookOptions?.ssr ? 'ssr' : '');
     }
-    // forward bundler's `this` (carrying `.warn`) into plugin.transform so internal
-    // diagnostics (parse failures, ImportInjector fallbacks) actually surface; without
-    // `.call(this, ...)` the inner `this?.warn` is undefined and warnings drop silently
+    // plugin.transform reports a parse failure through the `warn` of the context it is called
+    // with and throws without one, so the bundler's context is forwarded - farm's through
+    // `farmTransformContext`
     function transform(code, id, hookOptions) {
       const environment = environmentOf(this, hookOptions);
       const moduleType = webpackLike ? webpackModuleType(this) : undefined;
@@ -99,7 +99,8 @@ const unplugin = createUnplugin((options, meta) => {
       if (webpackLike || externalESM || hookOptions?.validateRequires) {
         host.onRequire = (source, value) => { (host.requires ??= []).push([source, value]); };
       }
-      const result = plugin.transform.call(this, code, id, pass, environment, host);
+      const context = bundler === 'farm' ? farmTransformContext(this) : this;
+      const result = plugin.transform.call(context, code, id, pass, environment, host);
       const { requires } = host;
       if (webpackLike) {
         const { _module: module } = this?.getNativeBuildContext?.().loaderContext ?? {};

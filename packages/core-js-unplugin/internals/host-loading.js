@@ -62,3 +62,11 @@ export function webpackModuleType(context) {
   if (noParse && request && matchesNoParse(noParse, request, module)) return null;
   return type;
 }
+
+// unplugin's farm context wraps a message into an Error before handing it to farm's native `warn`,
+// which takes a string and aborts the process on anything else
+// (https://github.com/unjs/unplugin/issues/647). plugin.transform reads only `warn` off its
+// context, so on farm it gets one that reports through farm's own
+export function farmTransformContext(context) {
+  return { warn: message => context.getNativeBuildContext().context.warn(message) };
+}

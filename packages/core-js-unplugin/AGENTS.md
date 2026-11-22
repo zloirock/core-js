@@ -49,4 +49,4 @@ Accepted runtime debt: an exotic destructuring host over an object literal it wr
 
 For behavior changes, run bare `npm run test-transpiler-differential` and `npm run test-e2e-usage-pure`; the `unplugin` filter is diagnostic and omits import parity. Runtime e2e covers every phase, with stripped-realm coverage on `pre+post`. Hook, module-id and bundler-facing changes also need `npm run test-transpiler-integration`.
 
-At final handoff of code changes, run `npm run test-transpiling` once, then the performance gate specified by [the shared validation rules](../core-js-polyfill-provider/AGENTS.md#validation). Do not also run composite members on the same invocation line.
+At final handoff of code changes, run, once, the members of `npm run test-transpiling` that execute the changed code: a change confined to one host's branch of `index.js` or `internals/host-loading.js` needs only `npm run test-unplugin-unit` and `npm run test-transpiler-integration`. Then run the performance gate specified by [the shared validation rules](../core-js-polyfill-provider/AGENTS.md#validation). Do not also run composite members on the same invocation line.

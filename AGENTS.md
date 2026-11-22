@@ -47,7 +47,7 @@ npm workspaces; the packages:
   ./tests/eslint/node_modules/.bin/eslint --config ./tests/eslint/eslint.config.js path/to/changed-file.js
   ```
 
-  `npm run lint` is a full-build gate, not an edit-loop check, and so are the test composites `npm test` and `npm run test-transpiling` - supersets of the granular runners: once per change, as its final gate, and never on one invocation line with a member they already contain
+  `npm run lint` is a full-build gate, not an edit-loop check, and so are the test composites `npm test` and `npm run test-transpiling` - supersets of the granular runners: once per change, as its final gate, and never on one invocation line with a member they already contain. A test composite is that gate for a change that reaches what all its members run; a narrower change takes just the members that execute it
 - Spelling is gated too, by `codespell` - a `pip` package, not a dependency of this repository, so a machine without the binary skips the check while CI installs it and fails hard. Check the files you touched, again from the repository root:
 
   ```sh
