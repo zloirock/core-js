@@ -9,6 +9,7 @@ var fails = require('../internals/fails');
 
 var $RangeError = RangeError;
 var $String = String;
+var SUBNORMAL = 1023 * Number.MIN_VALUE; // 5.054e-321, Bun 0.1.1 parses subnormal literals as zero
 var repeat = uncurryThis($repeat);
 var join = uncurryThis([].join);
 var stringSlice = uncurryThis(''.slice);
@@ -20,7 +21,7 @@ var ROUNDS_PROPERLY = !fails(function () {
     nativeToFixed(1.255, 2) !== '1.25' ||
     nativeToFixed(1000000000000000128.0, 0) !== '1000000000000000128' ||
     // Rhino 1.8.0-: garbage and hangs on subnormals
-    nativeToFixed(5.054e-321, 0) !== '0';
+    nativeToFixed(SUBNORMAL, 0) !== '0';
 });
 
 // engines before ES2018 accept up to 20 digits

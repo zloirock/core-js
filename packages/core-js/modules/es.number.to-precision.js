@@ -11,6 +11,7 @@ var $RangeError = RangeError;
 var $String = String;
 var $isFinite = isFinite;
 var abs = Math.abs;
+var SUBNORMAL = 5 * Number.MIN_VALUE; // 2.5e-323, Bun 0.1.1 parses subnormal literals as zero
 var nativeToPrecision = uncurryThis(1.1.toPrecision);
 var repeat = uncurryThis($repeat);
 var join = uncurryThis([].join);
@@ -26,7 +27,7 @@ var ROUNDS_PROPERLY = !fails(function () {
     // Rhino 1.8.1+ loses digits
     || nativeToPrecision(0.03125, 21) !== '0.0312500000000000000000'
     // Rhino 1.8.0-: garbage, Java exceptions and hangs on subnormals
-    || nativeToPrecision(2.5e-323, 1) !== '2e-323';
+    || nativeToPrecision(SUBNORMAL, 1) !== '2e-323';
 });
 
 // engines before ES2018 accept up to 21 digits

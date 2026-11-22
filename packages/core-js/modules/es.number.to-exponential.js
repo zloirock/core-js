@@ -11,6 +11,7 @@ var $RangeError = RangeError;
 var $String = String;
 var $isFinite = isFinite;
 var abs = Math.abs;
+var SUBNORMAL = 5 * Number.MIN_VALUE; // 2.5e-323, Bun 0.1.1 parses subnormal literals as zero
 var nativeToExponential = uncurryThis(1.1.toExponential);
 var repeat = uncurryThis($repeat);
 var join = uncurryThis([].join);
@@ -30,12 +31,12 @@ var ROUNDS_PROPERLY = !fails(function () {
     // FF86-, V8 ~ Chrome 49-50
     || nativeToExponential(25, 0) !== '3e+1'
     // Rhino 1.8.0-: garbage, Java exceptions and hangs on subnormals
-    || nativeToExponential(2.5e-323, 0) !== '2e-323';
+    || nativeToExponential(SUBNORMAL, 0) !== '2e-323';
 });
 
 var PROPER_SHORTEST = !fails(function () {
   // Rhino 1.8.0-: garbage on subnormals without fraction digits too
-  return nativeToExponential(2.5e-323) !== '2.5e-323';
+  return nativeToExponential(SUBNORMAL) !== '2.5e-323';
 });
 
 // engines before ES2018 accept up to 20 digits

@@ -1308,9 +1308,9 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
         Infinity.toExponential(Infinity);
         NaN.toExponential(Infinity);
         1.0.toExponential(100);
-        // Rhino 1.8.0-
-        return 2.5e-323.toExponential() === '2.5e-323'
-          && 2.5e-323.toExponential(0) === '2e-323'
+        // Rhino 1.8.0-; 2.5e-323 is computed, Bun 0.1.1 parses subnormal literals as zero
+        return (5 * Number.MIN_VALUE).toExponential() === '2.5e-323'
+          && (5 * Number.MIN_VALUE).toExponential(0) === '2e-323'
           && (-6.9e-11).toExponential(4) === '-6.9000e-11'
           && 1.255.toExponential(2) === '1.25e+0'
           // Chakra-based Edge
@@ -1330,8 +1330,8 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
         && 0.9.toFixed(0) === '1'
         && 1.255.toFixed(2) === '1.25'
         && 1000000000000000128.0.toFixed(0) === '1000000000000000128'
-        // Rhino 1.8.0-
-        && 5.054e-321.toFixed(0) === '0';
+        // Rhino 1.8.0-; 5.054e-321 is computed, Bun 0.1.1 parses subnormal literals as zero
+        && (1023 * Number.MIN_VALUE).toFixed(0) === '0';
     }
   },
   'es.number.to-precision': function () {
@@ -1349,8 +1349,8 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
         && (25).toPrecision(1) === '3e+1'
         // Rhino 1.8.1+
         && 0.03125.toPrecision(21) === '0.0312500000000000000000'
-        // Rhino 1.8.0-
-        && 2.5e-323.toPrecision(1) === '2e-323';
+        // Rhino 1.8.0-; 2.5e-323 is computed, Bun 0.1.1 parses subnormal literals as zero
+        && (5 * Number.MIN_VALUE).toPrecision(1) === '2e-323';
     }
   },
   'es.object.assign': function () {
