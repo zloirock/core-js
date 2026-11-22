@@ -61,6 +61,7 @@ var thisTimeValue = uncurryThis(Date.prototype.getTime);
 var PERFORMANCE_MARK = uid('structuredClone');
 var DATA_CLONE_ERROR = 'DataCloneError';
 var TRANSFERRING = 'Transferring';
+var TRANSFER_BUFFERS = {};
 var SHARED_OBJECTS = {};
 // Native validation finishes before serialization reaches this getter, without transferring anything.
 var transferCheck = PROPER_STRUCTURED_CLONE_TRANSFER && defineProperty({}, 'value', {
@@ -188,11 +189,16 @@ var cloneBuffer = function (value, map, $type) {
   } else {
     var DataView = globalThis.DataView;
 
+    // detached buffers throw in `DataView` and `.slice`, but not in every engine
+    if (isDetached(value)) {
+      var buffers = mapGet(map, TRANSFER_BUFFERS);
+      // A listed buffer will throw during transfer, after the rest of the graph has been serialized.
+      if (buffers && setHas(buffers, value)) return null;
+      throw new DOMException('ArrayBuffer is detached', DATA_CLONE_ERROR);
+    }
     // `ArrayBuffer#slice` is not available in IE10
     // `ArrayBuffer#slice` and `DataView` are not available in old FF
     if (!DataView && !isCallable(value.slice)) throwUnpolyfillable('ArrayBuffer');
-    // detached buffers throw in `DataView` and `.slice`, but not in every engine
-    if (isDetached(value)) throw new DOMException('ArrayBuffer is detached', DATA_CLONE_ERROR);
     if (isCallable(value.slice) && !value.resizable) {
       clone = value.slice(0);
     } else {
@@ -535,7 +541,7 @@ var replaceReferences = function (map, replacements, clone) {
     return mapHas(replacements, value) ? mapGet(replacements, value) : value;
   };
   mapIterate(map, function (cloned, original) {
-    if (original === SHARED_OBJECTS) return;
+    if (original === SHARED_OBJECTS || original === TRANSFER_BUFFERS) return;
     var type = classof(cloned);
     var entries, keys, key, value, j;
     if (type === 'Map') {
@@ -601,7 +607,8 @@ var prepareTransfer = function (rawTransfer, map) {
     if (type === 'ArrayBuffer') {
       if (!detachTransferable && !arrayBufferTransfer) throwUnpolyfillable(type, TRANSFERRING);
       setAdd(buffers, value);
-      if (PROPER_TRANSFER_VALIDATION) push(nativeTransfer, value);
+      // Keep attached host buffers in mixed-list validation, e.g. Node's untransferable buffer pool.
+      if (PROPER_TRANSFER_VALIDATION && length > 1 && !isDetached(value)) push(nativeTransfer, value);
       continue;
     }
 
@@ -639,7 +646,7 @@ var prepareTransfer = function (rawTransfer, map) {
     mapSet(map, value, { type: type });
   }
 
-  if (PROPER_TRANSFER_VALIDATION && hasObjects) {
+  if (hasObjects && nativeTransfer.length) {
     try {
       nativeStructuredClone(transferCheck, { transfer: nativeTransfer });
     } catch (error) {
@@ -713,6 +720,7 @@ $({ global: true, enumerable: true, sham: !PROPER_TRANSFER, forced: FORCED_REPLA
     if (transfer !== undefined) {
       if (!map) map = new Map();
       transfers = prepareTransfer(transfer, map);
+      mapSet(map, TRANSFER_BUFFERS, transfers.buffers);
     }
 
     var clone = structuredCloneInternal(value, map);

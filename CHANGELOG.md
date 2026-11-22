@@ -46,6 +46,7 @@
   - Fixed `structuredClone` replacing buffer and view cloning errors with unrelated `DataCloneError` exceptions, and accepting detached views when their buffers had already been cloned
   - Fixed lost error messages in the `structuredClone` polyfill in old Firefox
   - Fixed `structuredClone` transferring platform objects before validating the transfer list and cloning the value, and processing mixed transfer lists out of order
+  - Fixed the `structuredClone` polyfill rejecting an already detached `ArrayBuffer` in the transfer list before running the cloned object's getters
   - Fixed `structuredClone` and `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfills relying on a non-native `structuredClone` installed before `core-js` in modern engines: `ArrayBuffer`s were left attached, and `structuredClone` accepted invalid transfer lists and returned untransferred platform objects
   - Avoided redundant buffer copies in the `structuredClone` transfer fallback and V8 detaching protector invalidation in workers
 - Other web APIs

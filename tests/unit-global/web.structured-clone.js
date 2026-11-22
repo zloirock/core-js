@@ -871,6 +871,19 @@ QUnit.module('structuredClone', () => {
     assert.same(clone.byteLength, 4, 'clone buffer has correct length');
     assert.throws(() => structuredClone(buffer), error => error.name === 'DataCloneError', 'a detached buffer is not cloneable');
     assert.throws(() => structuredClone(1, { transfer: [buffer] }), error => error.name === 'DataCloneError', 'detached transfer list entry');
+    const marker = new Error('getter failure');
+    const graph = defineProperty({ buffer }, 'failure', { enumerable: true, get() { throw marker; } });
+    assert.throws(() => structuredClone(graph, { transfer: [buffer] }), error => error === marker, 'getter error precedes transfer of a referenced detached buffer');
+    assert.throws(() => structuredClone(graph), error => error.name === 'DataCloneError', 'unlisted detached buffer fails before the getter');
+    const first = new ArrayBuffer(1);
+    assert.throws(() => structuredClone(buffer, { transfer: [first, buffer] }), error => error.name === 'DataCloneError', 'referenced detached buffer still fails transfer');
+    assert.same(first.byteLength, 0, 'the preceding buffer has already been transferred');
+    const late = new ArrayBuffer(1);
+    defineProperty(graph, 'buffer', { get() {
+      structuredClone(null, { transfer: [late] });
+      return late;
+    } });
+    assert.throws(() => structuredClone(graph, { transfer: [late] }), error => error === marker, 'buffer detached during serialization');
     const other = new ArrayBuffer(4);
     Object.defineProperty(other, 'transfer', { get() { throw new Error('transfer must not be read'); } });
     assert.same(structuredClone(1, { transfer: [other] }), 1, 'does not call an own transfer method');
@@ -940,7 +953,9 @@ QUnit.module('structuredClone', () => {
 
   if (typeof MessageChannel == 'function' && !structuredClone.sham) {
     QUnit.test('failed transfer preserves MessagePort', assert => {
-      for (const scenario of ['uncloneable', 'getter', 'invalid', 'duplicate', 'duplicate buffer', 'view', 'shared', 'detached buffer']) {
+      const markAsUntransferable = NODE && !DENO && GLOBAL.process.getBuiltinModule?.('worker_threads')?.markAsUntransferable;
+      for (const scenario of ['uncloneable', 'getter', 'invalid', 'duplicate', 'duplicate buffer', 'view', 'shared', 'detached buffer', 'marked buffer']) {
+        if (scenario === 'marked buffer' && !markAsUntransferable) continue;
         const shared = scenario === 'shared' && fromSource('new SharedArrayBuffer(1)');
         if (scenario === 'shared' && !shared) continue;
         const { port1, port2 } = new MessageChannel();
@@ -952,7 +967,7 @@ QUnit.module('structuredClone', () => {
           reads++;
           if (scenario === 'getter') throw marker;
           if (scenario === 'detached buffer') return structuredClone(1, { transfer: [buffer] });
-          return scenario === 'shared' ? 1 : function () { /* uncloneable */ };
+          return scenario === 'shared' || scenario === 'marked buffer' ? 1 : function () { /* uncloneable */ };
         } });
         const transfer = scenario === 'detached buffer' ? [buffer, port1] : [port1];
         if (scenario === 'uncloneable' || scenario === 'getter') transfer.push(buffer);
@@ -961,12 +976,22 @@ QUnit.module('structuredClone', () => {
         if (scenario === 'duplicate buffer') transfer.push(buffer, buffer);
         if (scenario === 'view') transfer.push(new Uint8Array(1));
         if (scenario === 'shared') transfer.push(shared);
+        if (scenario === 'marked buffer') {
+          markAsUntransferable(buffer);
+          transfer.push(buffer);
+        }
         let copy;
         try {
           assert.throws(() => structuredClone(value, { transfer }), error => scenario === 'getter'
             ? error === marker : isTransferError(error), scenario);
           assert.same(reads, scenario === 'uncloneable' || scenario === 'getter' || scenario === 'detached buffer' ? 1 : 0, `${ scenario }: validation precedes serialization`);
           if (scenario === 'uncloneable' || scenario === 'getter') assert.same(buffer.byteLength, 1, 'failed transfer preserves the buffer');
+          if (scenario === 'getter') {
+            structuredClone(1, { transfer: [buffer] });
+            for (const list of [transfer, [buffer, port1]]) {
+              assert.throws(() => structuredClone(value, { transfer: list }), error => error === marker, 'getter error precedes detached buffer check');
+            }
+          }
           copy = structuredClone(port1, { transfer: [port1] });
           assert.same(typeof copy.postMessage, 'function', 'port remains transferable');
         } finally {
