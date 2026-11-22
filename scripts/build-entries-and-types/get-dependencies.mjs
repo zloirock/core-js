@@ -68,3 +68,14 @@ export async function getModulesMetadata(paths) {
     types: unique(types),
   };
 }
+
+// Explicit dependencies survive the layer filter in both the JS entry and its declarations.
+export async function getEntryMetadata(entryModules, entryDependencies, filter) {
+  const metadata = await getModulesMetadata([...entryModules, ...entryDependencies]);
+  if (!filter) return metadata;
+  const required = new Set((await getModulesMetadata(entryDependencies)).dependencies);
+  return {
+    types: metadata.types,
+    dependencies: metadata.dependencies.filter(it => filter.has(it) || required.has(it)),
+  };
+}

@@ -1,7 +1,7 @@
 import { features, proposals } from './entries-definitions.mjs';
 import { $functionWithCustomType, $path, $proposal, $typeDummy } from './templates.mjs';
 import { modules as AllModules } from '../../packages/core-js-compat/src/data.mjs';
-import { getModulesMetadata } from './get-dependencies.mjs';
+import { getEntryMetadata } from './get-dependencies.mjs';
 import { expandModules, modulesToStage } from './helpers.mjs';
 import { preparePureTypes } from './build-types-pure.mjs';
 
@@ -102,13 +102,10 @@ async function buildType(entry, options) {
   const level = entry.split('/').length - 1;
 
   if (!types) {
-    types = [];
-    if (!customType) {
-      if (!enforceEntryCreation && !expandModules(modules[0], filter, AllModules).length) return;
-      modules = [...expandModules(modules, filter, AllModules), ...entryDependencies];
-      const { types: typePaths } = await getModulesMetadata(modules);
-      types = typePaths;
-    }
+    if (!enforceEntryCreation && !expandModules(modules[0], filter, AllModules).length) return;
+    const metadata = await getEntryMetadata(expandModules(modules, filter, AllModules), entryDependencies, filter);
+    modules = metadata.dependencies;
+    types = metadata.types;
   }
 
   if (typesFilter) {
@@ -248,6 +245,7 @@ async function buildTypesForTSVersion(tsVersion) {
   await buildType('index', { template: $path, modules: ActualModules, subset: 'actual', tsVersion });
 
   await buildType('configurator', {
+    types: [],
     customType: 'configurator-custom',
     entryFromNamespace: 'configurator',
     template: $functionWithCustomType,

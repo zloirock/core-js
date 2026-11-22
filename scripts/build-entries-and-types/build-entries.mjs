@@ -1,4 +1,4 @@
-import { getModulesMetadata } from './get-dependencies.mjs';
+import { getEntryMetadata } from './get-dependencies.mjs';
 import { features, proposals } from './entries-definitions.mjs';
 import { $proposal, $path, wrapEntryInStrict } from './templates.mjs';
 import { modules as AllModules } from '../../packages/core-js-compat/src/data.mjs';
@@ -77,12 +77,9 @@ async function buildEntry(entry, options) {
 
   const level = entry.split('/').length - 1;
 
-  // Explicit entry dependencies must survive the layer filter.
-  const required = new Set((await getModulesMetadata(entryDependencies)).dependencies);
-  const { dependencies, types } = await getModulesMetadata([...modules, ...entryDependencies]);
-  modules = dependencies;
-
-  if (filter) modules = modules.filter(it => filter.has(it) || required.has(it));
+  const metadata = await getEntryMetadata(modules, entryDependencies, filter);
+  modules = metadata.dependencies;
+  const { types } = metadata;
 
   const tpl = template({ ...options, modules, rawModules, level, entry, types });
 

@@ -37,3 +37,22 @@ chunksJS(num, 2);
 
 const sameRoot: typeof indexRoot = bareRoot;
 const sameIndex: typeof jsRoot = bareRoot;
+
+// @ts-expect-error This helper only ships in full.
+import esmap from '@core-js/pure/es/async-iterator/map';
+// @ts-expect-error This helper only ships in full.
+import esflatmap from '@core-js/pure/es/async-iterator/flat-map';
+// @ts-expect-error This helper only ships in full.
+import esreduce from '@core-js/pure/es/async-iterator/reduce';
+// @ts-expect-error This helper only ships in full.
+import stablemap from '@core-js/pure/stable/async-iterator/map';
+// @ts-expect-error This helper only ships in full.
+import stableflatmap from '@core-js/pure/stable/async-iterator/flat-map';
+// @ts-expect-error This helper only ships in full.
+import stablereduce from '@core-js/pure/stable/async-iterator/reduce';
+// @ts-expect-error This helper only ships in full.
+import actualmap from '@core-js/pure/actual/async-iterator/map';
+// @ts-expect-error This helper only ships in full.
+import actualflatmap from '@core-js/pure/actual/async-iterator/flat-map';
+// @ts-expect-error This helper only ships in full.
+import actualreduce from '@core-js/pure/actual/async-iterator/reduce';
