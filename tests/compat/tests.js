@@ -35,6 +35,10 @@ if (!V8_VERSION && USERAGENT) {
   }
 }
 
+// not `var webkit`: top-level names are globals of the page, and WebKit pages with message handlers have `window.webkit`
+match = USERAGENT.match(/AppleWebKit\/(\d+)\./);
+var WEBKIT_VERSION = !!match && +match[1];
+
 var IS_BROWSER = typeof window == 'object' && typeof Deno != 'object';
 var IS_BUN = !!Bun && typeof Bun.version == 'string';
 var IS_DENO = typeof Deno == 'object' && Deno && typeof Deno.version == 'object';
@@ -48,8 +52,7 @@ var WEBKIT_STRING_PAD_BUG = /Version\/10(?:\.\d+){1,2}(?: [\w./]+)?(?: Mobile\/\
 
 var ITERATOR_RESULT_CHECK_SUPPORT = function () {
   // Same WebKit and pre-Safari 15 JSC detection as iterator-result-webkit-bug.
-  var webkit = USERAGENT.match(/AppleWebKit\/(\d+)\./);
-  if (!webkit || +webkit[1] <= 537) return true;
+  if (!WEBKIT_VERSION || WEBKIT_VERSION <= 537) return true;
   try {
     var prototype = Function.prototype;
     var caller = Object.getOwnPropertyDescriptor(prototype, 'caller');
@@ -203,6 +206,9 @@ var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
 var PROTOTYPE_SETTING_AVAILABLE = Object.setPrototypeOf || {}.__proto__;
 
 var OBJECT_PROTOTYPE_ACCESSORS_SUPPORT = function () {
+  // the detection crashes old WebKit, so the module forces the polyfill there
+  // https://github.com/zloirock/core-js/issues/232
+  if (WEBKIT_VERSION && WEBKIT_VERSION < 535) return false;
   try {
     Object.prototype.__defineSetter__.call(null, Math.random(), function () { /* empty */ });
   } catch (error) {
