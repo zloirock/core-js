@@ -586,6 +586,12 @@ QUnit.module('structuredClone', () => {
         assert.same(orig[key], clone[key], `Property ${ key }`);
       }
     });
+    // objects shaped like raw JSON objects are ordinary objects
+    for (const lookalike of [{ rawJSON: '1' }, assign(objectCreate(null), { rawJSON: '1' })]) {
+      const clone = structuredClone(lookalike);
+      assert.notSame(clone, lookalike, 'raw JSON lookalike is cloned');
+      assert.same(clone.rawJSON, '1', 'raw JSON lookalike keeps its property');
+    }
   });
 
   if (DESCRIPTORS) {
@@ -1200,6 +1206,8 @@ QUnit.module('structuredClone', () => {
       ['WeakSet', new WeakSet()],
       ['URL', new URL('https://example.com/')],
       ['URLSearchParams', new URLSearchParams('a=1')],
+      ['RawJSON', JSON.rawJSON('1')],
+      ['RawJSON in an array', [JSON.rawJSON('1')]],
     ];
 
     const event = fromSource('new Event("")');

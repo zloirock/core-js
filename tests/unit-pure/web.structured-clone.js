@@ -6,6 +6,7 @@ import { bufferToArray, fromSource } from '../helpers/helpers.js';
 
 import structuredClone from 'core-js-pure/stable/structured-clone';
 import from from 'core-js-pure/es/array/from';
+import rawJSON from 'core-js-pure/es/json/raw-json';
 import assign from 'core-js-pure/es/object/assign';
 import objectCreate from 'core-js-pure/es/object/create';
 import defineProperty from 'core-js-pure/es/object/define-property';
@@ -611,6 +612,12 @@ QUnit.module('structuredClone', () => {
         assert.same(orig[key], clone[key], `Property ${ key }`);
       }
     });
+    // objects shaped like raw JSON objects are ordinary objects
+    for (const lookalike of [{ rawJSON: '1' }, assign(objectCreate(null), { rawJSON: '1' })]) {
+      const clone = structuredClone(lookalike);
+      assert.notSame(clone, lookalike, 'raw JSON lookalike is cloned');
+      assert.same(clone.rawJSON, '1', 'raw JSON lookalike keeps its property');
+    }
   });
 
   if (DESCRIPTORS) {
@@ -1233,6 +1240,8 @@ QUnit.module('structuredClone', () => {
       ['WeakSet', new WeakSet()],
       ['URL', new URL('https://example.com/')],
       ['URLSearchParams', new URLSearchParams('a=1')],
+      ['RawJSON', rawJSON('1')],
+      ['RawJSON in an array', [rawJSON('1')]],
     ];
 
     const event = fromSource('new Event("")');

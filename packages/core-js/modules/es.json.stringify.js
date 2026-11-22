@@ -68,8 +68,6 @@ var ILL_FORMED_UNICODE = fails(function () {
     || $stringify('\uDEAD') !== '"\\udead"';
 });
 
-var isRawJSONValue = NATIVE_RAW_JSON ? getBuiltIn('JSON', 'isRawJSON') : isRawJSON;
-
 var stringifyWithProperSymbolsConversion = WRONG_SYMBOLS_CONVERSION ? function (it, replacer, space) {
   return $stringify(it, function (key, value) {
     var replaced = call(replacer, this, key, value);
@@ -226,7 +224,7 @@ if ($stringify) $({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_
 
       if (isRoot) rootValue = value;
 
-      if (isRawJSONValue(value)) {
+      if (isRawJSON(value)) {
         if (NATIVE_RAW_JSON) return value;
         marked = true;
         return RAW_MARK + (push(rawStrings, value.rawJSON) - 1);

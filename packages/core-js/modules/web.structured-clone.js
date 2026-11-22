@@ -11,6 +11,7 @@ var isCallable = require('../internals/is-callable');
 var isConstructor = require('../internals/is-constructor');
 var isNullOrUndefined = require('../internals/is-null-or-undefined');
 var isObject = require('../internals/is-object');
+var isRawJSON = require('../internals/is-raw-json');
 var isSymbol = require('../internals/is-symbol');
 var iterate = require('../internals/iterate');
 var anObject = require('../internals/an-object');
@@ -293,6 +294,9 @@ var structuredCloneInternal = function (value, map) {
       cloned = Array(lengthOfArrayLike(value));
       break;
     case 'Object':
+      // raw JSON objects have no tag, so they reach this branch, but their `[[IsRawJSON]]` internal slot makes them
+      // not serializable
+      if (isRawJSON(value)) throwUncloneable('RawJSON');
       cloned = {};
       break;
     case 'Map':

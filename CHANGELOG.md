@@ -40,6 +40,7 @@
 - `structuredClone`
   - Fixed `structuredClone` with getters that modify the source: `Map` / `Set` entries are snapshotted before recursive cloning, and deleted own properties of objects and arrays are skipped
   - Fixed `structuredClone` cloning `URL` and `URLSearchParams` as empty objects instead of throwing a `DataCloneError`: polyfilled instances and native ones in NodeJS <= 20 and Deno <= 2.8
+  - Fixed the `structuredClone` polyfill cloning `RawJSON` objects as ordinary objects instead of throwing a `DataCloneError`
   - The `structuredClone` polyfill now preserves length tracking for views of resizable `ArrayBuffer`s and growable `SharedArrayBuffer`s when the engine can clone them with that mode intact. The fallback creates fixed-length views
   - The `structuredClone` polyfill now throws a `DataCloneError` when cloning an out-of-bounds view of a resizable `ArrayBuffer`
   - Fixed `structuredClone` replacing buffer and view cloning errors with unrelated `DataCloneError` exceptions, and accepting detached views when their buffers had already been cloned
@@ -115,7 +116,7 @@
   - Fixed `Iterator.prototype.chunks` polyfill calling `next` and `return` on an exhausted source after yielding the final partial chunk
   - Fixed `Iterator.prototype.flatMap` polyfill closing the source iterator when reading its result's `value` throws
 - Buffers, `DataView` and typed arrays
-  - *Fixed a memory leak in `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` and `structuredClone` with `transfer` polyfills in engines without a proper native `structuredClone` transfer*
+  - **Fixed a memory leak in `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` and `structuredClone` with `transfer` polyfills in engines without a proper native `structuredClone` transfer**
   - Fixed detection of detached `ArrayBuffer` in `ArrayBuffer.prototype.detached`, `structuredClone` and `Uint8Array.prototype.{ toBase64, toHex, setFromBase64, setFromHex }` polyfills
   - Fixed detection of detached WebAssembly buffers in [old V8](https://issues.chromium.org/issues/42209506) without `MessageChannel`, including incorrect `structuredClone` errors in NodeJS 8
   - Added missed detection of native `ArrayBuffer.prototype.slice` returning an empty buffer for a detached one instead of throwing in V8 ~ Chrome < 52 and Safari < 14.1
@@ -204,7 +205,7 @@
   - Fixed the source map of the minified `core-js-bundle` pointing to a nonexistent source instead of `index.js` of the package, a regression since 3.9.0
   - Fixed the reported size of bundles containing non-ASCII characters in `core-js-builder` and `bundle-package`; the `core-js-builder` summary comment no longer labels the bundle size `w/o comments`, since it counts the comments of the bundled code
 - Compat data improvements:
-  - *Added Safari 27.3 compat data*:
+  - **Added Safari 27.3 compat data**:
     - Shipped [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) features
     - Shipped [`Iterator.{ zip, zipKeyed }`](https://github.com/tc39/proposal-joint-iteration)
     - Shipped [`Iterator.prototype.{ chunks, windows }`](https://github.com/tc39/proposal-iterator-chunking)
@@ -213,12 +214,12 @@
     - Updated `Promise.try` to use `PromiseResolve` semantics
     - Fixed `Error.isError`
     - Added `DOMException#stack`
-  - *Following [tc39/ecma262/#3883](https://github.com/tc39/ecma262/pull/3883), `Promise.try` properly supported from*:
+  - **Following [tc39/ecma262/#3883](https://github.com/tc39/ecma262/pull/3883), `Promise.try` properly supported from**:
     - [V8 ~ Chrome 154](https://github.com/v8/v8/commit/5b5d90c5082ed1e6cf293d3008a33b81aae8cfbb)
     - [FF156](https://bugzilla.mozilla.org/show_bug.cgi?id=2062293)
     - Safari 27.3
     - [Bun 1.4.1](https://bun.com/blog/bun-v1.4.1#upgraded-javascriptcore)
-  - *`URL` and `URLSearchParams` marked as properly supported from the following versions*:
+  - **`URL` and `URLSearchParams` marked as properly supported from the following versions**:
     - Chrome 130
     - Firefox 133
     - Safari 15.4
@@ -292,7 +293,7 @@
       - Marked `Array.fromAsync` and `%TypedArray%.prototype.with` as unsupported
     - Fixed Safari compat data: `%TypedArray%.prototype.set` marked as supported from Safari 14.0
   - Version mappings and data inheritance
-    - *Added [Yandex Browser for Android](https://github.com/web-platform-dx/baseline-browser-mapping#list-of-downstream-browsers) compat data mapping*, allowed `yandex-android` target in `core-js-compat` / `core-js-builder`, [#1590](https://github.com/zloirock/core-js/pull/1590)
+    - **Added [Yandex Browser for Android](https://github.com/web-platform-dx/baseline-browser-mapping#list-of-downstream-browsers) compat data mapping**, allowed `yandex-android` target in `core-js-compat` / `core-js-builder`, [#1590](https://github.com/zloirock/core-js/pull/1590)
     - Updated Opera 140+ compat data mapping
     - Chromium-based Edge and Opera no longer inherit support from EdgeHTML and Presto where Chrome requires a later version. The resulting minimum versions also affect builds targeting those older engines
       - Edge 83 instead of 12 for `Array.prototype.{ reduce, reduceRight }`
