@@ -30,4 +30,16 @@ QUnit.test('Array#concat', assert => {
   } };
   // https://bugs.webkit.org/show_bug.cgi?id=281061
   assert.same(concat(array).foo, 1, '@@species');
+  array = [1];
+  // eslint-disable-next-line object-shorthand -- constructor
+  array.constructor = { [Symbol.species]: function () {
+    return {};
+  } };
+  assert.same(concat(array, 2).length, 2, 'species result gets the length');
+  array = [1, ,];
+  // eslint-disable-next-line object-shorthand -- constructor
+  array.constructor = { [Symbol.species]: function () {
+    return [];
+  } };
+  assert.same(concat(array).length, 2, 'species result keeps trailing holes');
 });

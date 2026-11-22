@@ -323,10 +323,27 @@ function createArrayMethodSpeciesTest(METHOD_NAME, args) {
     var array = [1];
     var constructor = array.constructor = {};
     constructor[Symbol.species] = function (length) {
-      // Rhino 1.9.0 - 1.9.2 calculates the deletion count after constructing the splice result.
-      return { foo: METHOD_NAME === 'splice' ? length : 1 };
+      // Rhino 1.9.0 - 1.9.2 passes 0 to the species constructor of slice and splice.
+      return { foo: METHOD_NAME === 'slice' || METHOD_NAME === 'splice' ? length : 1 };
     };
     return array[METHOD_NAME].apply(array, args || []).foo === 1;
+  };
+}
+
+// V8 < 8.2 keeps -0 from a count that truncates to -0 (the deletion count of `splice`, the end of `slice`) for the
+// species constructor or the result `length`; its later builtins only while elements follow the start
+// https://github.com/v8/v8/commit/8c8bd658c6f3a765a73ac49e57b7b138a67db635
+function createArrayMethodNegativeZeroTest(METHOD_NAME) {
+  return function () {
+    var count;
+    var array = [1];
+    array.constructor = {};
+    array.constructor[Symbol.species] = function (length) {
+      count = length;
+      return {};
+    };
+    var result = array[METHOD_NAME](0, -0);
+    return 1 / count > 0 && 1 / result.length > 0;
   };
 }
 
@@ -585,8 +602,11 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       return { foo: 1 };
     };
 
+    // V8 < 6.2 skips the `length` of a result made by a species other than `Array`
+    // https://github.com/v8/v8/commit/fafc3d5e6a4f950cb9bc5005cd76be3050255fa6
+    var result = array2.concat();
     // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
-    return array1.concat()[0] === array1 && array2.concat().foo === 1;
+    return array1.concat()[0] === array1 && result.foo === 1 && result.length === 0;
   },
   'es.array.copy-within': function () {
     return Array.prototype.copyWithin && Array.prototype[Symbol.unscopables].copyWithin;
@@ -714,7 +734,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     var test = [1, 2];
     return String(test) !== String(test.reverse());
   },
-  'es.array.slice': createArrayMethodSpeciesTest('slice'),
+  'es.array.slice': [createArrayMethodSpeciesTest('slice'), createArrayMethodNegativeZeroTest('slice')],
   'es.array.some': function () {
     try {
       Array.prototype.some.call(null, function () { /* empty */ });
@@ -765,22 +785,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   }],
   // Test a nonzero deletion count. With no arguments, Rhino 1.9.0 - 1.9.2 also discards the species result.
   // https://github.com/mozilla/rhino/issues/2589
-  'es.array.splice': [createArrayMethodSpeciesTest('splice', [Boolean]), function () {
-    // V8 < 8.2 keeps -0 from the deletion count for the species constructor or the result `length`,
-    // V8 7.1+ only while elements follow the start
-    // https://github.com/v8/v8/blob/91b36861e4bfb2cc2e93ca309f943b81767b8b44/src/js/array.js#L54-L62
-    // https://github.com/v8/v8/blob/cc8cb891eabb0480570388b487df181aa509ea69/src/js/array.js#L512
-    // https://github.com/v8/v8/blob/027689dbfcb2a9bbc8ceec4db2631c558e879633/src/builtins/array-splice.tq#L392-L394
-    var count;
-    var array = [1];
-    array.constructor = {};
-    array.constructor[Symbol.species] = function (length) {
-      count = length;
-      return {};
-    };
-    var result = array.splice(0, -0);
-    return 1 / count > 0 && 1 / result.length > 0;
-  }, function () {
+  'es.array.splice': [createArrayMethodSpeciesTest('splice', [Boolean]), createArrayMethodNegativeZeroTest('splice'), function () {
     // https://issues.chromium.org/issues/42210878#comment18
     var O = createSpliceTestObject();
     var length = O.length;

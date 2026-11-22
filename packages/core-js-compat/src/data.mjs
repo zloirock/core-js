@@ -219,7 +219,8 @@ export const data = {
     safari: '15.4',
   },
   'es.array.concat': {
-    chrome: '51',
+    // V8 < 6.2 skips the `length` of a result made by a species other than `Array`.
+    chrome: '62',
     edge: '15',
     firefox: '48',
     rhino: '1.9.0',
@@ -420,10 +421,10 @@ export const data = {
     safari: '12.0.2',
   },
   'es.array.slice': {
-    chrome: '51',
-    edge: '13',
+    // V8 < 8.2 keeps -0 from an end that truncates to -0, EdgeHTML skips the `length` of an empty species result, Rhino
+    // passes 0 to the species constructor.
+    chrome: '83',
     firefox: '48',
-    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.array.some': {

@@ -33,4 +33,16 @@ QUnit.test('Array#concat', assert => {
   // https://bugs.webkit.org/show_bug.cgi?id=281061
   // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
   assert.same(array.concat().foo, 1, '@@species');
+  array = [1];
+  // eslint-disable-next-line object-shorthand -- constructor
+  array.constructor = { [Symbol.species]: function () {
+    return {};
+  } };
+  assert.same(array.concat(2).length, 2, 'species result gets the length');
+  array = [1, ,];
+  // eslint-disable-next-line object-shorthand -- constructor
+  array.constructor = { [Symbol.species]: function () {
+    return [];
+  } };
+  assert.same(array.concat().length, 2, 'species result keeps trailing holes');
 });

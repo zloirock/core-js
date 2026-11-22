@@ -22,11 +22,16 @@ export function nullProto(source) {
   return result;
 }
 
-// The species lookup shortens the source, exposing an inherited index beyond its new length.
-export function createSpeciesShrinkingArray() {
+// An array with an inherited index beyond the length the shrinking tests cut it to.
+export function createInheritingArray() {
   const prototype = create(Array.prototype);
   prototype[2] = 'inherited';
-  const array = setPrototypeOf([1, 2, 3], prototype);
+  return setPrototypeOf([1, 2, 3], prototype);
+}
+
+// The species lookup shortens the source, exposing an inherited index beyond its new length.
+export function createSpeciesShrinkingArray() {
+  const array = createInheritingArray();
   defineProperty(array, 'constructor', { get() {
     array.length = 1;
     return Array;
