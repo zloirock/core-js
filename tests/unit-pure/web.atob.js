@@ -33,5 +33,8 @@ QUnit.test('atob', assert => {
   assert.throws(() => atob('[object Object]'), error => error.name === 'InvalidCharacterError', 'invalid #4');
   assert.throws(() => atob('ab=c'), error => error.name === 'InvalidCharacterError', 'padding in the middle');
   assert.throws(() => atob('YQ='), error => error.name === 'InvalidCharacterError', 'incomplete padding');
+  assert.throws(() => atob('YQ=a'), error => error.name === 'InvalidCharacterError', 'character after padding');
+  assert.throws(() => atob('=='), error => error.name === 'InvalidCharacterError', 'padding only');
+  assert.throws(() => atob('Zm9v\u000B'), error => error.name === 'InvalidCharacterError', 'vertical tab');
   assert.throws(() => atob('Zm9v\u00A0'), error => error.name === 'InvalidCharacterError', 'non-ASCII whitespace');
 });

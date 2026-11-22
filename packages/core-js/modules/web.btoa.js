@@ -19,7 +19,7 @@ var BASIC = !!$btoa && !fails(function () {
   return $btoa('hi') !== 'aGk=';
 });
 
-// Deno < 1.7.5 throws an incorrect error
+// Deno < 1.7.5 and Bun < 0.5.9 throw an incorrect error
 var INCORRECT_ENCODING = BASIC && fails(function () {
   try {
     $btoa('\u0100');

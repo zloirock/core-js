@@ -2453,6 +2453,13 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return WeakSet.of;
   },
   'web.atob': function () {
+    function rejects(string) {
+      try {
+        atob(string);
+      } catch (error) {
+        return true;
+      }
+    }
     try {
       atob();
     } catch (error1) {
@@ -2463,7 +2470,10 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
           && error2.name === 'InvalidCharacterError'
           && atob.length === 1
           && atob('aGk=') === 'hi'
-          && atob(' ') === '';
+          && atob(' ') === ''
+          && rejects('ab=c')
+          && rejects('YQ=')
+          && rejects('\u000B');
       }
     }
   },

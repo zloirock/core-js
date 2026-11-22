@@ -49,8 +49,9 @@
   - Fixed `structuredClone` and `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfills relying on a non-native `structuredClone` installed before `core-js` in modern engines: `ArrayBuffer`s were left attached, and `structuredClone` accepted invalid transfer lists and returned untransferred platform objects
   - Avoided redundant buffer copies in the `structuredClone` transfer fallback and V8 detaching protector invalidation in workers
 - Other web APIs
-  - Fixed detection of incorrect errors from native `atob` / `btoa` in Hermes, `atob` in [Deno < 1.7](https://github.com/denoland/deno/pull/8798), and `btoa` in [Deno < 1.7.5](https://github.com/denoland/deno/pull/9053)
+  - Fixed detection of incorrect errors from native `atob` / `btoa` in Hermes and Bun < 0.5.9, `atob` in [Deno < 1.7](https://github.com/denoland/deno/pull/8798), and `btoa` in [Deno < 1.7.5](https://github.com/denoland/deno/pull/9053)
   - Fixed detection of native `atob` not checking the number of arguments in [Deno < 1.17.3](https://github.com/denoland/deno/pull/13341)
+  - Fixed detection of native `atob` accepting incorrect padding in [NodeJS < 18.11](https://github.com/nodejs/node/pull/43901) and ignoring the vertical tab in [Safari < 14](https://bugs.webkit.org/show_bug.cgi?id=184529)
   - Fixed `MessageChannel` and native `DOMException` detection in old NodeJS
   - Fixed `DOMException` sometimes missing constants and `prototype.constructor` after the `.stack` patch in Safari 26
   - Fixed receiver validation in the `self` polyfill and added detection of native getters accepting invalid receivers in [Bun](https://github.com/oven-sh/bun/issues/47793) and [Deno](https://github.com/denoland/deno/issues/37119); the polyfilled setter now accepts `null` and `undefined` as the global object
@@ -229,6 +230,8 @@
   - Other web APIs
     - `atob` marked as properly supported from Deno 1.17.3, `btoa` - from Deno 1.11; `atob` no longer marked as supported in Hermes / React Native because of the error handling bugs above
     - Aligned `atob` / `btoa` probes with module checks for arity, basic encoding / decoding, `btoa(null)` conversion and the error from `atob()` without arguments
+    - `atob` marked as properly supported from NodeJS 18.11 and Safari 14.0 instead of NodeJS 18.0 and Safari 10.1 because of the padding and vertical tab bugs above
+    - `atob` / `btoa` marked as properly supported from Bun 0.5.9 instead of 0.1.1 because of the error handling bugs above
     - `queueMicrotask` marked as properly supported from Deno 1.24.3 instead of 1.0 because of incorrect arity
     - Marked `self` as unsupported in [Bun](https://github.com/oven-sh/bun/issues/47793) and [Deno](https://github.com/denoland/deno/issues/37119) because their getters accept invalid receivers
     - `self` marked as properly supported from Edge 87: unlike Chrome 86, Edge 86 has it as a data property

@@ -3081,7 +3081,8 @@ export const data = {
   'esnext.weak-set.of': {
   },
   'web.atob': {
-    bun: '0.1.1',
+    // older throw incorrect errors
+    bun: '0.5.9', // '0.1.1',
     chrome: '34',
     deno: '1.17.3',
     // older have wrong arity
@@ -3090,12 +3091,15 @@ export const data = {
     // https://github.com/nodejs/node/issues/41450
     // https://github.com/nodejs/node/issues/42530
     // https://github.com/nodejs/node/issues/42646
-    node: '18.0', // '17.9', '17.5', '16.0',
+    // https://github.com/nodejs/node/pull/43901
+    node: '18.11', // '18.0', '17.9', '17.5', '16.0',
     opera: '10.5',
-    safari: '10.1',
+    // https://bugs.webkit.org/show_bug.cgi?id=184529
+    safari: '14.0', // '10.1',
   },
   'web.btoa': {
-    bun: '0.1.1',
+    // older throw incorrect errors
+    bun: '0.5.9', // '0.1.1',
     chrome: '4',
     deno: '1.11',
     // older have wrong arity

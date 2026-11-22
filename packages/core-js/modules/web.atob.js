@@ -29,7 +29,12 @@ var NO_SPACES_IGNORE = BASIC && fails(function () {
   return $atob(' ') !== '';
 });
 
-// Incorrect error in Deno < 1.7 / Hermes
+// The vertical tab is ignored as a whitespace in Safari < 14
+var VERTICAL_TAB_IGNORE = BASIC && !fails(function () {
+  $atob('\u000B');
+});
+
+// Incorrect error in Deno < 1.7 / Bun < 0.5.9 / Hermes
 var INCORRECT_ENCODING = BASIC && fails(function () {
   try {
     $atob('a');
@@ -38,6 +43,13 @@ var INCORRECT_ENCODING = BASIC && fails(function () {
   }
   return true;
 });
+
+// Incorrect padding is accepted in NodeJS < 18.11
+var INCORRECT_PADDING = BASIC && (!fails(function () {
+  $atob('ab=c');
+}) || !fails(function () {
+  $atob('YQ=');
+}));
 
 var NO_ARG_RECEIVING_CHECK = BASIC && fails(function () {
   try {
@@ -50,7 +62,9 @@ var NO_ARG_RECEIVING_CHECK = BASIC && fails(function () {
 
 var WRONG_ARITY = BASIC && $atob.length !== 1;
 
-var FORCED = !BASIC || NO_SPACES_IGNORE || INCORRECT_ENCODING || NO_ARG_RECEIVING_CHECK || WRONG_ARITY;
+var CORRECT_DECODING = BASIC && !NO_SPACES_IGNORE && !VERTICAL_TAB_IGNORE && !INCORRECT_ENCODING && !INCORRECT_PADDING;
+
+var FORCED = !CORRECT_DECODING || NO_ARG_RECEIVING_CHECK || WRONG_ARITY;
 
 // `atob` method
 // https://html.spec.whatwg.org/multipage/webappapis.html#dom-atob
@@ -58,7 +72,7 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
   atob: function atob(data) {
     validateArgumentsLength(arguments.length, 1);
     // `webpack` dev server bug on IE global methods - use call(fn, global, ...)
-    if (BASIC && !NO_SPACES_IGNORE && !INCORRECT_ENCODING) return call($atob, globalThis, data);
+    if (CORRECT_DECODING) return call($atob, globalThis, data);
     var string = replace(toString(data), whitespaces, '');
     var position = 0;
     var bc = 0;
