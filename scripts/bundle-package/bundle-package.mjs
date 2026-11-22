@@ -21,19 +21,29 @@ const BUNDLED_NAME = cliOptions.get('bundled-name') ?? 'index';
 const MINIFIED_NAME = cliOptions.get('minified-name') ?? 'minified';
 const PATH = DENO ? 'deno/corejs/' : 'packages/core-js-bundle/';
 
-function log(kind, name, code) {
-  echo(green(`${ kind }: ${ cyan(`${ PATH }${ name }.js`) }, size: ${ cyan(formatSize(code)) }`));
+function log(kind, file, code) {
+  echo(green(`${ kind }: ${ cyan(file) }, size: ${ cyan(formatSize(code)) }`));
+}
+
+// a relative path as a relative URL: a raw `#`, `?` or `%` in a name would start a fragment, a query or an escape
+function toURL(file) {
+  return file.split(path.sep).map(encodeURIComponent).join('/');
 }
 
 async function bundle({ bundled, minified, options = {} }) {
   const source = await builder(options);
+  const bundledFile = `${ PATH }${ bundled }.js`;
 
-  log('bundling', bundled, source);
-  await fs.writeFile(`${ PATH }${ bundled }.js`, source);
+  log('bundling', bundledFile, source);
+  await fs.outputFile(bundledFile, source);
 
   if (!minified) return;
 
-  const { code, map } = await minify(source, {
+  const minifiedFile = `${ PATH }${ minified }.js`;
+  const minifiedName = path.basename(minifiedFile);
+
+  // the map is written next to the minified file, so the map URL and the source URL are relative to its directory
+  const { code, map } = await minify({ [toURL(path.relative(path.dirname(minifiedFile), bundledFile))]: source }, {
     ecma: 3,
     ie8: true,
     safari10: true,
@@ -58,13 +68,14 @@ async function bundle({ bundled, minified, options = {} }) {
       wrap_func_args: false,
     },
     sourceMap: {
-      url: `${ minified }.js.map`,
+      filename: minifiedName,
+      url: `${ toURL(minifiedName) }.map`,
     },
   });
 
-  await fs.writeFile(`${ PATH }${ minified }.js`, code);
-  await fs.writeFile(`${ PATH }${ minified }.js.map`, map);
-  log('minification', minified, code);
+  await fs.outputFile(minifiedFile, code);
+  await fs.outputFile(`${ minifiedFile }.map`, map);
+  log('minification', minifiedFile, code);
 }
 
 if (!process.exitCode) await bundle(DENO ? {

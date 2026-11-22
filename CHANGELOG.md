@@ -191,6 +191,7 @@
   - Fixed loading and target parsing of `core-js-compat` on NodeJS 6.4
   - `core-js-builder` now builds bundles in memory without creating a temporary file
   - Fixed the minified `core-js-bundle` on pages in a legacy encoding: non-ASCII characters in its code are now escaped, so the classic script without `charset` no longer replaces correct native `String.prototype.{ trim, trimStart, trimEnd }`, `parseInt`, `parseFloat`, `RegExp.escape`, `URL` and `URLSearchParams` with polyfills broken by the decoding
+  - Fixed the source map of the minified `core-js-bundle` pointing to a nonexistent source instead of `index.js` of the package, a regression since 3.9.0
   - Fixed the reported size of bundles containing non-ASCII characters in `core-js-builder` and `bundle-package`; the `core-js-builder` summary comment no longer labels the bundle size `w/o comments`, since it counts the comments of the bundled code
 - Compat data improvements:
   - *Added Safari 27.3 compat data*:
