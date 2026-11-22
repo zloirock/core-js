@@ -1870,6 +1870,15 @@ QUnit.test('URLSearchParams#@@toStringTag', assert => {
 // Fixed in 24.14.1, 25.8.2 and 26: https://github.com/nodejs/undici/pull/4841
 const NODE_FETCH_ORDER = NODE && !DENO && (NODE_VERSION < 2414 || NODE_VERSION === 2414 && +nodeVersion[2] < 1
   || NODE_VERSION >= 2500 && (NODE_VERSION < 2508 || NODE_VERSION === 2508 && +nodeVersion[2] < 2));
+// Node 18.6-18.12 and 19.0 (undici 5.7.0-5.11.0) read RequestInit / ResponseInit members from a null dictionary.
+// Fixed in 18.13 and 19.1 (undici 5.12.0): https://github.com/nodejs/undici/pull/1687
+const NODE_NULL_FETCH_INIT = NODE && !DENO && (NODE_VERSION >= 1806 && NODE_VERSION < 1813 || NODE_VERSION === 1900);
+// Node 18.0-18.5 (undici 5.0.0-5.5.1) reads RequestInit members more than once and rejects non-string methods.
+// Fixed in 18.6 (undici 5.7.0): https://github.com/nodejs/undici/pull/1507
+const NODE_REQUEST_INIT_LEGACY = NODE && !DENO && NODE_VERSION >= 1800 && NODE_VERSION < 1806;
+// Node 18.1 (undici 5.1.1) drops the headers of a Headers instance and of an input Request.
+// Fixed in 18.2 (undici 5.2.0): https://github.com/nodejs/undici/pull/1401
+const NODE_REQUEST_HEADERS_LOSS = NODE && !DENO && NODE_VERSION === 1801;
 // Deno 1.2-1.9.0 repeats getters, misses implicit types / Response.error / Request.signal and retains live bodies.
 // Fixed in 1.9.1: https://github.com/denoland/deno/pull/10203
 const DENO_FETCH_LEGACY = DENO_VERSION >= 102 && (DENO_VERSION < 109 || DENO_VERSION === 109 && DENO_PATCH === 0);
@@ -1964,7 +1973,7 @@ if (typeof Request == 'function') {
     const init = { body, headers, method: 'POST' };
     const request = new Request('http://example.com/', init);
     if (!DENO_FETCH_LEGACY && !BUN_BODY_LEGACY) assert.same(request.headers.get('content-type'), 'application/x-www-form-urlencoded;charset=UTF-8');
-    assert.same(request.headers.get('x-test'), 'preserved');
+    if (!NODE_REQUEST_HEADERS_LOSS) assert.same(request.headers.get('x-test'), 'preserved');
     assert.false(headers.has('content-type'), 'does not mutate author headers');
     assert.same(init.body, body, 'does not replace the author body');
     const bound = new Request('http://example.com/', { body: new URL('http://example.com/?b=1').searchParams, method: 'POST' });
@@ -1977,7 +1986,7 @@ if (typeof Request == 'function') {
     });
   });
 
-  if (DESCRIPTORS) QUnit.test('Request reads an ordinary body once', assert => {
+  if (DESCRIPTORS) QUnit[NODE_REQUEST_INIT_LEGACY ? 'skip' : 'test']('Request reads an ordinary body once', assert => {
     return new Request('http://example.com/', changingRequestBody(assert)).text().then(text => {
       assert.same(text, 'first');
     });
@@ -2017,7 +2026,7 @@ if (typeof Request == 'function') {
     assert.same(copiedRequest.method, paramsRequest.method, 'copied method');
     const input = new Request('http://example.com/', { method: 'POST', headers: { 'X-Test': 'preserved' } });
     const derived = new Request(input, { method: 'POST', body: new URLSearchParams('b=2') });
-    if (!BUN_REQUEST_INPUT && !UNDICI_REQUEST_INPUT) assert.same(derived.headers.get('x-test'), 'preserved', 'headers of the input Request');
+    if (!BUN_REQUEST_INPUT && !UNDICI_REQUEST_INPUT && !NODE_REQUEST_HEADERS_LOSS) assert.same(derived.headers.get('x-test'), 'preserved', 'headers of the input Request');
     if (!DENO_FETCH_LEGACY && !BUN_BODY_LEGACY && !BUN_REQUEST_INPUT) {
       assert.same(derived.headers.get('content-type'), 'application/x-www-form-urlencoded;charset=UTF-8', 'type with the input Request');
     }
@@ -2040,7 +2049,7 @@ if (typeof Request == 'function') {
     assert.throws(() => new Request(), 'requires an input');
   });
 
-  if (DESCRIPTORS) QUnit[BUN_INIT_GETTERS ? 'skip' : 'test']('URLSearchParams with Request, dictionary conversion', assert => {
+  if (DESCRIPTORS) QUnit[BUN_INIT_GETTERS || NODE_REQUEST_INIT_LEGACY ? 'skip' : 'test']('URLSearchParams with Request, dictionary conversion', assert => {
     const body = new URLSearchParams('a=1');
     const calls = [];
     const method = { toString() {
@@ -2212,7 +2221,7 @@ if (typeof Response == 'function') {
   QUnit.test('URLSearchParams with Response, defaults and explicit content type', assert => {
     if (!DENO_FETCH_LEGACY && !BUN_BODY_LEGACY) {
       assert.same(new Response(new URLSearchParams()).headers.get('content-type'), 'application/x-www-form-urlencoded;charset=UTF-8');
-      assert.same(new Response(new URLSearchParams(), null).headers.get('content-type'), 'application/x-www-form-urlencoded;charset=UTF-8');
+      if (!NODE_NULL_FETCH_INIT) assert.same(new Response(new URLSearchParams(), null).headers.get('content-type'), 'application/x-www-form-urlencoded;charset=UTF-8');
     }
     const response = new Response(new URLSearchParams('a=1'), { headers: [['cOnTeNt-TyPe', 'application/custom']] });
     assert.same(response.headers.get('content-type'), 'application/custom');
