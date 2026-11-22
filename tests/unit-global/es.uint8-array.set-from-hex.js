@@ -53,14 +53,34 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.setFromHex', assert => {
     assert.throws(() => array5.setFromHex('48656c6c6f20576f726c64'), TypeError, 'detached');
   }
 
-  // Should not throw an error with an empty string being set.  This verifies that
-  // we aren't using the result of segments = stringMatch(string, /.{2}/g) unsafely
-  // in cases where no matches are found, since it returns null instead of []
   const arrayEmpty = new Uint8Array(4);
   const resultEmpty = arrayEmpty.setFromHex('');
 
   assert.deepEqual(arrayEmpty, new Uint8Array([0, 0, 0, 0]), 'array empty string test');
   assert.deepEqual(resultEmpty, { read: 0, written: 0 }, 'result empty string test');
+
+  const empty = new Uint8Array(0);
+  assert.deepEqual(empty.setFromHex('?!'), { read: 0, written: 0 }, 'empty target ignores invalid pairs');
+  assert.throws(() => empty.setFromHex('a'), SyntaxError, 'length is checked even for an empty target');
+
+  const short = new Uint8Array(1);
+  const input = 'aB?!';
+  const { prototype } = GLOBAL.RegExp;
+  const { exec } = prototype;
+  let checkedTail = false;
+  let shortResult;
+  try {
+    prototype.exec = function (string) {
+      if (string === input && this.lastIndex >= 2) checkedTail = true;
+      return exec.call(this, string);
+    };
+    shortResult = short.setFromHex(input);
+  } finally {
+    prototype.exec = exec;
+  }
+  assert.false(checkedTail, 'does not match pairs after the target is full');
+  assert.deepEqual(shortResult, { read: 2, written: 1 });
+  assert.arrayEqual(short, [0xAB]);
 
   // Should not throw an error on length-tracking views over ResizableArrayBuffer
   // https://issues.chromium.org/issues/454630441

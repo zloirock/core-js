@@ -135,6 +135,7 @@
   - Added missed detection of [`Uint8Array.prototype.{ setFromBase64, toBase64, toHex }` throwing on resizable buffers in V8 ~ Chrome < 144](https://issues.chromium.org/issues/454630441)
   - Added missed detection of [`Uint8Array.prototype.setFromBase64` excluding trailing whitespace from the `read` count in V8](https://github.com/simdutf/simdutf/pull/825)
   - Fixed `Uint8Array.prototype.{ toBase64, toHex, setFromBase64, setFromHex }` polyfills on shared buffers
+  - Improved hex decoding in the `Uint8Array` polyfills. `fromHex` decodes directly into the result, and `setFromHex` reads only the pairs that fit in the target
 - `JSON`
   - Fixed order of `JSON.parse` dependencies loading, a regression since 3.47.0
   - Restored native `JSON.parse` delegation without a callable reviver in engines without native symbols, while preserving symbol conversion and detecting native parsing of numbers with leading zeros in IE

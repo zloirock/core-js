@@ -2,6 +2,7 @@
 // adapted from https://github.com/jridgewell/string-dedent
 var getBuiltIn = require('../internals/get-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
+var hexDigitToInt = require('../internals/hex-digit-to-int');
 
 var fromCharCode = String.fromCharCode;
 var fromCodePoint = getBuiltIn('String', 'fromCodePoint');
@@ -12,10 +13,6 @@ var stringSlice = uncurryThis(''.slice);
 
 var ZERO_CODE = 48;
 var NINE_CODE = 57;
-var LOWER_A_CODE = 97;
-var LOWER_F_CODE = 102;
-var UPPER_A_CODE = 65;
-var UPPER_F_CODE = 70;
 
 var isDigit = function (str, index) {
   var c = charCodeAt(str, index);
@@ -26,18 +23,11 @@ var parseHex = function (str, index, end) {
   if (end > str.length || index >= end) return -1;
   var n = 0;
   for (; index < end; index++) {
-    var c = hexToInt(charCodeAt(str, index));
+    var c = hexDigitToInt(charCodeAt(str, index));
     if (c === -1) return -1;
     n = n * 16 + c;
   }
   return n;
-};
-
-var hexToInt = function (c) {
-  if (c >= ZERO_CODE && c <= NINE_CODE) return c - ZERO_CODE;
-  if (c >= LOWER_A_CODE && c <= LOWER_F_CODE) return c - LOWER_A_CODE + 10;
-  if (c >= UPPER_A_CODE && c <= UPPER_F_CODE) return c - UPPER_A_CODE + 10;
-  return -1;
 };
 
 module.exports = function (raw) {
