@@ -190,6 +190,7 @@
   - Fixed Electron targets being dropped by `esmodules: 'intersect'` and included Electron 2.0 in the `esmodules: true` targets
   - Fixed missing polyfills and rejected exact versions for mobile `browserslist` targets in `core-js-compat` and `core-js-builder`
   - Fixed a lack of `and_chr`, `and_ff`, `ie_mob`, `ios_saf` and `op_mob` target aliases in `core-js-compat` and `core-js-builder` types
+  - Fixed `core-js-compat` and `core-js-builder` types requiring `esModuleInterop` in TypeScript < 6: without it, they failed with TS1259 or silently became `any`, even with `import compat = require('core-js-compat')`
   - Fixed handling of Safari Technology Preview and `latest` targets in `core-js-compat` and `core-js-builder`; invalid non-numeric target versions now throw a `RangeError` naming the engine and value
   - Fixed empty target sets selecting no polyfills in `core-js-compat` and `core-js-builder`; they now behave like omitted targets
   - Fixed `exclude` in `core-js-compat` and `core-js-builder` treating stable `es.*` modules and their legacy `esnext.*` aliases inconsistently; excluding either name now excludes both

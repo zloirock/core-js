@@ -1,4 +1,5 @@
-import type compat from "core-js-compat";
+// a default import of an `export =` module would need `esModuleInterop` in the consumer's program
+import compat = require("core-js-compat");
 
 type Format = 'bundle' | 'esm' | 'cjs';
 

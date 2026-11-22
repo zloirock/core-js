@@ -1,5 +1,6 @@
-import type compat from './compat'
-import type getModulesListForTargetVersion from './get-modules-list-for-target-version';
+// a default import of an `export =` module would need `esModuleInterop` in the consumer's program
+import compat = require('./compat');
+import getModulesListForTargetVersion = require('./get-modules-list-for-target-version');
 import type { ModuleName, Target, TargetVersion } from './shared'
 
 type CompatData = {
