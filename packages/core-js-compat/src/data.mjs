@@ -213,9 +213,11 @@ export const data = {
   'es.array.at': {
     chrome: '92',
     firefox: '90',
-    hermes: '0.13',
-    'react-native': '0.71',
-    rhino: '1.7.15',
+    // no `Symbol.unscopables`
+    // hermes: '0.13',
+    // 'react-native': '0.71',
+    // no `Array.prototype[@@unscopables]` before 1.8.0
+    rhino: '1.8.0', // '1.7.15',
     safari: '15.4',
   },
   'es.array.concat': {
@@ -272,14 +274,16 @@ export const data = {
   'es.array.find-last': {
     chrome: '97',
     firefox: '104',
-    hermes: '0.11',
+    // no `Symbol.unscopables`
+    // hermes: '0.11',
     rhino: '1.8.0',
     safari: '15.4',
   },
   'es.array.find-last-index': {
     chrome: '97',
     firefox: '104',
-    hermes: '0.11',
+    // no `Symbol.unscopables`
+    // hermes: '0.11',
     rhino: '1.8.0',
     safari: '15.4',
   },
@@ -461,8 +465,9 @@ export const data = {
     chrome: '110',
     deno: '1.27',
     firefox: '115',
-    hermes: '0.13',
-    'react-native': '0.74',
+    // no `Symbol.unscopables`
+    // hermes: '0.13',
+    // 'react-native': '0.74',
     rhino: '1.8.0',
     safari: '16.0',
   },
@@ -479,8 +484,9 @@ export const data = {
     bun: '1.4.3',
     firefox: '115',
     // https://github.com/meta/hermes/blob/static_h/doc/blog/2026-06-05-new-hermes-stable-release.md#bug-fixes
-    hermes: '260318099.0.0',
-    'react-native': '0.88',
+    // no `Symbol.unscopables`
+    // hermes: '260318099.0.0',
+    // 'react-native': '0.88',
     rhino: '1.8.0',
     safari: '27.3',
   },
@@ -516,13 +522,17 @@ export const data = {
     safari: '16.0',
   },
   'es.array-buffer.constructor': {
-    chrome: '28',
-    edge: '14',
-    firefox: '44',
-    hermes: '0.1',
+    // `ArrayBuffer[@@species]` and `ArrayBuffer.prototype[@@toStringTag]`
+    chrome: '51', // '28',
+    edge: '15', // '14',
+    firefox: '51', // '44',
+    // no `Symbol.species`
+    // hermes: '0.1',
     // NodeJS 0.11.4 switched to V8 typed arrays.
-    node: '0.11.4',
-    rhino: '1.8.0',
+    // NodeJS 6.0-6.4 (V8 5.0) has no `Symbol.species`.
+    node: '6.5', // '0.11.4',
+    // no `ArrayBuffer[@@species]`
+    // rhino: '1.8.0',
     safari: '12.0',
   },
   'es.array-buffer.is-view': {
@@ -546,14 +556,18 @@ export const data = {
   'es.data-view': null,
   'es.data-view.constructor': {
     chrome: '54', // '26',
-    firefox: '15',
+    // `DataView.prototype[@@toStringTag]`
+    edge: '15',
+    firefox: '51', // '15',
     hermes: '0.1',
-    ie: '10',
+    // no `Symbol.toStringTag`
+    // ie: '10',
     // setInt8 truncates 2147483649 to 0 in NodeJS 0.11.4.
     // NodeJS 6 (V8 5.0-5.1) accepts a negative byteLength.
     node: '7.0', // '0.11.5',
-    rhino: '1.7.13',
-    safari: '7.1',
+    // no `DataView.prototype[@@toStringTag]` before 1.7.15 and in 1.8.0-1.8.1
+    rhino: '1.9.0', // '1.7.13',
+    safari: '10.0', // '7.1',
   },
   'es.data-view.get-float16': {
     bun: '1.1.23',
@@ -936,9 +950,11 @@ export const data = {
     chrome: '51',
     edge: '15',
     firefox: '53',
-    hermes: '0.13',
-    'react-native': '0.73',
-    rhino: '1.7.13',
+    // no `Symbol.species`
+    // hermes: '0.13',
+    // 'react-native': '0.73',
+    // no `Map[@@species]` before 1.7.15
+    rhino: '1.7.15', // '1.7.13',
     safari: '10.0',
   },
   'es.map.group-by': {
@@ -1785,9 +1801,11 @@ export const data = {
     chrome: '51',
     edge: '15',
     firefox: '53',
-    hermes: '0.13',
-    'react-native': '0.73',
-    rhino: '1.7.13',
+    // no `Symbol.species`
+    // hermes: '0.13',
+    // 'react-native': '0.73',
+    // no `Set[@@species]` before 1.7.15
+    rhino: '1.7.15', // '1.7.13',
     safari: '10.0',
   },
   'es.set.difference.v2': {
@@ -1941,12 +1959,13 @@ export const data = {
     safari: '16.4',
   },
   'es.string.iterator': {
-    chrome: '41',
-    edge: '13',
-    firefox: '36',
+    // `%StringIteratorPrototype%[@@toStringTag]`
+    chrome: '49', // '41',
+    edge: '15', // '13',
+    firefox: '51', // '36',
     hermes: '0.1',
     rhino: '1.7.13',
-    safari: '9.0',
+    safari: '10.0', // '9.0',
   },
   'es.string.match': {
     chrome: '51',
@@ -3132,7 +3151,9 @@ export const data = {
     bun: '0.1.1',
     chrome: '66',
     deno: '1.0',
-    firefox: '60',
+    // no `@@toStringTag` on DOM prototypes before FF78
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1277799
+    firefox: '78', // '60',
     hermes: '0.1',
     node: '0.0.1',
     rhino: '1.7.13',

@@ -113,6 +113,10 @@ var PROMISES_SUPPORT = function () {
     && (!IS_BROWSER || typeof PromiseRejectionEvent == 'function');
 };
 
+var PROMISE_SPECIES_AND_TAG_SUPPORT = function () {
+  return Promise[Symbol.species] === Promise && Promise.prototype[Symbol.toStringTag] === 'Promise';
+};
+
 var PROMISE_STATICS_ITERATION = function () {
   var ITERATION_SUPPORT = false;
   try {
@@ -281,6 +285,11 @@ var TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS = function () {
 
   return new Int8Array(iterable)[0] === 1
     && new Int8Array(new ArrayBuffer(2), 1, undefined).length === 1;
+};
+
+var TYPED_ARRAY_SPECIES_AND_TAG_SUPPORT = function () {
+  // constructors inherit both from %TypedArray%
+  return Int8Array[Symbol.species] === Int8Array && new Int8Array(1)[Symbol.toStringTag] === 'Int8Array';
 };
 
 function NCG_SUPPORT() {
@@ -590,7 +599,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       && new SuppressedError(1, 2, 3, { cause: 4 }).cause !== 4;
   },
   'es.array.at': function () {
-    return [].at;
+    return [].at && Array.prototype[Symbol.unscopables].at;
   },
   'es.array.concat': function () {
     var array1 = [];
@@ -639,10 +648,10 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return !SKIPS_HOLES && Array.prototype[Symbol.unscopables].findIndex;
   },
   'es.array.find-last': function () {
-    return [].findLast;
+    return [].findLast && Array.prototype[Symbol.unscopables].findLast;
   },
   'es.array.find-last-index': function () {
-    return [].findLastIndex;
+    return [].findLastIndex && Array.prototype[Symbol.unscopables].findLastIndex;
   },
   'es.array.flat': createArrayMethodSpeciesTest('flat'),
   'es.array.flat-map': [createArrayMethodSpeciesTest('flatMap', [Boolean]), function () {
@@ -796,10 +805,10 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     }
   }],
   'es.array.to-reversed': function () {
-    return [].toReversed;
+    return [].toReversed && Array.prototype[Symbol.unscopables].toReversed;
   },
   'es.array.to-sorted': function () {
-    return [].toSorted;
+    return [].toSorted && Array.prototype[Symbol.unscopables].toSorted;
   },
   'es.array.to-spliced': function () {
     // https://issues.chromium.org/issues/587994321
@@ -816,7 +825,9 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
         toSpliced.apply(O, args);
       } catch (error) { return error instanceof ErrorConstructor; }
     }
-    return throwsOn([], RangeError) && throwsOn([-1, 1, 0, 0], TypeError);
+    return throwsOn([], RangeError)
+      && throwsOn([-1, 1, 0, 0], TypeError)
+      && Array.prototype[Symbol.unscopables].toSpliced;
   },
   'es.array.unscopables.flat': function () {
     return Array.prototype[Symbol.unscopables].flat;
@@ -856,6 +867,10 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     new ArrayBuffer(1.5);
     new ArrayBuffer(NaN);
     return ArrayBuffer.length === 1 && ArrayBuffer.name === 'ArrayBuffer';
+  }, function () {
+    return ArrayBuffer[Symbol.species] === ArrayBuffer;
+  }, function () {
+    return ArrayBuffer.prototype[Symbol.toStringTag] === 'ArrayBuffer';
   }],
   'es.array-buffer.is-view': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     return ArrayBuffer.isView;
@@ -904,6 +919,8 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     } catch (error) {
       return true;
     }
+  }, function () {
+    return DataView.prototype[Symbol.toStringTag] === 'DataView';
   }],
   'es.data-view.get-float16': [ARRAY_BUFFER_SUPPORT, function () {
     return DataView.prototype.getFloat16;
@@ -967,7 +984,9 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       Iterator({});
     } catch (error) {
       return typeof Iterator == 'function'
-        && Iterator.prototype === Object.getPrototypeOf(Object.getPrototypeOf([].values()));
+        && Iterator.prototype === Object.getPrototypeOf(Object.getPrototypeOf([].values()))
+        && Iterator.prototype[Symbol.toStringTag] === 'Iterator'
+        && Iterator.prototype.constructor === Iterator;
     }
   },
   'es.iterator.chunks': function () {
@@ -1109,7 +1128,9 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       && map.get(1) === 2
       && map.set(-0, 3) === map
       && map.has(0)
-      && map[Symbol.toStringTag];
+      && map[Symbol.toStringTag]
+      && map[Symbol.iterator]()[Symbol.toStringTag] === 'Map Iterator'
+      && Map[Symbol.species] === Map;
   }],
   'es.map.group-by': function () {
     // https://bugs.webkit.org/show_bug.cgi?id=271524
@@ -1441,8 +1462,8 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     }
   },
   // TODO: Remove this module from `core-js@4` since it's split to modules listed below
-  'es.promise': PROMISES_SUPPORT,
-  'es.promise.constructor': PROMISES_SUPPORT,
+  'es.promise': [PROMISES_SUPPORT, PROMISE_SPECIES_AND_TAG_SUPPORT],
+  'es.promise.constructor': [PROMISES_SUPPORT, PROMISE_SPECIES_AND_TAG_SUPPORT],
   'es.promise.all': [PROMISES_SUPPORT, SAFE_ITERATION_CLOSING_SUPPORT, PROMISE_STATICS_ITERATION, function () {
     return Promise.all;
   }],
@@ -1680,7 +1701,9 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       && set.has(1)
       && set.add(-0) === set
       && set.has(0)
-      && set[Symbol.toStringTag];
+      && set[Symbol.toStringTag]
+      && set[Symbol.iterator]()[Symbol.toStringTag] === 'Set Iterator'
+      && Set[Symbol.species] === Set;
   }],
   'es.set.difference.v2': [createSetMethodTest('difference', function (result) {
     return result.size === 0;
@@ -1743,7 +1766,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return String.prototype.isWellFormed;
   },
   'es.string.iterator': [SYMBOLS_SUPPORT, function () {
-    return ''[Symbol.iterator];
+    return ''[Symbol.iterator] && ''[Symbol.iterator]()[Symbol.toStringTag] === 'String Iterator';
   }],
   'es.string.match': function () {
     var O = {};
@@ -1883,39 +1906,48 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.string.sup': createStringHTMLMethodTest('sup'),
   'es.typed-array.float32-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
+    TYPED_ARRAY_SPECIES_AND_TAG_SUPPORT
   ],
   'es.typed-array.float64-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
+    TYPED_ARRAY_SPECIES_AND_TAG_SUPPORT
   ],
   'es.typed-array.int8-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
+    TYPED_ARRAY_SPECIES_AND_TAG_SUPPORT
   ],
   'es.typed-array.int16-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
+    TYPED_ARRAY_SPECIES_AND_TAG_SUPPORT
   ],
   'es.typed-array.int32-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
+    TYPED_ARRAY_SPECIES_AND_TAG_SUPPORT
   ],
   'es.typed-array.uint8-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
+    TYPED_ARRAY_SPECIES_AND_TAG_SUPPORT
   ],
   'es.typed-array.uint8-clamped-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
+    TYPED_ARRAY_SPECIES_AND_TAG_SUPPORT
   ],
   'es.typed-array.uint16-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
+    TYPED_ARRAY_SPECIES_AND_TAG_SUPPORT
   ],
   'es.typed-array.uint32-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
+    TYPED_ARRAY_SPECIES_AND_TAG_SUPPORT
   ],
   'es.typed-array.at': function () {
     return Int8Array.prototype.at;
@@ -2538,6 +2570,8 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
           !GLOBAL[collection].prototype[Symbol.iterator] ||
           GLOBAL[collection].prototype[Symbol.iterator] !== [].values
         ) return false;
+        // the module adds `@@toStringTag` where the prototype has no own one
+        if (!Object.getOwnPropertyDescriptor(GLOBAL[collection].prototype, Symbol.toStringTag)) return false;
         if (DOMIterables[collection] && (
           !GLOBAL[collection].prototype.keys ||
           !GLOBAL[collection].prototype.values ||

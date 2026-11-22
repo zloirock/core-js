@@ -263,19 +263,6 @@ for (const targets of ['safari TP', { safari: 'tp' }, { browsers: { safari: 'lat
   }, 'latest Safari needs polyfills only for unsupported features');
 }
 
-const spliceMethods = ['es.array.splice', 'es.array.to-spliced'];
-for (const hermes of ['260318099.0.0', 'latest', 'TP']) {
-  deepEqual(compat({ modules: spliceMethods, targets: { hermes } }).list, ['es.array.splice'], `Hermes ${ hermes } supports toSpliced`);
-}
-for (const targets of [
-  { hermes: '250829098.0.19', browsers: { hermes: 'latest' } },
-  { hermes: 'TP', browsers: { hermes: '250829098.0.19' } },
-]) {
-  deepEqual(compat({ modules: 'es.array.to-spliced', targets }).targets, {
-    'es.array.to-spliced': { hermes: '250829098.0.19' },
-  }, 'keeps the older Hermes release when both are requested');
-}
-
 const { list: inverted1 } = compat({ targets: { esmodules: true }, inverse: true });
 
 ok(inverted1.includes('es.symbol.iterator'), 'inverse #1');

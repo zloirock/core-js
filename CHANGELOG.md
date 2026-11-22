@@ -239,17 +239,19 @@
     - `Array.from` and `%TypedArray%.from` marked as properly supported from Safari 15.0 because of incorrect iterator result validation after warmup (see above)
     - Marked `Array.fromAsync` as unsupported in [V8 due to incorrect iterator closing](https://issues.chromium.org/issues/511947515), in Firefox due to [incorrect iterator initialization](https://bugzilla.mozilla.org/show_bug.cgi?id=2088041) and [error handling during cleanup](https://bugzilla.mozilla.org/show_bug.cgi?id=2078778), and in [Safari due to incorrect iterator initialization](https://bugs.webkit.org/show_bug.cgi?id=326074). Bun is marked as supported from 1.4.4, which fixed the initialization bug. Corrected Bun detection in compat tests
     - `Array.isArray` marked as supported from Safari 4.1 and iOS 4.0
+    - `Array.prototype.{ at, findLast, findLastIndex, toReversed, toSpliced }` no longer marked as supported in Hermes / React Native, and `Array.prototype.at` marked as properly supported from Rhino 1.8.0 instead of 1.7.15, because of missing `Array.prototype[@@unscopables]` entries
     - `Array.prototype.concat` marked as properly supported from Chrome 62 instead of Chrome 51 because of the bug above
     - `Array.prototype.fill` marked as properly supported from Chrome 48 instead of Chrome 45 because of the bug above
     - Because of the bugs above, `Array.prototype.flat` marked as properly supported from Rhino 1.9.0, `Array.prototype.flatMap` no longer marked as supported in Rhino, both no longer marked as supported in Hermes / React Native
     - `Array.prototype.slice` marked as properly supported from Chrome and Edge 83 instead of Chrome 51 and Edge 13, and no longer marked as supported in Rhino, because of the bugs above
     - Marked native `Array.prototype.splice` as unsupported in V8-based engines and EdgeHTML, and as supported from [Firefox 55](https://bugzilla.mozilla.org/show_bug.cgi?id=924058) and [Safari / iOS 14.0](https://bugs.webkit.org/show_bug.cgi?id=211205)
-    - Marked native `Array.prototype.toSpliced` as unsupported in V8-based engines, and as supported from Safari / iOS 27.3, Bun 1.4.3, Hermes 260318099.0.0 and React Native 0.88
+    - Marked native `Array.prototype.toSpliced` as unsupported in V8-based engines, and as supported from Safari / iOS 27.3 and Bun 1.4.3
     - `Array.prototype.unshift` marked as properly supported from FF55 instead of FF23 and Edge 16 instead of Edge 12 and no longer marked as supported in IE because of the bugs above
   - Buffers, `DataView` and typed arrays
+    - `ArrayBuffer` marked as properly supported from Chrome 51, Edge 15, FF51 and NodeJS 6.5 instead of Chrome 28, Edge 14, FF44 and NodeJS 0.11.1 because of missing `ArrayBuffer[@@species]` or `ArrayBuffer.prototype[@@toStringTag]`, and no longer marked as supported in Hermes / React Native and Rhino because of missing `ArrayBuffer[@@species]`
     - `ArrayBuffer.prototype.slice` marked as properly supported from Chrome 52 and Safari 14.1 instead of Chrome 31 and Safari 12.1 because of the detached buffers bug above
     - `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` marked as properly supported from NodeJS 22.4 because of the allocation failure crash (see above)
-    - `DataView` marked as properly supported from Chrome 54 and NodeJS 7.0 instead of Chrome 26 and NodeJS 0.11.0 because of the arguments conversion bug above
+    - `DataView` marked as properly supported from Chrome 54 and NodeJS 7.0 instead of Chrome 26 and NodeJS 0.11.0 because of the arguments conversion bug above, and from Edge 15, FF51, Rhino 1.9.0 and Safari 10.0 instead of Edge 12, FF15, Rhino 1.7.13 and Safari 7.1 and no longer marked as supported in IE because of missing `DataView.prototype[@@toStringTag]`
     - `%TypedArray%.prototype.fill` marked as properly supported from Chrome 59 because Chrome 58 converts the value once per element ([V8 fix](https://github.com/v8/v8/commit/2b1b32253bd4f0d6d97ae6c804d8e66eb1bfd07b))
     - `Uint8Array.prototype.{ setFromBase64, toBase64, toHex }` marked as properly supported from Chrome 144 instead of 140 because of failures on views of resizable buffers. `setFromBase64` also excluded trailing whitespace from its `read` count
   - `Number` and `Math`
@@ -271,7 +273,9 @@
     - `Symbol.dispose`, `Symbol.asyncDispose` and `Iterator.prototype[@@dispose]` marked as [shipped in FF141](https://bugzilla.mozilla.org/show_bug.cgi?id=1967744) instead of FF135 - before that, they were available only in Nightly
     - `Function.prototype[@@hasInstance]` marked as supported from Chrome 50 instead of 51
     - `Promise`, its original methods, `finally` and `allSettled` marked as supported from Deno 1.0 instead of 1.24
+    - `Map` and `Set` marked as properly supported from Rhino 1.7.15 instead of 1.7.13 and no longer marked as supported in Hermes / React Native because of missing `@@species`
     - `Set.prototype.union` marked as properly supported from [V8 ~ Chrome 133](https://issues.chromium.org/issues/352690887) where it gets the iterator record of a set-like object before cloning `this`
+    - `String.prototype[@@iterator]` marked as properly supported from Chrome 49, Edge 15, FF51 and Safari 10.0 instead of Chrome 41, Edge 13, FF36 and Safari 9.0 because of missing `%StringIteratorPrototype%[@@toStringTag]`
     - Aligned the `String.fromCodePoint` probe with the module arity check; marked as properly supported from [FF35](https://bugzilla.mozilla.org/show_bug.cgi?id=1062484) instead of FF29
   - Engine-specific data corrections
     - Corrected minimum Firefox versions
@@ -281,13 +285,13 @@
       - [FF48](https://bugzilla.mozilla.org/show_bug.cgi?id=1165052) for `Array.prototype.map`
       - [FF50](https://bugzilla.mozilla.org/show_bug.cgi?id=1054906) for `Symbol.hasInstance`
       - [FF53](https://bugzilla.mozilla.org/show_bug.cgi?id=1317309) instead of FF49 for `String.prototype.{ match, search }`
-      - [FF78](https://bugzilla.mozilla.org/show_bug.cgi?id=1277799) for `DOMException.prototype[@@toStringTag]`
+      - [FF78](https://bugzilla.mozilla.org/show_bug.cgi?id=1277799) for `DOMException.prototype[@@toStringTag]` and iterable DOM collections because of missing `@@toStringTag`
       - [FF157](https://bugzilla.mozilla.org/show_bug.cgi?id=2062666) for `Iterator.prototype.{ drop, take }`
     - Fixed IE compat data: `%TypedArray%.prototype.subarray` marked as supported from IE11, the `DOMException` `.stack` patch is no longer required in IE10+
     - Corrected minimum NodeJS versions in the compat data
       - 0.11.0 for `Array.prototype.{ reduce, reduceRight }`
       - 0.11.2 for `Math.imul`
-      - 0.11.4 for the `ArrayBuffer` constructor, `ArrayBuffer.prototype.slice` and `%TypedArray%.prototype.subarray`
+      - 0.11.4 for `ArrayBuffer.prototype.slice` and `%TypedArray%.prototype.subarray`
       - 10.9 for array iterators (`es.array.iterator`)
     - Corrected Rhino compat data
       - 1.7.13 and later for `Error.prototype.toString`, `ArrayBuffer.isView` and `%TypedArray%.prototype.subarray`
