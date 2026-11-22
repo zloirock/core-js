@@ -220,7 +220,7 @@ export const $static = p => ({
   `,
   types: dedent`
     declare module '${ buildModulePath(p) }' {
-      const method: typeof ${ p.prefix ?? '' }${ p.namespace }.${ p.name };
+      const method: ${ p.prefix && p.pureEntryType || `typeof ${ p.prefix ?? '' }${ p.namespace }.${ p.name }` };
       export = method;
     }
   `,
@@ -291,7 +291,7 @@ export const $namespace = p => ({
   `,
   types: dedent`
     declare module '${ buildModulePath(p) }' {
-      const namespace: typeof ${ p.prefix ?? '' }${ p.typeName ?? p.name };
+      const namespace: ${ p.prefix && p.pureType || `typeof ${ p.prefix ?? '' }${ p.typeName ?? p.name }` };
       export = namespace;
     }
   `,
@@ -339,7 +339,7 @@ export const $path = p => ({
   `,
   types: dedent`
     declare module '${ buildModulePath(p) }' {
-      const path: typeof globalThis;
+      const path: ${ p.prefix ? p.pureType : 'typeof globalThis' };
       export = path;
     }
   `,

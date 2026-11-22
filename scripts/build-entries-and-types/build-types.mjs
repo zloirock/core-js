@@ -1,5 +1,8 @@
 import { features, proposals } from './entries-definitions.mjs';
-import { $functionWithCustomType, $path, $proposal, $typeDummy } from './templates.mjs';
+import {
+  $functionWithCustomType, $namespace, $patchableStatic, $path, $proposal, $prototype, $static,
+  $staticWithContext, $typeDummy, $uncurried, $uncurriedWithCustomType,
+} from './templates.mjs';
 import { modules as AllModules } from '../../packages/core-js-compat/src/data.mjs';
 import { getEntryMetadata } from './get-dependencies.mjs';
 import { expandModules, modulesToStage } from './helpers.mjs';
@@ -52,6 +55,62 @@ function addEntryTypes(tsVersion, template, options) {
   if (options.exportForSubset) {
     addType(tsVersion, options.subset, template, { ...options, packageName: PACKAGE_NAME });
   }
+}
+
+const pureContainers = new Set(['Array', 'Date', 'Object', 'Reflect', 'String']);
+const staticTemplates = new Set([$static, $staticWithContext, $patchableStatic]);
+const namespaceEntries = Object.entries(features).filter(([entry, definition]) => definition.template === $namespace
+  && (entry.endsWith('/index') || !entry.includes('/'))
+  && definition.pureType !== 'undefined');
+// Alias entries, such as dom-collections/prototype/keys, can read another namespace's
+// method without installing a property on that namespace themselves.
+const memberEntries = Object.entries(features).filter(([entry, { namespace, template }]) => (staticTemplates.has(template)
+  || template === $uncurried || template === $uncurriedWithCustomType || template === $prototype)
+  && entry.split('/', 1)[0].replaceAll('-', '') === namespace.toLowerCase());
+
+function memberType(entry, subset = 'full') {
+  return `typeof import('${ PACKAGE_NAME_PURE }${ subset }/${ entry }')`;
+}
+
+function objectType(members) {
+  return members.length ? `{ ${ members.join(' ') } }` : 'object';
+}
+
+// Methods installed on the pure container follow the loaded modules, including uncurried
+// prototype methods. Use the public leaf's signature so its overloads stay intact.
+function pureMembers(name, loaded, prototype = false) {
+  return memberEntries.filter(([, definition]) => definition.namespace === name
+    && (prototype ? definition.template === $prototype : definition.template !== $prototype)
+    && (loaded.has(definition.modules[0]) || definition.template === $patchableStatic && loaded.has('es.symbol.constructor')))
+    .map(([entry, definition]) => `readonly ${ definition.name }: ${ memberType(entry) };`);
+}
+
+function purePathType(entry, subset, loaded) {
+  const members = [];
+  const typedArrays = entry.includes('/typed-array/');
+  for (const [key, definition] of namespaceEntries) {
+    const { name } = definition;
+    if (typedArrays) {
+      // Pure typed arrays export their dependencies' individual Object and Array helpers.
+      if (name !== 'Object' && name !== 'Array') continue;
+      const methods = pureMembers(name, loaded);
+      if (methods.length) members.push(`readonly ${ name }: ${ objectType(methods) };`);
+    } else {
+      if (!expandModules(definition.modules[0], loaded, AllModules).length
+        || definition.dependencies?.some(dependency => !loaded.has(dependency))) continue;
+      const type = pureContainers.has(name) ? objectType(pureMembers(name, loaded)) : memberType(key, subset);
+      members.push(`readonly ${ name }: ${ type };`);
+    }
+    const prototype = pureMembers(name, loaded, true);
+    if (prototype.length) members.push(`readonly ${ name }Prototype: ${ objectType(prototype) };`);
+  }
+  // regexp/index has no value export, but regexp/escape installs a method on path.RegExp.
+  if (loaded.has('es.regexp.escape')) members.push(`readonly RegExp: { readonly escape: ${ memberType('regexp/escape') }; };`);
+  if (loaded.has('es.error.cause')) {
+    // The error module wraps only the WebAssembly constructors present in the host.
+    members.push("readonly WebAssembly?: Partial<Record<'CompileError' | 'LinkError' | 'RuntimeError', ErrorConstructor>>;");
+  }
+  return objectType(members);
 }
 
 async function buildType(entry, options) {
@@ -129,6 +188,7 @@ async function buildType(entry, options) {
   }
   options = { ...options, modules, level, entry, types, subset, noPure };
 
+  if (template === $path) options.pureType = purePathType(entry, subset, new Set(modules));
   addEntryTypes(tsVersion, template, options);
   if (!entry.endsWith('/')) { // add alias with .js ending
     addEntryTypes(tsVersion, template, { ...options, entry: `${ entry }.js` });

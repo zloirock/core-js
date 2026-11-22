@@ -1,3 +1,11 @@
+import functionNamespace from '@core-js/pure/es/function';
+import dataViewConstructor from '@core-js/pure/es/data-view/constructor';
+import dataView from '@core-js/pure/es/data-view';
+import arrayBufferConstructor from '@core-js/pure/es/array-buffer/constructor';
+import isView from '@core-js/pure/es/array-buffer/is-view';
+import arrayBuffer from '@core-js/pure/es/array-buffer';
+import typedConstructors from '@core-js/pure/es/typed-array/constructors';
+import typedArrays from '@core-js/pure/es/typed-array';
 import bareRoot from '@core-js/pure';
 import indexRoot from '@core-js/pure/index';
 import jsRoot from '@core-js/pure/index.js';
@@ -56,3 +64,28 @@ import actualmap from '@core-js/pure/actual/async-iterator/map';
 import actualflatmap from '@core-js/pure/actual/async-iterator/flat-map';
 // @ts-expect-error This helper only ships in full.
 import actualreduce from '@core-js/pure/actual/async-iterator/reduce';
+
+const rootPromise: Promise<number[]> = bareRoot.Promise.all([1]);
+// @ts-expect-error The pure root does not expose arbitrary globals.
+bareRoot.eval('0');
+bareRoot.RegExp.escape('a+');
+const prototypeMatch = bareRoot.StringPrototype.matchAll.call('a', /a/);
+bareRoot.Array.from([1]);
+bareRoot.Array.map([1], value => value * 2);
+// @ts-expect-error The pure Array container exposes individual methods.
+new bareRoot.Array(1);
+typedArrays.Array.keys([1]);
+typedConstructors.Object.toString({});
+// @ts-expect-error This path does not export the native typed array constructors.
+new typedArrays.Uint32Array(2);
+const absentArrayBuffer: undefined = arrayBuffer;
+const absentArrayBufferConstructor: undefined = arrayBufferConstructor;
+const hostIsView: typeof ArrayBuffer.isView | undefined = isView;
+if (isView) {
+  const view: boolean = isView(new Uint8Array(1));
+}
+// @ts-expect-error The host may not provide ArrayBuffer.isView.
+isView(new Uint8Array(1));
+const absentDataView: undefined = dataView;
+const absentDataViewConstructor: undefined = dataViewConstructor;
+const absentFunctionNamespace: undefined = functionNamespace;

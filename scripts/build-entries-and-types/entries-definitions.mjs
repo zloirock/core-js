@@ -866,15 +866,18 @@ export const features = {
     modules: [/^(?:es|esnext)\.array-buffer\./],
     template: $namespace,
     name: 'ArrayBuffer',
+    pureType: 'undefined',
   },
   'array-buffer/constructor': {
     modules: ['es.array-buffer.constructor', ...ArrayBufferPrototypeMethods],
     template: $namespace,
     name: 'ArrayBuffer',
+    pureType: 'undefined',
   },
   'array-buffer/is-view': {
     modules: ['es.array-buffer.is-view'],
     template: $static,
+    pureEntryType: 'typeof ArrayBuffer.isView | undefined',
     namespace: 'ArrayBuffer',
     name: 'isView',
   },
@@ -1063,11 +1066,13 @@ export const features = {
     modules: [/^(?:es|esnext)\.data-view\./],
     template: $namespace,
     name: 'DataView',
+    pureType: 'undefined',
   },
   'data-view/constructor': {
     modules: [/^(?:es|esnext)\.data-view\./],
     template: $namespace,
     name: 'DataView',
+    pureType: 'undefined',
   },
   'data-view/get-float16': {
     modules: ['es.data-view.get-float16'],
@@ -1230,6 +1235,7 @@ export const features = {
     modules: [/^(?:es|esnext)\.function\./],
     template: $namespace,
     name: 'Function',
+    pureType: 'undefined',
   },
   'function/name': {
     modules: ['es.function.name'],
