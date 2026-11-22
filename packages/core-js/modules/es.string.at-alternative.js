@@ -10,7 +10,7 @@ var charAt = uncurryThis(''.charAt);
 
 var FORCED = fails(function () {
   // eslint-disable-next-line es/no-string-prototype-at -- safe
-  return '𠮷'.at(-2) !== '\uD842';
+  return '\uD842\uDFB7'.at(-2) !== '\uD842';
 });
 
 // `String.prototype.at` method

@@ -1806,6 +1806,11 @@ const forbidModernBuiltIns = {
 };
 
 const polyfills = {
+  // disallow raw non-ASCII characters in literals: a classic script without `charset` is decoded in the encoding of the page
+  'no-restricted-syntax': [ERROR, {
+    selector: 'Literal[raw=/[^\\x00-\\x7F]/]',
+    message: 'Write non-ASCII characters as escape sequences',
+  }],
   // prefer `node:` protocol
   'node/prefer-node-protocol': OFF,
   // enforces the use of `catch()` on un-returned promises

@@ -39,9 +39,9 @@ module.exports = !fails(function () {
     || new URL('https://a@b').username !== 'a'
     || new URLSearchParams(new URLSearchParams('a=b')).get('a') !== 'b'
     // not punycoded in Edge
-    || new URL('https://тест').host !== 'xn--e1aybc'
+    || new URL('https://\u0442\u0435\u0441\u0442').host !== 'xn--e1aybc'
     // not escaped in Chrome 62-
-    || new URL('https://a#б').hash !== '#%D0%B1'
+    || new URL('https://a#\u0431').hash !== '#%D0%B1'
     // fails in Chrome 66-
     || result !== 'a1c3'
     // throws in Safari 14.0-: https://bugs.webkit.org/show_bug.cgi?id=215734
