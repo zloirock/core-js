@@ -176,7 +176,7 @@ async function buildType(entry, options) {
       imports.index.add(type);
       imports[subset].add(type);
     }
-    if (!noPure) imports.pure.add(path.join('pure', type));
+    if (!noPure) imports.pure.add(`pure/${ type }`);
   });
 
   if (customType) {
@@ -184,7 +184,7 @@ async function buildType(entry, options) {
       imports.index.add(customType);
       imports[subset].add(customType);
     }
-    if (!noPure) imports.pure.add(path.join('pure', customType));
+    if (!noPure) imports.pure.add(`pure/${ customType }`);
   }
   options = { ...options, modules, level, entry, types, subset, noPure };
 
@@ -229,16 +229,16 @@ async function prependImports(version) {
   }
 }
 
-async function fillCustomImportsForPure(typesPath, initialPath) {
+// Keep the declaration's package-relative name in import syntax on every build host.
+async function collectPureOverrides(typesPath, prefix, files) {
   const entries = await readdir(typesPath, { withFileTypes: true });
   for (const entry of entries) {
+    const filePath = path.join(typesPath, entry.name);
+    const specifier = `${ prefix }/${ entry.name }`;
     if (entry.isDirectory()) {
-      await fillCustomImportsForPure(path.join(typesPath, entry.name), initialPath);
-    } else {
-      const filePath = path.join(typesPath, entry.name);
-      const fileContent = await readFile(filePath, 'utf8');
-      if (fileContent.startsWith('// empty')) continue;
-      imports.pure.add(filePath.replace(`${ initialPath }/`, '').replace('.d.ts', ''));
+      await collectPureOverrides(filePath, specifier, files);
+    } else if (!(await readFile(filePath, 'utf8')).startsWith('// empty')) {
+      files.push(specifier);
     }
   }
 }
@@ -252,7 +252,7 @@ async function buildAdditionalEntries(dir, tsVersion) {
       continue;
     }
     const entryName = entry.name.replace('.d.ts', '');
-    const entryPath = path.join(dir, entryName);
+    const entryPath = `${ dir }/${ entryName }`;
     result[entryName] = {
       template: () => ({ types: '' }),
       ownEntryPoint: true,
@@ -279,7 +279,9 @@ async function buildTypesForTSVersion(tsVersion) {
     await copy(srcPath, distTypesPath);
   }
 
-  await fillCustomImportsForPure(path.join(bundlePath, 'types', 'pure'), distTypesPath);
+  const files = [];
+  await collectPureOverrides(path.join(distTypesPath, 'pure'), 'pure', files);
+  imports.pure = new Set(files.sort().map(file => file.slice(0, -'.d.ts'.length)));
   await preparePureTypes(bundlePath, distTypesPath, path.join(SRC_DIR, SRC_BASE, 'pure'));
 
   for (const [entry, definition] of Object.entries(features)) {
