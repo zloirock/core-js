@@ -1,5 +1,5 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
+import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
 // two sibling namespaces declare a function with the same name. each
 // `typeof <ns>.fn` reference must collect only its own namespace's overload
 // signatures - cross-namespace bleed would let A's overload tail return a
@@ -11,11 +11,11 @@ declare namespace A {
 }
 declare namespace B {
   function fn(x: number): number;
-  function fn(x: bigint): number[];
+  function fn(x: bigint): string;
 }
 type RA = ReturnType<typeof A.fn>;
 type RB = ReturnType<typeof B.fn>;
 declare const ra: RA;
 declare const rb: RB;
 _atMaybeArray(ra).call(ra, 0);
-_includesMaybeArray(rb).call(rb, 0);
+_includesMaybeString(rb).call(rb, 'a');

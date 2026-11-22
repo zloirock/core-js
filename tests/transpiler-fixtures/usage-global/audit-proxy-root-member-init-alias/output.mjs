@@ -2,6 +2,7 @@ import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.from";
 import "core-js/modules/es.array.includes";
+import "core-js/modules/es.array.of";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.self";
@@ -20,5 +21,5 @@ export function memberCapturedRootResolves() {
 
 // the Identifier-init twin: the same capability through a bare-name capture
 export function nameCapturedRootResolves() {
-  return viaName.Array.from([3, 4]).includes(3);
+  return viaName.Array.of(3, 4).includes(3);
 }

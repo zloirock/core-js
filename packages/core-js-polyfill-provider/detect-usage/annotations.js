@@ -204,7 +204,7 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal, ctx) {
         }
       }
     }
-    const trueBranchScope = node.type === 'TSConditionalType' ? inferTypeParameterNames(node.extendsType) : null;
+    const trueBranchScope = node.type === 'TSConditionalType' ? inferTypeParameterNames(node.extendsType, { nested: false }) : null;
     for (const key of TYPE_CHILD_KEYS) {
       const child = node[key];
       const scope = trueBranchScope && key === 'trueType'

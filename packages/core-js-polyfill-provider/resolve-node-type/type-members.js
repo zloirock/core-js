@@ -58,6 +58,8 @@ export function createTypeMembers({
   indexedAccessKey,
   findAllTypeDeclarations,
   findTypeDeclaration,
+  declarationPath,
+  withLookupPath,
   extendsClauseName,
   buildSubstMap,
   buildParentClassSubstFromNodes,
@@ -353,7 +355,12 @@ export function createTypeMembers({
       seen.add(iface);
       const ifaceSubst = declSubst(iface, receiverArgs, scope);
       out.push(...substMembers(interfaceBodyMembers(iface), ifaceSubst));
-      appendInterfaceExtendsMembers({ iface, scope, depth, out, ifaceSubst, visited: seen });
+      if (iface.extends?.length) {
+        const path = declarationPath(iface, scope);
+        withLookupPath(path, () => appendInterfaceExtendsMembers({
+          iface, scope: path?.scope ?? scope, depth, out, ifaceSubst, visited: seen,
+        }));
+      }
     }
   }
 
@@ -380,7 +387,8 @@ export function createTypeMembers({
       appendMergedInterfaceMembers({
         segments: lookupSegments, scope, depth, out: merged, receiverArgs: curReceiverArgs, visited,
       });
-      const parent = findParentClassDecl(cur, scope);
+      const path = declarationPath(cur, scope);
+      const parent = withLookupPath(path, () => findParentClassDecl(cur, path?.scope ?? scope));
       if (!parent) break;
       // raw super-args (`extends Mid<T>`) reference cur's type params; apply curSubst FIRST
       // so the next hop's iface lookup receives concrete args, not raw param refs. example:

@@ -43,6 +43,7 @@ export function createTypeQuery({
   bindingDeclaratorPath,
   findAllEnumDeclarations,
   enumIsNearestValue,
+  namespaceValueVisible,
   withLookupPath,
   resolveEnumMemberType,
   isFunctionOrClassDeclaration,
@@ -112,7 +113,7 @@ export function createTypeQuery({
     if (memberPath.length === 1 && enumIsNearestValue(objectName, scope, bindingPath)) {
       const type = resolveEnumMemberType(findAllEnumDeclarations(objectName, scope), memberPath[0]);
       if (type) return type;
-    } else if (memberPath.length > 1) {
+    } else if (memberPath.length > 1 && namespaceValueVisible([objectName], scope)) {
       // namespaced `typeof NS.E.Member` - findAllEnumDeclarations walks the namespace segments to
       // the enum blocks; map the trailing segment as the enum member
       const enumSegments = [objectName, ...memberPath.slice(0, -1)];

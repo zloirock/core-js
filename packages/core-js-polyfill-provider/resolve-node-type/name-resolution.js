@@ -30,13 +30,11 @@ import {
   isAmbientTypeDeclaration,
   isESMMarkerStatement,
   memberContextPath,
+  pathOfNode,
+  pathContainedBy,
   unwrapExportedDeclaration,
 } from '../helpers/ast-patterns.js';
 
-// visitor-key list for recovering a real NodePath of a namespaced declaration via
-// `nodePathInScope` - the union of every node type `isFunctionOrClassDeclaration` /
-// `isAmbientFunctionNode` can leaf-match, so the program-root traversal finds any of them
-const NAMESPACED_DECL_PATH_TYPES = ['FunctionDeclaration', 'ClassDeclaration', ...AMBIENT_FN_OR_CLASS_DECLARATION_TYPES];
 const typeModuleMarker = Symbol('typeModule');
 
 // `declare global { ... }` opens a program-scope augmentation block. @babel/parser@7 flags it
@@ -140,6 +138,29 @@ function statementDescentDecls(statements) {
   return cached;
 }
 
+// Inside a namespace private declarations are visible by their local names. Crossing its
+// public boundary follows exports. An ambient block without an export list exports implicitly.
+const namespaceExportCache = new WeakMap();
+function namespaceExports(statements) {
+  let cached = namespaceExportCache.get(statements);
+  if (cached) return cached;
+  const declarations = [];
+  let named;
+  for (const statement of statements) {
+    if (statement.declaration || (statement.type === 'TSImportEqualsDeclaration' && statement.isExport)) {
+      declarations.push(statement);
+    } else if (['ExportNamedDeclaration', 'TSExportAssignment', 'ExportAllDeclaration'].includes(statement.type)) {
+      named ??= new Map();
+      for (const spec of statement.specifiers ?? []) {
+        if (!statement.source && spec.local?.name) named.set(spec.exported.name ?? spec.exported.value, spec.local.name);
+      }
+    }
+  }
+  cached = { declarations, named };
+  namespaceExportCache.set(statements, cached);
+  return cached;
+}
+
 function * declLeaves(decl) {
   if (decl.type === 'VariableDeclaration') {
     for (const declarator of decl.declarations ?? []) {
@@ -152,6 +173,16 @@ function * declLeaves(decl) {
 
 // the leaf predicate for a namespace's exported VALUE: only a declarator carries one, and the
 // name lives on IT rather than on the statement, which is why a decl-level match never saw it
+function isNamespaceDeclaration(node) {
+  return node.type === 'TSModuleDeclaration';
+}
+
+function statementContainer(path) {
+  const parent = path.parentPath;
+  return parent?.node?.type === 'ExportNamedDeclaration' || parent?.node?.type === 'ExportDefaultDeclaration'
+    ? parent.parentPath?.node : parent?.node;
+}
+
 function isValueDeclarator(node) {
   return node?.type === 'VariableDeclarator';
 }
@@ -165,7 +196,8 @@ function signatureFunction(path) {
 }
 
 function valueLookupPath(path) {
-  return signatureFunction(path)?.get('body') ?? path;
+  const body = signatureFunction(path)?.get('body');
+  return body?.node ? body : path;
 }
 
 function signatureTypeScope(scope, path) {
@@ -348,18 +380,6 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
     return findAmbientDeclarationPath(name, scope, isAmbientClassNode);
   }
 
-  // segment names of a TSModuleDeclaration id: Babel uses Identifier (single segment),
-  // oxc uses TSQualifiedName for `namespace A.B {}` (multi-segment)
-  function moduleNameSegments(id) {
-    if (!id) return null;
-    if (id.type === 'Identifier') return [id.name];
-    if (id.type === 'TSQualifiedName') {
-      const left = moduleNameSegments(id.left);
-      return left && [...left, id.right.name];
-    }
-    return null;
-  }
-
   // does `segments` start with the same names as `prefix`?
   function startsWithSegments(segments, prefix) {
     if (prefix.length > segments.length) return false;
@@ -413,14 +433,16 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
     return index;
   }
 
-  function walkStatementsForDecl({ segments, statements, collect, leafMatch = isTypeBearingDeclaration, visited = new Set() }) {
+  function walkStatementsForDecl({
+    segments, statements, visible = statements, collect, leafMatch = isTypeBearingDeclaration, visited = new Set(), ambient = false,
+  }) {
     if (!Array.isArray(statements) || !Array.isArray(segments) || !segments.length) return null;
     // hot path: a single segment - first-match OR collect - resolves through the O(1) per-statement
     // -list index. its construction already mirrors this walk for that case: leaves of the level's
     // own statements, descending only into `declare global` (a bare name must not reach into a
     // named namespace body, and a qualified one never gets here)
     if (segments.length === 1) {
-      const leaves = statementDeclIndex(statements, leafMatch).get(segments[0]);
+      const leaves = statementDeclIndex(visible, leafMatch).get(segments[0]);
       if (!collect) return leaves?.[0] ?? null;
       if (leaves) collect.push(...leaves);
       return null;
@@ -429,7 +451,7 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
     // past the single-segment return above, `rest` is never empty: this loop only ever CONTINUES a
     // qualified lookup, so it visits the two statement kinds a continuation can pass through and
     // nothing else. the leaf half lives in the index
-    for (const decl of statementDescentDecls(statements)) {
+    for (const decl of statementDescentDecls(visible)) {
       // TS `import IE = NS;` / `import IE = NS.Inner;` namespace alias - redirect head
       // segment through the moduleReference's segments and re-walk. external-module form
       // (`import X = require('m')`) has TSExternalModuleReference which `collectQualified
@@ -444,20 +466,20 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
         const refSegments = collectQualifiedSegments(decl.moduleReference);
         if (refSegments?.length) {
           const inner = walkStatementsForDecl({
-            segments: [...refSegments, ...rest], statements, collect, leafMatch, visited,
+            segments: [...refSegments, ...rest], statements, collect, leafMatch, visited, ambient,
           });
           if (inner && !collect) return inner;
         }
         continue;
       }
       if (decl.type !== 'TSModuleDeclaration') continue;
-      const moduleSegs = moduleNameSegments(decl.id);
+      const moduleSegs = collectQualifiedSegments(decl.id);
       if (!moduleSegs) continue;
       // `declare global { ... }` body bindings are visible at every depth - descend regardless
       // of segment count so both `Box` (bare) and `NS.Foo` (qualified via `declare global {
       // namespace NS {} }`) resolve through it
       if (isGlobalAugmentation(decl)) {
-        const inner = walkStatementsForDecl({ segments, statements: moduleStatements(decl), collect, leafMatch, visited });
+        const inner = walkStatementsForDecl({ segments, statements: moduleStatements(decl), collect, leafMatch, visited, ambient: true });
         if (inner && !collect) return inner;
         continue;
       }
@@ -465,8 +487,19 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
       // Box {} }; declare const x: Box;` leaves top-level `Box` undefined - and it no longer can:
       // the index this walk defers bare names to descends into `declare global` alone
       if (!startsWithSegments(segments, moduleSegs)) continue;
+      const body = moduleStatements(decl);
+      if (!body) continue;
+      const tail = segments.slice(moduleSegs.length);
+      const isAmbient = ambient || decl.declare;
+      let publicBody = body;
+      if (decl.body?.type !== 'TSModuleDeclaration') {
+        const { declarations, named } = namespaceExports(body);
+        const local = named?.get(tail[0]);
+        if (local) tail[0] = local;
+        else if (!isAmbient || named) publicBody = declarations;
+      }
       const inner = walkStatementsForDecl({
-        segments: segments.slice(moduleSegs.length), statements: moduleStatements(decl), collect, leafMatch, visited,
+        segments: tail, statements: body, visible: publicBody, collect, leafMatch, visited, ambient: isAmbient,
       });
       if (inner && !collect) return inner;
     }
@@ -505,30 +538,48 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
     return collected;
   }
 
-  // recover a raw leaf decl (from findFirstDecl/findAllDecls) to a real NodePath. babel doesn't
-  // bind TS `namespace` members as scope values, so the leaf is a raw node, but downstream
-  // consumers (resolveBodyReturnType / resolveParametersParams / findClassMember /
-  // resolveClassInheritance) call `.get('body')` / `.get('superClass')` - a {node, scope} shape
-  // would throw. recover by program-root identity match (same precedent as
-  // `resolveMergedNamespaceStatic`); babel creates no separate scope for a TSModuleDeclaration, so
-  // the recovered path chains to the outer scope and signature type-names still resolve. null when
-  // recovery fails (degrade, never crash)
-  function recoverDeclPath(node, scope) {
-    return node ? nodePathInScope(node, scope, NAMESPACED_DECL_PATH_TYPES) : null;
+  function declarationPath(node, scope) {
+    return node && (pathOfNode(currentLookupPath() ?? scope?.path, node) ?? nodePathInScope(node, scope, [node.type]));
   }
 
-  // resolve `typeof NS.Inner.fn` namespaced lookups to the first function/class decl on the path
-  // a namespace's exported VALUE (`namespace NS { export const v: T }` and its `declare` twin).
-  // the declaration walk surfaces declarators now, so this is the SAME finder with the leaf
-  // predicate that accepts one. it hands back the ANNOTATION rather than a path: a namespace
-  // member's declared type is the sound answer here, while reading an initializer would need a
-  // live path the walk does not carry - and declining there only degrades to generic
-  function findNamespacedValueAnnotation(segments, scope) {
-    return findFirstDecl({ name: segments, scope, leafMatch: isValueDeclarator })?.id?.typeAnnotation ?? null;
+  // A member or element can return a reference from a declaration, or a type argument
+  // substituted from its caller. The written name retains its own lexical environment.
+  function withTypeReferenceScope(node, scope, read) {
+    if (node?.type !== 'TSTypeReference' && node?.type !== 'GenericTypeAnnotation') return read(scope);
+    const name = node.typeName ?? node.id;
+    const path = (typeof name?.start !== 'number' && name?.loc)
+      ? nodePathInScope(name, scope, [name.type]) : pathOfNode(currentLookupPath() ?? scope?.path, name);
+    if (!path || pathContainedBy(path, currentLookupPath()?.node)) return read(scope);
+    let anchor = path;
+    for (let cur = path; cur && cur.scope === path.scope; cur = cur.parentPath) {
+      if (signatureFunction(cur)) {
+        anchor = cur;
+        break;
+      }
+    }
+    return withLookupPath(anchor, () => read(path.scope));
+  }
+
+  // A value binding can hide a namespace without hiding its type declarations. A merged
+  // function, class or enum exposes the namespace only from the same lexical container.
+  function namespaceValueVisible(segments, scope) {
+    const [name] = segments;
+    const binding = getScopeBinding({ scope, name })?.path;
+    if (!binding?.node || binding.node.type === 'TSModuleDeclaration' || binding.node.type === 'TSImportEqualsDeclaration') return true;
+    if (!isFunctionOrClassDeclaration(binding.node) && binding.node.type !== 'TSEnumDeclaration') return false;
+    const ns = findFirstDecl({ name, scope, leafMatch: isNamespaceDeclaration });
+    const path = declarationPath(ns, scope);
+    return path && statementContainer(path) === statementContainer(binding);
+  }
+
+  function findNamespacedValuePath(segments, scope) {
+    return namespaceValueVisible(segments, scope)
+      ? declarationPath(findFirstDecl({ name: segments, scope, leafMatch: isValueDeclarator }), scope) : null;
   }
 
   function findNamespacedFunctionPath(segments, scope) {
-    return recoverDeclPath(findFirstDecl({ name: segments, scope, leafMatch: isFunctionOrClassDeclaration }), scope);
+    return namespaceValueVisible(segments, scope)
+      ? findDeclPathBySegments(segments, scope, isFunctionOrClassDeclaration) : null;
   }
 
   // multi-result variant: collect ALL ambient function decls matching the qualified path.
@@ -537,8 +588,9 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
   // overload signature at the tail. `findAllDecls`'s collect-then-stop semantics keep
   // outer-scope overloads from bleeding past a namespace shadow
   function findNamespacedFunctionPaths(segments, scope) {
+    if (!namespaceValueVisible(segments, scope)) return [];
     return findAllDecls({ name: segments, scope, leafMatch: isAmbientFunctionNode })
-      .map(node => recoverDeclPath(node, scope))
+      .map(node => declarationPath(node, scope))
       .filter(Boolean);
   }
 
@@ -773,80 +825,8 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
     stmtDeclIndexCache = new WeakMap();
   }
 
-  // path-aware variant of `walkScopesForDecl` for qualified names. mirrors the
-  // segment-descent semantics of `walkStatementsForDecl` (recursing through
-  // TSModuleDeclaration / TSModuleBlock) but tracks NodePath rather than bare nodes -
-  // consumers like `resolveSuperClassPath` feed the result into `findClassMember`, which
-  // walks the class body via `classPath.get('body').get('body')` (NodePath-only API)
   function findDeclPathBySegments(segments, scope, matchType) {
-    if (!Array.isArray(segments) || !segments.length || !scope) return null;
-    for (let cur = scope; cur; cur = cur.parent) {
-      let bodyPaths = cur.path?.get('body');
-      if (bodyPaths && !Array.isArray(bodyPaths)) {
-        bodyPaths = bodyPaths.node ? bodyPaths.get('body') : null;
-      }
-      if (!Array.isArray(bodyPaths)) continue;
-      const found = walkDeclPathsBySegments(segments, bodyPaths, matchType);
-      if (found) return found;
-    }
-    return null;
-  }
-
-  function walkDeclPathsBySegments(segments, stmtPaths, matchType, visited = new Set()) {
-    const [head, ...rest] = segments;
-    for (const stmtPath of stmtPaths) {
-      const { type } = stmtPath.node ?? {};
-      const declPath = type === 'ExportNamedDeclaration' || type === 'ExportDefaultDeclaration'
-        ? stmtPath.get('declaration') : stmtPath;
-      const decl = declPath.node;
-      if (!decl) continue;
-      if (rest.length === 0 && decl.id?.name === head && matchType(decl)) return declPath;
-      // qualified ref reached through a namespace alias (`import IM = M; class C extends IM.Base`):
-      // re-walk with the alias target's segments prepended. mirrors `walkStatementsForDecl`'s
-      // TSImportEqualsDeclaration branch; visited-guard bails on cyclic aliases
-      if (decl.type === 'TSImportEqualsDeclaration' && decl.id?.name === head && rest.length) {
-        if (visited.has(decl)) continue;
-        visited.add(decl);
-        const refSegments = collectQualifiedSegments(decl.moduleReference);
-        if (refSegments?.length) {
-          const found = walkDeclPathsBySegments([...refSegments, ...rest], stmtPaths, matchType, visited);
-          if (found) return found;
-        }
-        continue;
-      }
-      if (decl.type !== 'TSModuleDeclaration') continue;
-      // `declare global { ... }` body bindings are visible at every depth - descend regardless of
-      // segment count (matching the node variant, which runs its global-augmentation branch ahead
-      // of the bare-name guard) so both bare and qualified names resolve through it
-      if (isGlobalAugmentation(decl)) {
-        const bodyPath = declPath.get('body');
-        const innerPaths = bodyPath?.node?.type === 'TSModuleDeclaration'
-          ? [bodyPath]
-          : bodyPath?.get?.('body');
-        if (!Array.isArray(innerPaths)) continue;
-        const found = walkDeclPathsBySegments(segments, innerPaths, matchType, visited);
-        if (found) return found;
-        continue;
-      }
-      // bare-name segments only resolve via top-level decls in this iteration. without the guard
-      // nested namespaces would re-enter their own body on every bare segment query, doubling
-      // work on deep TSModuleDeclaration trees
-      if (rest.length === 0) continue;
-      const moduleSegs = moduleNameSegments(decl.id);
-      if (!moduleSegs || !startsWithSegments(segments, moduleSegs)) continue;
-      // babel nested form (`namespace A.B {}` -> A.body is TSModuleDeclaration B):
-      // recurse with single-element list so the next iter matches B's name. flat form
-      // (oxc + babel non-nested): body is TSModuleBlock whose `.body` is the statement
-      // array we descend into
-      const bodyPath = declPath.get('body');
-      const innerPaths = bodyPath?.node?.type === 'TSModuleDeclaration'
-        ? [bodyPath]
-        : bodyPath?.get?.('body');
-      if (!Array.isArray(innerPaths)) continue;
-      const found = walkDeclPathsBySegments(segments.slice(moduleSegs.length), innerPaths, matchType, visited);
-      if (found) return found;
-    }
-    return null;
+    return declarationPath(findFirstDecl({ name: segments, scope, leafMatch: matchType }), scope);
   }
 
   // `isTypeBearingDeclaration` stays cluster-private (default `leafMatch` for
@@ -862,7 +842,10 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
     findAmbientFunctionPaths,
     findAmbientClassPath,
     findNamespacedFunctionPath,
-    findNamespacedValueAnnotation,
+    findNamespacedValuePath,
+    namespaceValueVisible,
+    declarationPath,
+    withTypeReferenceScope,
     findOverloadsForName,
     findDeclPathBySegments,
     findTypeDeclaration,

@@ -66,6 +66,7 @@ import { memberWriteTargetPath } from './class-member-shapes.js';
 const CLASS_PATH_TYPES = ['ClassDeclaration'];
 
 export function createMemberResolve({
+  withTypeReferenceScope,
   t,
   typeofSource,
   getScopeBinding,
@@ -127,7 +128,7 @@ export function createMemberResolve({
   bindingDeclaratorPath,
   getModuleFieldIndex,
   namespaceExportReturn,
-  findNamespacedValueAnnotation,
+  findNamespacedValuePath,
   resolveEnumMemberType,
   resolveEnumType,
   resolveNodeType,
@@ -550,7 +551,7 @@ export function createMemberResolve({
     }
     function resolve(p) {
       const { subst } = aliasChain();
-      return subst ? substituteTypeParams(p, subst, scope, 0) : resolveTypeAnnotation(p, scope);
+      return withTypeReferenceScope(p, scope, at => subst ? substituteTypeParams(p, subst, at, 0) : resolveTypeAnnotation(p, at));
     }
     // property access (not a call): delegate to findTypeMember
     if (!callPath) {
@@ -918,9 +919,9 @@ export function createMemberResolve({
       if (namespaceExport !== undefined && namespaceExport !== null) return namespaceExport;
       // the VALUE half of the same question: `NS.v` where the namespace exports a const. its name
       // lives on the DECLARATOR, which is why no lookup here used to see it at all
-      const valueAnnotation = findNamespacedValueAnnotation([objectPath.node.name, name], objectPath.scope);
-      if (valueAnnotation) {
-        const valueType = resolveTypeAnnotation(unwrapTypeAnnotation(valueAnnotation), objectPath.scope);
+      const valuePath = findNamespacedValuePath([objectPath.node.name, name], objectPath.scope);
+      if (valuePath?.node.id?.typeAnnotation) {
+        const valueType = withLookupPath(valuePath, () => resolveTypeAnnotation(valuePath.node.id.typeAnnotation, valuePath.scope));
         if (valueType) return valueType;
       }
     }

@@ -1,3 +1,4 @@
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 // `T[K1 | K2]` indexed access with union K. The indexed-access resolver folds each
 // branch through this resolver; verify it integrates with mapped-type rename
@@ -9,3 +10,4 @@ type Source = {
 };
 declare const v: Renamed<Source>['_items' | '_tags'];
 _flatMaybeArray(v).call(v);
+_atMaybeArray(v).call(v, 0);

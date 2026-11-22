@@ -192,6 +192,7 @@ function findBindingPattern(node, type) {
 
 // eslint-disable-next-line max-statements -- factory of binding values, patterns and their shared projections
 export function createPatternBindings({
+  withTypeReferenceScope,
   t,
   isMutatedStatic = () => false,
   getScopeBinding,
@@ -854,9 +855,9 @@ export function createPatternBindings({
     // destructured member of `Outer<string>` where `type Outer<A> = Inner<A>` belongs to Inner, so
     // its default must resolve in Inner's scope instead of being captured by Outer's `A` binding
     const defaultMap = followTypeAliasChain(unwrapped, scope).subst;
-    return defaultMap
-      ? substituteTypeParams(memberType, defaultMap, scope, depth + 1)
-      : resolveTypeAnnotation(memberType, scope, depth + 1);
+    return withTypeReferenceScope(memberType, scope, at => defaultMap
+      ? substituteTypeParams(memberType, defaultMap, at, depth + 1)
+      : resolveTypeAnnotation(memberType, at, depth + 1));
   }
 
   // walk an annotation down a destructure key path, member by member, and stop at the annotation.

@@ -322,7 +322,10 @@ function createResolveNodeType(babelNodeType, t, {
     // an alias instantiation's spelled arguments, where it kept them: the access reads the argument's
     // members, which the type the map resolved it to no longer carries
     const spelled = spelledTypeArgsOf(typeParamMap);
-    if (spelled?.has(rootName)) return resolveTypeAnnotation(applyAliasSubstDeep(node, spelled), scope, depth + 1, seen);
+    if (spelled?.has(rootName)) {
+      const substituted = applyAliasSubstDeep(node, spelled);
+      return withTypeReferenceScope(spelled.get(rootName), scope, at => resolveTypeAnnotation(substituted, at, depth + 1, seen));
+    }
     if (rootName && typeParamMap.has(rootName)) {
       const direct = resolveIndexAccessHit({ rootName, indexNodes, typeParamMap, scope, depth, seen });
       if (direct !== null) return direct;
@@ -769,7 +772,10 @@ function createResolveNodeType(babelNodeType, t, {
     findAmbientFunctionPaths,
     findAmbientClassPath,
     findNamespacedFunctionPath,
-    findNamespacedValueAnnotation,
+    findNamespacedValuePath,
+    namespaceValueVisible,
+    withTypeReferenceScope,
+    declarationPath,
     findOverloadsForName,
     findDeclPathBySegments,
     findTypeDeclaration,
@@ -1262,6 +1268,9 @@ function createResolveNodeType(babelNodeType, t, {
   } = createUserTypeResolve({
     typeParamName,
     findTypeDeclaration,
+    declarationPath,
+    getScopeBinding,
+    commonType,
     findDeclPathBySegments,
     withLookupPath,
     currentLookupPath,
@@ -2299,6 +2308,7 @@ function createResolveNodeType(babelNodeType, t, {
   // `resolveElementType` / `extractElementAnnotation` (+ shared `resolveUserTypeElement`
   // alias / interface-extends walker) live in `resolve-node-type/element-types.js`
   const elementTypesCluster = createElementTypes({
+    withTypeReferenceScope,
     typeAnswer,
     typeGuardHas,
     babelNodeType,
@@ -2309,6 +2319,11 @@ function createResolveNodeType(babelNodeType, t, {
     commonType,
     isNullableOrNever,
     findTypeDeclaration,
+    typeDeclarationShadowsGlobal,
+    findTypeParameter,
+    getScopeBinding,
+    declarationPath,
+    withLookupPath,
     applyAliasSubstDeep,
     buildSubstMap,
   });
@@ -2325,6 +2340,7 @@ function createResolveNodeType(babelNodeType, t, {
   // entries) but all deps are hoisted function decls or upstream cluster outputs;
   // `resolveNodeType` / `substituteTypeParams` thunked
   const patternBindingsCluster = createPatternBindings({
+    withTypeReferenceScope,
     t,
     isMutatedStatic,
     getScopeBinding,
@@ -2412,6 +2428,7 @@ function createResolveNodeType(babelNodeType, t, {
     constantBindingPath,
     bindingDeclaratorPath,
     findAllEnumDeclarations,
+    namespaceValueVisible,
     enumIsNearestValue,
     withLookupPath,
     resolveEnumMemberType,
@@ -2620,6 +2637,8 @@ function createResolveNodeType(babelNodeType, t, {
     indexedAccessKey,
     findAllTypeDeclarations,
     findTypeDeclaration,
+    declarationPath,
+    withLookupPath,
     extendsClauseName,
     buildSubstMap,
     buildParentClassSubstFromNodes,
@@ -2660,11 +2679,12 @@ function createResolveNodeType(babelNodeType, t, {
   // `findExpressionAnnotation` / `functionTypeReturnAnnotation` (both from the call-resolution
   // cluster above) and the hoisted `resolveNodeType` function declaration
   const memberResolveCluster = createMemberResolve({
+    withTypeReferenceScope,
     t,
     typeofSource,
     getModuleFieldIndex,
     namespaceExportReturn,
-    findNamespacedValueAnnotation,
+    findNamespacedValuePath,
     KNOWN_INSTANCE_METHOD_RETURN_TYPES,
     // forward-decl thunk: narrow-by-guards instantiates later in the factory body
     findAnnotationGuard: path => findAnnotationGuard(path),

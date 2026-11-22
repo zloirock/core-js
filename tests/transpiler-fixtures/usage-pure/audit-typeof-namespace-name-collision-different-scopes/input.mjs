@@ -9,11 +9,11 @@ declare namespace A {
 }
 declare namespace B {
   function fn(x: number): number;
-  function fn(x: bigint): number[];
+  function fn(x: bigint): string;
 }
 type RA = ReturnType<typeof A.fn>;
 type RB = ReturnType<typeof B.fn>;
 declare const ra: RA;
 declare const rb: RB;
 ra.at(0);
-rb.includes(0);
+rb.includes('a');

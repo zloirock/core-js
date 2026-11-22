@@ -26937,6 +26937,63 @@ function * generateMembershipOperands() {
     export const r = present;` };
 }
 
+function * generateTypeDeclarationScopes() {
+  function row(name, source) {
+    return { name: `type-declaration-scope/${ name }`, ts: true, strip: true, code: `${ source }\nexport const effects = [];\n` };
+  }
+  for (const parents of ['Tag, Array<number>', 'Array<number>, Tag', 'Tag, Items']) {
+    yield row(`heritage/${ parents }`, `interface Tag { tag?: boolean }
+      interface Items extends Array<number> {} interface List extends ${ parents } {}
+      function last(xs: List) { return xs.at(-1); } export const r = last([3, 9]);`);
+  }
+  yield row('interface-shadow', `interface Array<T> extends String {} interface Child extends Array<number> {}
+    function first(x: Child) { return x.at(0); } export const r = first('rose');`);
+  yield row('class-shadow', `class Array extends String {} class Child extends Array {}
+    function first(x: Child) { return x.at(0); } export const r = first(new Child('rose'));`);
+  yield row('qualified-alias', `declare namespace Lib { export type Parent = String }
+    interface Text extends Lib.Parent {} function first(x: Text) { return x.at(0); } export const r = first('rose');`);
+  for (const [label, alias, usage, value] of [
+    ['body', 'type Alias = Item;', 'Alias', '[29]'],
+    ['default', 'type Alias<T = Item, U = T> = U;', 'Alias', '[29]'],
+    ['argument', 'type Alias<T = Item> = T;', 'Alias<Item>', "'rose'"],
+  ]) yield row(`alias/${ label }`, `type Item = number[]; ${ alias }
+    function run() { type Item = string; function first(x: ${ usage }) { return x.at(0); } return first(${ value }); }
+    export const r = run();`);
+  yield row('element-shadow', `type Set<T> = Iterable<string>; function read(items: Set<number[]>) {
+    for (const x of items) return x.at(0);
+  } export const r = read(['rose']);`);
+  yield row('element-body', `type Item = string; type Items = Array<Item>;
+    function read(items: Items) { type Item = number[]; for (const x of items) return x.at(0); } export const r = read(['rose']);`);
+  yield row('element-argument', `type Item = number[]; type Items<T> = T[];
+    function run(){type Item = string; function read(items: Items<Item>) { for (const x of items) return x.at(0); }
+    return read(['rose']);} export const r = run();`);
+  yield row('namespace-value', `type Model = number[]; namespace Store { type Model = string; export const label: Model = 'rose'; }
+    export const r = Store.label.at(0);`);
+  yield row('namespace-private', `namespace Store { const label = 'private'; export const diagnostic = label; }
+    namespace Store { export const label: number[] = [29]; } export const r = Store.label.at(0);`);
+  yield row('tuple-argument', `type Item = number[]; type Bag<T> = readonly [T, T];
+    function use() { type Item = string; function first(xs: Bag<Item>) { for (const x of xs) return x.at(0); }
+    return first(['rose', 'lily']); } export const r = use();`);
+  yield row('namespace-shadow', `namespace Store { export const list: number[] = [29]; }
+    function read(Store: { list: string }) { return Store.list.at(0); } export const r = read({ list: 'rose' });`);
+  for (const kind of ['interface', 'class']) {
+    const field = kind === 'class' ? ' = [42];' : '';
+    const value = kind === 'class' ? 'new Model.View()' : '{ data: [42] }';
+    yield row(`namespace-member/${ kind }`, `type Item = string;
+      interface Base { data: string } namespace Model { type Item = number[]; export ${ kind } Base { data: Item${ field } }
+      export ${ kind } View extends Base {} } function first(x: Model.View) { return x.data.at(0); }
+      export const r = first(${ value });`);
+  }
+  yield row('typeof-enum', `namespace Config { export enum Flag { Value = 0 } }
+    function read() { const Config = { Flag: { Value: 'rose' } }; type Item = typeof Config.Flag.Value;
+    function first(x: Item) { return x.at(0); } return first(Config.Flag.Value); } export const r = read();`);
+  yield row('typeof-function', `namespace Config { export namespace Flags { export function get(): number[] { return [29]; } } }
+    function read() { const Config = { Flags: { get: (): string => 'rose' } }; type Item = ReturnType<typeof Config.Flags.get>;
+    function first(x: Item) { return x.at(0); } return first(Config.Flags.get()); } export const r = read();`);
+  yield row('const-enum', `namespace Map { export const enum Status { Ok = 7 } }
+    export const r = Map.Status.Ok;`);
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -28777,4 +28834,5 @@ export function * generate() {
   yield * generateBoundSlotWritePositions();
   yield * generateWrittenSlotExtractions();
   yield * generateMembershipOperands();
+  yield * generateTypeDeclarationScopes();
 }

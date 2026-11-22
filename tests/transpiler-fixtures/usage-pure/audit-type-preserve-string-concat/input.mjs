@@ -4,3 +4,4 @@
 const s = String('a');
 const concatenated = s.concat('b');
 concatenated.padStart(5);
+concatenated.at(0);

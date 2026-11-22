@@ -11,12 +11,10 @@
 // Cluster-private:
 //   resolveTypeArgs                  - phase-1 / phase-2 type-arg resolution with alpha-
 //                                      rename to drop colliding outer entries
-//   resolveInterfaceExtendsParent    - single `extends` clause walker (Identifier OR
-//                                      namespace-qualified TSQualifiedName / MemberExpression)
 import { MAX_DEPTH, boxForDeclaration, primitiveTypeOf, withDeclarationIdentity } from './base.js';
 import {
   collectQualifiedSegments,
-  extendsId,
+  synthInterfaceExtendsRef,
   interfaceBodyMembers,
   isInterfaceDeclaration,
   isTypeAlias,
@@ -61,6 +59,9 @@ function runParentWalkWithCycleIsolation(visited, walk) {
 export function createUserTypeResolve({
   typeParamName,
   findTypeDeclaration,
+  declarationPath,
+  getScopeBinding,
+  commonType,
   findDeclPathBySegments,
   withLookupPath,
   currentLookupPath,
@@ -84,7 +85,7 @@ export function createUserTypeResolve({
     return typeParamMap ? spelledTypeArgs.get(typeParamMap) ?? null : null;
   }
 
-  function resolveTypeArgs({ decl, node, typeParamMap, scope, depth, seen }) {
+  function resolveTypeArgs({ decl, path, node, typeParamMap, scope, depth, seen }) {
     const declParams = decl.typeParameters?.params;
     if (!declParams?.length) return typeParamMap;
     const callArgs = getTypeArgs(node)?.params;
@@ -113,7 +114,10 @@ export function createUserTypeResolve({
       const map = explicit ? base : localMap;
       // an EMPTY map is the plain lane, which the substitution entry degrades to itself - going
       // through it hands the decl-cycle guard over instead of restarting the walk empty here
-      const resolved = substituteTypeParams(arg, map.size > 0 ? map : null, scope, depth + 1, seen);
+      function resolve(at) {
+        return substituteTypeParams(arg, map.size > 0 ? map : null, at, depth + 1, seen);
+      }
+      const resolved = explicit ? resolve(scope) : withLookupPath(path, () => resolve(path?.scope ?? scope));
       // a PRESENT-but-opaque instantiation arg (and a consulted-but-unresolvable default,
       // e.g. a cyclic one) binds opaque (null): the body's type-param-declaration fallback
       // would otherwise re-derive the DEFAULT for a type the caller explicitly supplied -
@@ -134,46 +138,6 @@ export function createUserTypeResolve({
       ])));
     }
     return localMap;
-  }
-
-  // resolve a single interface extends clause:
-  //   - bare `interface I extends Base` (Identifier) -> existing direct lookup
-  //   - namespaced `interface I extends NS.Base` (TSQualifiedName in babel,
-  //     MemberExpression in oxc) -> decompose to segments, walk findTypeDeclaration's
-  //     array-form path to locate the parent interface, recurse with its declaration scope
-  // without the qualified branch, namespace extends bails to Object hint and member
-  // dispatch loses the parent's structural members
-  // resolve a qualified parent (interface-`extends` / class-`extends`) with its module body anchored
-  // as the type-name lookup path, so the parent's bare sibling-type heritage (`Base extends Inner`
-  // inside `namespace NS`) resolves against NS rather than the caller scope. `parentPath` is null for
-  // a bare / unfound name -> withLookupPath is a no-op and the caller scope is used unchanged
-  function resolveParentAnchored(parentPath, { name, node, scope, depth, typeParamMap, seen }) {
-    return withLookupPath(parentPath, () => resolveUserDefinedType({
-      name, node, scope: parentPath?.scope ?? scope, depth: depth + 1, typeParamMap, seen,
-    }));
-  }
-
-  function resolveInterfaceExtendsParent({ parent, scope, resolve, depth, typeParamMap, visited }) {
-    const base = extendsId(parent);
-    if (!base) return null;
-    if (base.type === 'Identifier') {
-      const constructor = resolveKnownConstructor(base.name);
-      return resolveKnownContainerType({ name: base.name, base: constructor, node: parent, innerResolver: resolve })
-        || resolveUserDefinedType({ name: base.name, node: parent, scope, depth: depth + 1, typeParamMap, seen: visited });
-    }
-    const segments = collectQualifiedSegments(base);
-    if (!segments) return null;
-    // pass full segments array (not last segment only) - findTypeDeclaration's namespace walk
-    // honours nested module paths; the bare last segment could match an unrelated
-    // sibling-scope declaration sharing the same short name
-    const parentDecl = findTypeDeclaration(segments, scope);
-    if (!parentDecl || !isInterfaceDeclaration(parentDecl)) return null;
-    // a namespace-qualified parent (`extends NS.Base`) whose heritage references a sibling by its
-    // bare name (`Base extends Inner`) needs NS's module body as the lookup anchor - findTypeDeclaration
-    // returns a raw node with no `.scope`, so `parentDecl.scope` is always undefined and bare `Inner`
-    // would resolve in the caller scope (missed). recover the parent's NodePath and anchor the lookup there
-    const parentPath = findDeclPathBySegments(segments, scope, isInterfaceDeclaration);
-    return resolveParentAnchored(parentPath, { name: segments, node: parent, scope, depth, typeParamMap, seen: visited });
   }
 
   // the value-kind of a merged `enum E {}` is folded over ALL its blocks' members at once, so a
@@ -233,26 +197,24 @@ export function createUserTypeResolve({
     // alias resolves differently per type-arg set, so it is simply not memoized
     const memoizable = !declaration.typeParameters?.params?.length && !typeParamMap;
     let memo = walkResultMemo.get(visited);
-    // every input the memoized body reads, beside the declaration itself:
-    // - SCOPE: an alias body resolves in the CALLER's scope, and an anchored parent walk swaps that
-    //   scope mid-walk while carrying this very set;
-    // - the lookup ANCHOR: the namespace fallback resolves bare names against it, and a recovered
-    //   namespace decl path chains to the OUTER scope, so the anchor can differ while the scope does not;
-    // - NAME: the enum branch folds the merge set for THIS name.
-    // a result poisoned by a grey ancestor is additionally not stored at all (below) - it is null
-    // because of what was OPEN above the call, not because of the declaration
-    const anchor = currentLookupPath();
+    // A non-generic body has the same environment on every edge reaching its declaration.
+    // Enum declarations merge at the use, so their lookup keeps the original environment.
+    const isEnum = declaration.type === 'TSEnumDeclaration';
+    const path = isEnum ? null : declarationPath(declaration, scope);
+    const anchor = path ?? currentLookupPath();
+    const bodyScope = path?.scope ?? scope;
     if (memoizable) {
       if (!memo) walkResultMemo.set(visited, memo = new Map());
       const hit = memo.get(declaration);
-      if (hit && hit.scope === scope && hit.anchor === anchor && hit.name === name) return hit.result;
+      if (hit && hit.scope === bodyScope && hit.anchor === anchor && hit.name === name) return hit.result;
     }
     // grey mark: the decl is now OPEN above the compute below, so a self-recursive body re-entry
     // hits the top-of-function cycle check. paired with the `finally` that ungreys it
     visited.add(declaration);
     try {
-      const walked = (() => {
-        typeParamMap = resolveTypeArgs({ decl: declaration, node, typeParamMap, scope, depth, seen: visited });
+      typeParamMap = resolveTypeArgs({ decl: declaration, path, node, typeParamMap, scope, depth, seen: visited });
+      const walked = isEnum ? resolveMergedEnumType(declaration, name, scope) : withLookupPath(path, () => {
+        scope = bodyScope;
         // thread `visited` into the body-resolution closure so self-recursive aliases
         // (`type Rec<T> = Rec<T[]>`) hit the decl-set guard on re-entry instead of
         // growing `typeParamMap` unboundedly until MAX_DEPTH bottom-outs via CPU-burn.
@@ -263,25 +225,24 @@ export function createUserTypeResolve({
           ? p => substituteTypeParams(p, typeParamMap, scope, depth + 1, visited)
           : p => resolveTypeAnnotation(p, scope, depth + 1, visited);
         if (isTypeAlias(declaration)) return resolve(typeAliasBody(declaration));
-        if (declaration.type === 'TSEnumDeclaration') return resolveMergedEnumType(declaration, name, scope);
         if (isInterfaceDeclaration(declaration)) {
           const parents = declaration.extends;
           if (parents?.length) {
+            let family = null;
+            let structural = null;
             for (const parent of parents) {
-              const result = runParentWalkWithCycleIsolation(visited,
-                () => resolveInterfaceExtendsParent({ parent, scope, resolve, depth, typeParamMap, visited }));
-              // the parent's box stands for the PARENT - re-stamped, or `Base extends Derived` reads
-              // one identity on both sides and answers TRUE for the members the derived side adds
-              if (result) {
-                const structural = result.topObject || result.constructor === 'Object' || primitiveTypeOf(result);
-                return withDeclarationIdentity(structural ? result.mark('mayBePrimitive') : result, declaration);
+              const result = runParentWalkWithCycleIsolation(visited, () => resolve(synthInterfaceExtendsRef(parent)));
+              if (!result) continue;
+              if (result.topObject || result.constructor === 'Object') structural ??= result;
+              else {
+                family = commonType(family, result);
+                if (!family) return null;
               }
             }
-            // extends parents that ALL resolved to nothing are unknowable (undeclared / unresolved
-            // heritage) - masquerading as Object suppresses the polyfill, same as the class branch -> null.
-            // no cycle-flip check here: unlike the class branch (which would else masquerade as Object),
-            // both the cyclic and the all-unresolved outcomes are already null
-            return null;
+            const result = family ?? structural;
+            if (!result) return null;
+            const qualified = !family || primitiveTypeOf(result) ? result.mark('mayBePrimitive') : result;
+            return withDeclarationIdentity(qualified, declaration);
           }
           return boxForDeclaration('Object', declaration).mark('mayBePrimitive');
         }
@@ -319,16 +280,15 @@ export function createUserTypeResolve({
             typeParameters: getHeritageTypeArgs(declaration),
           };
           const ctor = resolveKnownConstructor(superName);
-          if (ctor) return resolveKnownContainerType({ name: superName, base: ctor, node: parentRef, innerResolver: resolve }) || ctor;
+          const binding = ctor && getScopeBinding({ scope, name: superName })?.path;
+          if (ctor && !binding) {
+            return resolveKnownContainerType({ name: superName, base: ctor, node: parentRef, innerResolver: resolve }) || ctor;
+          }
           const cycleFlipped = cycleFlipDetector(visited);
-          // namespace-qualified super (`class Sub extends NS.Base`) whose own heritage references a
-          // sibling by bare name (`Base extends Inner`): anchor the lookup at the parent's NodePath so
-          // NS's module body supplies `Inner` (same gap as the interface branch). no-op for bare supers
           const parentSegments = superName.split('.');
-          const parentPath = parentSegments.length > 1
-            ? findDeclPathBySegments(parentSegments, scope, isClassLikeDeclaration) : null;
-          const result = runParentWalkWithCycleIsolation(visited, () => resolveParentAnchored(parentPath,
-            { name: superName, node: parentRef, scope, depth, typeParamMap, seen: visited }));
+          const result = runParentWalkWithCycleIsolation(visited, () => resolveUserDefinedType({
+            name: superName, node: parentRef, scope, depth: depth + 1, typeParamMap, seen: visited,
+          }));
           if (result) return withDeclarationIdentity(result, declaration);
           if (cycleFlipped()) return null;
           // superName was extracted but no parent class with that name resolved to a container type.
@@ -336,11 +296,7 @@ export function createUserTypeResolve({
           // Object is correct, the receiver is a known object) from an UNKNOWABLE base (no class decl -
           // opaque import / value-position name) which could be Array / a typed-array, where masquerading
           // as Object would suppress the polyfill -> bail to null (same as `!superName`)
-          // for a QUALIFIED super the branch above already asked this exact question - the lookup is
-          // pure in (segments, scope, matchType) and uncached, so a second walk, hit or miss, can only
-          // reproduce it. only a bare super (where `parentPath` is null by design) has to ask
-          const baseDeclPath = parentSegments.length > 1 ? parentPath
-            : findDeclPathBySegments(parentSegments, scope, isClassLikeDeclaration);
+          const baseDeclPath = findDeclPathBySegments(parentSegments, scope, isClassLikeDeclaration);
           if (!baseDeclPath) return null;
           // the base resolves to a LOCAL class decl, but its own extends-walk above returned null: a
           // base-LESS class is a genuine plain Object; a class WITH heritage is TRANSITIVELY unknowable
@@ -351,8 +307,8 @@ export function createUserTypeResolve({
           return (baseDecl.superClass ?? baseDecl.extends?.[0]) ? null : boxForDeclaration('Object', declaration);
         }
         return null;
-      })();
-      if (memoizable && !cycleSeenSets.has(visited)) memo.set(declaration, { scope, anchor, name, result: walked });
+      });
+      if (memoizable && !cycleSeenSets.has(visited)) memo.set(declaration, { scope: bodyScope, anchor, name, result: walked });
       return walked;
     } finally {
       visited.delete(declaration);

@@ -22,9 +22,10 @@ import {
   typeAliasBody,
   typeRefName,
 } from './ast-shapes.js';
-import { getTypeArgs } from '../helpers/ast-patterns.js';
+import { getTypeArgs, IMPORT_SPECIFIER_TYPES } from '../helpers/ast-patterns.js';
 
 export function createElementTypes({
+  withTypeReferenceScope,
   typeAnswer,
   typeGuardHas,
   babelNodeType,
@@ -35,12 +36,27 @@ export function createElementTypes({
   commonType,
   isNullableOrNever,
   findTypeDeclaration,
+  typeDeclarationShadowsGlobal,
+  findTypeParameter,
+  getScopeBinding,
+  declarationPath,
+  withLookupPath,
   applyAliasSubstDeep,
   buildSubstMap,
 }) {
+  function builtinCollection(name, scope) {
+    return (SINGLE_ELEMENT_COLLECTIONS.has(name) || name === 'Map' || name === 'ReadonlyMap')
+      && !findTypeParameter(name, scope)
+      && !typeDeclarationShadowsGlobal(findTypeDeclaration(name, scope), name, scope)
+      && !IMPORT_SPECIFIER_TYPES.has(getScopeBinding({ scope, name })?.path?.node?.type);
+  }
+
   // resolve the element type of a collection from its type annotation. `seen` is a per-
   // resolution decl-cycle guard threaded through `resolveUserTypeElement`
   function resolveElementType(node, scope, depth, seen) {
+    function resolveItem(item) {
+      return withTypeReferenceScope(item, scope, at => resolveTypeAnnotation(item, at, depth + 1));
+    }
     while (true) {
       if (depth > MAX_DEPTH) return null;
       node = unwrapTypeAnnotation(node);
@@ -49,14 +65,12 @@ export function createElementTypes({
         // string[] -> element type
         case 'TSArrayType':
         case 'ArrayTypeAnnotation':
-          return resolveTypeAnnotation(node.elementType, scope, depth + 1);
+          return resolveItem(node.elementType);
         // [string, number] -> common element type if all same
         case 'TSTupleType':
         case 'TupleTypeAnnotation': {
           const elements = tupleElements(node);
-          return elements?.length
-            ? resolveTupleInner(elements, e => resolveTypeAnnotation(e, scope, depth + 1))
-            : null;
+          return elements?.length ? resolveTupleInner(elements, resolveItem) : null;
         }
         // Array<T>, Set<T>, Map<K,V>, Iterable<T>, Generator<T>, user type aliases
         case 'TSTypeReference':
@@ -64,9 +78,11 @@ export function createElementTypes({
           const name = typeRefName(node);
           if (!name) return null;
           const params = getTypeArgs(node)?.params;
-          if (SINGLE_ELEMENT_COLLECTIONS.has(name)) return params?.[0] ? resolveTypeAnnotation(params[0], scope, depth + 1) : null;
-          if (name === 'Map' || name === 'ReadonlyMap') return new $Object('Array');
-          return resolveUserTypeElement({ name, typeArgs: params, scope, depth, resolver: resolveElementType, seen });
+          if (!builtinCollection(name, scope)) {
+            return resolveUserTypeElement({ name, typeArgs: params, scope, depth, resolver: resolveElementType, seen });
+          }
+          if (SINGLE_ELEMENT_COLLECTIONS.has(name)) return params?.[0] ? resolveItem(params[0]) : null;
+          return new $Object('Array');
         }
         // iterating a string yields characters (strings)
         case 'TSStringKeyword':
@@ -125,18 +141,22 @@ export function createElementTypes({
     visited.add(decl);
     try {
       const subst = buildSubstMap(decl.typeParameters?.params, typeArgs, scope);
-      if (isTypeAlias(decl)) return resolver(applyAliasSubstDeep(typeAliasBody(decl), subst), scope, depth + 1, visited);
-      if (!isInterfaceDeclaration(decl) || !decl.extends?.length) return null;
-      for (const parent of decl.extends) {
-        const baseRef = synthInterfaceExtendsRef(parent);
-        // `resolveElementType` / `extractElementAnnotation` look up the parent's name via
-        // `typeRefName` (single-segment only), so qualified-name refs would bail anyway -
-        // skip them here to avoid an unproductive recursive call
-        if (!baseRef || baseRef.typeName.type !== 'Identifier') continue;
-        const result = resolver(applyAliasSubstDeep(baseRef, subst), scope, depth + 1, visited);
-        if (result) return result;
-      }
-      return null;
+      const path = declarationPath(decl, scope);
+      return withLookupPath(path, () => {
+        scope = path?.scope ?? scope;
+        if (isTypeAlias(decl)) return resolver(applyAliasSubstDeep(typeAliasBody(decl), subst), scope, depth + 1, visited);
+        if (!isInterfaceDeclaration(decl) || !decl.extends?.length) return null;
+        for (const parent of decl.extends) {
+          const baseRef = synthInterfaceExtendsRef(parent);
+          // `resolveElementType` / `extractElementAnnotation` look up the parent's name via
+          // `typeRefName` (single-segment only), so qualified-name refs would bail anyway -
+          // skip them here to avoid an unproductive recursive call
+          if (!baseRef || baseRef.typeName.type !== 'Identifier') continue;
+          const result = resolver(applyAliasSubstDeep(baseRef, subst), scope, depth + 1, visited);
+          if (result) return result;
+        }
+        return null;
+      });
     } finally {
       visited.delete(decl);
     }
@@ -159,13 +179,13 @@ export function createElementTypes({
           const name = typeRefName(node);
           if (!name) return null;
           const params = getTypeArgs(node)?.params;
+          if (!builtinCollection(name, scope)) {
+            return resolveUserTypeElement({ name, typeArgs: params, scope, depth, resolver: extractElementAnnotation, seen });
+          }
           if (SINGLE_ELEMENT_COLLECTIONS.has(name)) return params?.[0] ?? null;
           // Map/ReadonlyMap iterate as [K, V] - synthesize a TSTupleType so `findTupleElement`
           // can pick up K or V by index
-          if (name === 'Map' || name === 'ReadonlyMap') {
-            return params?.length >= 2 ? { type: 'TSTupleType', elementTypes: [params[0], params[1]] } : null;
-          }
-          return resolveUserTypeElement({ name, typeArgs: params, scope, depth, resolver: extractElementAnnotation, seen });
+          return params?.length >= 2 ? { type: 'TSTupleType', elementTypes: [params[0], params[1]] } : null;
         }
         case 'TSTypeOperator':
           return node.operator !== 'keyof' ? extractElementAnnotation(node.typeAnnotation, scope, depth + 1, seen) : null;

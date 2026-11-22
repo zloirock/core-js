@@ -1,7 +1,7 @@
 // arrow param
 const arrowRoot = Map;
 const arrowLink = arrowRoot;
-export const viaArrowParamShadow = arrowRoot2 => {
+export const viaArrowParamShadow = arrowRoot => {
   const { groupBy } = arrowLink;
   return groupBy([], v => v);
 };

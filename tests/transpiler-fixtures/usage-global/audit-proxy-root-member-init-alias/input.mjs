@@ -13,5 +13,5 @@ export function memberCapturedRootResolves() {
 
 // the Identifier-init twin: the same capability through a bare-name capture
 export function nameCapturedRootResolves() {
-  return viaName.Array.from([3, 4]).includes(3);
+  return viaName.Array.of(3, 4).includes(3);
 }

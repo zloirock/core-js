@@ -11708,11 +11708,61 @@ export function tsRuntimeBindingName(id) {
   return id?.type === 'Identifier' ? id.name : undefined;
 }
 
-// the names of the TS runtime declarations a scope-anchor node holds directly - an enum, an instantiated
-// namespace, an import-equals. neither tracker registers an enum or a namespace, and estree-toolkit no
-// import-equals either, so both adapters' `hasBinding` and the lookup wrap (`wrapScopeBindingLookup`)
-// read this set where the native scope answers nothing or a binding further out. cached per anchor node,
-// so the climbs of every lookup share one scan of it
+// is this node a qualified name link with non-identifier slots peeled? accepts:
+//   - babel: TSQualifiedName (TS) / QualifiedTypeIdentifier (Flow)
+//   - oxc:   non-computed MemberExpression in type position (interface heritage, etc)
+export function isQualifiedNameNode(node) {
+  return node?.type === 'TSQualifiedName' || node?.type === 'QualifiedTypeIdentifier'
+    || (node?.type === 'MemberExpression' && !node.computed);
+}
+
+// qualified-name accessors: the "left" / "right" slots differ across parsers but the
+// semantic role is identical (left=parent path, right=segment-name Identifier). module-private -
+// `collectQualifiedSegments` below is the only consumer, and exporting them invited a test that
+// asserted the slots instead of the walk they serve
+function qualifiedNameLeft(node) { return node.left ?? node.qualification ?? node.object; }
+function qualifiedNameRight(node) { return node.right ?? node.id ?? node.property; }
+
+// walk a possibly-qualified name node into a [first, ..., last] segment list
+// returns null on any non-identifier link in the chain
+export function collectQualifiedSegments(node) {
+  if (node?.type === 'Identifier') return [node.name];
+  if (!isQualifiedNameNode(node)) return null;
+  const left = collectQualifiedSegments(qualifiedNameLeft(node));
+  const right = qualifiedNameRight(node);
+  if (!left || right?.type !== 'Identifier') return null;
+  left.push(right.name);
+  return left;
+}
+
+// A const enum need not materialize its namespace. Its qualified references still belong
+// to that namespace until the TS compiler inlines or emits them.
+function collectNamespaceConstEnums(node, prefix, names) {
+  if (node.declare) return;
+  const parts = collectQualifiedSegments(node.id);
+  if (!parts) return;
+  const head = `${ prefix + parts.join('.') }.`;
+  if (node.body?.type === 'TSModuleDeclaration') {
+    collectNamespaceConstEnums(node.body, head, names);
+  } else for (const statement of node.body?.body ?? []) {
+    const member = statement.declaration;
+    if (member?.type === 'TSEnumDeclaration' && member.const && !member.declare) names.add(head + member.id.name);
+    if (member?.type === 'TSModuleDeclaration') collectNamespaceConstEnums(member, head, names);
+  }
+}
+
+function readsNamespaceConstEnum(path, name, names) {
+  const { root, keys } = memberChainKeys(memberChainEndPath({ path }).node);
+  if (root?.name !== name) return false;
+  let qualified = name;
+  for (const key of keys) {
+    if (typeof key !== 'string' || key.includes('.')) break;
+    qualified += `.${ key }`;
+    if (names.has(qualified)) return true;
+  }
+  return false;
+}
+
 const tsRuntimeBindingsCache = new WeakMap();
 
 // extract the direct statement-body array from a scope-anchor node. Program/BlockStatement/
@@ -11733,7 +11783,7 @@ export function getDirectStatementBody(node) {
 }
 
 // scan a scope-anchor node for direct TS-runtime declarations (TSEnumDeclaration,
-// TSModuleDeclaration, TSImportEqualsDeclaration). returns a Set of names cached per
+// TSModuleDeclaration, TSImportEqualsDeclaration). indexes runtime names and qualified const enums per
 // anchor node. covers Program, BlockStatement, TSModuleBlock, StaticBlock, function/method
 // bodies - i.e. anywhere a `enum X {}` / `namespace X {}` could shadow a global
 function getTSRuntimeBindings(scopeNode) {
@@ -11743,7 +11793,7 @@ function getTSRuntimeBindings(scopeNode) {
   if (cached) return cached;
   const body = getDirectStatementBody(scopeNode);
   if (!body) return null;
-  cached = new Set();
+  cached = new Map();
   for (const stmt of body) {
     // peel `export enum / export const enum / export namespace / export import X = require()`
     // wrappers - the TS-runtime declaration sits in `.declaration` of ExportNamedDeclaration.
@@ -11752,7 +11802,14 @@ function getTSRuntimeBindings(scopeNode) {
     const decl = unwrapExportedDeclaration(stmt);
     if (isTSRuntimeBindingDeclaration(decl)) {
       const name = tsRuntimeBindingName(decl.id);
-      if (name) cached.add(name);
+      if (name) cached.set(name, true);
+    } else if (decl?.type === 'TSModuleDeclaration' && !decl.declare) {
+      const name = tsRuntimeBindingName(decl.id);
+      const previous = cached.get(name);
+      if (!name || previous === true) continue;
+      const enums = previous ?? new Set();
+      collectNamespaceConstEnums(decl, '', enums);
+      if (enums.size) cached.set(name, enums);
     }
   }
   tsRuntimeBindingsCache.set(scopeNode, cached);
@@ -11810,7 +11867,10 @@ export function findTSRuntimeBindingInPath(path, name, stopNode = null) {
   const closureFrames = frames.closureRegions.functions;
   for (let cur = memberContextPath(path), child; cur && cur.node !== stopNode; child = cur.node, cur = memberContextPath(cur.parentPath)) {
     if (definitionTimeFrames?.has(cur.node) || (cur.node.type === 'SwitchStatement' && cur.node.discriminant === child)) continue;
-    if (cur.node !== paramFrame && !closureFrames.includes(cur.node) && getTSRuntimeBindings(cur.node)?.has(name)) return true;
+    if (cur.node !== paramFrame && !closureFrames.includes(cur.node)) {
+      const binding = getTSRuntimeBindings(cur.node)?.get(name);
+      if (binding === true || (binding && readsNamespaceConstEnum(path, name, binding))) return true;
+    }
     if (parameterPropertyIndex(cur.node, name) !== -1) return true;
   }
   return false;
@@ -11979,7 +12039,6 @@ export const TYPE_REFERENCE_SLOTS = new Map([
   ['TSInterfaceHeritage', 'expression'],
   ['TSExpressionWithTypeArguments', 'expression'],
   ['TSClassImplements', 'expression'],
-  ['TSImportType', 'qualifier'],
   ['GenericTypeAnnotation', 'id'],
   ['InterfaceExtends', 'id'],
   ['ClassImplements', 'id'],
@@ -12218,7 +12277,7 @@ export function typeParameterInScope(path, name) {
       && (typeParameterName(node.key?.type === 'Identifier' ? { name: node.key } : node.typeParameter) === name)) return true;
     // an `infer` names its parameter for the conditional's TRUE branch
     if (node.type === 'TSConditionalType' && child?.node === node.trueType
-      && inferTypeParameterNames(node.extendsType)?.has(name)) return true;
+      && inferTypeParameterNames(node.extendsType, { nested: false })?.has(name)) return true;
   }
   return false;
 }
@@ -12226,10 +12285,10 @@ export function typeParameterInScope(path, name) {
 // the names the `infer` declarations of a subtree introduce (`T extends Array<infer U>` names
 // `U`), or null for none - they cover the conditional type's true branch, which the annotation
 // walk descends without parents and the scope climb reaches from below
-export function inferTypeParameterNames(node) {
+export function inferTypeParameterNames(node, { nested = true } = {}) {
   let names = null;
   (function visit(n) {
-    if (!isASTNode(n)) return;
+    if (!isASTNode(n) || (!nested && n.type === 'TSConditionalType')) return;
     if (n.type === 'TSInferType') {
       const name = typeParameterName(n.typeParameter);
       if (name) (names ??= new Set()).add(name);
@@ -12247,7 +12306,7 @@ function conditionalInferenceInputs(node) {
   if (CONDITIONAL_INFERENCE_INPUTS.has(node)) return CONDITIONAL_INFERENCE_INPUTS.get(node);
   const inputs = new Set();
   CONDITIONAL_INFERENCE_INPUTS.set(node, inputs);
-  const names = inferTypeParameterNames(node.extendsType);
+  const names = inferTypeParameterNames(node.extendsType, { nested: false });
   if (!names?.size) return inputs;
   const used = new Set();
   function read(path) {
@@ -12268,7 +12327,8 @@ function conditionalInferenceInputs(node) {
     }
     // A nested conditional owns its own captures, not this conditional's inference.
     if (pattern?.type === 'TSConditionalType') return;
-    const referenceSlot = TYPE_REFERENCE_SLOTS.get(pattern?.type);
+    // An import qualifier identifies the foreign type for structural comparison.
+    const referenceSlot = pattern?.type === 'TSImportType' ? 'qualifier' : TYPE_REFERENCE_SLOTS.get(pattern?.type);
     const sourceReference = referenceSlot && source?.[referenceSlot];
     const patternReference = referenceSlot && pattern?.[referenceSlot];
     const differentReferenceHosts = referenceSlot && (sourceReference?.type !== 'Identifier'
@@ -12279,7 +12339,7 @@ function conditionalInferenceInputs(node) {
       // hosts have no positional correspondence: Map's iterable element includes both
       // type arguments, so matching Iterable's argument against Map's first one loses V.
       // Exhausting the correspondence budget must preserve the same possible input.
-      if ([...inferTypeParameterNames(pattern) ?? []].some(name => used.has(name))) inputs.add(source);
+      if ([...inferTypeParameterNames(pattern, { nested: false }) ?? []].some(name => used.has(name))) inputs.add(source);
       return;
     }
     if (pattern.type === 'TSTupleType') {

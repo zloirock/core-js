@@ -6,7 +6,9 @@
 // the shape predicates here encode cross-parser compatibility (babel / oxc / flow), discovered
 // empirically per parser - change them only with care
 import {
+  collectQualifiedSegments,
   getTypeArgs,
+  isQualifiedNameNode,
   isDeferredContextStep,
   isTypeAnnotationWrapper,
   peelTSParenthesized,
@@ -18,6 +20,8 @@ import {
   MODIFIER_WRAPPER_DELTAS,
   PRIMITIVE_HINTS,
 } from './base.js';
+
+export { collectQualifiedSegments, isQualifiedNameNode };
 
 // statement list directly inside a TSModuleDeclaration. for Babel's nested form
 // (`namespace A.B {}` -> A.body = TSModuleDeclaration B) expose B as a single-element list
@@ -40,33 +44,6 @@ export function typeRefSegments(node) {
   const head = node.type === 'TSTypeReference' ? node.typeName
     : node.type === 'GenericTypeAnnotation' ? node.id : null;
   return collectQualifiedSegments(head);
-}
-
-// is this node a qualified name link with non-identifier slots peeled? accepts:
-//   - babel: TSQualifiedName (TS) / QualifiedTypeIdentifier (Flow)
-//   - oxc:   non-computed MemberExpression in type position (interface heritage, etc)
-export function isQualifiedNameNode(node) {
-  return node?.type === 'TSQualifiedName' || node?.type === 'QualifiedTypeIdentifier'
-    || (node?.type === 'MemberExpression' && !node.computed);
-}
-
-// qualified-name accessors: the "left" / "right" slots differ across parsers but the
-// semantic role is identical (left=parent path, right=segment-name Identifier). module-private -
-// `collectQualifiedSegments` below is the only consumer, and exporting them invited a test that
-// asserted the slots instead of the walk they serve
-function qualifiedNameLeft(node) { return node.left ?? node.qualification ?? node.object; }
-function qualifiedNameRight(node) { return node.right ?? node.id ?? node.property; }
-
-// walk a possibly-qualified name node into a [first, ..., last] segment list
-// returns null on any non-identifier link in the chain
-export function collectQualifiedSegments(node) {
-  if (node?.type === 'Identifier') return [node.name];
-  if (!isQualifiedNameNode(node)) return null;
-  const left = collectQualifiedSegments(qualifiedNameLeft(node));
-  const right = qualifiedNameRight(node);
-  if (!left || right?.type !== 'Identifier') return null;
-  left.push(right.name);
-  return left;
 }
 
 export function typeRefName(node) {

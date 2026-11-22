@@ -18,8 +18,8 @@ export function shadowedWindow(window) {
   return (d++, (c++, window.self))?.Map.name;
 }
 
-// NEGATIVE: the unshadowed twin claims - the only row that injects
+// The unshadowed twin claims Set. A Map import would come from a shadowed read.
 export function unshadowed() {
   let c = 0, d = 0;
-  return (d++, (c++, globalThis.self))?.Map.name;
+  return (d++, (c++, globalThis.self))?.Set.name;
 }
