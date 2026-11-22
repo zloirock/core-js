@@ -53,6 +53,16 @@ node_modules/
 /packages/core-js-pure/LICENSE
 /packages/core-js-types/package.json
 /packages/core-js-types/ts*
+/packages/core-js-types/actual.js
+/packages/core-js-types/annex-b/
+/packages/core-js-types/configurator.js
+/packages/core-js-types/es.js
+/packages/core-js-types/full.js
+/packages/core-js-types/index.js
+/packages/core-js-types/proposals/
+/packages/core-js-types/pure.js
+/packages/core-js-types/stable.js
+/packages/core-js-types/web/
 /packages/core-js-types/LICENSE
 /tests/**/bundles/
 /tests/compat/*.jar

@@ -29,7 +29,7 @@ You must include at least the ES6 types in your `tsconfig.json` because our type
 }
 ```
 
-You can also import the types directly into your files instead of specifying `core-js` types in your `tsconfig.json`:
+Alternatively, import the declarations once in a source file. This makes them available throughout the TypeScript project. The import has no runtime side effects.
 ```ts
 import '@core-js/types';
 ```
@@ -43,7 +43,7 @@ There are four main subsets:
 - `@core-js/types/stable` - types for stable ECMAScript and web standards features;
 - `@core-js/types/full` - types for all features, including proposals.
 
-You can import them the same way as the main package. For example, to use only the stable subset, add this to your `tsconfig.json`:
+To select the stable subset, add this to your `tsconfig.json`:
 ```json
 {
   "compilerOptions": {
@@ -53,14 +53,14 @@ You can import them the same way as the main package. For example, to use only t
   }
 }
 ```
-or import it directly in your files:
+or import the subset in a source file:
 ```ts
 import '@core-js/types/stable';
 ```
 The types of `core-js/configurator` are only in the main `@core-js/types` entry; with a subset, add `@core-js/types/configurator`.
 
 ### Usage of specific features
-If you need types only for specific features, you can import them like this:
+To load declarations for individual features, list them in your compiler options:
 ```json
 {
   "compilerOptions": {
@@ -71,7 +71,7 @@ If you need types only for specific features, you can import them like this:
   }
 }
 ```
-or import them directly in your files:
+or import the individual declarations in a source file:
 ```ts
 import '@core-js/types/proposals/joint-iteration';
 import '@core-js/types/web/structured-clone';

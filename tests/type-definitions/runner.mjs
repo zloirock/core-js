@@ -1,3 +1,7 @@
+import { deepEqual, match, rejects, throws } from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
+
 const { mkdir, readJson, rm, writeJson } = fs;
 const { join, resolve } = path;
 const { cyan, green, grey, red } = chalk;
@@ -135,6 +139,35 @@ async function clearTmpDir() {
   await rm(TMP_DIR, { recursive: true, force: true });
 }
 
+async function testRuntimeImports() {
+  const directory = resolve(TMP_DIR, 'consumer');
+  const consumer = join(directory, 'consumer.mjs');
+  const packageDir = join(directory, 'node_modules/@core-js/types');
+  // A workspace symlink puts the declarations outside node_modules and can hide a broken runtime export.
+  await fs.copy('../../packages/core-js-types', packageDir);
+  await fs.writeFile(consumer, 'export const load = specifier => import(specifier);\n');
+  const { load } = await import(pathToFileURL(consumer));
+  const requireEntry = createRequire(consumer);
+  const dedent = Object.getOwnPropertyDescriptor(String, 'dedent');
+  for (const suffix of [
+    '', '/actual', '/configurator', '/es', '/full', '/pure', '/stable',
+    '/annex-b/object-proto', '/proposals/joint-iteration', '/web/structured-clone',
+  ]) {
+    const specifier = `@core-js/types${ suffix }`;
+    match(await fs.readFile(requireEntry.resolve(specifier), 'utf8'), /^\/\/ \S.*\n$/, specifier);
+    await load(specifier);
+    requireEntry(specifier);
+    // Older CommonJS resolvers look up the public path on disk.
+    requireEntry(join(packageDir, suffix.slice(1)));
+  }
+  deepEqual(Object.getOwnPropertyDescriptor(String, 'dedent'), dedent);
+  for (const subset of ['annex-b', 'proposals', 'web']) {
+    const specifier = `@core-js/types/${ subset }/missing-feature`;
+    await rejects(load(specifier), { code: 'ERR_MODULE_NOT_FOUND' });
+    throws(() => requireEntry(specifier), { code: 'MODULE_NOT_FOUND' });
+  }
+}
+
 async function installInto(directory, spec) {
   await mkdir(directory, { recursive: true });
   await $({ cwd: directory, verbose: false })`npm init --yes`;
@@ -208,6 +241,7 @@ const tasks = [
 ];
 
 await prepareEnvironments();
+await testRuntimeImports();
 await runTasksInParallel();
 await clearTmpDir();
 

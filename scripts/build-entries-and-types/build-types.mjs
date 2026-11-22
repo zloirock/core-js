@@ -10,7 +10,6 @@ const { green } = chalk;
 
 const ADDITIONAL_ENTRIES_DIRS = ['web', 'annex-b'];
 const BUILD_DIR = 'packages/core-js-types/';
-const PACKAGE_JSON_DIR = 'packages/core-js-types/';
 const PACKAGE_NAME = 'core-js/';
 const PACKAGE_NAME_PURE = '@core-js/pure/';
 const PACKAGE_TEMPLATE = 'packages/core-js-types/package.tpl.json';
@@ -260,7 +259,7 @@ async function buildTypesForTSVersion(tsVersion) {
   });
 
   await prependImports(tsVersion);
-  await saveOutputFiles();
+  await saveOutputFiles(bundlePath);
 }
 
 async function buildPackageJson(breakpoints, namespaces) {
@@ -278,32 +277,44 @@ async function buildPackageJson(breakpoints, namespaces) {
 
   packageJson.exports = {};
   Object.entries(namespaces).forEach(([namespace, options]) => {
-    const namespaceKey = namespace !== 'index' ? `./${ namespace }${ options.isDir ? '/*' : '' }` : '.';
+    const subpath = `${ namespace }${ options.isDir ? '/*' : '' }`;
+    const namespaceKey = namespace === 'index' ? '.' : `./${ subpath }`;
     packageJson.exports[namespaceKey] = {};
     breakpoints.forEach((breakpoint, index) => {
       const isLast = index === breakpoints.length - 1;
       const breakpointString = `ts${ breakpoint.toString().replace('.', '-') }`;
-      packageJson.exports[namespaceKey][`types${ isLast ? '' : `@>=${ breakpoint }` }`] = `./${ breakpointString }/${ namespace }${ options.isDir ? '/*' : '' }.d.ts`;
+      packageJson.exports[namespaceKey][`types${ isLast ? '' : `@>=${ breakpoint }` }`] = `./${ breakpointString }/${ subpath }.d.ts`;
     });
-    packageJson.exports[namespaceKey].default = `./ts${ defaultBreakpoint }/${ namespace }${ options.isDir ? '/*' : '' }.d.ts`;
+    packageJson.exports[namespaceKey].default = `./${ subpath }.js`;
   });
   packageJson.exports = Object.fromEntries(
     Object.keys(packageJson.exports).sort().map(key => [key, packageJson.exports[key]]),
   );
 
-  await writeJson(path.join(PACKAGE_JSON_DIR, 'package.json'), packageJson, { spaces: 2 });
+  await writeJson(path.join(BUILD_DIR, 'package.json'), packageJson, { spaces: 2 });
 }
 
 async function clearPackage() {
   const entries = await readdir(BUILD_DIR, { withFileTypes: true });
-  await Promise.all(entries
-    .filter(entry => /^ts\d{1,3}-\d{1,3}$/.test(entry.name))
-    .map(entry => remove(path.join(BUILD_DIR, entry.name))));
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !/^ts\d{1,3}-\d{1,3}$/.test(entry.name)) continue;
+    const directory = path.join(BUILD_DIR, entry.name);
+    const declarations = await glob('**/*.d.ts', { cwd: directory, ignore: ['types/**'] });
+    await Promise.all(declarations.map(file => remove(runtimeEntryPath(file))));
+    await remove(directory);
+  }
 }
 
-async function saveOutputFiles() {
-  await Promise.all(Object.entries(outputFiles)
-    .map(([filePath, content]) => outputFile(filePath, content, { flag: 'w' })));
+function runtimeEntryPath(declaration) {
+  return path.join(BUILD_DIR, `${ declaration.slice(0, -'.d.ts'.length) }.js`);
+}
+
+async function saveOutputFiles(bundlePath) {
+  await Promise.all(Object.entries(outputFiles).map(async ([filePath, content]) => {
+    await outputFile(filePath, content);
+    // Resolvers that ignore package exports look for the JavaScript file at the public subpath.
+    await outputFile(runtimeEntryPath(path.relative(bundlePath, filePath)), '// Types only.\n');
+  }));
 }
 
 await clearPackage();

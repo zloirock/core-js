@@ -8,7 +8,7 @@ TypeScript **5.6+** - `typesVersions` maps every consumer to `ts5-6/`.
 
 ## Sources and generated files
 
-`src/base/` is hand-written: the declarations themselves, with the pure counterparts under `src/base/pure/`. `ts5-6/` is generated, gitignored, and never edited by hand. The package's `package.json` starts as a copy of `package.tpl.json` and gets its `typesVersions` and `exports` only from the build, so after a bare `prepare-monorepo` the package does not resolve yet.
+`src/base/` is hand-written: the declarations themselves, with the pure counterparts under `src/base/pure/`. `ts5-6/` is generated, gitignored, and never edited by hand. The package's `package.json` starts as a copy of `package.tpl.json` and gets its `typesVersions` and `exports` only from the build, so after a bare `prepare-monorepo` the declarations do not resolve yet.
 
 A feature counts as typed only when both flavors have their declaration; either one alone leaves half the library untyped.
 
@@ -23,7 +23,7 @@ A declaration ported from TypeScript's own lib names its sources in the header: 
 - The pure side is not a separate source tree: `build-types-pure.mjs` derives it from the same entries, which is why a global-only declaration silently leaves the pure flavor untyped. What that derivation does to a single declaration is steered by a `// @type-options:` comment closing the line that opens it - `no-extends`, `no-prefix`, `no-constructor`, `no-redefine`, `no-export`, `export-base-constructor`, `prefix-return-type`, comma-separated - and the list has to end the line, or the parser does not see it
 - A file under `src/base/pure/` that opens with `// empty` says the pure side of that path lives in another declaration - the comment below that line says which. Any file there, such a stub or a hand-written declaration, turns the derivation of its path off, so the global file of that path carries no `@type-options` - the build rejects one as dead
 - The output directory is named after the TypeScript breakpoint it serves. `src/base/` is copied in first, then an optional `src/ts<version>/` overlay for that breakpoint on top - an overlay named after no current breakpoint never reaches the output, which does not make it garbage: one may be kept as groundwork for a breakpoint that is not built yet
-- The same run writes `typesVersions` and `exports` into the package's `package.json`
+- The same run writes `typesVersions` and `exports` into the package's `package.json`. It writes a JavaScript file containing only a comment at each public path so source imports also work in resolvers that ignore `exports`. The top-level JavaScript files and the public `annex-b/`, `proposals/` and `web/` directories are generated
 
 ## Tests
 
