@@ -2,6 +2,7 @@
 // eslint-disable-next-line es/no-object-hasown, node/no-unsupported-features/es-syntax -- safe
 const has = Object.hasOwn || Function.call.bind({}.hasOwnProperty);
 
+// not anchored: a range like `^3.40.0` gives its base version, a browserslist range like `16.6-16.7` its lower bound
 const VERSION_PATTERN = /(\d+)(?:\.(\d+))?(?:\.(\d+))?/;
 
 class SemVer {

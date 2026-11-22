@@ -189,6 +189,8 @@
   - Fixed empty target sets selecting no polyfills in `core-js-compat` and `core-js-builder`; they now behave like omitted targets
   - Fixed `exclude` in `core-js-compat` and `core-js-builder` treating stable `es.*` modules and their legacy `esnext.*` aliases inconsistently; excluding either name now excludes both
   - Fixed `exclude: null` throwing in `core-js-compat` and `core-js-builder`, and `format: null`, `summary: null`, `summary.comment: null` and `summary.console: null` throwing in `core-js-builder`; they now behave like omitted options
+  - Fixed an empty string in `exclude` excluding all modules in `core-js-compat` and `core-js-builder`; an empty string is now rejected as an invalid module name or pattern, also in `modules` arrays
+  - Fixed an empty `version` string in `core-js-compat` selecting the modules of the latest `core-js` version; any `version` except `null` and `undefined` is now validated like in `getModulesListForTargetVersion`
   - Fixed loading and target parsing of `core-js-compat` on NodeJS 6.4
   - `core-js-builder` now builds bundles in memory without creating a temporary file
   - Fixed the minified `core-js-bundle` on pages in a legacy encoding: non-ASCII characters in its code are now escaped, so the classic script without `charset` no longer replaces correct native `String.prototype.{ trim, trimStart, trimEnd }`, `parseInt`, `parseFloat`, `RegExp.escape`, `URL` and `URLSearchParams` with polyfills broken by the decoding

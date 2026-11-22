@@ -110,9 +110,22 @@ deepEqual(compat({
 
 deepEqual(compat({ exclude: null }), compat(), 'exclude: null means no exclusions');
 
-for (const exclude of [false, 0, [null]]) {
+for (const exclude of [false, 0, '', [null], ['']]) {
   throws(() => compat({ exclude }), TypeError, `invalid exclude: ${ JSON.stringify(exclude) }`);
 }
+
+throws(() => compat({ modules: [''] }), TypeError, 'an empty module name is invalid');
+deepEqual(compat({ modules: '' }), compat(), 'modules: an empty string means all modules');
+
+for (const version of [null, undefined]) {
+  deepEqual(compat({ version }), compat(), `version: ${ version } means the latest version`);
+}
+
+for (const version of ['', false]) {
+  throws(() => compat({ version }), TypeError, `invalid version: ${ JSON.stringify(version) }`);
+}
+
+throws(() => compat({ version: 0 }), RangeError, 'version: 0');
 
 for (const exclude of [
   'es.array.at',

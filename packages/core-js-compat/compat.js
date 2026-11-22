@@ -16,7 +16,8 @@ function atLeastSomeModules(modules, filter) {
 }
 
 function getModules(filter) {
-  if (typeof filter == 'string') {
+  // an empty prefix would match every module
+  if (typeof filter == 'string' && filter !== '') {
     if (has(entries, filter)) return entries[filter];
     return atLeastSomeModules(allModules.filter(it => it.startsWith(filter)), filter);
   }
@@ -75,7 +76,7 @@ module.exports = function ({
 
   if (exclude.size) modules = modules.filter(it => !exclude.has(it.replace(/^esnext\./, 'es.')));
 
-  modules = intersection(modules, version ? getModulesListForTargetVersion(version) : allModules);
+  modules = intersection(modules, version === null ? allModules : getModulesListForTargetVersion(version));
 
   if (!inverse) modules = filterOutStabilizedProposals(modules);
 
