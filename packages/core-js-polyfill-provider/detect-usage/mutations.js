@@ -73,6 +73,7 @@ import {
   followConstLiteralAlias,
   literalIsFreshAtRead,
   forOfIterableElements,
+  FN_NODE_TYPES,
   FUNCTION_LIKE_NODE_TYPES,
   flattenBranchingValueNodes,
   getFallbackBranchSlots,
@@ -80,6 +81,7 @@ import {
   identifierDeclaratorInit,
   identifierReferencedInSubtree,
   IMPORT_SPECIFIER_TYPES,
+  immediateInvocationOf,
   inlineCallYieldedContainer,
   invocationCalleeOf,
   invocationNode,
@@ -151,6 +153,7 @@ import {
   peelIifeReturnTarget,
   peelSequenceTail,
   peelToBareExpr,
+  peelTransparentExprAncestorPath,
   plainSynthKeyName,
   positionalElements,
   NON_WRITABLE_VALUE_GLOBALS,
@@ -3717,7 +3720,7 @@ export function escapedCtorReferencesReducer({
     if (receiver !== pairing.callee) return receiver.name !== 'Reflect' || memberKeyName(member) !== 'apply'
       || peelToBareExpr(call.arguments?.[0]) !== pairing.callee;
     const { links } = heldOwner(receiver, sharedCallableScope());
-    return !links.length || links.some(([name, owner]) => openedBinding(name, owner));
+    return !links.length || links.some(([name, owner]) => openedBy('invoker', name, owner) || openedBy('write', name, owner));
   }
 
   // the builtin a resolved call invokes and the arguments paired to it; null for a call standing on a
@@ -3848,7 +3851,7 @@ export function escapedCtorReferencesReducer({
   const openingsByName = new Map();
   // ... answered once per kind, name and owner: the openings are complete when first asked, and a binding many
   // aliases hold is asked at every call through one of them, each ask walking all of its aliases again
-  const openedAnswers = { read: new Map(), write: new Map(), statics: new Map() };
+  const openedAnswers = { read: new Map(), write: new Map(), statics: new Map(), invoker: new Map() };
   function openedBy(kind, name, owner) {
     let byOwner = openedAnswers[kind].get(name);
     if (!byOwner) openedAnswers[kind].set(name, byOwner = new Map());
@@ -3868,6 +3871,8 @@ export function escapedCtorReferencesReducer({
     return methods.length === 1 && FUNCTION_LIKE_NODE_TYPES.has(methods[0].type) && !thisReaders.has(methods[0]);
   }
   function openedThrough(kind, name, owner, seen) {
+    // An importer can replace an invoker through any exported alias of the function.
+    if (kind === 'invoker' && owner === programNode && (exportedCallableNames.has(name) || programTopLevelIsRealm(owner))) return true;
     let openings = openingsByName.get(name);
     if (!openings) {
       openings = { read: new Set(), write: new Set(), aliases: [] };
@@ -3884,7 +3889,7 @@ export function escapedCtorReferencesReducer({
       for (const { scopes } of callablePropertyWrites.get(name) ?? []) openings.write.add(resolved(scopes));
       openingsByName.set(name, openings);
     }
-    const owners = openings[kind];
+    const owners = openings[kind === 'invoker' ? 'read' : kind];
     if (owners.has(owner) || owners.has(null)) return true;
     for (const entry of openings.aliases) {
       if (entry.owner !== owner && entry.owner !== null || seen.has(entry.alias)) continue;
@@ -6315,7 +6320,8 @@ function parameterMemberUses(callee, paramIndex, referencesArguments, collectRea
         const returned = unwrapRuntimeExpr(node.argument);
         if (node !== callee.body.body?.at(-1) || (writeContext
           ? returned?.type !== 'Identifier' || returned.name !== bound.name
-          : node.argument && !isQuietLiteralOperand(node.argument))) return null;
+          : returned && !isQuietLiteralOperand(returned)
+            && !(FN_NODE_TYPES.has(returned.type) && !identifierReferencedInSubtree(returned, bound.name)))) return null;
         continue;
       }
       if (writeContext && node.type === 'CallExpression') {
@@ -6343,7 +6349,8 @@ function parameterMemberUses(callee, paramIndex, referencesArguments, collectRea
         && (!target.computed || !identifierReferencedInSubtree(target.property, bound.name))) {
         if (collectWrites) {
           const value = unwrapRuntimeExpr(node.right);
-          if (value?.type !== 'Identifier' || params.some(param => param.name === value.name)
+          if ((value?.type === 'Identifier' ? params.some(param => param.name === value.name)
+            : writeContext || !PRIMITIVE_LITERAL_TYPES.has(value?.type))
             || target.computed && !isQuietLiteralOperand(target.property)) return null;
           writes.push({ key, node, value });
         }
@@ -9545,16 +9552,46 @@ export function createDetectionAdapter({
     }
     return writes;
   }
-  function boundResultDiscarded(call, anchor) {
+  const callsByBind = new WeakMap();
+  // A closed bound function writes at its calls. Its uses belong to the binding;
+  // only their ordering against a particular read needs checking again.
+  function boundCallSites(call, anchor, bound, census) {
+    if (callsByBind.has(bound)) return callsByBind.get(bound);
     const path = pathOfNode(anchor, call);
-    if (!path || valueIsDroppedAt(path)) return !!path;
-    const holder = path.parentPath;
+    if (!path) return null;
+    if (census.maySkipInvokedBody(call, bound.pairing)) {
+      // A direct call of the writer doesn't hand it out or change its bind method.
+      const { name } = bound.pairing.callee;
+      const binding = name && adapter.getBinding({ scope: path.scope, name, path });
+      const owner = binding?.scope?.block ?? binding?.scope?.path?.node;
+      const refs = bindingDeclarationPath(binding)?.node === bound.callee && !programTopLevelIsRealm(owner)
+        && collectBindingReferences?.(path, name, { closed: true });
+      if (!refs || writesPastCeiling(refs)
+        || refs.some(ref => ref.node !== bound.pairing.callee && !isCallShape(immediateInvocationOf(ref)?.node))) {
+        callsByBind.set(bound, null);
+        return null;
+      }
+    }
+    if (valueIsDroppedAt(path)) return [];
+    const holder = peelTransparentExprAncestorPath(path).parentPath;
     if (holder?.node.type !== 'VariableDeclarator' || holder.node.id.type !== 'Identifier'
-      || holder.parentPath?.node.kind !== 'const' || holder.parentPath.parentPath?.node.type === 'ExportNamedDeclaration') return false;
+      || holder.parentPath?.node.kind !== 'const' || holder.parentPath.parentPath?.node.type === 'ExportNamedDeclaration') return null;
     const owner = findNearestVarScopeOwner(holder);
-    if (owner?.node.type === 'Program' && programTopLevelIsRealm(owner.node)) return false;
+    if (owner?.node.type === 'Program' && programTopLevelIsRealm(owner.node)) return null;
     const refs = collectBindingReferences?.(holder, holder.node.id.name, { closed: true });
-    return !!refs && refs.every(valueIsDroppedAt);
+    if (!refs) return null;
+    let sites = [];
+    for (const ref of refs) {
+      if (valueIsDroppedAt(ref)) continue;
+      const site = immediateInvocationOf(ref)?.node;
+      if (!isCallShape(site) || writesPastCeiling(refs)) {
+        sites = null;
+        break;
+      }
+      sites.push(site);
+    }
+    callsByBind.set(bound, sites);
+    return sites;
   }
   const callReadSummaries = new WeakMap();
   const readSlotMembers = new WeakMap();
@@ -9918,7 +9955,7 @@ export function createDetectionAdapter({
     // enclosing owner completes before the reading closure is created also dominates it there;
     // otherwise only fresh containers without held built-ins can exclude the initial candidate.
     // eslint-disable-next-line max-statements -- direct, call and alias writes share one dominance proof
-    containerSlotWriteDominatesUsage(keyPath, ownerNode, usagePath, usageNode, nameValue = null, candidates = null) {
+    containerSlotWriteDominatesUsage(keyPath, ownerNode, usagePath, usageNode, nameValue = null, collectPossibleWrites = null) {
       // A source-only census query has no read scope or position to prove dominance in.
       if (!usagePath) return false;
       const index = getContainerSlotIndex?.();
@@ -9942,21 +9979,29 @@ export function createDetectionAdapter({
           || (binding?.path?.node ?? binding?.node) !== ownerNode || binding.constantViolations?.length || !owner) return false;
         const calls = [];
         const slotMembers = new WeakMap();
-        const possible = candidates && new Set();
+        const possible = collectPossibleWrites && new Set();
         let replacement;
         for (const { call, argument } of escapes) {
-          // A bound argument can reach the body later. Binding alone never establishes its write.
           const bound = census.boundCalls.get(call);
-          if (bound && boundResultDiscarded(call, usagePath)) continue;
+          const invoked = CALL_CALLEES.get(index.programNode)?.get(call);
+          // A user-defined bind can also write while creating the callable.
+          const sites = bound && !invoked && !adapter.isMutatedStaticSlot('Function.prototype', 'bind')
+            ? boundCallSites(call, usagePath, bound, census) : null;
+          if (sites?.length === 0) continue;
           const pairing = bound?.pairing ?? censusCallPairing(call);
-          const callee = bound?.callee ?? CALL_CALLEES.get(index.programNode)?.get(call);
+          const callee = bound?.callee ?? invoked;
           if (!callee || call.type === 'NewExpression' || spineHasOptionalHop(call)
             || pairing?.argsUnknown || pairing?.args?.some(arg => arg?.type === 'SpreadElement')
             || !provablyPrecedes(ownerNode, call)) return false;
           const paramIndex = pairing?.args?.findIndex(arg => peelToBareExpr(arg) === argument) ?? -1;
           if (paramIndex < 0) return false;
           const direct = parameterWrites(callee, paramIndex);
-          const effects = direct ?? (possible && callbackWrites(callee, paramIndex, pairing.args, usagePath, census));
+          let effects = direct ?? (possible && callbackWrites(callee, paramIndex, pairing.args, usagePath, census));
+          if (bound && invoked && possible) {
+            // The override receives bind's explicit this argument in its first parameter.
+            const immediate = parameterWrites(invoked, paramIndex + 1);
+            if (immediate?.length) effects = [...effects ?? [], ...immediate];
+          }
           if (!effects?.length) return false;
           if (!direct) replacement = null;
           for (const source of sources) {
@@ -9964,11 +10009,13 @@ export function createDetectionAdapter({
           }
           const selected = effects.filter(write => write.key === keyPath[0]);
           if (!selected.length) return false;
-          if (bound || census.maySkipInvokedBody(call, pairing)) replacement = null;
-          const reachesRead = candidates && !noReassignmentReachesUsage({
-            reassignmentNodes: [call], usagePath, usageNode,
+          if (bound ? !sites : census.maySkipInvokedBody(call, pairing)) replacement = null;
+          const invocations = sites ?? [call];
+          const reachesRead = possible && !noReassignmentReachesUsage({
+            reassignmentNodes: invocations, usagePath, usageNode,
             bindingScopeNode: binding.scope?.block ?? binding.scope?.path?.node,
             bindingAnchor: bindingLoopAnchor(binding),
+            deferredWriteFollows: sites ? site => nodeRangeContains(site, usageNode ?? usagePath.node) : null,
           });
           for (const write of selected) {
             const writePath = pathOfNode(usagePath, write.node);
@@ -9977,10 +10024,13 @@ export function createDetectionAdapter({
             if (replacement === undefined) replacement = name;
             else if (replacement !== name) replacement = null;
           }
-          calls.push(call);
+          calls.push(...invocations);
         }
-        if (replacement && reassignmentDominatesUsage({ reassignmentNodes: calls, usagePath, usageNode, adapter })) return replacement;
-        if (possible) for (const name of possible) if (!candidates.includes(name)) candidates.push(name);
+        if (replacement && reassignmentDominatesUsage({
+          reassignmentNodes: calls, usagePath, usageNode, adapter, climb: true,
+        })) return replacement;
+        // Even an unused bound writer leaves the initial value available to the reading closure.
+        if (possible) collectPossibleWrites([...possible]);
         return false;
       }
       // Account for every recorded value and exclude wildcard writers that can restore

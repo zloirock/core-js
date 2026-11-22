@@ -461,4 +461,70 @@ for (const parser of adapters) for (const [name, body, expected, sourceType = 'm
   check(`${ parser.name }: constructor timing/${ name }`,
     adapter.isWrittenContainerSlot('Bag', ['of'], owner, read, read.node), expected);
 }
+// A bind captures the argument. The call of the bound value determines when the writer runs.
+for (const parser of adapters) for (const [name, before, after, replacement, possible, patch = '', scansExpected = 1, exported = ''] of [
+  ['always called', 'held();', '', 'Map', []],
+  ['conditionally called', 'if (flag) held();', '', false, ['Map']],
+  ['discarded', 'void held;', '', false, []],
+  ['called after capture', '', 'held();', false, []],
+  ['opaque consumer', 'consume(held);', '', false, ['Map']],
+  ['own bind can write immediately', 'void held;', '', false, ['Map'],
+    'if (flag) fill.bind = (t, target) => { target.C = Map; return () => {}; };', 0],
+  ['own bind accessor can write immediately', 'void held;', '', false, ['Map'],
+    "if (flag) Object.defineProperty(fill, 'bind', { get() { return (t, target) => { target.C = Map; return () => {}; }; } });"],
+  ['caller can replace an exported writer bind', 'held();', '', false, ['Map'], '', 1, 'export { fill };'],
+  ['caller can replace bind through an alias', 'held();', '', false, ['Map'], '', 1, 'export const writer = fill;'],
+]) {
+  const tree = parser.parseAndScope(`function fill(target) { target.C = Map; }
+    export function read(flag) { const box = { C: Object }; ${ patch } const held = fill.bind(null, box);
+      ${ before } const { C: { groupBy } } = box; ${ after } return groupBy; } ${ exported }`);
+  const data = collectFileCensus(tree.node, [mutationShapesReducer(), escapedCtorReferencesReducer()]);
+  const resolver = parser.makeResolver();
+  let scans = 0;
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-global',
+    getMutationRoots: () => data.mutationRoots,
+    getWrittenContainerSlots: () => data.writtenContainerSlots,
+    getContainerSlotIndex: () => data.containerSlotIndex,
+    collectBindingReferences(...args) {
+      scans++;
+      return resolver.collectBindingReferences(...args);
+    },
+  });
+  const box = parser.pickPath(tree, 'VariableDeclarator', path => path.node.id.name === 'box').node;
+  const read = parser.pickPath(tree, 'VariableDeclarator', path => path.node.id.type === 'ObjectPattern');
+  const possibleWrites = [];
+  function collectWrites(names) { possibleWrites.push(...names); }
+  check(`${ parser.name }: bound slot/${ name }/replacement`,
+    adapter.containerSlotWriteDominatesUsage(['C'], box, read, read.node.init, value => value.name, collectWrites), replacement);
+  checkDeep(`${ parser.name }: bound slot/${ name }/candidates`, possibleWrites, possible);
+  adapter.containerSlotWriteDominatesUsage(['C'], box, read, read.node.init, value => value.name, collectWrites);
+  check(`${ parser.name }: bound slot/${ name }/reference scans`, scans, scansExpected);
+}
+
+for (const parser of adapters) for (const [initial, written] of [['Object', 'Map'], ['Map', 'Object']]) {
+  for (const bound of [false, true]) for (const readFirst of [false, true]) {
+    const write = bound ? 'held();' : 'fill(box);';
+    const tree = parser.parseAndScope(`function fill(target) { target.C = ${ written }; }
+      function read() { const box = { C: ${ initial } }; ${ bound ? 'const held = fill.bind(null, box);' : '' }
+        ${ readFirst ? '' : write } const capture = () => box.C.groupBy;
+        ${ readFirst ? `capture(); ${ write }` : '' } return capture(); }`);
+    const data = collectFileCensus(tree.node, [mutationShapesReducer(), escapedCtorReferencesReducer()]);
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+      method: 'usage-pure',
+      getMutationRoots: () => data.mutationRoots,
+      getWrittenContainerSlots: () => data.writtenContainerSlots,
+      getContainerSlotIndex: () => data.containerSlotIndex,
+      collectBindingReferences: parser.makeResolver().collectBindingReferences,
+    });
+    const path = parser.pickPath(tree, 'MemberExpression', p => p.node.property.name === 'groupBy');
+    const selectionSink = [];
+    const site = { node: path.node.object, scope: path.scope, adapter, path };
+    const primary = staticContainerReceiverName({ ...site, unionSink: [], selectionSink });
+    const label = `${ parser.name }: ${ initial } to ${ written }/${ write }/read before write=${ readFirst }`;
+    check(`${ label }/receiver`, primary, !readFirst && written === 'Object' ? 'Object' : null);
+    checkDeep(`${ label }/guard candidates`, selectionSink, readFirst ? ['Object'] : []);
+    check(`${ label }/import source`, staticContainerReceiverName({ ...site, unionSink: [], resolveLeaf: () => null }), null);
+  }
+}
 finish();

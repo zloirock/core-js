@@ -6693,10 +6693,8 @@ function * generateCallPairedSlot() {
 }
 
 // --- A read of a container slot the file WROTE ---
-// the slot holds the literal's value or a written one, and every read route owes the written one:
-// usage-global injects for it, pure guards a binding's read on it and keeps a read with no binding to
-// guard - a member, a leaf - native, which leaves those rows to the global leg alone. the literal spells
-// `Math` (no `of`) and the write installs `Array`, so a lost polyfill throws in the stripped realm
+// The literal holds Math (no of) and the write installs Array. A read from a proven own data
+// slot can use Array.of directly. Reads whose receiver is uncertain can still guard a binding.
 const WS_CONTAINERS = [
   { id: 'object', decl: 'const w = { a: Math };', write: 'w.a = Array;', slot: '{ a: A }', leaf: '{ a: { of: F } }', member: 'w.a' },
   { id: 'object-computed', decl: 'const w = { a: Math };', write: 'w["a"] = Array;', slot: '{ a: A }', leaf: '{ a: { of: F } }', member: 'w.a' },
@@ -6718,8 +6716,21 @@ const WS_READS = [
 function * generateWrittenSlotReads() {
   for (const c of WS_CONTAINERS) for (const r of WS_READS) {
     const body = `(() => { ${ c.decl } ${ c.write } ${ r.body(c) } return ${ r.obs(c) }; })()`;
-    yield { ...snippet(`written-slot-read/${ c.id }/${ r.id }`, body), strip: r.strip };
+    const objectSlot = ['object', 'object-computed', 'nested'].includes(c.id);
+    const indexMember = r.id === 'member' && (c.id === 'array' || c.id === 'array-inert');
+    yield { ...snippet(`written-slot-read/${ c.id }/${ r.id }`, body), strip: r.strip || objectSlot || indexMember };
   }
+}
+
+function * generateWrittenSlotExtractions() {
+  for (const [name, body] of [
+    ['effectful-key-and-default', `const box = { s: Object }; box.s = Array;
+      const { from, missing = log.push('default') } = box[(log.push('key'), 's')];
+      return [from([3]), missing];`],
+    ['captured-sibling', `const box = { s: Object, t: Array }; const alias = box; box.s = Array;
+      const { s: { from: first }, t: { from: second } } = alias;
+      return [first([1]), second([2])];`],
+  ]) yield { ...snippet(`written-slot-read/${ name }`, `(() => { ${ body } })()`), strip: true };
 }
 
 // --- Nested-object destructure of an instance method off a side-effect-free member receiver ---
@@ -26845,6 +26856,57 @@ function * generateReachingWritePositions() {
       export const r = groupBy([7], Boolean).get(true)[0];` };
 }
 
+function * generateBoundSlotWritePositions() {
+  for (const afterCapture of [false, true]) {
+    yield { name: `write-position/bound-slot/${ afterCapture ? 'after' : 'before' }-capture`, strip: true, isolated: true,
+      code: `function fill(target) { target.C = Map; }
+        const box = { C: Object };
+        const held = fill.bind(null, box);
+        ${ afterCapture ? '' : 'held();' }
+        const { C: { groupBy } } = box;
+        ${ afterCapture ? 'held();' : '' }
+        const groups = groupBy([7], Boolean);
+        export const r = ${ afterCapture ? 'groups.true[0]' : 'groups.get(true)[0]' }; export const effects = [];` };
+  }
+  yield { name: 'write-position/bound-slot/own-bind-writes-before-call', strip: true, isolated: true,
+    code: `function read(override) {
+        function fill(target) { target.C = Map; }
+        const box = { C: Map };
+        if (override) fill.bind = (receiver, target) => { target.C = Object; return () => {}; };
+        const held = fill.bind(null, box);
+        void held;
+        const { C: { groupBy } } = box;
+        const groups = groupBy([7], Boolean);
+        return override ? groups.true[0] : groups.get(true)[0];
+      } export const r = [read(false), read(true)]; export const effects = [];` };
+  for (const bound of [false, true]) for (const initial of ['Object', 'Map']) {
+    const objectFirst = initial === 'Object';
+    yield { name: `write-position/bound-slot/closure-${ initial }-across-${ bound ? 'bound' : 'direct' }-write`, strip: true, isolated: true,
+      code: `function fill(target) { target.C = ${ objectFirst ? 'Map' : 'Object' }; }
+        const box = { C: ${ initial } };
+        ${ bound ? 'const held = fill.bind(null, box);' : '' }
+        const capture = () => box.C.groupBy;
+        const before = capture();
+        ${ bound ? 'held()' : 'fill(box)' };
+        const after = capture();
+        export const r = [before([7], Boolean).${ objectFirst ? 'true' : 'get(true)' }[0], after([8], Boolean).${ objectFirst ? 'get(true)' : 'true' }[0]];
+        export const effects = [];` };
+  }
+  yield { name: 'write-position/bound-slot/closure-with-unused-writer', strip: true, isolated: true,
+    code: `function fill(target) { target.C = Map; }
+      const box = { C: Object };
+      const held = fill.bind(null, box);
+      const capture = () => box.C.groupBy;
+      void held;
+      export const r = capture()([3], Boolean).true[0]; export const effects = [];` };
+  yield { name: 'write-position/bound-slot/optional-closure-after-null-write', strip: true, isolated: true,
+    code: `function clear(target) { target.C = null; }
+      const box = { C: Object };
+      const capture = () => box.C?.groupBy;
+      const before = capture(); clear(box);
+      export const r = [before([9], Boolean).true[0], capture() === undefined]; export const effects = [];` };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -28682,4 +28744,6 @@ export function * generate() {
   yield * generateClassFieldContracts();
   yield * generateFunctionArgumentContracts();
   yield * generateClassReceiverContracts();
+  yield * generateBoundSlotWritePositions();
+  yield * generateWrittenSlotExtractions();
 }

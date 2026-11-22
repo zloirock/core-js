@@ -216,6 +216,7 @@ import {
   resolveDestructureReceiverPlan,
   destructureHostThroughWrappers,
   destructureSourceIsLiteralWrapper,
+  writtenLiteralExtractions,
   STATIC_WALK_DEPTH,
   claimUnderSharedHopSlot,
   mirrorAcceptedKey,
@@ -3279,11 +3280,11 @@ export function buildNestedDestructurePlan({
   // Follow this nested property's folded key through the container path. A constructor plans
   // its statics; a proxy global plans realm properties; an unresolved intermediate descends again.
   // Unfoldable keys and values other than ObjectPattern stay verbatim.
-  function planOuterPropStatic(outerProp, hostInit, walkPath) {
-    const name = propKeyNameScoped(outerProp, isDestructurePattern(patternSlotTarget(outerProp.value)));
-    if (name === null) return { kind: 'verbatim', prop: outerProp };
+  function planOuterPropStatic(outerProp, hostInit, walkPath, literal) {
     const value = patternSlotTarget(outerProp.value);
     if (value?.type !== 'ObjectPattern') return { kind: 'verbatim', prop: outerProp };
+    const name = propKeyNameScoped(outerProp, true);
+    if (name === null) return { kind: 'verbatim', prop: outerProp };
     const newPath = [...walkPath, name];
     // `path` (the declaration / assignment site) lets the usage-pure reassignment gate inside
     // walkStaticReceiverStep prove a reassigned RECEIVER (`w = {}` after `{Arr:{from}} = w`) is
@@ -3291,6 +3292,7 @@ export function buildNestedDestructurePlan({
     // (polyfill-always-wins) instead of bailing to the native-wins default-injection
     const constructor = walkStaticReceiverChain({
       receiverNode: hostInit, walkPath: newPath, scope, adapter, path,
+      writtenOnly: literal,
       // a DECLARATION and an ASSIGNMENT host both replay a discarded receiver read on both legs -
       // the emptied-init rescue and the emptied-pattern one - so a value only an object-literal
       // GETTER could name is answerable under either. the cascade's assignment host plans through a
@@ -3305,7 +3307,7 @@ export function buildNestedDestructurePlan({
     // like the ones read off a proxy-global init (`{ w: { Map } } = { w: globalThis }` -> `const Map
     // = _Map`), and its ctor hops descend the same way - the static walk's own proxy lift, one level up
     if (constructor && POSSIBLE_GLOBAL_OBJECTS.has(constructor)) return foldNestedPattern(outerProp, value, planOuterProp);
-    return foldNestedPattern(outerProp, value, innerProp => planOuterPropStatic(innerProp, hostInit, newPath));
+    return foldNestedPattern(outerProp, value, innerProp => planOuterPropStatic(innerProp, hostInit, newPath, literal));
   }
 
   // Unknown spans stay eligible: a synthesized node's effect must not disappear from the harvest.
@@ -3319,6 +3321,7 @@ export function buildNestedDestructurePlan({
   const rescuesReceiverRead = declarator.type === 'VariableDeclarator'
     || path?.node?.type === 'AssignmentExpression';
   let plan = null;
+  let writtenLiteral = false;
   const pattern = declarator.id;
   if (pattern?.type === 'ObjectPattern' && pattern.properties.length) {
     // peel parens / chain / TS wrappers AND SE tail to a fixpoint so `(se(), R) as any`
@@ -3584,11 +3587,15 @@ export function buildNestedDestructurePlan({
       if (outerProps.some(hasExtractions)) {
         plan = { receiver, probedNav, probedNavNode, outerProps, pattern, discardSe };
       }
-    } else if (init && !destructureSourceIsLiteralWrapper(init, { scope, adapter, path }, pattern)) {
-      // Indirect heap/class/call roots keep the existing common fallback. Literal
-      // wrappers, including fixed aliases and transparent IIFE returns, stay native.
-      const outerProps = pattern.properties.map(p => planOuterPropStatic(p, init, []));
+    } else if (init) {
+      // A literal alone keeps its native pattern. A written slot can open an extraction;
+      // keep the ordinary extraction of siblings exposed by that same split.
+      const literal = destructureSourceIsLiteralWrapper(init, { scope, adapter, path }, pattern);
+      let outerProps = pattern.properties.map(p => planOuterPropStatic(p, init, [], literal));
       if (outerProps.some(hasExtractions)) {
+        writtenLiteral = literal;
+        if (literal) outerProps = outerProps.map(outer => outer.kind === 'consumed'
+          ? outer : planOuterPropStatic(outer.prop, init, [], false));
         plan = { receiver: null, probedNav, probedNavNode, outerProps, pattern, discardSe };
       }
     }
@@ -3641,6 +3648,9 @@ export function buildNestedDestructurePlan({
       consumesAll: !keepsRest && !plan.restKeepsLevel && plan.outerProps.every(outer => outer.kind === 'consumed'),
       discardsInit: consumesPattern && !plan.restKeepsLevel,
     };
+    if (writtenLiteral) for (const outer of plan.outerProps) for (const extraction of outer.extractions ?? []) {
+      writtenLiteralExtractions.set(adapter, extraction.prop, declarator.init);
+    }
   }
   planCache.set(adapter, declarator, plan);
   return plan;

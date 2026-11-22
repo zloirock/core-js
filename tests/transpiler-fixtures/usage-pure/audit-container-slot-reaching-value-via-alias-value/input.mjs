@@ -1,4 +1,4 @@
-// an aliased written value changes nothing for the bail
+// A write through the Array alias makes its static available at the later read.
 const AliasA = Array;
 const ca = { k: Object };
 ca.k = AliasA;

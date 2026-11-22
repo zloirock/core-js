@@ -156,3 +156,26 @@ QUnit.test('container arguments: assignment captures are fresh on every invocati
   assert.deepEqual(values, [[1, 2], [1, 2]]);
 });
 /* eslint-enable no-var, no-redeclare, no-lone-blocks, block-scoped-var -- end hoisted-binding cases */
+
+QUnit.test('container arguments: a closure reads groupBy on both sides of a bound write', assert => {
+  function fill(target) { target.C = Map; }
+  const box = { C: Object };
+  const held = fill.bind(null, box);
+  function capture() { return box.C.groupBy; }
+  const before = capture();
+  held();
+  const after = capture();
+  assert.same(before([7], Boolean).true[0], 7);
+  assert.same(after([8], Boolean).get(true)[0], 8);
+});
+
+QUnit.test('container arguments: destructuring a written slot evaluates its key before the default', assert => {
+  const order = [];
+  const box = { s: Object };
+  box.s = Array;
+  // eslint-disable-next-line no-sequences -- the computed key has an effect and a known value
+  const { from, missing = order.push('default') } = box[order.push('key'), 's'];
+  assert.deepEqual(from([3]), [3]);
+  assert.same(missing, 2);
+  assert.deepEqual(order, ['key', 'default']);
+});

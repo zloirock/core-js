@@ -1,5 +1,6 @@
 import _Iterator from "@core-js/pure/actual/iterator";
 import _Map from "@core-js/pure/actual/map";
+import _Object$groupBy from "@core-js/pure/actual/object/group-by";
 import _Promise from "@core-js/pure/actual/promise";
 import _Symbol from "@core-js/pure/actual/symbol/constructor";
 import _Symbol$for from "@core-js/pure/actual/symbol/for";
@@ -15,7 +16,7 @@ const first = {
 };
 const member = first.inner;
 member.C = Object;
-export const byKey = first.inner.C.groupBy([1], x => x);
+export const byKey = _Object$groupBy([1], x => x);
 const second = {
   inner: {
     C: _Promise

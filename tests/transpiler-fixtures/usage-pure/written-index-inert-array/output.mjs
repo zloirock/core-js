@@ -1,10 +1,10 @@
 import _Object$groupBy from "@core-js/pure/actual/object/group-by";
-// an array literal that holds no constructor is a container once the file writes one into a slot: a
-// read off that slot reaches the written constructor, so usage-global injects for it and pure guards
-// the pattern binding's read on it (the member read of a written slot stays native)
+import _String$raw from "@core-js/pure/actual/string/raw";
+// Writing an existing element establishes String as the tag's receiver. An index absent from
+// the literal can be inherited, so the destructured binding still needs an identity check in pure.
 const list = [1];
 list[0] = String;
-export const viaMember = list[0].raw`x`;
+export const viaMember = _String$raw`x`;
 const pair = [];
 pair[0] = Object;
 const {

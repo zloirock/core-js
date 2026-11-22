@@ -4921,6 +4921,7 @@ export function walkStaticReceiverChain({
   path = null,
   usageNode = null,
   ignoreWrittenSlots = false,
+  writtenOnly = false,
   allowUninitializedCallee = false,
   unionSink = null,
   rescuesReceiverRead = false,
@@ -4936,9 +4937,12 @@ export function walkStaticReceiverChain({
   // `usageNode` overrides the walk's initial read site (a wrapper's capture point); the step
   // otherwise anchors at the host `path` node. `reportNonStatic` distinguishes a proven
   // fresh replacement (false) from an unresolved receiver (null) for closed caller proofs.
-  return walkStaticReceiverStep({ node: receiverNode, readNode: usageNode, ctx: { scope, adapter, path } }, {
+  // A literal wrapper can expose a written slot while its untouched initializer stays native.
+  const written = writtenOnly ? { name: null } : null;
+  const receiver = walkStaticReceiverStep({ node: receiverNode, readNode: usageNode, ctx: { scope, adapter, path } }, {
     walkPath,
     ignoreWrittenSlots,
+    written,
     allowUninitializedCallee,
     unionSink,
     rescuesReceiverRead,
@@ -4951,6 +4955,7 @@ export function walkStaticReceiverChain({
     reportNonStatic,
     resolveLeaf,
   });
+  return !written || receiver === written.name ? receiver : null;
 }
 
 // does the static receiver walk stand on an ARRAY LITERAL at the end of `walkPath`? an array
@@ -5515,6 +5520,7 @@ function walkStaticReceiverStep(hop, {
   walkPath,
   depth = 0,
   ignoreWrittenSlots = false,
+  written = null,
   allowUninitializedCallee = false,
   unionSink = null,
   containerName: enteredName = null,
@@ -5555,6 +5561,7 @@ function walkStaticReceiverStep(hop, {
   const visited = hop.seen ?? new Set();
   let containerName = enteredName;
   let containerNode = enteredNode;
+  let guardWrittenSlot = false;
   // dereferencing a bound name puts the walk INSIDE that container: the keys consumed above
   // belonged to whatever the name aliased, so the slot path restarts here
   // ... with the DECLARING node beside the name: the written-slot record is keyed by declaration,
@@ -5578,6 +5585,7 @@ function walkStaticReceiverStep(hop, {
         walkPath,
         depth,
         ignoreWrittenSlots,
+        written,
         allowUninitializedCallee,
         unionSink,
         containerName,
@@ -5708,14 +5716,21 @@ function walkStaticReceiverStep(hop, {
       adapter, binding, declaratorNode: binding.path?.node ?? binding.node, usagePath: path, usageNode: readNode,
     })) return null;
     collectReassignedHopUnion({ ...standing(), binding, name: current.name });
-    // All recorded writes agree on one constructor and a write dominates this read: the
-    // literal's old candidate is dead. Resolve at each write's scope; pure keeps the written
-    // slot's native read, without manufacturing a guard for the discarded initial value.
+    // A dominating write to an own data slot names the receiver. Pure can substitute a native
+    // owner's static directly; a substituted namespace already carries its own statics.
     if (!ignoreWrittenSlots && walkPath.length
       && adapter.isWrittenContainerSlot?.(current.name, walkPath, binding.path?.node ?? binding.node, path, slotReadNode)) {
+      const pure = adapter.method === 'usage-pure';
       const replacementName = adapter.containerSlotWriteDominatesUsage?.(walkPath, binding.path?.node ?? binding.node, path,
-        slotReadNode, writtenStaticOwnerName, adapter.method === 'usage-global' ? unionSink : null);
-      if (replacementName) return adapter.method === 'usage-pure' ? null : replacementName;
+        slotReadNode, writtenStaticOwnerName, unionSink && (names => {
+          guardWrittenSlot ||= pure;
+          for (const name of pure ? guardableSelectionArms(names, adapter) : names) if (!unionSink.includes(name)) unionSink.push(name);
+        }));
+      if (replacementName) {
+        if (pure && (resolveLeaf || !guardableSelectionArms([replacementName], adapter).length)) return null;
+        if (written) written.name = replacementName;
+        return replacementName;
+      }
     }
     // A fresh replacement can kill the literal's candidate without naming a new constructor.
     // The slot is read at its use even when its container identity was captured earlier.
@@ -5755,7 +5770,12 @@ function walkStaticReceiverStep(hop, {
     currentScope = aliasDeclScope(binding, currentScope);
     readNode = (binding.path?.node ?? binding.node) ?? readNode;
   }
-  return walkStaticReceiverTerminal(standing());
+  const result = walkStaticReceiverTerminal(standing());
+  // A closure can observe the initial value and a later call's write at the same read.
+  if (guardWrittenSlot && selectionSink) for (const name of guardableSelectionArms(unionSink, adapter)) {
+    if (!selectionSink.includes(name)) selectionSink.push(name);
+  }
+  return result;
 }
 
 // the usage-GLOBAL half of the branch-arm dispatch: every arm of a branching value is reachable, so
@@ -6300,6 +6320,10 @@ export function destructureSourceIsLiteralWrapper(node, ctx, pattern = null, dep
   return !!captured && destructureSourceIsLiteralWrapper(captured.node, captured.ctx ?? ctx, null, depth + 1);
 }
 
+// A split opened by a written slot can also serve its siblings. Only the exact properties
+// and initializer of the accepted plan participate in that split.
+export const writtenLiteralExtractions = createInstanceNodeCache();
+
 // Common captures may expose a supported flat read, and an existing fallback claim may
 // use the shared per-branch mirror; its own safety gates still decide whether to serve it.
 // Other static/global claims below a literal keep their native pattern. An independent
@@ -6317,8 +6341,12 @@ export function destructureRetainsLiteralWrapper({ propPath, kind, adapter, meta
   const defaultNode = hops?.findLast(hop => hop.defaultNode)?.defaultNode;
   const liveDefault = defaultNode && !nearestInnerDefaultDead(propPath.parentPath, adapter);
   const init = liveDefault ? defaultNode : root;
-  return destructureSourceIsLiteralWrapper(init, { scope: propPath.scope, adapter, path: propPath },
-    liveDefault ? null : walked.hostPatternPath.node);
+  if (init && writtenLiteralExtractions.get(adapter, propPath.node) === init) return false;
+  const ctx = { scope: propPath.scope, adapter, path: propPath };
+  if (!destructureSourceIsLiteralWrapper(init, ctx, liveDefault ? null : walked.hostPatternPath.node)) return false;
+  if (liveDefault || !meta?.object) return true;
+  return walkStaticReceiverChain({ receiverNode: init, walkPath: hops.map(hop => hop.key ?? String(hop.index)),
+    ...ctx, writtenOnly: true }) !== meta.object;
 }
 
 // the value an OUTER destructure reads from, for the SE-key gate's "diverging conditional?" check.
