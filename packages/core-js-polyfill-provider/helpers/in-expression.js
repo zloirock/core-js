@@ -4,11 +4,13 @@
 // operands skipped, babel drops them implicitly by replacing the node.
 import {
   collectFoldedReceiverSideEffects,
+  isMemberAccessNode,
   unwrapRuntimeExpr,
   valueMayBeNullish,
   walkAstChildren,
 } from './ast-patterns.js';
-import { presenceReceiverNeedsProbe } from '../detect-usage/resolve.js';
+import { isDefinitelyObject, toHint } from '../resolve-node-type/base.js';
+import { peelReceiverSequenceTail, presenceReceiverNeedsProbe } from '../detect-usage/resolve.js';
 import { resolveSymbolInEntry } from '../detect-usage/members.js';
 
 // does the operand the fold would DISCARD carry an `in` of its own? that one THROWS on a bad right
@@ -17,7 +19,7 @@ import { resolveSymbolInEntry } from '../detect-usage/members.js';
 function discardedOperandOwnsInTest(node) {
   const stack = [node];
   for (let cur = stack.pop(); cur; cur = stack.pop()) {
-    if (cur !== node && cur.type === 'BinaryExpression' && cur.operator === 'in') return true;
+    if (cur.type === 'BinaryExpression' && cur.operator === 'in') return true;
     walkAstChildren(cur, child => stack.push(child));
   }
   return false;
@@ -30,13 +32,17 @@ function isTrueLiteralNode(node) {
 
 // the fold discards BOTH operands whole (each replayed only through the structural SE harvest),
 // shared by the static-receiver and typed-instance-receiver branches below
-function foldPlan({ meta, left, right, ctx }) {
+function foldPlan({ meta, left, right, ctx, receiverType }) {
   // BOTH receiver branches ask this before folding, so it lives with the fold itself: the operand
   // the constant would DISCARD must not be able to hand `in` something it throws on (a value that
   // short-circuits, whatever the resolved type hint claims) and must not carry an `in` of its own
   // (its throw is not among the effects the harvest replays). either way the test stays live and
   // the constant answers after it
-  if (valueMayBeNullish(right) || ctx && presenceReceiverNeedsProbe(unwrapRuntimeExpr(right), ctx) || discardedOperandOwnsInTest(right)) {
+  const receiver = peelReceiverSequenceTail(right);
+  if (receiverType && (!isDefinitelyObject(receiverType) || isMemberAccessNode(receiver)) || valueMayBeNullish(right)
+    || discardedOperandOwnsInTest(left) || discardedOperandOwnsInTest(right)
+    || ctx && (presenceReceiverNeedsProbe(unwrapRuntimeExpr(right), ctx)
+      || ctx.adapter?.readRunsAccessor?.({ ...ctx, node: right }))) {
     return { kind: 'fold-after-test', leadingSe: [], skip: null };
   }
   const rescue = new Set(meta.sideEffects);
@@ -51,7 +57,7 @@ function foldPlan({ meta, left, right, ctx }) {
 }
 
 // `ctx` is the host's scope, which the discarded operands' harvest asks its questions in
-export function planInExpression({ meta, left, right, isEntryNeeded, resolveFallback, receiverHint = null, parent = null, ctx = null }) {
+export function planInExpression({ meta, left, right, isEntryNeeded, resolveFallback, receiverType = null, parent = null, ctx = null }) {
   if (ctx?.adapter?.isOptedOut?.(left, true) || ctx?.adapter?.isOptedOut?.(right, true)) return { kind: 'noop' };
   // the kept-test spelling re-enters on a SECOND pass - the unplugin emitter runs before AND after babel
   // in the sandwich, and the test it keeps still reads as a foldable probe. recognising our own
@@ -119,9 +125,11 @@ export function planInExpression({ meta, left, right, isEntryNeeded, resolveFall
   // dynamic keys carry null), non-symbol provenance, an emitter-resolved receiver TYPE hint,
   // and the (type, key) pair resolving to a needed pure entry. an UNKNOWN receiver must not
   // fold off the Maybe-dispatch resolution - its runtime truth is genuinely engine-dependent
-  if (meta.key && !meta.symbolSourced && receiverHint
+  const receiverHint = toHint(receiverType);
+  if (meta.key && !meta.symbolSourced && receiverHint && !receiverType.primitive
+    && !ctx?.adapter?.isMutatedStatic?.(`${ receiverType.constructor }.prototype`, meta.key, { node: right, path: ctx.path })
     && resolveFallback({ kind: 'property', object: receiverHint, key: meta.key, placement: 'prototype' }).result) {
-    return foldPlan({ meta, left, right, ctx });
+    return foldPlan({ meta, left, right, ctx, receiverType });
   }
   return { kind: 'noop' };
 }

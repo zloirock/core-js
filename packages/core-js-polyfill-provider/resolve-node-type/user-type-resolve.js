@@ -13,7 +13,7 @@
 //                                      rename to drop colliding outer entries
 //   resolveInterfaceExtendsParent    - single `extends` clause walker (Identifier OR
 //                                      namespace-qualified TSQualifiedName / MemberExpression)
-import { MAX_DEPTH, boxForDeclaration, withDeclarationIdentity } from './base.js';
+import { MAX_DEPTH, boxForDeclaration, primitiveTypeOf, withDeclarationIdentity } from './base.js';
 import {
   collectQualifiedSegments,
   extendsId,
@@ -272,7 +272,10 @@ export function createUserTypeResolve({
                 () => resolveInterfaceExtendsParent({ parent, scope, resolve, depth, typeParamMap, visited }));
               // the parent's box stands for the PARENT - re-stamped, or `Base extends Derived` reads
               // one identity on both sides and answers TRUE for the members the derived side adds
-              if (result) return withDeclarationIdentity(result, declaration);
+              if (result) {
+                const structural = result.topObject || result.constructor === 'Object' || primitiveTypeOf(result);
+                return withDeclarationIdentity(structural ? result.mark('mayBePrimitive') : result, declaration);
+              }
             }
             // extends parents that ALL resolved to nothing are unknowable (undeclared / unresolved
             // heritage) - masquerading as Object suppresses the polyfill, same as the class branch -> null.
@@ -280,7 +283,7 @@ export function createUserTypeResolve({
             // both the cyclic and the all-unresolved outcomes are already null
             return null;
           }
-          return boxForDeclaration('Object', declaration);
+          return boxForDeclaration('Object', declaration).mark('mayBePrimitive');
         }
         // class as a type: walk `extends` for known container (`Array<T>`) or user parent.
         // cyclic class extends should NOT fall back to `$Object('Object')` - that masquerades

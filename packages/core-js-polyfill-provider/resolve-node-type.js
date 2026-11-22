@@ -77,7 +77,7 @@ import {
   intersectHintSets,
   isBigIntLiteralNode,
   literalNodeValue,
-  primitiveTypeOf,
+  isDefinitelyObject,
   toHint,
 } from './resolve-node-type/base.js';
 import {
@@ -2477,6 +2477,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveNodeType,
     resolveRuntimeExpression,
     resolveReturnType,
+    applyCallSiteSubst: returnTypeCluster.applyCallSiteSubst,
     withLookupPath,
     foldOverloadReturns,
     findAmbientFunctionPaths,
@@ -2490,6 +2491,7 @@ function createResolveNodeType(babelNodeType, t, {
     lookupNested,
     KNOWN_STATIC_METHOD_RETURN_TYPES,
     swapAliasToTSTypeQueryWithSubst,
+    declaredTypeofTarget,
     resolveReturnTypeFromTypeQuery,
     resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
     unwrapTypeAnnotation,
@@ -3905,11 +3907,13 @@ function createResolveNodeType(babelNodeType, t, {
   }
 
   function isString(path) {
-    return primitiveTypeOf(resolveNodeType(path)) === 'string';
+    const type = resolveNodeType(path);
+    return type?.primitive === true && type.type === 'string' && !type.mayBeNullish;
   }
 
   function isObject(path) {
-    return resolveNodeType(path)?.primitive === false;
+    const operand = peelSkippableWrapperPath(path);
+    return isDefinitelyObject(resolveNodeType(path)) || operand !== path && isDefinitelyObject(resolveNodeType(operand));
   }
 
   return {

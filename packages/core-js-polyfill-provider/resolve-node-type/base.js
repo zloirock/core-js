@@ -256,6 +256,9 @@ const TypePrototype = {
   // transformed or not), unsound for TRUTHINESS - the runtime value may still be nullish,
   // so the logical truthy-fold must not collapse `A || B` / `A ?? B` to A's shape
   mayBeNullish: false,
+  // A structural annotation admits a primitive with the same members. Its dispatch family
+  // still describes those members, but cannot prove the value is an object at runtime.
+  mayBePrimitive: false,
   // same-family literal stamps merged (`'a' | 'b'`): still one family for member dispatch,
   // but a conditional check against a literal stays undecidable, so the branch-picker
   // folds both branches
@@ -530,6 +533,11 @@ export const UNKNOWN_ARGUMENT = Symbol('unknown-argument');
 export function literalMembers(type) {
   if (type.literals) return type.literals;
   return type.literal === undefined ? null : new Set([type.literal]);
+}
+
+// Semantic Object.* filters and membership folds need an object in every reachable arm.
+export function isDefinitelyObject(type) {
+  return type?.primitive === false && !type.mayBeNullish && !type.mayBePrimitive;
 }
 
 // `boxed primitive Type -> primitive name` via UNBOXED_PRIMITIVES lookup; `$Primitive`

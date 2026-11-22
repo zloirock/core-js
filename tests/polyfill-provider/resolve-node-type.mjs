@@ -421,6 +421,85 @@ runBoth('isObject([] init) / isString false', 'const a = [];', (adapter, prog, l
   check(`${ lbl } isString`, resolver.isString(decl.get('init')), false);
 });
 
+for (const [setup, expression, object, string] of [
+  ['', 'new String("key")', true, false],
+  ['declare const key: String;', 'key', false, false],
+  ['declare const key: string | null;', 'key', false, false],
+  ['declare const value: Object;', 'value', false, false],
+  ['declare const value: object;', 'value', true, false],
+  ['interface Sized { length: number }', '("word" as Sized)', false, false],
+  ['interface Sized { length: number } declare const value: Sized;', 'value', false, false],
+  ['interface Sized extends Array<string> {} declare const value: Sized;', 'value', true, false],
+  ['interface Sized extends String {} declare const value: Sized;', 'value', false, false],
+  ['interface Sized extends Object {} declare const value: Sized;', 'value', false, false],
+  ['class Base { length = 0 } interface Sized extends Base {} declare const value: Sized;', 'value', false, false],
+  ['declare const value: string[] | null;', 'value', false, false],
+  ['declare const value: string[] | null;', 'value ?? []', true, false],
+  ['declare const value: string[] | null;', 'value || []', true, false],
+  ['declare const value: string[] | null;', 'value && []', false, false],
+  ['function id<T>(x: T): T | null { return x; }', 'id(new Date())', true, false],
+  ['function id<T>(x: T): T | null { return x; }', 'id("word")', false, true],
+  ['function id<T>(x: T): T | null { "use strict"; return x; }', 'id([])', true, false],
+  ['function id<T>(x: T): T | null { return x; } declare const arg: Date | null;', 'id(arg)', false, false],
+  ['function pick<T>(this: void, a: number, b: T): T | null { return b; }', 'pick(0, [])', true, false],
+  ['function maybe<T>(x: T, keep: boolean): T | null { return keep ? x : null; }', 'maybe({}, false)', false, false],
+  ['function f<T>(x: T | null, side = (x = null)): T | null { return x; }', 'f([])', false, false],
+  ['function f<T>(x: T | null): T | null { x = null; "late"; return x; }', 'f({})', false, false],
+  ['declare function f<T>(x: T): T | null;', 'f([])', false, false],
+  ['', 'Object(1)', true, false],
+  ['', 'new Object()', true, false],
+  ['', '({} as Object)', true, false],
+]) runBoth(expression, `${ setup } const result = ${ expression };`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result').get('init');
+  const resolver = parser.makeResolver();
+  check(`${ label }/object`, resolver.isObject(path), object);
+  check(`${ label }/string`, resolver.isString(path), string);
+}, ['typescript']);
+
+for (const [expression, kind] of [['BigInt(1)', 'bigint'], ['1', 'number']]) {
+  runBoth(`postfix ${ kind }`, `let count = ${ expression }; const next = count++;`, (parser, program, label) => {
+    checkType(label, parser.makeResolver().resolveNodeType(parser.pickPath(program, 'UpdateExpression')), { primitive: true, kind });
+  });
+}
+
+// An array/string union uses a generic member. These controls also distinguish distribution
+// from a completely unknown result: with a never arm, only the surviving family's helper applies.
+for (const member of [false, true]) for (const [argument, yes, no, expected] of [
+  ['boolean', 'number[]', 'string', null],
+  ['true', 'number[]', 'string', 'array'],
+  ['false', 'number[]', 'string', 'string'],
+  ['boolean', 'never', 'string', 'string'],
+  ['boolean', 'number[]', 'never', 'array'],
+]) {
+  function arm(type) { return member ? `{ rows: ${ type } }` : type; }
+  const source = `type Result<T> = T extends true ? ${ arm(yes) } : ${ arm(no) };
+    declare const value: Result<${ argument }>; value${ member ? '.rows' : '' }.at(0);`;
+  runBoth(source, source, (parser, program, label) => {
+    const prop = parser.pickPath(program, 'MemberExpression', path => path.node.property.name === 'at');
+    check(label, toHint(parser.makeResolver().resolvePropertyObjectType(prop)), expected);
+  }, ['typescript']);
+}
+
+for (const [name, call, expected] of [
+  ['local', 'fn("hi")', 'string'],
+  ['local', 'fn<boolean>(false)', 'boolean'],
+  ['local', '(fn as typeof fn)("hi")', 'string'],
+  ['outer', 'fn("hi")', 'number'],
+  ['unbound', 'fn()', null],
+]) {
+  const source = `declare class C<V> {
+    local<V>(value: V): V[];
+    outer<W>(value: W): V[];
+    unbound<V>(): V[];
+  }
+  type Method = C<number>['${ name }']; declare const fn: Method; const result = ${ call };`;
+  runBoth(source, source, (parser, program, label) => {
+    const value = parser.makeResolver().resolveNodeType(parser.pickPath(program, 'CallExpression'));
+    check(`${ label }/container`, value?.constructor, 'Array');
+    check(`${ label }/element`, toHint(value?.inner), expected);
+  }, ['typescript']);
+}
+
 // --- `toHint` round-trip (parser-agnostic; runs once on babel resolver) ---
 
 {

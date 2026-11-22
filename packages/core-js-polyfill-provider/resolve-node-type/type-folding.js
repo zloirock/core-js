@@ -321,6 +321,7 @@ export function createTypeFolding({
       merged = merged.withArgumentMembers(null);
     }
     if (existing?.mayBeNullish || incoming.mayBeNullish) merged = merged.mark('mayBeNullish');
+    if (existing?.mayBePrimitive || incoming.mayBePrimitive) merged = merged.mark('mayBePrimitive');
     // topObject is a MAY-union like mayBeNullish: assignability to a union target holds
     // when ANY arm accepts, so `object | Object` accepts primitives regardless of arm
     // order (the identity-returned fold otherwise dropped the marker order-dependently)

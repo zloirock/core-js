@@ -641,7 +641,7 @@ check('isPolyfillModule/inherited key', isPolyfillModule('constructor'), false);
 
 // WIDENING THE MODE MAY NEVER NARROW THE INJECTED SET, over the real definitions rather than over
 // a scenario someone remembered. The receiver's own obligation is asked at the STABLE layer
-// (`isProposalEntry`) instead of off the count the CONFIGURED layer happened to yield, and
+// (`staticEntryNeedsReceiver`) instead of off the count the CONFIGURED layer happened to yield, and
 // the two answers differ exactly where a static's entries are absent from `mode` yet present in
 // `stable` - the web entries, which no `es/` layer carries. Such a cell would inject the member's
 // modules and drop the constructor the narrower mode had injected for the same read, so the count

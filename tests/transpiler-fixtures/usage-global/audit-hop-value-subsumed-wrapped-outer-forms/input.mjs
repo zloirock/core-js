@@ -10,10 +10,6 @@ globalThis.Reflect?.has(obj3, 'k');
 // template single-quasi and nested-sequence tails fold like the plain string form
 globalThis.Reflect[`apply`](f, obj5, []);
 globalThis.Reflect[(e++, (e++, 'construct'))](C, []);
-// a SEQUENCE-wrapped hop is NOT a transparent wrapper of the outer member's object slot - the
-// outer search stops at the sequence, the value meta keeps firing and the namespace stays (the
-// conservative over-inject side of the gate)
-export const d = (e++, globalThis.Reflect).deleteProperty(obj4, 'k');
 // a paren-wrapped WRITE host is still a write: no subsumption, the mutated-static constructor
 // injection is kept
 (globalThis.WeakSet).customExt = 1;

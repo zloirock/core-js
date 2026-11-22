@@ -521,6 +521,7 @@ export default function createPlugin(options) {
     pkg,
     packages,
     getModulesForEntry,
+    staticEntryNeedsReceiver,
     getCoreJSEntry,
     isEntryAvailable,
     isEntryCarried,
@@ -997,7 +998,6 @@ export default function createPlugin(options) {
       const {
         injectModulesForEntry,
         injectModulesForModeEntry,
-        isProposalEntry,
         outputDebug,
       } = createModuleInjectors({
         mode,
@@ -1218,7 +1218,7 @@ export default function createPlugin(options) {
           adapter: estreeAdapter,
           resolveUsage,
           injectModulesForModeEntry,
-          isProposalEntry,
+          staticEntryNeedsReceiver,
           isDisabled,
           resolveStaticInheritedMember,
           isInheritedStaticLookup,

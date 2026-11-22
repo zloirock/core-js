@@ -247,8 +247,8 @@ export default function createAstUsagePureCallback({
       right: metaPath.node.right,
       isEntryNeeded: isEntryAvailable,
       resolveFallback: m => resolvePureOrGlobalFallback(m, metaPath),
-      receiverHint: !meta.object && meta.key && !meta.symbolSourced
-        ? toHint(resolveNodeType(metaPath.get('right'))) : null,
+      receiverType: !meta.object && meta.key && !meta.symbolSourced
+        ? resolveNodeType(metaPath.get('right')) : null,
       parent: metaPath.parentPath?.node ?? null,
       ctx: { scope: metaPath.scope, adapter, path: metaPath },
     });

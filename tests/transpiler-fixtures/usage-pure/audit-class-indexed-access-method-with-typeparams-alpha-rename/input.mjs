@@ -10,3 +10,4 @@ class C<V> {
 type M = C<number>['wrap'];
 declare const fn: M;
 fn('hi').at(0);
+fn('hi')[0].at(0);

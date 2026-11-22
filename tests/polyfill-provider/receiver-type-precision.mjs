@@ -10,6 +10,8 @@ import {
   resolveCallArgument,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { escapedCtorReferencesReducer, mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
+import { handleBinaryIn, handleMemberExpressionNode } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
+import { toHint } from '../../packages/core-js-polyfill-provider/resolve-node-type/base.js';
 import { resolveKey } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { planNestedDefaultHop } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import { createMemberResolve } from '../../packages/core-js-polyfill-provider/resolve-node-type/member-resolve.js';
@@ -19,6 +21,34 @@ import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internal
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 
 const { check, checkDeep, doesNotThrow, runBoth, finish } = createChecker('receiver-type-precision');
+
+// Observe the member claim before constructor and syntax imports are merged into the output.
+for (const [expression, key, family] of [
+  ['new Uint8Array(5).toBase64()', 'toBase64', 'typedarray'],
+  ['new Uint8Array(5).setFromBase64("YWJj")', 'setFromBase64', 'typedarray'],
+  ['new Uint8Array(5).includes(1)', 'includes', 'typedarray'],
+  ['Float32Array.from([1]).at(0).includes(x)', 'includes', 'number'],
+  ['Uint8Array.of(1).at(0).includes(x)', 'includes', 'number'],
+  ['Number(x).toFixed(2)', 'toFixed', 'number'],
+  ['opaque.toFixed(2)', 'toFixed', null],
+]) runBoth(expression, expression, (parser, program, label) => {
+  const path = parser.pickPath(program, 'MemberExpression', item => item.node.property.name === key);
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-global' });
+  const meta = handleMemberExpressionNode({ node: path.node, scope: path.scope, path, adapter,
+    handledObjects: new WeakSet(), resolveMeta: () => null, isEntryAvailable: () => true });
+  checkDeep(`${ label }/member`, [meta?.kind, meta?.placement, meta?.key], ['property', 'prototype', key]);
+  check(`${ label }/receiver`, toHint(parser.makeResolver().resolvePropertyObjectType(path)), family);
+});
+
+for (const [expression, sourced] of [['(Symbol?.iterator) in obj', true], ['"Symbol.iterator" in obj', false]]) {
+  runBoth(expression, expression, (parser, program, label) => {
+    const path = parser.pickPath(program, 'BinaryExpression');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-global' });
+    const meta = handleBinaryIn({ node: path.node, scope: path.scope, path, adapter, handledObjects: new WeakSet(),
+      isEntryAvailable: () => true });
+    checkDeep(label, meta && [meta.kind, meta.key, meta.symbolSourced], sourced ? ['in', 'Symbol.iterator', true] : null);
+  });
+}
 
 // what a generated row hands `expectError` for the line `tsc` rejects on purpose
 const COMPUTED_KEY = 'a computed key tsc refuses is the shape under test';

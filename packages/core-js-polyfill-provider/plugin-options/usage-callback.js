@@ -58,7 +58,7 @@ export function createUsageGlobalCallback({
   adapter = null,
   resolveUsage,
   injectModulesForModeEntry,
-  isProposalEntry,
+  staticEntryNeedsReceiver,
   isDisabled,
   resolveStaticInheritedMember,
   isInheritedStaticLookup,
@@ -109,11 +109,11 @@ export function createUsageGlobalCallback({
   // entirely (`Promise.name` -> es.function.name) and nothing creates `Promise`;
   // or the member IS its own static but a PROPOSAL, and a proposal installs itself through the
   // constructor rather than defining it (`Symbol.metadata` reaches `Symbol` to hang itself off).
-  // Everything else is guaranteed by construction: core-js defines a standard static through its
-  // own export helper, which creates the namespace when the engine has none
+  // A standard static either exists on target or installs the namespace through its export helper.
+  // An explicit exclusion can suppress that installation on a target missing the static.
   function receiverIsUnguaranteed(meta, deps) {
     if (meta.kind !== 'property' || meta.placement !== 'static' || !meta.object) return false;
-    return !hasOwnStaticDefinition(meta.object, meta.key) || deps.some(isProposalEntry);
+    return !hasOwnStaticDefinition(meta.object, meta.key) || deps.some(staticEntryNeedsReceiver);
   }
 
   function injectBaseConstructor(meta, path) {

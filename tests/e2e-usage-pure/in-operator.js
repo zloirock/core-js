@@ -269,9 +269,10 @@ QUnit.test("'flat' in [] -> true (typed-array receiver fold)", assert => {
   assert.true('flat' in []);
 });
 
-QUnit.test("'at' in string receiver -> true (typed-string fold)", assert => {
+QUnit.test("'at' in a primitive string throws and a boxed string supports it", assert => {
   const s = 'abc';
-  assert.true('at' in s);
+  assert.throws(() => 'at' in s, TypeError);
+  assert.true('at' in new String(s));
 });
 
 QUnit.test('typed fold keeps both operand side effects in source order', assert => {
@@ -386,4 +387,18 @@ QUnit.test('in: a reassigned name answers for the constructor it holds', assert 
     return 'from' in value;
   }
   assert.true(reassigned(Set));
+});
+
+QUnit.test('membership observes getters, nested tests and primitive operands', assert => {
+  let reads = 0;
+  const box = {
+    get rows() {
+      reads++;
+      return [];
+    },
+  };
+  assert.true('flat' in box.rows);
+  assert.same(reads, 1);
+  assert.throws(() => ('x' in null, 'from') in Array, TypeError);
+  assert.throws(() => 'at' in String(123), TypeError);
 });

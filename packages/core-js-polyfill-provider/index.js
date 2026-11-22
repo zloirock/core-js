@@ -243,6 +243,14 @@ export function createPolyfillContext({
     return result;
   }
 
+  // A proposal may require its constructor even when it installs the member. A stable
+  // member supplies the receiver unless the target needs it and the build suppressed it.
+  function staticEntryNeedsReceiver(entry) {
+    const key = `stable/${ entry }`;
+    if (!hasOwn(entries, key)) return true;
+    return !getModulesForEntry(key).length && entries[key].some(mod => targetsNeedPolyfill(resolveModule(mod) ?? mod));
+  }
+
   function getCoreJSEntry(source) {
     source = normalizeImportPath(source);
     if (source === null) return null;
@@ -310,6 +318,7 @@ export function createPolyfillContext({
     pkg,
     packages,
     getModulesForEntry,
+    staticEntryNeedsReceiver,
     getCoreJSEntry,
     isEntryAvailable,
     isEntryCarried,

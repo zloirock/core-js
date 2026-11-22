@@ -2,6 +2,7 @@
 // "is the receiver a proxy global?" to avoid recursing on `globalThis.X` -> `globalThis.X.X`.
 // abstracting this would require an extra adapter layer for one Set lookup - kept inline
 import {
+  climbTransparentWrapperPath,
   isCalleeReference,
   isAssetURLCallee,
   MUTATED_MEMBERS_UNKNOWN,
@@ -228,21 +229,8 @@ export function createPolyfillResolver(options, {
     // don't reject - conservative over-inject beats a crash or silent dead-code strip
     if (!path) return false;
     const { node } = path;
-    // walk through ParenthesizedExpression / TS expression wrappers (as / satisfies /
-    // non-null `!` / TSTypeAssertion / TypeCastExpression). oxc preserves parens; both
-    // parsers preserve TS wrappers. without the full peel `JSON.parse!(s, reviver)` and
-    // `(JSON.parse as any)(s, reviver)` bypass the arg-count / arg-shape filters and
-    // emit a polyfill for shapes the runtime would reject
-    let callPath = path.parentPath;
-    while (callPath?.node && (callPath.node.type === 'ParenthesizedExpression'
-      || callPath.node.type === 'TSAsExpression'
-      || callPath.node.type === 'TSSatisfiesExpression'
-      || callPath.node.type === 'TSTypeAssertion'
-      || callPath.node.type === 'TSNonNullExpression'
-      || callPath.node.type === 'TSInstantiationExpression'
-      || callPath.node.type === 'TypeCastExpression')) {
-      callPath = callPath.parentPath;
-    }
+    // Parentheses can seal an optional chain. Its result is still the callee whose arguments we inspect.
+    const callPath = climbTransparentWrapperPath(path).parentPath;
     const parent = callPath?.node ?? path.parent;
     if (!isCalleeReference(parent, node)) return false;
     switch (name) {
@@ -292,7 +280,7 @@ export function createPolyfillResolver(options, {
     const dependencies = getDependencies(target);
     if (!dependencies?.length) return null;
     const [entry] = dependencies;
-    if (!ctx.isEntryNeeded(entry) && !(target.guard && ctx.isEntryNeeded(target.guard))) return null;
+    if (!ctx.isEntryNeeded(entry) && !(target.guard && ctx.isEntryCarried(entry) && ctx.isEntryNeeded(target.guard))) return null;
     return entry;
   }
 

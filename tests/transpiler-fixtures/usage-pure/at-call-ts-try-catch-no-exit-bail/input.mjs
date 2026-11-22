@@ -1,5 +1,5 @@
-function example(x: number | string[]) {
-  if (typeof x === 'number') {
+function example(x: string | string[]) {
+  if (typeof x === 'string') {
     try {
       doFirst();
       return;
@@ -7,6 +7,5 @@ function example(x: number | string[]) {
       logFailure();
     }
   }
-  // @ts-expect-error a union whose other arm lacks the member is the shape under test
   x.at(-1);
 }

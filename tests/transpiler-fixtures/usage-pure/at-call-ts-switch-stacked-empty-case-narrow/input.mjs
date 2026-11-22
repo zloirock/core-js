@@ -2,8 +2,8 @@
 // (`case 1: case 2: return`): the switch counts as an unconditional exit so the code after
 // the guard sees the narrowed array type and the array-specific at variant is selected
 declare const k: number;
-function f(x: string[] | number) {
-  if (typeof x === 'number') {
+function f(x: string[] | string) {
+  if (typeof x === 'string') {
     switch (k) {
       case 1:
       case 2: return 0;

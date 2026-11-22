@@ -339,7 +339,10 @@ export function createTypeSubst({
   // or members list is null. shared between every collector / resolver that needs per-source
   // substitution (class chain, interface merging, parent extends, type alias body)
   function substMembers(members, subst) {
-    return members && subst ? members.map(m => substMemberAnnotations({ member: m, subst })) : members;
+    // Indexed access retains the whole method signature. Keep its own type parameters
+    // free for a later call under both class-method AST layouts.
+    return members && subst ? members.map(member => member.kind === 'method'
+      ? applyAliasSubstDeep(member, subst) : substMemberAnnotations({ member, subst })) : members;
   }
 
   // alpha-rename clone for signature-local `<T>` typeParameters. shared between TSFunctionType

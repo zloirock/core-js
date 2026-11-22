@@ -1027,11 +1027,14 @@ export function renderInExpressionPlan(plan, { injectImport, embed = node => nod
     // The raw branch's own `Symbol` read stays a read off a written binding, which the member
     // census recognises as the alternate of an emitted guard and leaves alone
     if (plan.realmGuard) {
+      const raw = leadingSe.length ? binaryExpression('in',
+        memberFromKeyName(memberFromKeyName(embed(cloneNode(plan.realmGuard.receiver)), 'Symbol'), 'iterator'),
+        embed(cloneNode(plan.right))) : embed(cloneSource());
       const guarded = plan.realmGuard.realms.reduceRight((alternate, realm) => conditionalExpression(
         binaryExpression('===', embed(cloneNode(plan.realmGuard.receiver)), identifier(injectImport(realm.entry, realm.hintName))),
         helperCall(),
         alternate,
-      ), embed(cloneSource()));
+      ), raw);
       return { replace: withLeadingSe(guarded) };
     }
     // the helper CONSUMES the operand the way `in` did - it throws on a nullish one, and that

@@ -2467,18 +2467,17 @@ export function symbolIteratorHint(entry) {
 // realm.Symbol).iterator in x`), whose membership test answers `false` for an iterable under sham
 // symbols. the test travels with the realm guard instead: the pristine proxy globals the binding
 // was WRITTEN with name the one realm, so one identity branch against the realm root answers the
-// is-iterable helper, and the source `in` stays the raw branch. The raw branch re-spells the source, so the
-// LHS is a plainly spelled `<binding>.Symbol.<name>` (no optional hop, sequence prefix or effectful
-// key - each would run twice, once ahead of the test and once in the raw branch). The iterator entry uses a
+// is-iterable helper. Sequence prefixes before the receiver run before the guard. The raw branch
+// reads the Symbol and iterator properties from that receiver once. The iterator entry uses a
 // call shape and requires an unmutated Symbol. Otherwise the member route keeps it. The raw
 // branch of an emitted guard re-enters here on the next pass (both legs re-queue their output)
 // and is recognised by that shape, like the member route's own raw branch
 function guardedRealmSymbolIn({ left, scope, adapter, path, resolvePure, resolveStaticKey }) {
   // The RHS stays in mutually exclusive branches, each after the source key read.
   if (left.type !== 'MemberExpression' || left.optional) return null;
-  const symbolNode = unwrapTransparentSeq(left.object);
+  const symbolNode = peelReceiverSequenceTail(left.object);
   if (symbolNode?.type !== 'MemberExpression' || symbolNode.optional || memberKeyName(symbolNode) !== 'Symbol') return null;
-  const receiver = unwrapTransparentSeq(symbolNode.object);
+  const receiver = peelReceiverSequenceTail(symbolNode.object);
   if (receiver?.type !== 'Identifier' || insideEmittedCtorGuardBranch(path, adapter, receiver)
     || isMutatedGlobalSlot(adapter, 'Symbol', path && { node: symbolNode, path })) return null;
   const name = resolveKey({

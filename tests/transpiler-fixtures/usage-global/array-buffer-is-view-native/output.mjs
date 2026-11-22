@@ -1,0 +1,1 @@
+export const isView = ArrayBuffer.isView;

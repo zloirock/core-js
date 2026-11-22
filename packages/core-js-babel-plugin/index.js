@@ -378,6 +378,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
   const {
     getCoreJSEntry,
     getModulesForEntry,
+    staticEntryNeedsReceiver,
     isEntryNeeded,
     isEntryAvailable,
     isEntryCarried,
@@ -651,7 +652,6 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
       const {
         injectModulesForEntry,
         injectModulesForModeEntry,
-        isProposalEntry,
         outputDebug,
       } = createModuleInjectors({
         mode,
@@ -759,7 +759,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         adapter,
         resolveUsage,
         injectModulesForModeEntry,
-        isProposalEntry,
+        staticEntryNeedsReceiver,
         isDisabled,
         resolveStaticInheritedMember,
         isInheritedStaticLookup,
@@ -937,10 +937,8 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
           right: path.node.right,
           isEntryNeeded,
           resolveFallback: m => resolvePureOrGlobalFallback(m, path),
-          // typed-instance fold candidate: the receiver's resolved type hint (null for
-          // unknown / static-receiver / symbol shapes - the plan gates on it)
-          receiverHint: !meta.object && meta.key && !meta.symbolSourced
-            ? toHint(resolveNodeType(path.get('right'))) : null,
+          receiverType: !meta.object && meta.key && !meta.symbolSourced
+            ? resolveNodeType(path.get('right')) : null,
           parent: path.parentPath?.node ?? null,
           ctx: { scope: path.scope, adapter, path },
         });

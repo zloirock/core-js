@@ -537,7 +537,7 @@ for (const parser of adapters) {
     const resolved = [];
     const dispatch = createUsageGlobalCallback({
       isDisabled: () => false,
-      isProposalEntry: () => false,
+      staticEntryNeedsReceiver: () => false,
       resolveUsage(meta) { resolved.push(meta); return []; },
       injectModulesForModeEntry: () => undefined,
     });
@@ -568,7 +568,7 @@ for (const parser of adapters) {
     const dispatch = createUsageGlobalCallback({
       adapter,
       isDisabled: () => false,
-      isProposalEntry: () => false,
+      staticEntryNeedsReceiver: () => false,
       resolveUsage(meta) {
         keys.add(meta.key);
         return [];

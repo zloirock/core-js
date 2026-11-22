@@ -17,6 +17,7 @@
 import {
   $Object,
   $Primitive,
+  primitiveTypeOf,
   INTRINSIC_STRING_TRANSFORMERS,
   STRUCTURAL_CONTAINER_NAMES,
   TOP_ARGUMENT,
@@ -250,7 +251,9 @@ export function createTypeAnnotationResolve({
     // the marker as the only thing telling it from the lowercase keyword. Stamped HERE because both
     // resolution lanes reach a named container through this one function: spelled on the annotation
     // lane alone, the substituting one read `Array<A> extends Array<Object>` as disjoint
-    const known = name === 'Object' ? base.mark('topObject') : name === 'Function' ? base.mark('functionKeyword') : base;
+    let known = name === 'Object' ? base.mark('topObject') : name === 'Function' ? base.mark('functionKeyword') : base;
+    // A boxed type annotation admits the matching primitive. A runtime constructor produces an object.
+    if (isTypeReferenceNode(node) && (known.topObject || primitiveTypeOf(known))) known = known.mark('mayBePrimitive');
     // a container with no inner SLOT still had its arguments WRITTEN: this layer holds one element
     // and `Map` keys off param-0, so none of them fits there. They are carried as a LIST instead -
     // the absence left otherwise is the one a bare `Map` has, and a bare one means `Map<any, any>`,

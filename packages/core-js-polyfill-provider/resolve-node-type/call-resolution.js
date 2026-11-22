@@ -59,7 +59,10 @@ import {
   isCleanDestructureAliasBinding,
   isGuardedAliasingWrite,
   peelTSParenthesized,
+  positionalPathAt,
+  prologueEndIndex,
   unwrapExpressionChain,
+  unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
@@ -83,6 +86,7 @@ export function createCallResolution({
   resolveNodeType,
   resolveRuntimeExpression,
   resolveReturnType,
+  applyCallSiteSubst,
   withLookupPath,
   findPatternKeyPath,
   annotationAtKeyPath,
@@ -101,6 +105,7 @@ export function createCallResolution({
   lookupNested,
   KNOWN_STATIC_METHOD_RETURN_TYPES,
   swapAliasToTSTypeQueryWithSubst,
+  declaredTypeofTarget,
   resolveReturnTypeFromTypeQuery,
   resolveTypeAnnotation,
   unwrapTypeAnnotation,
@@ -200,7 +205,21 @@ export function createCallResolution({
       const ambient = headName
         ? resolveAmbientFunctionReturn(headName, resolved.scope ?? callee.scope, callee.parentPath) : undefined;
       if (ambient !== undefined) return foldHeadAgainstImplementation(ambient, resolved, callee);
-      return resolveReturnType(resolved, callee.parentPath);
+      const result = resolveReturnType(resolved, callee.parentPath);
+      // A nullable signature can be wider than the argument a local function actually returns.
+      const fn = resolved.node;
+      if (result?.mayBeNullish && fn.body && !fn.async && !fn.generator) {
+        const statements = t.isBlockStatement(fn.body) ? fn.body.body : null;
+        const last = statements?.at(-1);
+        if (statements && (last?.type !== 'ReturnStatement' || prologueEndIndex(statements) !== statements.length - 1)) return result;
+        const value = unwrapRuntimeExpr(statements ? last.argument : fn.body);
+        if (value?.type === 'Identifier' && fn.params.every(param => param.type === 'Identifier')) {
+          const index = dropLeadingThisParam(fn.params).findLastIndex(param => param.name === value.name);
+          const arg = index === -1 ? null : positionalPathAt(callArgumentPaths(callee.parentPath), index, isMutatedStatic);
+          if (arg) return resolveNodeType(arg) ?? result;
+        }
+      }
+      return result;
     }
     // indirect call: const fn = obj.method; fn() - resolve through the stored member reference
     if (isMemberLike(resolved)) return resolveMemberCallType(resolved, callee.parentPath);
@@ -415,12 +434,17 @@ export function createCallResolution({
   function resolveCallReturnTypeFromAnnotation(callee, signatureKind = 'call') {
     const info = findExpressionAnnotation(callee);
     if (!info) return null;
+    let { scope } = info;
     let annotation = unwrapTypeAnnotation(info.annotation);
     if (!annotation) return null;
     // follow alias chain to TSTypeQuery: `type Q<T> = typeof fn<T>` (TS 4.7+ instantiation
     // wrapped in generic alias). without the swap, downstream `functionTypeReturnAnnotation`
     // treats Q<...> as a TSTypeReference and returns null
-    annotation = swapAliasToTSTypeQueryWithSubst(annotation, info.scope);
+    annotation = swapAliasToTSTypeQueryWithSubst(annotation, scope);
+    // A query naming a declared callable still has these call arguments to infer from.
+    if (annotation?.type === 'TSTypeQuery' && !getTypeArgs(annotation)) {
+      ({ node: annotation, scope } = declaredTypeofTarget(annotation, scope));
+    }
     if (annotation?.type === 'TSTypeQuery') {
       // a CALL through an aliased `typeof fn` arg-discriminates the overload set like a
       // direct call (shared fold); the type-level rightmost-overload rule (`ReturnType<
@@ -429,12 +453,12 @@ export function createCallResolution({
       // gating on bare Identifiers dropped the qualified set here, mis-resolving the call
       // to the rightmost overload with the args ignored
       const segments = collectQualifiedSegments(annotation.exprName);
-      const overloads = segments ? findOverloadsForName(segments, info.scope) : [];
+      const overloads = segments ? findOverloadsForName(segments, scope) : [];
       if (overloads.length >= 2) {
         return foldOverloadReturns(overloads, o => o.node.params,
           o => resolveReturnType(o, callee.parentPath), o => o.node.returnType, callee.parentPath);
       }
-      return resolveReturnTypeFromTypeQuery(annotation, info.scope);
+      return resolveReturnTypeFromTypeQuery(annotation, scope);
     }
     // TSIndexedAccessType callee annotation (`T['method']` directly OR via alias `type M =
     // T['method']`). follow the alias chain to surface the indexed-access body, then peel
@@ -446,10 +470,10 @@ export function createCallResolution({
     // surfaces its TSFunctionType - the bare TSTypeReference is not a function-type node, so
     // `functionTypeReturnAnnotation` would bail to the generic helper. an indexed-access alias still
     // peels through `findTypeMember` first; a non-function alias yields null (generic), as before
-    const aliased = followTypeAliasChain(annotation, info.scope);
+    const aliased = followTypeAliasChain(annotation, scope);
     let target = aliased.subst ? applyAliasSubstDeep(aliased.node, aliased.subst) : aliased.node;
     if (target?.type === 'TSIndexedAccessType' || target?.type === 'IndexedAccessType') {
-      const peeled = resolveIndexedAccessMemberAnnotationAST(target, info.scope, 0);
+      const peeled = resolveIndexedAccessMemberAnnotationAST(target, scope, 0);
       if (peeled) target = peeled;
     }
     // a UNION callee IS one of its arms and nothing here says which, so every arm's return goes
@@ -467,19 +491,26 @@ export function createCallResolution({
       // stays unresolved instead of narrowing to the call return)
       if (!ret) {
         const sigType = signatureKind === 'construct' ? 'TSConstructSignatureDeclaration' : 'TSCallSignatureDeclaration';
-        const sigs = (getTypeMembers({ objectType: callable, scope: info.scope }) ?? []).filter(m => m.type === sigType);
+        const sigs = (getTypeMembers({ objectType: callable, scope }) ?? []).filter(m => m.type === sigType);
         // an OVERLOADED signature set arg-discriminates one arm or widens through the shared
         // fold - picking last narrowed a divergent set to the wrong arm's type-specific Maybe
         // (`(x: number): number[]; (x: string): string` called with 5 must resolve number[])
         if (sigs.length >= 2) {
           return foldOverloadReturns(sigs, m => m.parameters ?? m.params, m => {
             const r = functionTypeReturnAnnotation(m);
-            return r ? resolveTypeAnnotation(r, info.scope) : null;
+            return r ? resolveTypeAnnotation(r, scope) : null;
           }, m => functionTypeReturnAnnotation(m), callee.parentPath);
         }
         if (sigs.length === 1) ret = functionTypeReturnAnnotation(sigs[0]);
       }
-      return ret ? resolveTypeAnnotation(ret, info.scope) : null;
+      if (!ret) return null;
+      const signature = callable.value ?? callable;
+      if (signature.typeParameters?.params?.length) {
+        const inferred = applyCallSiteSubst(unwrapTypeAnnotation(ret), { node: signature, scope }, callee.parentPath);
+        if (inferred) return inferred;
+        ret = applySubst(ret, shadowMethodTypeParams(signature.typeParameters, null));
+      }
+      return resolveTypeAnnotation(ret, scope);
     }
   }
 

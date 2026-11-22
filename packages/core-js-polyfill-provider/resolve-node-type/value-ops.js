@@ -219,7 +219,7 @@ export function createValueOps({
   // HTMLCollection would silently restore the truthy fold
   function isAlwaysTruthyType(resolved) {
     if (resolved.primitive) return resolved.type === 'symbol';
-    return !/^htmlallcollection$/i.test(resolved.constructor ?? '');
+    return !resolved.mayBePrimitive && !/^htmlallcollection$/i.test(resolved.constructor ?? '');
   }
 
   // `op === '??'` ('??' / '??='): left contributes only when non-nullish - if left is
@@ -259,8 +259,9 @@ export function createValueOps({
       if (isNullableOrNever(right)) return left.mark('mayBeNullish');
     }
     if (!left || !right) return null;
-    // commonType propagates mayBeNullish from either operand to the merged result
-    return commonType(left, right);
+    // A nullish left falls through to the right in either operator.
+    const fallsThrough = op === '??' || op === '??=' || op === '||' || op === '||=';
+    return commonType(fallsThrough && left.mayBeNullish ? left.unmark('mayBeNullish') : left, right);
   }
 
   // recognise the destructuring-default desugar shape: positive `_ref === void 0 ? D : _ref`

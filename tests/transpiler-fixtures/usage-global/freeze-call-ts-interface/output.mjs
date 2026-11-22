@@ -1,3 +1,4 @@
+import "core-js/modules/es.object.freeze";
 interface Config {
   key: string;
   value: number;

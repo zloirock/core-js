@@ -664,7 +664,7 @@ export function createReturnType({
   // generators, or the function's `returnType` annotation otherwise). returns the
   // substituted type or null when the annotation has no type-param references,
   // the call-site map is empty, or substitution itself fails. shared between
-  // the generator and direct-annotation paths of `resolveReturnType`
+  // generator returns, declared returns and calls through an indexed method signature
   function applyCallSiteSubst(annotationNode, fnPath, callPath) {
     const typeParams = fnPath.node.typeParameters?.params;
     if (!typeParams?.length) return null;
@@ -767,6 +767,7 @@ export function createReturnType({
   }
 
   return {
+    applyCallSiteSubst,
     resolveReturnType,
     resolveReturnUnionHints,
     resolveBodyReturnType,

@@ -26907,6 +26907,36 @@ function * generateBoundSlotWritePositions() {
       export const r = [before([9], Boolean).true[0], capture() === undefined]; export const effects = [];` };
 }
 
+function * generateMembershipOperands() {
+  for (const [name, expression] of [
+    ['static-sequence-key', "('x' in null, 'from') in Array"],
+    ['static-conditional-key', "('x' in null ? 'from' : 'from') in Array"],
+    ['instance-sequence-key', "('x' in null, 'at') in []"],
+    ['nested-receiver', "'from' in ('x' in null, Array)"],
+    ['primitive', "'at' in String(123)"],
+    ['boxed', "'at' in new String('hello')"],
+  ]) yield { name: `membership-operands/${ name }`, code: `export const effects = [];
+    function test() { try { return ${ expression }; } catch (error) { return error.name; } }
+    export const r = test();` };
+  for (const fail of [false, true]) yield { name: `membership-operands/getter/${ fail }`, code: `export const effects = [];
+    const box = { get items() { effects.push('get'); if (${ fail }) throw new RangeError(); return []; } };
+    function test() { try { return 'flat' in box.items; } catch (error) { return error.name; } }
+    export const r = test();` };
+  for (const useRealm of [false, true]) yield { name: `membership-operands/iterator-realm/${ useRealm }`, code: `
+    export const effects = [];
+    const trace = { get touch() { effects.push('touch'); } };
+    let realm = { Symbol: { iterator: 'custom' } };
+    if (${ useRealm }) realm = globalThis;
+    export const r = (trace.touch, realm).Symbol.iterator in [];` };
+  yield { name: 'membership-operands/deleted-method', isolated: true, code: `
+    export const effects = [];
+    const original = Object.getOwnPropertyDescriptor(Array.prototype, 'flat');
+    let present;
+    try { delete Array.prototype.flat; present = 'flat' in []; }
+    finally { if (original) Object.defineProperty(Array.prototype, 'flat', original); }
+    export const r = present;` };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -28746,4 +28776,5 @@ export function * generate() {
   yield * generateClassReceiverContracts();
   yield * generateBoundSlotWritePositions();
   yield * generateWrittenSlotExtractions();
+  yield * generateMembershipOperands();
 }
