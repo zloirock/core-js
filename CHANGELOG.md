@@ -133,7 +133,8 @@
   - Added missed detection of native `%TypedArray%.prototype.with` converting the value with `ToNumber` instead of `ToBigInt` on `BigInt` arrays in [Rhino 1.9](https://github.com/mozilla/rhino/pull/2467)
   - Fixed polyfilled typed array methods theoretically rejecting native `Float16Array` instances, including `%TypedArray%.prototype.with`
   - Added missed detection of [`Uint8Array.prototype.{ setFromBase64, toBase64, toHex }` throwing on resizable buffers in V8 ~ Chrome < 144](https://issues.chromium.org/issues/454630441)
-  - Added missed detection of [`Uint8Array.prototype.setFromBase64` excluding trailing whitespace from the `read` count in V8](https://github.com/simdutf/simdutf/pull/825)
+  - Added missed detection of [`Uint8Array.prototype.setFromBase64` excluding trailing whitespace from the `read` count in V8](https://github.com/simdutf/simdutf/pull/825) when the target still has room
+  - Added missed detection of [`Uint8Array.prototype.setFromBase64` reading past the last chunk that fits](https://github.com/tc39/test262/pull/4605) in [V8](https://groups.google.com/g/v8-dev/c/sMEwyJ9GtY0) and [JavaScriptCore](https://github.com/WebKit/WebKit/blob/52cfc989e4a5cf1cc63da6d72b65d16946f821f5/JSTests/test262/expectations.yaml#L55-L57)
   - Fixed `Uint8Array.prototype.{ toBase64, toHex, setFromBase64, setFromHex }` polyfills on shared buffers
   - Improved hex decoding in the `Uint8Array` polyfills. `fromHex` decodes directly into the result, and `setFromHex` reads only the pairs that fit in the target
 - `JSON`
@@ -255,7 +256,8 @@
     - `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` marked as properly supported from NodeJS 22.4 because of the allocation failure crash (see above)
     - `DataView` marked as properly supported from Chrome 54 and NodeJS 7.0 instead of Chrome 26 and NodeJS 0.11.0 because of the arguments conversion bug above, and from Edge 15, FF51, Rhino 1.9.0 and Safari 10.0 instead of Edge 12, FF15, Rhino 1.7.13 and Safari 7.1 and no longer marked as supported in IE because of missing `DataView.prototype[@@toStringTag]`
     - `%TypedArray%.prototype.fill` marked as properly supported from Chrome 59 because Chrome 58 converts the value once per element ([V8 fix](https://github.com/v8/v8/commit/2b1b32253bd4f0d6d97ae6c804d8e66eb1bfd07b))
-    - `Uint8Array.prototype.{ setFromBase64, toBase64, toHex }` marked as properly supported from Chrome 144 instead of 140 because of failures on views of resizable buffers. `setFromBase64` also excluded trailing whitespace from its `read` count
+    - `Uint8Array.prototype.{ toBase64, toHex }` marked as properly supported from Chrome 144 instead of 140 because of failures on views of resizable buffers
+    - `Uint8Array.prototype.setFromBase64` no longer marked as supported in V8-based engines, Safari / iOS and Bun because of the decoding bugs above
   - `Number` and `Math`
     - `Number.prototype.{ toExponential, toFixed, toPrecision }`
       - All three methods are marked as properly supported from [V8 ~ Chrome 62](https://github.com/v8/v8/blob/6.2-lkgr/src/builtins/builtins-number.cc), [Safari 13.1](https://bugs.webkit.org/show_bug.cgi?id=199163) and Hermes 0.1.1, where they accept up to 100 digits

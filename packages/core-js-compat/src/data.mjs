@@ -2507,15 +2507,14 @@ export const data = {
     safari: '18.2',
   },
   'es.uint8-array.set-from-base64': {
-    // safari 18.2-26.1 bug: it doesn't throw an error on incorrect length of base64 string
-    bun: '1.2.20', // '1.1.22',
-    // ResizableArrayBuffer receivers and trailing whitespace read count fixed in Chrome 144
-    // https://issues.chromium.org/issues/454630441
-    // https://github.com/simdutf/simdutf/pull/825
-    chrome: '144', // '140',
+    // V8 and JavaScriptCore read past the last chunk that fits.
+    // https://github.com/tc39/test262/pull/4605
+    // https://groups.google.com/g/v8-dev/c/sMEwyJ9GtY0
+    // https://github.com/WebKit/WebKit/blob/52cfc989e4a5cf1cc63da6d72b65d16946f821f5/JSTests/test262/expectations.yaml#L55-L57
+    // bun: '1.2.20',
+    // chrome: '144',
     firefox: '133',
-    // safari 18.2-26.1 bug: it doesn't throw an error on incorrect length of base64 string
-    safari: '26.2', // '18.2',
+    // safari: '26.2',
   },
   'es.uint8-array.set-from-hex': {
     bun: '1.1.22',

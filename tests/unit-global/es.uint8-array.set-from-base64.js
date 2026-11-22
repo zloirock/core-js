@@ -303,9 +303,25 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.setFromBase64', assert => {
 });
 
 if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.setFromBase64, trailing whitespace', assert => {
-  assert.deepEqual(new Uint8Array(4).setFromBase64('Zm9v\n'), { read: 5, written: 3 }, 'after a full chunk');
+  assert.deepEqual(new Uint8Array(4).setFromBase64('Zm9v\n'), { read: 5, written: 3 }, 'after a full chunk with space left');
+  assert.deepEqual(new Uint8Array(3).setFromBase64('Zm9v\n'), { read: 4, written: 3 }, 'after a full chunk that fills the target');
   assert.deepEqual(new Uint8Array(4).setFromBase64('\n'), { read: 1, written: 0 }, 'whitespace only');
   assert.deepEqual(new Uint8Array(8).setFromBase64('Zm9vYg==\n'), { read: 9, written: 4 }, 'after padding');
+});
+
+if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.setFromBase64, last chunk that fits', assert => {
+  // https://github.com/tc39/test262/pull/4605
+  for (const lastChunkHandling of ['loose', 'strict', 'stop-before-partial']) {
+    const target = new Uint8Array(3);
+    assert.deepEqual(target.setFromBase64('Zm9v#', { lastChunkHandling }), { read: 4, written: 3 }, lastChunkHandling);
+    assert.arrayEqual(target, [102, 111, 111], lastChunkHandling);
+  }
+
+  const target = new Uint8Array([0, 0, 0, 255]);
+  const strict = { lastChunkHandling: 'strict' };
+  assert.deepEqual(target.setFromBase64('Zm9vAAA', strict), { read: 4, written: 3 }, 'the next chunk cannot fit');
+  assert.arrayEqual(target, [102, 111, 111, 255], 'only the complete chunk is written');
+  assert.throws(() => target.setFromBase64('Zm9vAA#', strict), SyntaxError, 'invalid character before the stopping point');
 });
 
 if (DESCRIPTORS && typeof ArrayBuffer.prototype.resize == 'function') QUnit.test('Uint8Array.prototype.setFromBase64, resizable buffers', assert => {

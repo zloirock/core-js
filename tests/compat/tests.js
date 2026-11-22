@@ -2130,8 +2130,16 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     // https://github.com/simdutf/simdutf/pull/825
     try {
       var rab = new ArrayBuffer(4, { maxByteLength: 8 });
-      var result = new Uint8Array(rab).setFromBase64('Zm9v\n');
+      var view = new Uint8Array(rab);
+      var result = view.setFromBase64('Zm9v\n');
       if (result.read !== 5 || result.written !== 3) return false;
+      // V8 and JavaScriptCore read past the last chunk that fits.
+      // https://github.com/tc39/test262/pull/4605
+      // https://groups.google.com/g/v8-dev/c/sMEwyJ9GtY0
+      // https://github.com/WebKit/WebKit/blob/52cfc989e4a5cf1cc63da6d72b65d16946f821f5/JSTests/test262/expectations.yaml#L55-L57
+      var full = new Uint8Array(3);
+      if (full.setFromBase64('Zm9v\n').read !== 4 || full.setFromBase64('Zm9v#').read !== 4) return false;
+      if (view.setFromBase64('Zm9vAAA', { lastChunkHandling: 'strict' }).read !== 4) return false;
     } catch (error) {
       return false;
     }

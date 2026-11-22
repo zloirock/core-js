@@ -62,9 +62,6 @@ module.exports = [
   // Native V8 concat skips the poisoned index of an array-like with MAX_SAFE_INTEGER length.
   'built-ins/Array/prototype/concat/arg-length-near-integer-limit.js',
 
-  // Native V8 setFromBase64 rejects trailing garbage even when the target is already full.
-  'built-ins/Uint8Array/prototype/setFromBase64/trailing-garbage.js',
-
   // The Set methods proposal adds join, which Array.prototype.toString calls on a Set.
   'built-ins/Array/prototype/toString/non-callable-join-string-tag.js',
 
