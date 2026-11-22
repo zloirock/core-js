@@ -23,6 +23,16 @@ export type Target =
   | 'safari'
   | 'samsung'
   | 'yandex-android'
+  /** `chrome-android` alias */
+  | 'and_chr'
+  /** `firefox-android` alias */
+  | 'and_ff'
+  /** `ie` alias */
+  | 'ie_mob'
+  /** `ios` alias */
+  | 'ios_saf'
+  /** `opera-android` alias */
+  | 'op_mob'
   /** `quest` alias */
   | 'oculus'
   /** `react-native` alias */

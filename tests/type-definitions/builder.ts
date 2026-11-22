@@ -21,6 +21,8 @@ await builder({ targets: ['defaults', 'last 5 versions'] });
 await builder({ targets: { esmodules: true, node: 'current', browsers: ['> 1%'] } });
 await builder({ targets: { chrome: '26', firefox: 4 } });
 await builder({ targets: { browsers: { chrome: '26', firefox: 4 } } });
+await builder({ targets: { and_chr: 80, and_ff: 68, ie_mob: 11, ios_saf: '12.2', op_mob: 40 } });
+await builder({ targets: { browsers: { and_chr: 80, and_ff: 68, ie_mob: 11, ios_saf: '12.2', op_mob: 40 } } });
 await builder({ targets: { chrome: '26', firefox: 4, esmodules: true, node: 'current', browsers: ['> 1%'] } });
 await builder({ format: 'bundle' });
 await builder({ format: 'esm' });
