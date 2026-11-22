@@ -1,3 +1,6 @@
+import bareRoot from 'core-js';
+import indexRoot from 'core-js/index';
+import jsRoot from 'core-js/index.js';
 import $Math from 'core-js/full/math';
 import $MathIndex from 'core-js/full/math/index';
 import $MathIndexJS from 'core-js/full/math/index.js';
@@ -31,3 +34,6 @@ $ArrayIndexJS.from([1, 2, 3]);
 declare const num: Iterator<number>;
 chunks(num, 2);
 chunksJS(num, 2);
+
+const sameRoot: typeof indexRoot = bareRoot;
+const sameIndex: typeof jsRoot = bareRoot;

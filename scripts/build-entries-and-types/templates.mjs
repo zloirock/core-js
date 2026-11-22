@@ -24,7 +24,7 @@ function buildSelfForNamespace(namespace, prefix, mutable) {
 }
 
 function buildModulePath({ entry, packageName }) {
-  return `${ packageName }${ entry }`;
+  return entry ? `${ packageName }${ entry }` : packageName.slice(0, -1);
 }
 
 function isAllowedFunctionName(name) {

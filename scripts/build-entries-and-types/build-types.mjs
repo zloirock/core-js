@@ -136,8 +136,8 @@ async function buildType(entry, options) {
   if (!entry.endsWith('/')) { // add alias with .js ending
     addEntryTypes(tsVersion, template, { ...options, entry: `${ entry }.js` });
   }
-  if (entry.endsWith('/index')) { // add alias to namespace without index
-    addEntryTypes(tsVersion, template, { ...options, entry: entry.replace(/\/index$/, '') });
+  if (entry === 'index' || entry.endsWith('/index')) { // root and namespace aliases
+    addEntryTypes(tsVersion, template, { ...options, entry: entry.replace(/(?:^|\/)index$/, '') });
   }
 
   if (proposal || ownEntryPoint) {
