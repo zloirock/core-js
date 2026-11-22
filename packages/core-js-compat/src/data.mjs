@@ -1265,7 +1265,7 @@ export const data = {
     // order of operations bug
     // edge: '13',
     firefox: '36',
-    hermes: '0.4',
+    // hermes: '0.4', // skips keys that become enumerable
     // rhino: '1.9.0', // skips keys that become enumerable
     safari: '9.0',
   },
@@ -1317,7 +1317,7 @@ export const data = {
     chrome: '54',
     edge: '14',
     firefox: '47',
-    hermes: '0.1',
+    // hermes: '0.1', // skips keys that become enumerable
     // rhino: '1.7.14', // skips keys that become enumerable
     safari: '10.1',
   },
@@ -1495,7 +1495,7 @@ export const data = {
     chrome: '54',
     edge: '14',
     firefox: '47',
-    hermes: '0.1',
+    // hermes: '0.1', // skips keys that become enumerable
     // rhino: '1.7.14', // skips keys that become enumerable
     safari: '10.1',
   },

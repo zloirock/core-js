@@ -58,7 +58,7 @@
   - Fixed an ordinary assignment to `self` with the polyfilled setter in FF < 12, where it left `undefined` instead of the assigned value
   - Replaced an unused export option in the `self` fallback for IE8-
 - `Object` and `Reflect`
-  - Added detection of native `Object.{ assign, entries, values }` skipping properties that become enumerable during iteration in [Rhino](https://github.com/mozilla/rhino/issues/2596)
+  - Added detection of native `Object.{ assign, entries, values }` skipping properties that become enumerable during iteration in [Rhino](https://github.com/mozilla/rhino/issues/2596) and Hermes / React Native
   - Fixed `Object.{ assign, entries, values }` polyfills ignoring properties that become enumerable during iteration, except in old V8 where collecting all keys breaks property order
   - Reduced redundant proxy traps in `Object.{ assign, entries, values }` polyfills
   - Fixed `Object.assign` ignoring numeric keys of null-prototype objects in IE10
