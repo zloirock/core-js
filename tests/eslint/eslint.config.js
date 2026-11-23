@@ -1109,6 +1109,8 @@ const useES3Syntax = {
   'prefer-destructuring': OFF,
   // prefer the exponentiation operator over `Math.pow()`
   'prefer-exponentiation-operator': OFF,
+  // binary and octal literals cannot be parsed as ES3
+  'prefer-numeric-literals': OFF,
   // require rest parameters instead of `arguments`
   'prefer-rest-params': OFF,
   // require spread operators instead of `.apply()`
@@ -1125,6 +1127,10 @@ const useES3Syntax = {
   'regexp/prefer-lookaround': [ERROR, { lookbehind: false, strictTypes: true }],
   // enforce using named capture group in regular expression
   'regexp/prefer-named-capture-group': OFF,
+  // cloning a Date directly can lose milliseconds on older engines
+  'unicorn/consistent-date-clone': OFF,
+  // IE8's native splice requires an explicit delete count
+  'unicorn/no-unnecessary-array-splice-count': OFF,
   // prefer class field declarations over this assignments in constructors
   'unicorn/prefer-class-fields': OFF,
   // prefer default parameters over reassignment
@@ -1555,6 +1561,8 @@ const forbidES2015BuiltIns = {
   'math/prefer-number-max-safe-integer': OFF,
   // enforce the use of `Number.MIN_SAFE_INTEGER` instead of other ways
   'math/prefer-number-min-safe-integer': OFF,
+  // deleting to the end with a single argument to splice was standardized in ES2015
+  'unicorn/no-unnecessary-array-splice-count': OFF,
   // prefer modern `Math` APIs over legacy patterns
   'unicorn/prefer-modern-math-apis': OFF,
   // prefer `String#{ startsWith, endsWith }()` over `RegExp#test()`
@@ -1805,14 +1813,29 @@ const forbidModernBuiltIns = {
   'unicorn/prefer-structured-clone': OFF,
 };
 
+const legacyNodeBuiltIns = {
+  // these constructors predate their Node globals
+  'node/prefer-global/text-decoder': OFF,
+  'node/prefer-global/text-encoder': OFF,
+  'node/prefer-global/url-search-params': OFF,
+  'node/prefer-global/url': OFF,
+  // older Node versions require bare built-in module names
+  'node/prefer-node-protocol': OFF,
+  'unicorn/prefer-node-protocol': OFF,
+  // the promise APIs for dns and fs are unavailable
+  'node/prefer-promises/dns': OFF,
+  'node/prefer-promises/fs': OFF,
+  // EventEmitter predates the global EventTarget
+  'unicorn/prefer-event-target': OFF,
+};
+
 const polyfills = {
+  ...legacyNodeBuiltIns,
   // disallow raw non-ASCII characters in literals: a classic script without `charset` is decoded in the encoding of the page
   'no-restricted-syntax': [ERROR, {
     selector: 'Literal[raw=/[^\\x00-\\x7F]/]',
     message: 'Write non-ASCII characters as escape sequences',
   }],
-  // prefer `node:` protocol
-  'node/prefer-node-protocol': OFF,
   // enforces the use of `catch()` on un-returned promises
   'promise/catch-or-return': OFF,
   // avoid nested `then()` or `catch()` statements
@@ -1865,23 +1888,21 @@ const transpiledAndPolyfilled = {
   'regexp/prefer-lookaround': [ERROR, { lookbehind: false, strictTypes: true }],
   // enforce using named capture group in regular expression
   'regexp/prefer-named-capture-group': OFF,
+  // cloning a Date directly can lose milliseconds on older engines
+  'unicorn/consistent-date-clone': OFF,
   // prefer `BigInt` literals over the constructor
   'unicorn/prefer-bigint-literals': OFF,
   ...forbidCompletelyNonExistentBuiltIns,
 };
 
 const nodePackages = {
+  ...legacyNodeBuiltIns,
   // disallow logical assignment operator shorthand
   'logical-assignment-operators': [ERROR, NEVER],
   // disallow unsupported ECMAScript syntax on the specified version
   'node/no-unsupported-features/es-syntax': [ERROR, { version: PACKAGES_NODE_VERSIONS }],
   // disallow unsupported ECMAScript built-ins on the specified version
   'node/no-unsupported-features/node-builtins': [ERROR, { version: PACKAGES_NODE_VERSIONS, allowExperimental: false }],
-  // prefer `node:` protocol
-  'node/prefer-node-protocol': OFF,
-  // prefer promises
-  'node/prefer-promises/dns': OFF,
-  'node/prefer-promises/fs': OFF,
   // prefer lookarounds over capturing group that do not replace
   'regexp/prefer-lookaround': [ERROR, { lookbehind: false, strictTypes: true }],
   // enforce using named capture group in regular expression
@@ -1890,8 +1911,6 @@ const nodePackages = {
   'unicorn/prefer-class-fields': OFF,
   // prefer using a logical operator over a ternary
   'unicorn/prefer-logical-operator-over-ternary': OFF,
-  // prefer using the `node:` protocol when importing Node builtin modules
-  'unicorn/prefer-node-protocol': OFF,
   // prefer omitting the `catch` binding parameter
   'unicorn/prefer-optional-catch-binding': OFF,
   // prefer using `structuredClone` to create a deep clone
@@ -1938,8 +1957,6 @@ const nodeDev = {
   ...forbidES2026IntlBuiltIns,
   // ReDoS vulnerability check
   'redos/no-vulnerable': OFF,
-  // prefer top-level await
-  'unicorn/prefer-top-level-await': ERROR,
   ...forbidSomeES2025Syntax,
   // disallow explicit resource management syntax
   'es/no-using-declarations': ERROR,
@@ -2379,6 +2396,22 @@ const globalsZX = {
 // JSON and Markdown use ESLint's JavaScript language with a custom parser or processor.
 const jsFile = '*.{cjs,js,mjs,json,md}';
 
+// These packages declare "type": "module". The website's browser sources have their own profile.
+const jsInModulePackages = [
+  'tests/@(eslint|type-definitions)/**/*.js',
+  'website/*.js',
+  'website/!(src)/**/*.js',
+];
+
+const nodeDevIgnores = [
+  '**/*.md/**',
+  // These scripts run in the engines being tested.
+  'tests/@(compat|unit-bun|unit-deno)/*.js',
+  'tests/compat/deno-runner.mjs',
+  'tests/@(helpers|unit-@(browser|global|pure)|wpt-url-resources)/**',
+  'website/src/**',
+];
+
 export default [
   {
     ignores: [
@@ -2442,10 +2475,7 @@ export default [
     },
   },
   {
-    files: [
-      '**/*.mjs',
-      `tests/eslint/**/${ jsFile }`,
-    ],
+    files: ['**/*.mjs', ...jsInModulePackages],
     languageOptions: {
       sourceType: 'module',
     },
@@ -2548,10 +2578,30 @@ export default [
     files: [`packages/core-js-compat/**/${ jsFile }`],
     ignores: ['packages/core-js-compat/src/**'],
     rules: {
+      ...noAsyncAwait,
       ...forbidES2017BuiltIns,
       ...forbidES2017IntlBuiltIns,
+      // Node 6.4 has no exponentiation operator
+      'prefer-exponentiation-operator': OFF,
+      'math/prefer-exponentiation-operator': OFF,
+      // Node 6.4 rejects trailing commas in function parameters and calls
+      '@stylistic/comma-dangle': [ERROR, {
+        arrays: 'always-multiline',
+        objects: 'always-multiline',
+        imports: 'always-multiline',
+        exports: 'always-multiline',
+        functions: NEVER,
+      }],
       'node/no-unsupported-features/es-syntax': [ERROR, { version: COMPAT_NODE_VERSIONS }],
       'node/no-unsupported-features/node-builtins': [ERROR, { version: COMPAT_NODE_VERSIONS, allowExperimental: false }],
+    },
+  },
+  {
+    files: ['{packages/core-js-compat/src,scripts,tests,website}/**/*.mjs', ...jsInModulePackages],
+    ignores: nodeDevIgnores,
+    rules: {
+      // only ES modules support top-level await
+      'unicorn/prefer-top-level-await': ERROR,
     },
   },
   {
@@ -2561,14 +2611,7 @@ export default [
       `scripts/**/${ jsFile }`,
       '@(tests|website)/**/*.{cjs,js,mjs}',
     ],
-    ignores: [
-      '**/*.md/**',
-      // These scripts run in the engines being tested.
-      'tests/@(compat|unit-bun|unit-deno)/*.js',
-      'tests/compat/deno-runner.mjs',
-      'tests/@(helpers|unit-@(browser|global|pure)|wpt-url-resources)/**',
-      'website/src/**',
-    ],
+    ignores: nodeDevIgnores,
     rules: nodeDev,
   },
   {
@@ -2685,6 +2728,8 @@ export default [
       ],
       'no-restricted-globals': OFF,
       'unicorn/prefer-global-this': OFF,
+      // IE11 and Firefox 15 take only one argument to classList.add and classList.remove
+      'unicorn/prefer-single-call': OFF,
       '@stylistic/quotes': [ERROR, 'single', { allowTemplateLiterals: ALWAYS }],
     },
   },
