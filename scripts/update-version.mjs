@@ -1,4 +1,5 @@
 import coerce from 'semver/functions/coerce.js';
+import valid from 'semver/functions/valid.js';
 
 const { readJson, readFile, writeJson, writeFile } = fs;
 const { cyan, green, red } = chalk;
@@ -22,7 +23,7 @@ const README_TYPES = 'packages/core-js-types/README.md';
 const SHARED = 'packages/core-js/internals/shared-store.js';
 const BUILDER_CONFIG = 'packages/core-js-builder/config.js';
 const DOCS_USAGE = 'docs/web/docs/usage.md';
-const DOCS_TYPES = 'docs/web/docs/usage.md';
+const DOCS_TYPES = 'docs/web/docs/typescript-type-definitions.md';
 const NOW = new Date();
 const CURRENT_YEAR = NOW.getFullYear();
 
@@ -36,8 +37,17 @@ await writeFile(README, readme.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(
 const readmeCompat = await readFile(README_COMPAT, 'utf8');
 await writeFile(README_COMPAT, readmeCompat.replaceAll(PREV_VERSION_MINOR, NEW_VERSION_MINOR));
 
-const readmeTypes = await readFile(README_TYPES, 'utf8');
-await writeFile(README_TYPES, readmeTypes.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(PREV_VERSION_MINOR, NEW_VERSION_MINOR));
+const npmInstall = /^[\t ]*npm[\t ]+(?:i|install)(?=[\t ])[^\n\r#&;|]*/gm;
+const typesArgument = /(?<=\s)(?<quote>["']?)@core-js\/types@(?<version>[^\s"']+)\k<quote>(?!\S)/g;
+function updateTypesArgument(specifier, quote, version) {
+  return valid(version) ? `${ quote }@core-js/types@${ NEW_VERSION }${ quote }` : specifier;
+}
+
+for (const file of [README_TYPES, DOCS_TYPES]) {
+  const text = await readFile(file, 'utf8');
+  const updated = text.replaceAll(npmInstall, command => command.replaceAll(typesArgument, updateTypesArgument));
+  await writeFile(file, updated);
+}
 
 const shared = await readFile(SHARED, 'utf8');
 await writeFile(SHARED, shared.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(OLD_YEAR, CURRENT_YEAR));
@@ -47,9 +57,6 @@ await writeFile(BUILDER_CONFIG, builderConfig.replaceAll(PREV_VERSION, NEW_VERSI
 
 const docsUsage = await readFile(DOCS_USAGE, 'utf8');
 await writeFile(DOCS_USAGE, docsUsage.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(PREV_VERSION_MINOR, NEW_VERSION_MINOR));
-
-const docsTypes = await readFile(DOCS_TYPES, 'utf8');
-await writeFile(DOCS_TYPES, docsTypes.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(PREV_VERSION_MINOR, NEW_VERSION_MINOR));
 
 const packages = await Promise.all((await glob('packages/*/package?(.tpl).json')).map(async path => {
   const pkg = await readJson(path, 'utf8');
@@ -97,22 +104,15 @@ await $`npm run build-compat`;
 
 await $`npm run build-types`;
 
-const UNRELEASED_TAG = `${ coerce(PREV_VERSION) }-unreleased`;
+const UNRELEASED_TAG = `${ coerce(NEW_VERSION) }-unreleased`;
 
-const modulesByVersions = await readJson('packages/core-js-compat/modules-by-versions.json');
-
-if (modulesByVersions[UNRELEASED_TAG]) {
-  modulesByVersions[NEW_VERSION] = modulesByVersions[UNRELEASED_TAG];
-  delete modulesByVersions[UNRELEASED_TAG];
-  await writeJson('packages/core-js-compat/modules-by-versions.json', modulesByVersions, { spaces: '  ' });
-  echo(green('modules-by-versions updated'));
-} else echo(cyan('modules-by-versions update is not required'));
-
-const entriesByVersions = await readJson('packages/core-js-compat/entries-by-versions.json');
-
-if (entriesByVersions[UNRELEASED_TAG]) {
-  entriesByVersions[NEW_VERSION] = entriesByVersions[UNRELEASED_TAG];
-  delete entriesByVersions[UNRELEASED_TAG];
-  await writeJson('packages/core-js-compat/entries-by-versions.json', entriesByVersions, { spaces: '  ' });
-  echo(green('entries-by-versions updated'));
-} else echo(cyan('entries-by-versions update is not required'));
+for (const name of ['modules-by-versions', 'entries-by-versions']) {
+  const file = `packages/core-js-compat/${ name }.json`;
+  const history = await readJson(file);
+  if (history[UNRELEASED_TAG]) {
+    history[NEW_VERSION] = history[UNRELEASED_TAG];
+    delete history[UNRELEASED_TAG];
+    await writeJson(file, history, { spaces: '  ' });
+    echo(green(`${ name } updated`));
+  } else echo(cyan(`${ name } update is not required`));
+}
