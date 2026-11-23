@@ -78,6 +78,7 @@ export default async function ({
       if (minify) Object.assign(SWCOptions, MinifyOptions);
 
       if (syntax.length || minify) {
+        SWCOptions.jsc = { ...SWCOptions.jsc, output: { charset: 'ascii' } };
         code = (await transform(code, SWCOptions)).code;
       }
 

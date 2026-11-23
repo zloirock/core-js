@@ -31,6 +31,7 @@ export function getRolldownOptions(input, output) {
       defaultHandler(level, log);
     },
     output: {
+      charset: 'ascii',
       externalLiveBindings: false,
       format: 'iife',
       file: output,
