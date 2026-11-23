@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { setImmediate as nextTurn } from 'node:timers/promises';
 import { runInNewContext } from 'node:vm';
 
+const dumpSource = await readFile(new URL('../../unit-browser/qunit-dump.js', import.meta.url), 'utf8');
 const source = await readFile(new URL('../../unit-browser/qunit-results.js', import.meta.url), 'utf8');
 const callbacks = {};
 const QUnit = {
@@ -21,7 +22,9 @@ for (const event of ['log', 'testStart', 'testDone', 'done']) {
   QUnit[event] = listener => { callbacks[event] = listener; };
 }
 const window = { QUnit };
-runInNewContext(source, { window, setTimeout: setImmediate, clearTimeout: clearImmediate });
+const context = { window, setTimeout: setImmediate, clearTimeout: clearImmediate };
+runInNewContext(dumpSource, context);
+runInNewContext(source, context);
 const { qunitResults: results } = window;
 
 const test = { module: 'values', name: 'compare' };

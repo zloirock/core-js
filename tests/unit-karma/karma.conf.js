@@ -40,7 +40,10 @@ module.exports = config => config.set({
     { 'middleware:echo': ['factory', createEchoMiddleware] },
     { 'reporter:summary': ['type', SummaryReporter] },
   ],
-  files: process.argv.find(it => it.startsWith('-f=')).slice(3).split(','),
+  files: [
+    '../unit-browser/qunit-dump.js',
+    ...process.argv.find(it => it.startsWith('-f=')).slice(3).split(','),
+  ],
   middleware: ['echo'],
   frameworks: ['qunit'],
   basePath: '.',
