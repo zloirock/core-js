@@ -5,6 +5,11 @@ export default function run(patterns, {
   prelude = '../../packages/core-js-bundle/index.js',
 } = {}) {
   const preprocessor = patterns.length ? './check-selection.js' : './preprocessor.js';
+  const files = patterns.length ? patterns : [
+    `${ test262Dir }/test/built-ins/**/*.js`,
+    `${ test262Dir }/test/annexB/built-ins/escape/**/*.js`,
+    `${ test262Dir }/test/annexB/built-ins/unescape/**/*.js`,
+  ];
   return $`test262-harness \
     --error-for-failures \
     --threads=${ os.cpus().length } \
@@ -13,6 +18,6 @@ export default function run(patterns, {
     --preprocessor=${ fileURLToPath(new URL(preprocessor, import.meta.url)) } \
     --prelude=${ prelude } \
     --test262-dir=${ test262Dir } \
-    -- ${ patterns.length ? patterns : [`${ test262Dir }/test/built-ins/**/*.js`] } \
+    -- ${ files } \
   `;
 }

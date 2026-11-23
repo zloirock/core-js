@@ -67,6 +67,10 @@ try {
   for (const [file, contents] of Object.entries(fixtures)) {
     await fs.outputFile(path.join(test262Dir, 'test/built-ins', file), contents);
   }
+  const annexB = path.join(test262Dir, 'test/annexB/built-ins');
+  await fs.outputFile(path.join(annexB, 'escape/probe.js'), metadata);
+  await fs.outputFile(path.join(annexB, 'unescape/probe.js'), metadata);
+  await fs.outputFile(path.join(annexB, 'String/prototype/substr/probe.js'), metadata + failure);
   await fs.outputFile(path.join(test262Dir, 'local/built-ins/Array/probe.js'), metadata + body);
   if (expectedFailures.length) {
     await fs.outputFile(path.join(test262Dir, 'test', expectedFailures[0]), metadata + failure);
@@ -106,7 +110,7 @@ try {
   await fs.writeFile(prelude, 'Array.prototype.map = function () { return []; };\n');
   const failed = await runFixture();
   equal(failed.exitCode, 1, failed.toString());
-  match(failed.stdout, /Ran 4 tests\s+0 passed\s+4 failed/);
+  match(failed.stdout, /Ran 8 tests\s+4 passed\s+4 failed/);
 } finally {
   await fs.remove(test262Dir);
 }
