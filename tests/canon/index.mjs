@@ -1,7 +1,7 @@
 import { deepEqual, strictEqual } from 'node:assert/strict';
 
 const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'core-js-canon-'));
-const bootstrap = path.resolve('scripts/zxi.mjs');
+const bootstrap = path.resolve('scripts/zxi.mjs').replaceAll(path.sep, '/');
 const run = $({ cwd: directory, quiet: true, env: { ...process.env, HOME: directory, USERPROFILE: directory } });
 const pkg = 'packages/core-js-compat';
 

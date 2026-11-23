@@ -12,7 +12,6 @@
 // of the suite needs it
 import { API } from 'typescript/unstable/sync';
 import { createVirtualFileSystem } from 'typescript/unstable/fs';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { parseSync } from 'oxc-parser';
 import { createChecker, scenarioOrigin, scenarioSources, suiteTscIntents } from './harness.mjs';
@@ -37,19 +36,8 @@ const OPTIONS = {
   allowUnusedLabels: true,
   noEmit: true,
   skipLibCheck: true,
-  types: [],
+  types: ['@core-js/types/full'],
 };
-
-// the build writes the package's entry points, so an unbuilt package resolves none of them
-function resolveCoreJsTypes() {
-  try {
-    return createRequire(import.meta.url).resolve('@core-js/types/full');
-  } catch (error) {
-    throw new Error('tsc-validity: `@core-js/types` is not built, run `npm run build-types` first', { cause: error });
-  }
-}
-
-const CORE_JS_TYPES = resolveCoreJsTypes();
 
 // TS syntax is a `TS*` node or a flag TypeScript alone sets: `declare class C {}` is a plain class
 // node, and `?.` sets `optional` on the chain nodes in JavaScript too
@@ -104,7 +92,8 @@ function readSource(code, file) {
 // project at a time, so script globals never leak between rows. Unhandled paths fall back to disk for
 // TypeScript's lib and the built core-js types.
 const VIRTUAL_ROOT = path.join(os.tmpdir(), 'core-js-tsc-validity').replaceAll('\\', '/');
-const CONFIG = `${ VIRTUAL_ROOT }/tsconfig.json`;
+// TypeScript resolves the package's type export from the config directory in this workspace.
+const CONFIG = fileURLToPath(new URL('./tsconfig.json', import.meta.url)).replaceAll(path.sep, '/');
 const virtualFS = createVirtualFileSystem({});
 const api = new API({
   fs: {
@@ -125,16 +114,20 @@ function rejections(code, file) {
   virtualFS.writeFile(source, code);
   const changed = [source];
   if (currentFile !== source) {
-    virtualFS.writeFile(CONFIG, JSON.stringify({ compilerOptions: OPTIONS, files: [CORE_JS_TYPES, source] }));
+    virtualFS.writeFile(CONFIG, JSON.stringify({ compilerOptions: OPTIONS, files: [source] }));
     changed.push(CONFIG);
   }
   const snapshot = api.updateSnapshot({
     openProjects: currentFile ? [] : [CONFIG],
     fileChanges: { changed, deleted },
   });
-  currentFile = source;
   try {
     const { program } = snapshot.getProject(CONFIG);
+    if (!currentFile) {
+      const diagnostics = program.getProgramDiagnostics();
+      if (diagnostics.length) throw new Error(`tsc-validity: ${ diagnostics.map(diagnosticText).join('\n') }\nRun \`npm run build-types\` first.`);
+    }
+    currentFile = source;
     return [...program.getSyntacticDiagnostics(source), ...program.getSemanticDiagnostics(source)]
       .filter(diagnostic => !OPAQUE_PLACEHOLDER_CODES.has(diagnostic.code))
       .map(diagnostic => {
@@ -275,7 +268,7 @@ try {
   check('tsc-validity: `@ts-ignore` spelled as a prefix silences nothing, as tsc honors it', rejectionsOf('// @ts-ignored\nconst x: number = "a";'), 1);
   checkDeep('tsc-validity: a directive inside a string is no marker', markersOf('const s = "// @ts-expect-error";\n'), []);
   checkDeep('tsc-validity: a reason opens after whitespace', markersOf('// @ts-expect-error: why\nconst x: number = "a";\n'), ['@ts-expect-error: why']);
-  check('tsc-validity: the core-js types are read', rejectionsOf('Iterator.zip([[1], [2]]);'), 0);
+  checkDeep('tsc-validity: the core-js types are read', rejections('Iterator.zip([[1], [2]]);', CONTROL), []);
   check('tsc-validity: ... and check a member they lack', rejectionsOf('Iterator.notAMember();'), 1);
   checkDeep('tsc-validity: syntactic diagnostics are checked', rejections('const x: = 1;', CONTROL),
     ['TS1110 on line 1: Type expected.']);
