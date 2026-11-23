@@ -1245,6 +1245,13 @@ for (PATH of ['core-js-pure', 'core-js']) {
   for (const key in entries) {
     if (key.startsWith('core-js/modules/')) {
       load('modules', key.slice(16));
+    } else if (key.includes('/instance/')) {
+      const path = key.replace('core-js', PATH);
+      const helper = require(path);
+      ok(typeof helper == 'function', path);
+      for (const receiver of [null, undefined]) {
+        throws(() => helper(receiver), TypeError, `${ path }(${ receiver })`);
+      }
     }
   }
 
