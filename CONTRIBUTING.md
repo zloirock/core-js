@@ -28,6 +28,8 @@ There are always some ["help wanted" issues](https://github.com/zloirock/core-js
 
 [A simple example of adding a new polyfill.](https://github.com/zloirock/core-js/pull/1294/files)
 
+<a id="h-how-to-update-core-js-compat-data"></a>
+
 ## How to update `@core-js/compat` data
 
 For updating `@core-js/compat` data:
