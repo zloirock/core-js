@@ -6,7 +6,7 @@ import markedAlert from 'marked-alert';
 import config from './config/config.mjs';
 import { argv, fs } from 'zx';
 
-const { copy, mkdir, readFile, readJson, readdir, writeFile } = fs;
+const { mkdir, readFile, readJson, readdir, writeFile } = fs;
 
 const branchArg = argv._.find(item => item.startsWith('branch='));
 const BRANCH = branchArg ? branchArg.slice('branch='.length) : undefined;
@@ -21,15 +21,14 @@ const LINKS_DEFAULT_VERSION = BRANCH ? '' : DEFAULT_VERSION;
 const HEADING_ID_PREFIX = 'h-';
 
 let pagePath = '';
-let docsMenu = '';
-let isBlog = false;
-let isDocs = false;
+let pageMenu;
 
+// These paths also form site URLs, including on Windows.
 async function getAllMdFiles(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
   const files = [];
   for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
+    const fullPath = path.posix.join(dir, entry.name);
     if (entry.isDirectory()) {
       const subFiles = await getAllMdFiles(fullPath);
       files.push(...subFiles);
@@ -127,20 +126,19 @@ function decodeUrlPart(value) {
   }
 }
 
-function docPath(url) {
+function getPage(pages, url) {
   const pathname = path.posix.normalize(decodeUrlPart(url.split(/[#?]/, 1)[0]));
-  return pathname.endsWith('/') ? `${ pathname }index` : pathname.replace(/\.html$/, '');
+  return pages.get(pathname.replace(/\.html$/, '')) ?? pages.get(path.posix.join(pathname, 'index'));
 }
 
 // Only Markdown heading links carry the marker. Resolve them against the destination page, including its index alias.
-function resolveHeadingLinks(html, pages, indexes) {
+function resolveHeadingLinks(html, pages) {
   return html.replaceAll(/href="(?<page>[^"#]*)#\0(?<slug>[^"]*)"/g, (_, page, slug) => {
     const decoded = decodeUrlPart(slug);
     const id = decoded.toLowerCase();
     let prefix = HEADING_ID_PREFIX;
     if (id.startsWith(prefix)) {
-      const target = docPath(page);
-      const headings = pages.get(indexes.get(target) ?? indexes.get(`${ target }/index`) ?? target)?.headings;
+      const headings = getPage(pages, page)?.headings;
       if (!headings?.has(prefix + id)) prefix = '';
     }
     const hash = decoded === slug || decoded === id ? slug.toLowerCase() : encodeURIComponent(id);
@@ -168,13 +166,13 @@ const linkRenderer = {
     // the lexed content, not its text parsed again: an autolink's text would turn into a link nested in the link
     const htmlContent = this.parser.parseInline(tokens);
     const inPage = href.startsWith('#');
+    const withDocsVersion = inPage || href.startsWith('{docs-version}/');
     if (inPage) href = pagePath + href;
-    if (inPage || href.startsWith('{docs-version}')) href = href.replace('#', '#\0');
+    if (withDocsVersion) href = href.replace('#', '#\0');
     else if (fileMetadata.repoPath && isRelativePath(href)) href = resolveRepositoryPath(href);
     const isExternal = /^https?:\/\//.test(href);
     let html = `<a href="${ href }"`;
-    // like the TOC, an in-page anchor has the versioned path of its page, which the client strips on the `docs/` alias
-    if (inPage) html += ` class="with-docs-version" data-default-version="${ LINKS_DEFAULT_VERSION }"`;
+    if (withDocsVersion) html += ` class="with-docs-version" data-default-version="${ LINKS_DEFAULT_VERSION }"`;
     if (isExternal) html += ' target="_blank"';
     html += `>${ htmlContent }</a>`;
     return html;
@@ -219,9 +217,9 @@ function buildMenus(html) {
     html = html.replace(`<h${ level } id="${ id }">${ text }</h${ level }>`, () => headingWithAnchor(heading));
   }
   let result = '<div class="wrapper">';
-  if (isBlog || isDocs) {
+  if (pageMenu !== undefined) {
     result += `<div class="docs-menu sticky"><div class="container"><div class="docs-links" id="docs-links">${
-      isBlog ? blogMenuCache : docsMenu }</div>${ menuTrigger('docs-links', 'Menu') }</div></div>`;
+      pageMenu }</div>${ menuTrigger('docs-links', 'Menu') }</div></div>`;
   }
   result += `<div class="content">${ html }</div>`;
   if (headings.length && !Object.hasOwn(fileMetadata, 'disableContentMenu')) {
@@ -255,7 +253,7 @@ async function buildBlogMenu() {
   let index = '---\ndisableContentMenu: true\n---\n# Blog\n\n';
   let menu = '<ul>';
   for (const mdPath of mdFiles) {
-    if (mdPath.endsWith('index.md')) continue;
+    if (mdPath.endsWith('/index.md')) continue;
     const content = await readFile(mdPath, 'utf8');
     const tokens = marked.lexer(content);
     const firstH1 = tokens.find(token => token.type === 'heading' && token.depth === 1);
@@ -331,15 +329,23 @@ async function buildPlayground(template, version, versions) {
   }
 }
 
-async function getDocsIndexes(versions) {
-  const indexes = new Map();
+async function getPageSources(versions) {
+  const sources = new Map();
+  for (const mdPath of await getAllMdFiles(config.docsDir)) {
+    sources.set(mdPath.slice(config.docsDir.length, -3), mdPath);
+  }
+  // Render each docs index from its first menu page so its own anchors use the directory URL.
   for (const version of versions) {
     if (version.default && versions.length > 1) continue;
     const prefix = docsVersionPath(version.path);
     const { firstUrl } = await getDocsMenu(version.path);
-    if (firstUrl) indexes.set(`${ prefix }docs/index`, docPath(firstUrl.replace('{docs-version}/', prefix)));
+    if (!firstUrl) continue;
+    const url = firstUrl.replace('{docs-version}/', prefix);
+    const source = getPage(sources, url);
+    if (!source) throw new Error(`Documentation page not found: ${ url }`);
+    sources.set(`${ prefix }docs/index`, source);
   }
-  return indexes;
+  return sources;
 }
 
 async function getVersions() {
@@ -367,7 +373,6 @@ function getTitle(content) {
 async function build() {
   const template = await readFile(config.templatePath, 'utf8');
   await buildBlogMenu();
-  const mdFiles = await getAllMdFiles(config.docsDir);
   const versions = await getVersions();
   const [defaultVersion] = versions;
   const bundlesPath = getBundlesPath(defaultVersion);
@@ -375,27 +380,24 @@ async function build() {
   const bundleESModulesScript = `<script type="module" src="${ bundlesPath }/${ config.bundleNameESModules }"></script>`;
 
   let currentVersion = '';
+  let docsMenu = '';
   let versionsMenu = '';
-  let isChangelog;
   const pages = new Map();
-  const indexes = await getDocsIndexes(versions);
-  for (const mdPath of mdFiles) {
+  for (const [page, mdPath] of await getPageSources(versions)) {
     const content = await readFile(mdPath, 'utf8');
-    isDocs = mdPath.includes('/docs');
-    isChangelog = mdPath.includes('/changelog');
-    isBlog = mdPath.includes('/blog');
-
     const title = getTitle(content);
-
-    pagePath = mdPath.slice(config.docsDir.length, -3);
-    const versionFromMdFile = versions.find(version => pagePath.startsWith(`${ version.path }/docs/`))?.path ?? DEFAULT_VERSION;
-    if (currentVersion !== versionFromMdFile) {
-      currentVersion = versionFromMdFile;
+    const docsVersion = versions.find(v => page.startsWith(`${ docsVersionPath(v.path) }docs/`));
+    const version = docsVersion?.path ?? DEFAULT_VERSION;
+    if (currentVersion !== version) {
+      currentVersion = version;
       docsMenu = (await getDocsMenu(currentVersion)).html;
       versionsMenu = await buildVersionsMenu(versions, currentVersion, 'docs/');
     }
 
-    const htmlContent = insertBlogPreviews(isDocs || isBlog || isChangelog ? markedWithContents.parse(content) : marked.parse(content));
+    pagePath = page === 'index' ? '' : page.replace(/\/index$/, '/');
+    pageMenu = docsVersion || page.startsWith('docs/') ? docsMenu : page.startsWith('blog/') ? blogMenuCache : undefined;
+    const parser = pageMenu !== undefined || page === 'changelog' ? markedWithContents : marked;
+    const htmlContent = insertBlogPreviews(parser.parse(content));
     const headings = new Set(getHeadingList().map(({ id }) => id));
 
     let resultHtml = template.replace('{content}', htmlContent.replaceAll('$', '&#36;'));
@@ -406,22 +408,18 @@ async function build() {
     resultHtml = resultHtml.replace('{core-js-bundle-esmodules}', bundleESModulesScript);
     resultHtml = resultHtml.replaceAll('{versions-menu}', versionsMenu);
     resultHtml = resultHtml.replaceAll('{docs-version}/', docsVersionPath(currentVersion));
-    pages.set(pagePath, { html: resultHtml, headings });
+    pages.set(page, { html: resultHtml, headings });
   }
 
   for (const [page, { html }] of pages) {
     const htmlFilePath = path.join(config.resultDir, `${ page }.html`);
-    const resultHtml = resolveHeadingLinks(html, pages, indexes);
+    const resultHtml = resolveHeadingLinks(html, pages);
     await mkdir(path.dirname(htmlFilePath), { recursive: true });
     await writeFile(htmlFilePath, resultHtml, 'utf8');
     echo(chalk.green(`File created: ${ htmlFilePath }`));
   }
 
   await buildPlaygrounds(template, versions);
-  for (const [index, source] of indexes) {
-    if (index === source && pages.has(source)) continue;
-    await copy(path.join(config.resultDir, `${ source }.html`), path.join(config.resultDir, `${ index }.html`));
-  }
 }
 
 await build();
