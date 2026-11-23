@@ -38,10 +38,7 @@ async function getModuleMetadata(path, stack = new Set()) {
   const declaredDependencies = module.matchAll(DEPENDENCY_DIRECTIVE).map(it => normalizeModulePath(it.groups.module)).toArray();
   const dependencies = unique([...directDependencies, ...declaredDependencies]);
   const paths = new Set([path]);
-  const types = new Set();
-  for (const it of module.matchAll(TYPES_DIRECTIVE)) {
-    types.add(it.groups.types);
-  }
+  const types = new Set(module.matchAll(TYPES_DIRECTIVE).map(match => match.groups.types));
   for (const dependency of dependencies) {
     const moduleMetadata = await getModuleMetadata(dependency, new Set(stack));
     moduleMetadata.dependencies.forEach(it => paths.add(it));

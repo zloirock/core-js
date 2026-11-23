@@ -4,6 +4,6 @@
     "./test.ts"
   ],
   "compilerOptions": {
-    "lib": ["es2025", "dom"]
+    "lib": ["es2023", "dom"]
   }
 }

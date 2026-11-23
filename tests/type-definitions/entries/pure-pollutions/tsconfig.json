@@ -1,10 +1,6 @@
 {
-  "extends": "../../tsconfig.json",
-  "include": [
-    "./test.ts"
-  ],
+  "extends": "./tsconfig.ts5.json",
   "compilerOptions": {
-    "lib": ["es2025", "dom"],
-    "types": ["@core-js/types/pure"]
+    "lib": ["es2025", "dom"]
   }
 }

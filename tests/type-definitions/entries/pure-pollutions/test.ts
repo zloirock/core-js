@@ -1,8 +1,12 @@
 import '@core-js/types/pure';
 
+const iterator = Iterator.from([1, 2, 3]);
+
 // no global pollution
 // @ts-expect-error
-Iterator.chunks([1, 2, 3], 2);
+iterator.chunks(2);
+// @ts-expect-error
+iterator.windows(2);
 // @ts-expect-error
 Iterator.zipKeyed({ a: [1, 2], b: [3, 4] });
 // @ts-expect-error

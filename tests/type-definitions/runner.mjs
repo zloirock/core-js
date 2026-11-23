@@ -88,7 +88,7 @@ function getTscBin(ts) {
   return resolve(getTmpTsDir(ts), 'node_modules', 'typescript', 'bin', 'tsc');
 }
 
-async function runTasksInParallel() {
+async function runTasksInParallel(tasks) {
   const limit = Math.max(NUM_CPUS - 1, 1);
   let i = 0;
 
@@ -97,7 +97,7 @@ async function runTasksInParallel() {
   }));
 }
 
-async function runTask({ cwd, ts = DEFAULT_TYPE_SCRIPT_VERSION, config, args = [] }) {
+async function runTask({ cwd, ts, config, args = [] }) {
   const label = [`tsc@${ ts }`, '--project', config, ...args].join(' ');
   echo`run ${ cyan(label) }`;
   tested++;
@@ -111,6 +111,24 @@ async function runTask({ cwd, ts = DEFAULT_TYPE_SCRIPT_VERSION, config, args = [
 }
 
 function * buildTasks() {
+  for (const ts of TYPE_SCRIPT_VERSIONS) {
+    for (const config of [
+      'tools/tsconfig.json',
+      'templates/tsconfig.json',
+      'templates/tsconfig.require.json',
+      'entries/full/tsconfig.json',
+      'entries/actual/tsconfig.json',
+      'entries/stable/tsconfig.json',
+      'entries/es/tsconfig.json',
+      'entries/proposals/tsconfig.json',
+      'entries/web/tsconfig.json',
+      'entries/annex-b/tsconfig.json',
+      'entries/global-imports/tsconfig.json',
+      'entries/pure-imports/tsconfig.json',
+      'entries/configurator/tsconfig.json',
+      `entries/pure-pollutions/tsconfig${ ts.startsWith('5.') ? '.ts5' : '' }.json`,
+    ]) yield { ts, config };
+  }
   for (const mode of CORE_JS_MODES) {
     for (const target of ES_TARGETS) {
       for (const ts of TYPE_SCRIPT_VERSIONS) {
@@ -222,27 +240,9 @@ async function prepareEnvironments() {
   if (rejected.length) throw new AggregateError(rejected.map(result => result.reason), 'environment preparation failed');
 }
 
-const tasks = [
-  { config: 'tools/tsconfig.json' },
-  { config: 'templates/tsconfig.json' },
-  { config: 'templates/tsconfig.require.json' },
-  { config: 'entries/full/tsconfig.json' },
-  { config: 'entries/actual/tsconfig.json' },
-  { config: 'entries/stable/tsconfig.json' },
-  { config: 'entries/es/tsconfig.json' },
-  { config: 'entries/proposals/tsconfig.json' },
-  { config: 'entries/web/tsconfig.json' },
-  { config: 'entries/annex-b/tsconfig.json' },
-  { config: 'entries/global-imports/tsconfig.json' },
-  { config: 'entries/pure-imports/tsconfig.json' },
-  { config: 'entries/configurator/tsconfig.json' },
-  { config: 'entries/pure-pollutions/tsconfig.json' },
-  ...buildTasks(),
-];
-
 await prepareEnvironments();
 await testRuntimeImports();
-await runTasksInParallel();
+await runTasksInParallel([...buildTasks()]);
 await clearTmpDir();
 
 echo(`Tested: ${ green(tested) }, Failed: ${ failed ? red(failed) : green(failed) }`);

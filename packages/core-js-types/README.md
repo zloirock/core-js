@@ -14,12 +14,12 @@ npm install --save @core-js/types@4.0.0-alpha.1
 TypeScript 5.6+ is required.
 
 # Usage
-You must include at least the ES6 types in your `tsconfig.json` because our types are built on top of the ES6 type definitions and `DOM` lib for the global version if you use something related (see [DOM types](#dom-types) section):
+The declarations require the ES2015 (`es6`) library or later. Some global web APIs also require the [DOM library](#dom-types).
 ```json
 {
   "compilerOptions": {
     "lib": [
-      "es2025",
+      "esnext",
       "dom"
     ],
     "types": [
@@ -47,6 +47,10 @@ To select the stable subset, add this to your `tsconfig.json`:
 ```json
 {
   "compilerOptions": {
+    "lib": [
+      "esnext",
+      "dom"
+    ],
     "types": [
       "@core-js/types/stable"
     ]
@@ -64,6 +68,10 @@ To load declarations for individual features, list them in your compiler options
 ```json
 {
   "compilerOptions": {
+    "lib": [
+      "esnext",
+      "dom"
+    ],
     "types": [
       "@core-js/types/proposals/joint-iteration",
       "@core-js/types/web/structured-clone"
@@ -80,12 +88,13 @@ Such entry points exist for proposals (`@core-js/types/proposals/*`), web standa
 
 # Types for the pure version
 ## Base usage
-Add this to your `tsconfig.json`, keeping in mind that ES types (at least ES6) are required:
+Add `@core-js/types/pure` to `compilerOptions.types`. The example enables `esModuleInterop` for the default imports from CommonJS modules shown below.
 ```json
 {
   "compilerOptions": {
+    "esModuleInterop": true,
     "lib": [
-      "es2025"
+      "esnext"
     ],
     "types": [
       "@core-js/types/pure"
@@ -119,7 +128,7 @@ Some of the global types for web standards work correctly only with the DOM lib.
       "@core-js/types"
     ],
     "lib": [
-      "es2025",
+      "esnext",
       "dom"
     ]
   }

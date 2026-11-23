@@ -6,17 +6,18 @@ Compilation tests for `@core-js/types`: the definitions are type-checked against
 
 Node `^22.18.0 || >=24.11.0`, with its own `package.json` and `tsconfig.json`. Each run installs its own TypeScript and environment packages into `tmp/`, which is generated and gitignored.
 
-The matrix is a cross-product of five axes: the flavor, the ES target of the compilation, the TypeScript version, the ambient environment package, and the extra `lib`. The last two both include the case of having none at all, since a definition that only compiles because `@types/node` or the DOM lib supplied something is exactly the bug these runs look for. Only the environment and TypeScript axes grow with the mode; the rest are the same in every run.
+The matrix is a cross-product of five axes: the flavor, the ES target of the compilation, the TypeScript version, the ambient environment package, and the extra `lib`. The last two both include the case of having none at all, since a definition that only compiles because `@types/node` or the DOM lib supplied something is exactly the bug these runs look for. The base config starts with an empty `types` list so every compiler loads only the ambient packages a project requests. The mode selects the environment packages and TypeScript versions. Each selected compiler also checks every entry, template and tooling project.
 
 `npm run test-type-definitions` is the default and takes one point of each: the newest TypeScript and the newest `@types/node`. `-all` widens both to everything the definitions claim to support - the only run where the declared floors are exercised at all, and the one CI uses. A change that depends on a newer TypeScript, or on a newer `@types/node`, is therefore green by default and red in CI.
 
 ## Layout
 
-- `entries/` - that each entry point resolves and exports what it promises: one directory per layer, plus the import styles of both flavors, the `configurator`, and `pure-pollutions`, which checks that the pure entries add nothing to the global scope. They compile against the `lib` the documentation recommends, `es2025` with `dom`, not the compiler default: once TypeScript's own `esnext` ships a built-in, a check that a subset adds it passes and a check that it doesn't fails, whatever the subset does. `proposals` goes down to bare `es6` instead: a single proposal entry has to compile on the floor by itself, and a larger lib or a co-imported entry would supply what it misses. So do `web` and `annex-b`, the other directories of single-feature entries, and `web` drops `@types/node` as well, which declares most of the same globals
+- `entries/` checks the entry layers, import styles of both flavors and the configurator. Most entry tests use `es2023` and `dom` to keep later ECMAScript library declarations out of their subset checks. The standalone `proposals`, `web` and `annex-b` entries use bare `es6` to expose missing dependencies
+- `entries/pure-pollutions/` checks the global surface after loading pure declarations. Its lib supplies the native `Iterator.from` while leaving the tested methods to core-js. TypeScript 5.x supplies the constructor in `esnext.iterator`. Newer compilers use the fixed `es2025` lib so additions to `esnext` cannot mask pollution
 - `global/`, `pure/` - the tests of the definitions themselves, one flavor each, next to the `tsconfig.*.json` variants the matrix compiles them under
 - `templates/` - one case per template of the entry registry, in both the import and the require style: that `$justImport` really exposes no default export, that a generic prototype method degrades to `any`, and so on
 - `tools/` - the same treatment for the public `.d.ts` of the tooling packages
-- `coverage.mjs` (`npm run types-coverage`) - the separate gate that every `esnext.` and `web.` module carries a `// @types:` or `// @no-types` comment
+- `coverage.mjs` (`npm run types-coverage`) - the separate gate that every `esnext.` and `web.` module declares a type path recognized by the generator or opts out with a line containing `// @no-types` or `// @no-types: <reason>`
 
 ## Rules
 

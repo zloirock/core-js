@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": [
+    "./test.ts"
+  ],
+  "compilerOptions": {
+    "lib": ["es2023", "esnext.iterator", "dom"],
+    "types": ["@core-js/types/pure"]
+  }
+}

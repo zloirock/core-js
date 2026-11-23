@@ -5,6 +5,7 @@
     "module": "nodenext",
     "esModuleInterop": true,
     "moduleResolution": "nodenext",
+    "types": [],
     "noEmit": true
   }
 }
