@@ -6,8 +6,8 @@
 LOCK_FILE=./runner.lock
 PID_FILE=./runner-site.pid
 if [ -n "$1" ]; then
-    # `~` is not allowed in git branch names, so different branches never share a file
-    PID_FILE="./runner-branch.${1//\//~}.pid"
+    # Quote the replacement so Bash keeps the literal `~`, which git forbids in branch names.
+    PID_FILE=./runner-branch.${1//\//'~'}.pid
 fi
 # a build takes minutes, so a longer wait means a hung one
 LOCK_TIMEOUT=1800
