@@ -15,7 +15,7 @@ In some cases, it could be useful to exclude some [`core-js`](https://core-js.io
 import builder from '@core-js/builder';
 
 const { script } = await builder({
-  // entry / module / regex of modules / an array of them, by default - all `core-js` modules
+  // entry / module / regex of modules / an array of them, by default - the `actual` entry point
   modules: ['actual', 'esnext.string.dedent', /^esnext\.async-iterator\./],
   // entries / modules to exclude, by default - empty list
   exclude: [/^es\.math\./, 'es.number.constructor'],

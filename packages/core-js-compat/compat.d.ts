@@ -16,7 +16,7 @@ type Targets = Environments & {
 };
 
 type CompatOptions = {
-  /** entry / module / namespace / an array of them, by default - all `core-js` modules */
+  /** entry / module / namespace / an array of them, by default - the `actual` entry point */
   modules?: Modules,
   /** entry / module / namespace / an array of them to exclude, by default - empty list */
   exclude?: Modules | null,
