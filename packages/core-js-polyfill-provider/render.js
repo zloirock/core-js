@@ -533,6 +533,64 @@ export function objectPattern(properties) {
   return { type: 'ObjectPattern', properties };
 }
 
+// CopyDataProperties after a pattern already read its excluded property. A second
+// exclusion pattern would Get it again. Check each descriptor immediately before
+// its value, since an earlier getter can delete or replace a later own property.
+export function renderObjectRestAfterRead(receiver, excluded, { injectImport, mintRef, rest }) {
+  const source = mintRef();
+  const result = mintRef();
+  const keys = mintRef();
+  const index = mintRef();
+  const key = mintRef();
+  const descriptor = mintRef();
+  const ownKeys = identifier(injectImport('reflect/own-keys', 'Reflect$ownKeys'));
+  const getDescriptor = identifier(injectImport('object/get-own-property-descriptor', 'Object$getOwnPropertyDescriptor'));
+  const define = identifier(injectImport('object/define-property', 'Object$defineProperty'));
+  // Only a primitive needs a stand-in for Reflect.ownKeys. Its enumerable own
+  // properties are string indices. Passing objects through preserves Proxy traps.
+  const objectSource = logicalExpression('||',
+    binaryExpression('===', unaryExpression('typeof', identifier(source)), literal('object')),
+    binaryExpression('===', unaryExpression('typeof', identifier(source)), literal('function')));
+  const keySource = conditionalExpression(objectSource, identifier(source),
+    objectExpression([{ type: 'SpreadElement', argument: identifier(source) }]));
+  const data = objectExpression([
+    objectProperty(identifier('__proto__'), literal(null)),
+    objectProperty(identifier('value'), memberExpression(identifier(source), identifier(key), { computed: true })),
+    ...['enumerable', 'configurable', 'writable'].map(name => objectProperty(identifier(name), literal(true))),
+  ]);
+  function declare(name, value, kind = 'const') {
+    return variableDeclaration(kind, [variableDeclarator(identifier(name), value)]);
+  }
+  // The printer enters both synthetic bodies at the rest expression. An unlocated
+  // block advances its comment cursor to EOF and drops subsequent source comments.
+  function restBlock(statements) {
+    return { ...blockStatement(statements), start: rest.start, end: rest.start };
+  }
+  const descriptorRead = logicalExpression('&&', binaryExpression('!==', identifier(key), literal(excluded)),
+    callExpression(getDescriptor, [identifier(source), identifier(key)]));
+  const copy = {
+    type: 'IfStatement',
+    test: logicalExpression('&&', identifier(descriptor), memberFromKeyName(identifier(descriptor), 'enumerable')),
+    consequent: expressionStatement(callExpression(define, [identifier(result), identifier(key), data])),
+    alternate: null,
+  };
+  const loop = {
+    type: 'ForStatement',
+    init: declare(index, literal(0), 'let'),
+    test: binaryExpression('<', identifier(index), memberFromKeyName(identifier(keys), 'length')),
+    update: assignmentExpression('+=', identifier(index), literal(1)),
+    body: restBlock([declare(key, memberExpression(identifier(keys), identifier(index), { computed: true })),
+      declare(descriptor, descriptorRead), copy]),
+  };
+  const body = restBlock([
+    declare(result, objectExpression([])),
+    declare(keys, callExpression(ownKeys, [keySource])),
+    loop,
+    { type: 'ReturnStatement', argument: identifier(result) },
+  ]);
+  return callExpression(arrowFunctionExpression([identifier(source)], body), [receiver]);
+}
+
 // A data property in a rendered object or pattern.
 export function objectProperty(key, value, { computed = false } = {}) {
   return { type: 'Property', kind: 'init', method: false, shorthand: false, computed, key, value };

@@ -39,8 +39,14 @@ export function assignOverQuietCallRoot() {
   of = _Array$of;
   return typeof of;
 }
+export let calls = 0;
+function effectfulRoot() {
+  calls++;
+  return _globalThis;
+}
 export function assignOverEffectfulCallRoot() {
   let from;
+  effectfulRoot();
   from = _Array$from;
   return typeof from;
 }

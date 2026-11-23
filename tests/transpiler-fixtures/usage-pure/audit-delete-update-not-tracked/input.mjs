@@ -2,11 +2,15 @@
 // classification consistency: delete is SE per ALWAYS_EFFECTFUL_TYPES (UnaryExpression
 // with operator 'delete'), update is SE per UpdateExpression. nested into SequenceExpression
 // preceding receiver - synth-swap should preserve SE prefix and rewrite tail Array.
+const x = { y: true };
+let counter = 0;
 function f({ from } = (delete x.y, Array)) {
   return from;
 }
 function g({ at } = (++counter, Array)) {
   return at;
 }
-f();
-g();
+function withStatic({ of } = (++counter, Array)) {
+  return of(3);
+}
+export const result = [typeof f(), 'y' in x, typeof g(), withStatic(), counter];

@@ -12,8 +12,7 @@ function mk() {
 ({
   k: {
     Map: {
-      0: z
+      [(g = _Map$groupBy, 0)]: z
     }
   } = _globalThis
 } = mk());
-g = _Map$groupBy;

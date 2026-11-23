@@ -4,9 +4,9 @@ function eff() {
   return Object;
 }
 {
-  const f8 = _Array$from;
   const {
-    [(eff('k'), 'Array')]: _unused,
-    ...rest
-  } = _globalThis;
+      [(eff('k'), 'Array')]: {},
+      ...rest
+    } = _globalThis,
+    f8 = _Array$from;
 }

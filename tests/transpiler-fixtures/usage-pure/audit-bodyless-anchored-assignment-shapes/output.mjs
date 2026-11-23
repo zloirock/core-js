@@ -24,7 +24,9 @@ if (c3()) ({
 } = {
   Iterator: {
     zip: _Iterator$zip,
-    customI: _Iterator.customI
+    get customI() {
+      return _Iterator.customI;
+    }
   }
 });
 console.log(custom1, custom2, r, g);

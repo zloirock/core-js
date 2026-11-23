@@ -1,4 +1,4 @@
-// A consumed initializer keeps the getter after its prefix, exactly once.
+// An opaque throwing getter keeps the original pattern and prefix.
 export let r;
 export const effects = [];
 function eff(x) {

@@ -3,9 +3,9 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // Claimed statics retain their polyfills beside object rest.
 // Rest keeps its source and exclusions; instance slots remain native.
 declare const logCall: () => any;
-for (const from = (logCall(), _Array$from), {
-    Array: _unused,
+for (const {} = (logCall(), _globalThis), {
+    Array: {},
     ...rest
-  } = _globalThis; false;) {
+  } = _globalThis, from = _Array$from; false;) {
   console.log(from, rest);
 }

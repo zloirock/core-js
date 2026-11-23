@@ -6,6 +6,7 @@ import './babel-compat.mjs';
 import './type-declaration-imports.mjs';
 import './destructure-groups.mjs';
 import './destructure-plan-runtime.mjs';
+import './object-destructuring-order.mjs';
 import './computed-pattern-keys-runtime.mjs';
 import './parameter-boundaries-runtime.mjs';
 import './destructure-capture-ownership-runtime.mjs';

@@ -1,4 +1,5 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _self from "@core-js/pure/actual/self";
@@ -16,7 +17,7 @@ _globalThis.navBox = {
     list: [5, [6]]
   }
 };
-export const flatOptional = null == (_ref = null == _globalThis.window ? void 0 : _self.navBox.list) ? void 0 : _at(_ref).call(_ref, 0);
+export const flatOptional = null == (_ref = null == _globalThis.window ? void 0 : _self.navBox.list) ? void 0 : _flatMaybeArray(_ref).call(_ref);
 export const atOptional = null == (_ref2 = null == _globalThis.window ? void 0 : _self.navBox.list) ? void 0 : _at(_ref2).call(_ref2, 0);
 const nr = () => _globalThis;
 export const callRootOptional = null == (_ref3 = null == nr().window ? void 0 : _self.navBox.list) ? void 0 : _at(_ref3).call(_ref3, 0);
@@ -25,7 +26,7 @@ export const deepOptional = null == (_ref5 = null == _globalThis.window ? void 0
 
 // the NON-optional dispatch memoizes the probe instead and stitches its tail off the ref - the
 // negative that pins which receiver the memo actually holds
-export const flatPlain = null == (_ref6 = _globalThis.window) ? void 0 : _at(_ref7 = _ref6.navBox.list).call(_ref7, 0);
+export const atPlain = null == (_ref6 = _globalThis.window) ? void 0 : _at(_ref7 = _ref6.navBox.list).call(_ref7, 0);
 export const replacePlain = null == (_ref8 = _globalThis.window) ? void 0 : _replaceAllMaybeString(_ref9 = _ref8.navBox.str).call(_ref9, 'a', 'z');
 
 // the dispatches above take a nav receiver, which carries no type, so they record the GENERIC

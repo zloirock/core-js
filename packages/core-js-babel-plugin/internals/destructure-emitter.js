@@ -3582,7 +3582,13 @@ export default function createDestructureEmitter({
     }
     const extractAfterResidual = destructureResidualFirst([{
       captureInResidual: kind === 'instance' && !!objectNode && inSlotMemoRefs.has(objectNode),
-    }], { init: prop.findParent(pp => pp.isVariableDeclarator())?.node.init, scope: prop.scope, adapter, path: prop });
+    }], {
+      keyFirst: prop.node.computed && computedKeyHasSideEffects(prop.node, { scope: prop.scope, adapter, path: prop }),
+      init: prop.findParent(pp => pp.isVariableDeclarator())?.node.init,
+      scope: prop.scope,
+      adapter,
+      path: prop,
+    });
     const valueNode = propBindingIdentifier(prop.node.value);
     // a pattern-valued `[Symbol.iterator]` prop consumes like the identifier form, destructuring
     // the helper RESULT (`{ next } = _getIteratorMethod(recv)`): value-correct on modern engines

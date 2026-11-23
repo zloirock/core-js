@@ -6,3 +6,10 @@
 let c = true, e = () => 0;
 const { from } = c ? Array : ((e(), globalThis).self).Array;
 from([1]);
+
+export function read(choice) {
+  let calls = 0;
+  function mark() { calls++; }
+  const { from: method } = choice ? Array : ((mark(), globalThis).self).Array;
+  return [method([1]), calls];
+}

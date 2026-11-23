@@ -14,14 +14,15 @@ const fallback = {
     from: () => "F"
   }
 };
-let pick = true;
-const {
-  Array: {
-    from
-  }
-} = {
-  Array: {
-    from: _Array$from
-  }
-};
-from([1]);
+export function read(pick) {
+  const {
+    Array: {
+      from
+    }
+  } = pick ? {
+    Array: {
+      from: _Array$from
+    }
+  } : userObj;
+  return from([1]);
+}

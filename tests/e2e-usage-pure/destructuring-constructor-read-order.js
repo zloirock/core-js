@@ -31,3 +31,31 @@ QUnit.test('destructuring: an instance read on a constructor stays between nativ
     restoreProperty(Array, 'toString', toStringDescriptor);
   }
 });
+
+QUnit.test('destructuring: a native getter sees the preceding static assignment', assert => {
+  const array = Function('return Array')();
+  const previous = Object.getOwnPropertyDescriptor(array, 'orderProbe');
+  let make, observed;
+  restoreProperty(array, 'orderProbe', { configurable: true, get() { return typeof make; } });
+  try {
+    function realm() { return globalThis; }
+
+    ({ Array: { of: make, orderProbe: observed } } = realm());
+    assert.same(observed, 'function');
+    assert.deepEqual(make(3), [3]);
+  } finally {
+    restoreProperty(array, 'orderProbe', previous);
+  }
+});
+
+QUnit.test('destructuring: a later argument runs before a parameter getter', assert => {
+  function read(flag, user, after) {
+    // eslint-disable-next-line sonarjs/no-extra-arguments -- the later argument runs before parameter initialization
+    return (({ entries }) => entries)(flag ? Object : user, after());
+  }
+  let visits = 0;
+  const user = { get entries() { return visits; } };
+  assert.same(read(false, user, () => ++visits), 1);
+  assert.deepEqual(read(true, user, () => ++visits)({ a: 3 }), [['a', 3]]);
+  assert.same(visits, 2);
+});

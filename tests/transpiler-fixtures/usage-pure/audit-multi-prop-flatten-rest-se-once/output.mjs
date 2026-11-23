@@ -4,9 +4,9 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // Rest keeps its source and exclusions; instance slots remain native.
 let sideEffectCount = 0;
 const sideEffect = () => sideEffectCount++;
-sideEffect();
-const from = _Array$from;
-const {
-  Array: _unused,
-  ...rest
-} = _globalThis;
+const {} = (sideEffect(), _globalThis),
+  {
+    Array: {},
+    ...rest
+  } = _globalThis,
+  from = _Array$from;

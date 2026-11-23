@@ -62,8 +62,6 @@ import {
   unwrapRuntimeExpr,
   isTransparentWrapper,
   patternEdgeSide,
-  patternBindsName,
-  patternHasAnyDefault,
   peelChainAssignment,
   unwrapTransparentSeq,
 } from '../helpers/ast-patterns.js';
@@ -830,17 +828,13 @@ export function planGuardedDestructureNarrow({
     if (item.self) item.plan = plan;
     if (item.defaultValue) item.plan.destructureDefault = { value: item.defaultValue, name: item.name };
   }
-  // A default or a binding target can rebind the source before the next read or the RHS result.
-  // Capture once unless the whole host proves the source reusable, including later defaults and targets.
-  const scalarExtension = defaultValue || propNode.computed
-    || splitProps.some(item => item.value?.type === 'AssignmentPattern' || item.computed);
-  if (!nested && !(adapter && path && isReusableReceiver(receiverNode, {
-    interveningEffects: true, ctx: { ...ctx, path: path.parentPath.parentPath },
-  }))
-    && (isSoleAssignment && (split || detach || !hostInStatement) && patternBindsName(patternNode, plan.recvIdent.name)
-    || (detach ? propNode.computed || patternHasAnyDefault(patternNode) || isSoleAssignment && !hostInStatement
-      : scalarExtension && split || isSoleAssignment && !hostInStatement && (scalarExtension || split)))) {
+  // Each property read, default or write can rebind the source before the next read or the result.
+  if (!nested && (split || detach || isSoleAssignment && !hostInStatement)
+    && !(adapter && path && isReusableReceiver(receiverNode, {
+      interveningEffects: true, ctx: { ...ctx, path: path.parentPath.parentPath },
+    }))) {
     plan.captureReceiver = receiverNode;
+    plan.seqPrefix = []; // The capture evaluates the entire source, including its prefix.
   }
   return {
     plan,

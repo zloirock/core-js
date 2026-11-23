@@ -16,8 +16,7 @@ function mk() {
 }
 ({
   Array: {
-    0: z3
+    [(f3 = _Array$of, 0)]: z3
   }
 } = mk());
-f3 = _Array$of;
 export { a2, b2 };

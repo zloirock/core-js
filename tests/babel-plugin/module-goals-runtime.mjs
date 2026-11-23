@@ -172,8 +172,9 @@ try {
   scenarioSource(source, { label: 'bare-script receiver snapshot' });
   // Run the script and its required helpers in the same isolated realm: a helper from
   // this process would see foreign Array prototypes, not the stripped worker's ones.
-  function bare(code) {
-    return `global.require = require; require('node:vm').runInThisContext(${ JSON.stringify(code) }); var result = global.result;`;
+  function bare(...scripts) {
+    const run = scripts.map(code => `require('node:vm').runInThisContext(${ JSON.stringify(code) });`).join('\n');
+    return `global.require = require; ${ run } var result = global.result;`;
   }
   check('bare-script/native receiver', await execute(bare(source), false, false), 'OK|4|[]');
   const options = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
@@ -205,9 +206,32 @@ try {
       unplugin: createUnplugin(scriptOptions).transform(input, '/first.js').code,
     };
     for (const [host, output] of Object.entries(outputs)) {
-      const script = `global.require = require; const vm = require('node:vm'); vm.runInThisContext(${ JSON.stringify(output) });`
-        + ` vm.runInThisContext(${ JSON.stringify(caller) }); var result = global.result;`;
-      check(`second script/${ kind }/${ host }`, await execute(script, false, host !== 'native'), 'OK|123|[]');
+      check(`second script/${ kind }/${ host }`, await execute(bare(output, caller), false, host !== 'native'), 'OK|123|[]');
+    }
+  }
+  // A getter defined by another script can observe a global lexical binding during the rest copy.
+  const observer = `var seen = [];
+    function watch() { try { seen.push(typeof f); } catch (error) { seen.push(error.name); } }
+    global.window = { get Array() { watch(); return Array; }, get after() { watch(); return 5; } };`;
+  const pattern = 'const { [(watch(), "Array")]: { from: f }, ...rest } = globalThis.window;'
+    + ' global.result = [seen, f([7])[0], rest.after];';
+  for (const block of [false, true]) {
+    const input = block ? `{ ${ pattern } }` : pattern;
+    const opts = { ...options, importStyle: 'require' };
+    const plugin = createUnplugin(opts);
+    const pre = plugin.transform(input, '/pattern.js', 'pre').code;
+    const outputs = {
+      native: input,
+      babel: (await transformAsync(input, {
+        configFile: false, babelrc: false, filename: '/pattern.js', sourceType: 'script', plugins: [[babelPlugin, opts]],
+      })).code,
+      unplugin: pre,
+      post: plugin.transform(pre, '/pattern.js', 'post')?.code ?? pre,
+    };
+    const readings = block ? ['undefined', 'undefined', 'undefined'] : ['ReferenceError', 'ReferenceError', 'function'];
+    for (const [host, output] of Object.entries(outputs)) {
+      check(`script binding during rest/${ block }/${ host }`, await execute(bare(observer, output), false, host !== 'native'),
+        `OK|${ JSON.stringify([readings, 7, 5]) }|[]`);
     }
   }
 } finally {

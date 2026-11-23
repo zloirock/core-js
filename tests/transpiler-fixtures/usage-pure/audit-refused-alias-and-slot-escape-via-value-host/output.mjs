@@ -10,8 +10,9 @@ let n = 0;
 // through the rewritten `.call` dispatch spelling
 let vg;
 export const viaValueHost = (() => {
+  var _ref;
   let M;
   if (n === 0) M = _Map;
-  const v = (vg = (n, M === _Map ? _Map$groupBy : M.groupBy), M);
+  const v = (vg = (_ref = (n, M), _ref === _Map ? _Map$groupBy : _ref.groupBy), _ref);
   return [typeof vg, v === M];
 })();

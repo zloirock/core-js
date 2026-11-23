@@ -24,7 +24,7 @@ for (const I of [_Iterator, _Set]) {
   use(from);
 }
 for (const A of [Array, _Set]) {
-  const fromAsync = A === Array ? _Array$fromAsync : A.fromAsync,
+  const fromAsync = (A, A === Array ? _Array$fromAsync : A.fromAsync),
     {
       [key]: other
     } = A;

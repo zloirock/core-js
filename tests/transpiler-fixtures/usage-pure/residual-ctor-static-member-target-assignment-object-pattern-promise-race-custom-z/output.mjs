@@ -13,7 +13,9 @@ let S, of, race, customZ;
 } = {
   Promise: {
     race: _Promise$race,
-    customZ: _Promise.customZ
+    get customZ() {
+      return _Promise.customZ;
+    }
   }
 });
 export const r = [customZ, box];

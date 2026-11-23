@@ -30,21 +30,21 @@ o.e = _Object$entries, {
   ...rest2
 } = _ref2;
 _ref3 = _globalThis.Object;
-o.f = _Object$fromEntries, {
+({
   custom: {
     a
   },
-  fromEntries: _unused3,
+  [(o.f = _Object$fromEntries, "fromEntries")]: _unused3,
   ...rest3
-} = _ref3;
+} = _ref3);
 ({
   Object: _ref4
 } = _globalThis);
-o.g = _Object$groupBy, {
+({
   [(e(), 'x')]: c,
-  groupBy: _unused4,
+  [(o.g = _Object$groupBy, "groupBy")]: _unused4,
   ...rest4
-} = _ref4;
+} = _ref4);
 ({
   Object: _ref5
 } = _globalThis);

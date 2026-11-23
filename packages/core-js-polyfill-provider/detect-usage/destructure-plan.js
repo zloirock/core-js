@@ -191,6 +191,7 @@ import {
   namedDefaultReceiver,
   nearestInnerDefaultDead,
   paramDefaultInstanceSynthAllowed,
+  instanceSynthCrossesParameterWork,
   refineInstanceEntryByReceiver,
   resolveNestedDestructureReceiver,
   synthPropDedupKey,
@@ -372,6 +373,7 @@ export function planDestructureInstanceSynth({
       objectPatternNode: path.parentPath.node, receiverNode: receiver, scope: path.scope, adapter, path,
       resolvePure: meta => resolvePure(meta, path),
     })) return null;
+  if (instanceSynthCrossesParameterWork(path, receiverPath, adapter)) return null;
   const key = synthPropDedupKey(path.node, { scope: path.scope, path, adapter });
   if (!key) return null;
   const { lookupKey } = resolveSynthKeys({ node: path.node, scope: path.scope, adapter, path });
@@ -3513,6 +3515,10 @@ export function buildNestedDestructurePlan({
         // A raw anchor exists only for an actual residual claim. Ordered capture owns
         // its source slots instead; flattening them would hide its receiver/effect order.
         const replacement = anchorPure || anchor.narrow || (guarded && !anchorSlotMutated && resolveGlobalPolyfill(key));
+        if (!replacement && path?.node.type === 'AssignmentExpression') {
+          const firstWrite = outerProps.findIndex(item => item.kind === 'consumed');
+          if (firstWrite !== -1 && outerProps.slice(firstWrite + 1).some(item => item.kind === 'verbatim')) return null;
+        }
         if (!replacement && outerProps.some(item => item.kind === 'consumed')
           && outerProps.some(item => item.kind === 'verbatim' && computedKeyHasSideEffects(item.prop, { scope, adapter, path })
             && residualClaim(item.prop))) return null;

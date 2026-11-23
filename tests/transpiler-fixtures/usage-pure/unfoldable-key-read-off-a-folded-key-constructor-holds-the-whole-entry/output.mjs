@@ -12,17 +12,17 @@ var _ref, _ref2, _ref3, _ref4;
 // plainly keyed constructor. a named static read off such a constructor keeps the narrow entry beside its own
 let k = 0;
 const K = 'Map';
-const ViaEffect = _Iterator;
 const {
   [(k++, 'Iterator')]: _unused
 } = _globalThis;
+const ViaEffect = _Iterator;
 export const fromEffect = ViaEffect[_joinMaybeArray(_ref = ['fr', 'om']).call(_ref, '')](_valuesMaybeArray(_ref2 = [1]).call(_ref2)).toArray();
 const ViaBound = _Map;
 export const fromBound = ViaBound[_joinMaybeArray(_ref3 = ['group', 'By']).call(_ref3, '')]([1], x => x).get(1);
 const ViaConcat = _URL;
 export const fromConcat = ViaConcat[_joinMaybeArray(_ref4 = ['can', 'Parse']).call(_ref4, '')]('a:b');
-const Named = _Promise;
 const {
   [(k++, 'Promise')]: _unused2
 } = _globalThis;
+const Named = _Promise;
 export const settled = _Promise$allSettled([]);

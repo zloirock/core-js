@@ -34,17 +34,17 @@ const {
 export const r2 = [keys({
   a: 1
 }), other];
-const g8 = _Map$groupBy;
 const {
-  "Map": _unused,
-  ...others
-} = _globalThis;
+    "Map": {},
+    ...others
+  } = _globalThis,
+  g8 = _Map$groupBy;
 export const r6 = [g8, others];
-const e8 = _Object$entries;
 const {
-  ['Object']: _unused2,
-  ...rest3
-} = _globalThis;
+    ['Object']: {},
+    ...rest3
+  } = _globalThis,
+  e8 = _Object$entries;
 export const r7 = [e8, rest3];
 // Generated receiver names must not collide with the user's _ref binding.
 const _ref = 5;

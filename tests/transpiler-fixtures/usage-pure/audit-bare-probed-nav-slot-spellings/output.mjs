@@ -10,16 +10,15 @@ import _structuredClone from "@core-js/pure/actual/structured-clone";
 // the two negatives keep their own channel and must NOT grow a probe: a computed key with its own
 // effect (its residual re-reads the source, so the throw is already there) and a slot name that is
 // not spellable bare - which the probe re-reads computed rather than dotted.
-// the sidecar records ONE difference and it is cosmetic: on the two residual lines the text splice
-// keeps the parens the source wrote around the guard, the AST reprint drops them.
+// Each residual still coerces the receiver before binding the extracted value.
 let c = 0;
 const dotted = ((null == _globalThis.window ? void 0 : _self).structuredClone, _structuredClone);
 const computed = ((null == _globalThis.window ? void 0 : _self).structuredClone, _structuredClone);
 const template = ((null == _globalThis.window ? void 0 : _self).structuredClone, _structuredClone);
-const seKey = _structuredClone;
 const {
   [(c += 1, "structuredClone")]: _unused
 } = null == _globalThis.window ? void 0 : _self;
+const seKey = _structuredClone;
 const {
   ["a-b"]: notBare
 } = null == _globalThis.window ? void 0 : _self;

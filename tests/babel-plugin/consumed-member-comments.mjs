@@ -116,6 +116,9 @@ for (const [label, source] of [
 // A matching count is not enough: check the token each comment actually leads.
 const pureOptions = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
 const commentOwners = [
+  ['after exported rest', `export const { Array: { from }, ...rest } = globalThis.window;
+    // next export
+    export const result = 1;`, [['next export', 'export']]],
   ['siblings', 'const { Array: { from /* same */: a, of /* same */: b }, ...rest } = globalThis;', [
     ['same', 'a'], ['same', 'b'],
   ]],

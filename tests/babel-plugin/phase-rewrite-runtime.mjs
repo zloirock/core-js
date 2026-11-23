@@ -19,6 +19,35 @@ const DIR = await fs.mkdtemp(path.join(TMP, 'phase-rewrite-'));
 let count = 0;
 
 const cases = [
+  ['nested rest proxy', `function observe() { effects.push(typeof method); }
+installRestProxy(observe);
+const { Array: { from: method }, ...rest } = globalThis.window;
+r.push(method([7])[0], rest.__proto__, Object.getPrototypeOf(rest) === Object.prototype, Object.hasOwn(rest, 'removed'));`,
+  [7, 19, true, false], ['get Array', 'ownKeys', 'descriptor __proto__', 'get __proto__', 'function', 'descriptor removed'],
+  `function installRestProxy(observe) {
+  const source = { Array, get ['__proto__']() { observe(); delete this.removed; return 19; }, removed: 23 };
+  self.window = new Proxy(source, {
+    get(object, key) { effects.push('get ' + key); return object[key]; },
+    ownKeys(object) { effects.push('ownKeys'); return Reflect.ownKeys(object); },
+    getOwnPropertyDescriptor(object, key) { effects.push('descriptor ' + key); return Object.getOwnPropertyDescriptor(object, key); },
+  });
+}`],
+  ['computed key changes constructor', `let method, custom; const sink = {};
+({ Array: { isArray: sink.test, [(changeOwner(), 'fromAsync')]: method, custom } } = globalThis.window);
+r.push(custom, typeof method);`, [11, 'function'], ['owner', 'key'],
+  `const first = { isArray: Array.isArray, fromAsync: Array.fromAsync, custom: 11 };
+const second = { ...first, custom: 29 };
+let owner = first;
+Object.defineProperty(self, 'window', { configurable: true, value: { get Array() { effects.push('owner'); return owner; } } });
+function changeOwner() { effects.push('key'); owner = second; }`],
+  ['single source for member target', `const sink = {}; ({ at: sink.method } = listSource);
+r.push(sink.method.call([7], 0));`, [7], ['source'],
+  `let reads = 0;
+Object.defineProperty(self, 'listSource', { configurable: true, get() {
+  effects.push('source');
+  if (++reads > 1) throw new RangeError();
+  return [3];
+} });`],
   ['computed target', `let next;
 const sink = { set method(value) { effects.push('write'); r.push(value({ a: 1 })[0][1]); } };
 function key() { effects.push(typeof next); return 'method'; }
@@ -46,6 +75,17 @@ const nativeObject = Object;
 Object.defineProperty(self, 'Object', { configurable: true, get() {
   effects.push(typeof from); return nativeObject;
 } });`],
+  ['nested target inside try', `function read(present) {
+  setWindow(present);
+  const dest = {}; let from;
+  try {
+    ({ Array: { [(effects.push('key'), 'from')]: from }, Object: { keys: dest[(effects.push('target'), 'key')] } }
+      = (effects.push('source'), globalThis.window?.self));
+    r.push(from([7])[0], dest.key({ x: 1 })[0]);
+  } catch (error) { r.push(error.name); }
+}
+read(false); read(true);`, ['TypeError', 7, 'x'], ['source', 'source', 'key', 'target'],
+  'function setWindow(present) { self.window = present ? self : undefined; }'],
   ['symbol receiver effects', 'r.push([4, 9][(effects.push(\'outer\'), Symbol)[(effects.push(\'inner\'), \'iterator\')]]().next().value);',
     [4], ['outer', 'inner']],
   ['symbol leaf default', `const { [Symbol.iterator]: { name: value = (effects.push('default'), [7].at(0)) } } = receiver;
@@ -78,8 +118,52 @@ r.push(typeof groupBy, own);`, ['function', 37], ['call', 'own'],
 r.push(iterator.filter(item => item[1] > 1).toArray());`, [[[1, 2]]], []],
   ['mixed lazy mirror', `function read({ fromAsync, name } = (() => globalThis)().self?.Array) { return [typeof fromAsync, name]; }
 r.push(read());`, [['function', 'Array']], []],
+  ['rest from a string with an inherited constructor', `const observe = () => typeof method;
+const { Array: { from: method }, ...rest } = globalThis.window;
+r.push(observe(), method([7])[0], rest[0], rest[1], Object.hasOwn(rest, 'Array'));`,
+  ['function', 7, 'a', 'b', false], ['constructor'],
+  `self.window = 'ab';
+Object.defineProperty(String.prototype, 'Array', { configurable: true, get() { effects.push('constructor'); return Array; } });`],
 ];
 const nativeReads = cases.filter(([name]) => name.startsWith('native read '));
+for (const kind of ['var', 'let', 'const', 'assignment', 'computed leaf']) for (const throws of [false, true]) {
+  const assignment = kind === 'assignment';
+  const prior = assignment ? 'number' : kind === 'var' ? 'undefined' : 'ReferenceError';
+  const outer = kind === 'computed leaf' ? 'Array' : "[(observe('key'), 'Array')]";
+  const inner = assignment || kind === 'computed leaf' ? "[(observe('inner'), 'from')]" : 'from';
+  const pattern = `{ ${ outer }: { ${ inner }: method }, ...rest }`;
+  cases.push([`rest constructor order/${ kind }/${ throws }`, `let restore;
+try {
+  ${ assignment ? 'let method = 13, rest;' : '' }
+  function observe(tag) {
+    try { effects.push(tag + ':' + typeof method); }
+    catch (error) { effects.push(tag + ':' + error.name); }
+  }
+  restore = installOwner(observe);
+  ${ assignment ? `(${ pattern } = globalThis);` : `${ kind === 'computed leaf' ? 'const' : kind } ${ pattern } = globalThis;` }
+  r.push(method([7])[0], Object.hasOwn(rest, 'Array'), rest[restSymbol], Object.hasOwn(rest, 'removedDuringCopy'));
+} catch (error) { r.push(error.name); } finally { restore?.(); }`,
+  throws ? ['RangeError'] : [7, false, 19, false],
+  [...outer === 'Array' ? [] : [`key:${ prior }`], `get:${ prior }`,
+    ...!throws && inner !== 'from' ? [`inner:${ prior }`] : [], ...throws ? [] : ['rest:function']],
+  `const restSymbol = Symbol('rest');
+function installOwner(observe) {
+  const root = self;
+  for (const key of Object.keys(root)) {
+    if (Object.getOwnPropertyDescriptor(root, key).configurable) Object.defineProperty(root, key, { enumerable: false });
+  }
+  const original = Object.getOwnPropertyDescriptor(root, 'Array');
+  Object.defineProperty(root, 'Array', { configurable: true, enumerable: true, get() {
+    observe('get'); ${ throws ? 'throw new RangeError();' : 'return original.value;' }
+  } });
+  Object.defineProperty(root, 'firstDuringCopy', { configurable: true, enumerable: true, get() {
+    observe('rest'); delete root.removedDuringCopy; return 11;
+  } });
+  root.removedDuringCopy = 17;
+  root[restSymbol] = 19;
+  return () => Object.defineProperty(root, 'Array', original);
+}`]);
+}
 for (const [label, body, result, effects, setup] of nativeReads) {
   cases.push([`${ label }/plain target`, body.replace('sink[key()]', 'sink.method'), result, effects.filter(effect => effect !== 'key'), setup]);
 }

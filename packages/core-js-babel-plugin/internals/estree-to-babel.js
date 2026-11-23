@@ -159,12 +159,30 @@ function build(node) {
       return { type: 'ThisExpression' };
     case 'AssignmentPattern':
       return { type: 'AssignmentPattern', left: convert(node.left), right: convert(node.right) };
+    case 'RestElement':
+    case 'SpreadElement':
+      return { type: node.type, argument: convert(node.argument) };
     case 'Literal':
       return convertLiteral(node);
     case 'ExpressionStatement':
       return { type: 'ExpressionStatement', expression: convert(node.expression) };
     case 'BlockStatement':
       return { type: 'BlockStatement', body: node.body.map(statement => convert(statement)), directives: [] };
+    case 'ForStatement':
+      return {
+        type: node.type,
+        init: node.init && convert(node.init),
+        test: node.test && convert(node.test),
+        update: node.update && convert(node.update),
+        body: convert(node.body),
+      };
+    case 'IfStatement':
+      return {
+        type: node.type,
+        test: convert(node.test),
+        consequent: convert(node.consequent),
+        alternate: node.alternate && convert(node.alternate),
+      };
     case 'ReturnStatement':
       return { type: 'ReturnStatement', argument: convert(node.argument) };
     case 'FunctionExpression':

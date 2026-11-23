@@ -38,8 +38,12 @@ for (var fw = (eff(), _WeakSet), {
 var [{
   Map: aw
 }, alsoWrapped] = (eff(), [_globalThis, 1]);
-for (const nf = (eff(), _Array$from), {
-    Array: _unused,
+let last;
+for (const {} = (eff(), _globalThis), {
+    Array: {},
     ...rest
-  } = _globalThis; false;) break;
-export const r = [bm, bo, bs, alsoOther, first, dw, stillOther, lead, ko, alsoMore, kk, fw, moreOther, aw, alsoWrapped, nf, rest];
+  } = _globalThis, nf = _Array$from;;) {
+  last = [nf, rest];
+  break;
+}
+export const r = [bm, bo, bs, alsoOther, first, dw, stillOther, lead, ko, alsoMore, kk, fw, moreOther, aw, alsoWrapped, last[0], last[1]];

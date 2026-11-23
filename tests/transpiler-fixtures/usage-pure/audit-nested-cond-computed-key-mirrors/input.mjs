@@ -5,6 +5,6 @@
 // reads the synth's `from` on the proxy branch. only a side-effecting / unresolvable computed key bails
 const k = "from";
 const userObj = { Array: {} };
-let useGlobal = false;
+const useGlobal = globalThis.useGlobal;
 const { Array: { [k]: f } } = useGlobal ? globalThis : userObj;
-typeof f;
+export const result = typeof f;

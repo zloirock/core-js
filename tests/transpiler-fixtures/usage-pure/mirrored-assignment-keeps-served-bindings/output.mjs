@@ -9,17 +9,25 @@ export function read(pick) {
     prototype: {
       at
     }
-  } = pick() ? {
-    from: _Array$from,
-    prototype: {
-      at: _atMaybeArray(Array.prototype)
-    }
-  } : {
-    from: _Array$from,
-    prototype: {
-      at: _atMaybeArray(Array.prototype)
-    }
-  });
+  } = pick() ? (_ref => {
+    return {
+      from: _Array$from,
+      get prototype() {
+        return {
+          at: _atMaybeArray(_ref.prototype)
+        };
+      }
+    };
+  })(Array) : (_ref2 => {
+    return {
+      from: _Array$from,
+      get prototype() {
+        return {
+          at: _atMaybeArray(_ref2.prototype)
+        };
+      }
+    };
+  })(Array));
   return [from([3])[0], at.call([4], 0)];
 }
 export const truthy = read(() => true);

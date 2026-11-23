@@ -3265,7 +3265,8 @@ function objectNameAt({
 // every level of a walk standing on the binding
 export function reassignedAliasValues({ binding, name, scope, declScope, adapter, path, usageNode, seen }) {
   const enumeration = reassignmentValueEnumeration({
-    binding, usagePath: path, name, ctx: { scope, adapter, path, resolveKey }, usageNode,
+    binding, usagePath: path, name, usageNode,
+    ctx: { scope, adapter, path, resolveKey, enumerateGetterReturns: adapter.method === 'usage-global' },
   });
   const called = enumeration.callSites.flatMap(({ pattern, value: init }) => callInitSlotValues({
     pattern, init, name, scope: declScope, adapter, path, seen, resolveKey,

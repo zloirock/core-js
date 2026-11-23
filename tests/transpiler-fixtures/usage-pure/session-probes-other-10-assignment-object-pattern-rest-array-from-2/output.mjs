@@ -2,11 +2,11 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _globalThis from "@core-js/pure/actual/global-this";
 const rest = [];
 {
-  var _unused;
+  var _ref;
   let from, rest;
-  ({} = _globalThis), _globalThis.Array, from = _Array$from, {
-    Array: _unused,
-    ...rest
-  } = _globalThis;
+  ({
+    Array: {},
+    ...(_ref = [from = _Array$from])[0]
+  } = _globalThis), rest = _ref[0];
   use(from, rest);
 }

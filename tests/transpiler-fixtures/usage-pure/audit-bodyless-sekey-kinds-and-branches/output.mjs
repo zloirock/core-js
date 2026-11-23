@@ -8,10 +8,10 @@ import _Promise from "@core-js/pure/actual/promise/constructor";
 
 // global-ctor kind (vs static / instance): the extracted constructor binding registers a global alias and,
 // in a bodyless if, joins the one `var` with the residual
-if (c) var P = _Promise,
-  {
+if (c) var {
     [(log(), 'Promise')]: _unused
-  } = _globalThis;
+  } = _globalThis,
+  P = _Promise;
 
 // A preceding initializer and the computed instance extraction share one var body.
 while (c) var first = init,

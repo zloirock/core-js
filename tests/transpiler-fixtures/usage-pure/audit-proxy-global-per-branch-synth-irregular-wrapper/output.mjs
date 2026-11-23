@@ -8,3 +8,17 @@ let c = true,
   e = () => 0;
 const from = _Array$from;
 from([1]);
+export function read(choice) {
+  let calls = 0;
+  function mark() {
+    calls++;
+  }
+  const {
+    from: method
+  } = choice ? {
+    from: _Array$from
+  } : (mark(), {
+    from: _Array$from
+  });
+  return [method([1]), calls];
+}

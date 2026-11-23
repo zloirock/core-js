@@ -672,17 +672,28 @@ for (const [label, pattern, neighbour] of [
   checkTruthy('captured guarded sibling/static polyfilled', code.includes('/actual/object/is'));
 }
 
-// A declared rest-exclusion sentinel uses the same import-first layout as other refs.
-// A source binding with the same spelling remains the author's initialized variable.
-for (const collision of [false, true]) {
-  const code = await transform(`${ collision ? 'var _unused = 7;' : '' }
-    let from, rest; ({ Array: { from }, ...rest } = globalThis);`, { siblingNames: [] });
+// Both forms need a private variable after the imports. The nested rest writes the
+// method before the copy; the flat rest keeps a native exclusion for the method.
+for (const collision of [false, true]) for (const [kind, pattern] of [
+  ['nested', '{ Array: { from }, ...rest } = globalThis'],
+  ['flat', '{ from, ...rest } = Array'],
+]) {
+  const code = await transform(`${ collision ? 'var _unused = 7; var _ref = 8;' : '' }
+    let from, rest; (${ pattern });`, { siblingNames: [] });
   const { lastImport, firstVar } = ordering(code.split('\n'));
-  checkTruthy(`rest sentinel/import precedes declaration/${ collision }`,
+  const label = `rest declaration/${ kind }/${ collision }`;
+  checkTruthy(`${ label }/after imports`,
     lastImport !== -1 && firstVar !== -1 && lastImport < firstVar);
-  checkTruthy(`rest sentinel/declared exclusion survives/${ collision }`,
-    /var _unused\d*;/.test(code));
-  if (collision) checkTruthy('rest sentinel/source initializer survives', /var _unused = 7;/.test(code));
+  if (kind === 'nested') {
+    const ref = /var (?<ref>_ref\d*);/.exec(code)?.groups.ref;
+    checkTruthy(`${ label }/method assigned before copy`, ref && code.includes(`...(${ ref } = [from = _Array$from])[0]`));
+    checkTruthy(`${ label }/rest reads same copy`, ref && code.includes(`rest = ${ ref }[0]`));
+  } else {
+    const unused = /var (?<unused>_unused\d*);/.exec(code)?.groups.unused;
+    checkTruthy(`${ label }/declared exclusion survives`, unused && code.includes(`from: ${ unused },`));
+  }
+  if (collision) checkTruthy(`${ label }/source initializers survive`,
+    code.includes('var _unused = 7;') && code.includes('var _ref = 8;'));
 }
 
 // A mirrored receiver still owes its native assignments and nested computed-key effects.

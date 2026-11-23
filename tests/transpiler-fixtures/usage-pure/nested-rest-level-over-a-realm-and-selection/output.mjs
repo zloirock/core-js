@@ -9,8 +9,8 @@ const p = {};
 ({
   Array: _ref
 } = c && _globalThis);
-({} = _ref), f3 = _Array$of, {
+({} = _ref), {
   custom: p.c,
-  of: _unused,
+  [(f3 = _Array$of, "of")]: _unused,
   ...r3
 } = _ref;

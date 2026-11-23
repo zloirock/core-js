@@ -5,6 +5,7 @@
 // logical/ternary left is not a bare-identifier primary, so it is not skipped for the right fallback
 const userObj = { Array: { from: () => "U" } };
 const fallback = { Array: { from: () => "F" } };
-let pick = true;
-const { Array: { from } } = (pick ? globalThis : userObj) || fallback;
-from([1]);
+export function read(pick) {
+  const { Array: { from } } = (pick ? globalThis : userObj) || fallback;
+  return from([1]);
+}

@@ -37,10 +37,14 @@ let from, c;
   deep: {
     c
   }
-} = (log(), {
-  from: _Array$from,
-  deep: Array.deep
-}));
+} = (log(), (_ref => {
+  return {
+    from: _Array$from,
+    get deep() {
+      return _ref.deep;
+    }
+  };
+})(_globalThis.Array)));
 const {
   fromAsync,
   deep: {
@@ -95,10 +99,14 @@ let parseFloat, i;
   deep: {
     i
   }
-} = (log(), {
-  parseFloat: _Number$parseFloat,
-  deep: Number.deep
-}));
+} = (log(), (_ref2 => {
+  return {
+    parseFloat: _Number$parseFloat,
+    get deep() {
+      return _ref2.deep;
+    }
+  };
+})(_globalThis.Number)));
 export function pickNumber({
   isSafeInteger,
   deep: {

@@ -37,6 +37,7 @@ import {
   destructureKeyReadPlan,
   destructurePatternHostPath,
   canExtractDestructureExport,
+  instanceSynthCrossesParameterWork,
   noteRelocation,
   orderedClaimCapture,
   resolveNestedDestructureReceiver,
@@ -60,6 +61,22 @@ import { hasConstructorEntry, resolve } from '../../packages/core-js-polyfill-pr
 import { escapedCtorReferencesReducer, mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 
 const { check, checkDeep, finish, runBoth } = createChecker('destructure-host-shape');
+
+for (const [source, crosses] of [
+  ['(({ at: method }) => method)(rows, -1)', false],
+  ['(async ({ at: method }) => method)(rows)', true],
+  ['((a, { at: method }) => method)(0, rows)', false],
+  ['(({ a }, { at: method }) => method)(value, rows)', true],
+  ['((a = -1, { at: method }) => method)(undefined, rows)', false],
+  ['((a = +value, { at: method }) => method)(undefined, rows)', true],
+  ['(({ at: method }) => method)(rows, later())', true],
+  ['(({ at: method }) => method)(() => rows, later())', false],
+]) runBoth('argument read order', source, (parser, program, label) => {
+  const prop = parser.pickPath(program, 'Identifier', p => p.node.name === 'method').parentPath;
+  const receiver = parser.pickPath(program, 'Identifier', p => p.node.name === 'rows');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  check(`${ label }/${ source }`, instanceSynthCrossesParameterWork(prop, receiver, adapter), crosses);
+});
 
 for (const host of ['for-of', 'for-in', 'for-await', 'assignment', 'catch']) for (const change of [
   'none', 'location', 'value', 'kind', 'reference', 'renamed', 'renamed-reference',
@@ -1805,6 +1822,7 @@ for (const [source, minted, expected, native] of [
     hostPath: host,
     injectorState: { isOwnPassGeneratedName: name => minted && name === 'memo' },
   });
+  check(`${ label }: ${ source } admits the capture`, !!plan, true);
   check(`${ label }: ${ source } capture receiver`, plan?.receiverRef, expected);
   check(`${ label }: activation boundary`, !!plan?.keepsNative, native);
   if (!plan || native) return;

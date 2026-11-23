@@ -417,6 +417,23 @@ for (const goal of ['script', 'commonjs', 'module']) for (const name of ['requir
   });
 }
 
+// A closed reference query may enumerate private bindings but must decline an externally visible one.
+for (const [id, goal, source, closed] of [
+  ['/input.js', 'script', 'const value = 1; use(value);', false],
+  ['/input.js', 'script', '{ const value = 1; use(value); }', true],
+  ['/input.cjs', 'commonjs', 'const value = 1; use(value);', true],
+  ['/input.mjs', 'module', 'const value = 1; use(value);', true],
+  ['/input.mjs', 'module', 'const value = 1; use(value); export { value };', false],
+]) {
+  runBoth(`closed references/${ id }/${ source }`, source, (parser, prog, label) => {
+    resolveModuleFormat({ id, program: prog.node, declaredSourceType: goal });
+    const call = parser.pickPath(prog, 'CallExpression');
+    const resolver = parser.makeResolver();
+    check(`${ label }/closed`, resolver.collectBindingReferences(call, 'value', { closed: true }) !== null, closed);
+    check(`${ label }/local read`, resolver.collectBindingReferences(call, 'value')?.some(ref => ref.node === call.node.arguments[0]), true);
+  });
+}
+
 // CommonJS vars belong to the wrapper, not the realm, regardless of whether the host
 // writes the format verdict back onto its Program. A bare Script var remains observable.
 for (const goal of ['script', 'module', 'commonjs']) for (const cjs of [false, true]) {

@@ -2166,10 +2166,10 @@ export default function createDestructureDrains(ctx) {
     });
     // A slot capture leaves the enclosing initializer live; only a whole capture spends it.
     const capturedLeaf = jobs.some(job => job.consumeResidualRead);
-    const residualFirst = destructureResidualFirst([], {
+    const residualFirst = destructureResidualFirst(jobs, {
       captured: !!memoRef && !capturedLeaf,
       initRuns: residualRuns(declarator),
-    }) && (capturedLeaf
+    }) && (capturedLeaf || jobs.some(job => job.sentinel)
       || patternBindingCount(declarator.id) !== jobs.reduce((count, job) => count + patternBindingCount(job.prop.value), 0));
     // the init is DISCARDED whole where the claims empty the pattern and none reads the receiver: a
     // sole consume's registration records it as the prefix's last element, and several claims that

@@ -421,10 +421,16 @@ for (const parser of adapters) {
   const list = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'list').node.init;
   const values = wrapperLiteralEntries(literal);
   const descriptors = wrapperLiteralEntries(literal, { propertyNodes: true });
-  check(`${ parser.name }: entry projection/key pairing`, JSON.stringify(descriptors.map(([key]) => key)), JSON.stringify(values.map(([key]) => key)));
-  check(`${ parser.name }: entry projection/property identity`, descriptors.every(([, prop], index) => prop === literal.properties[index]), true);
-  check(`${ parser.name }: entry projection/default values`, values.every(([, value], index) => value === literal.properties[index].value), true);
-  check(`${ parser.name }: entry projection/array values`, JSON.stringify(wrapperLiteralEntries(list, { propertyNodes: true })), JSON.stringify(wrapperLiteralEntries(list)));
+  for (const [entries, propertyNodes] of [[descriptors, true], [values, false]]) {
+    check(`${ parser.name }: object keys/${ propertyNodes }`, JSON.stringify(entries.map(([key]) => key)), '["at","at",null,null]');
+    for (const [index, prop] of literal.properties.entries()) {
+      check(`${ parser.name }: object entry ${ index }/${ propertyNodes }`, entries[index]?.[1], propertyNodes ? prop : prop.value);
+    }
+    const array = wrapperLiteralEntries(list, { propertyNodes });
+    check(`${ parser.name }: indices before spread/${ propertyNodes }`, JSON.stringify(array.map(([key]) => key)), '["0","1"]');
+    check(`${ parser.name }: array element identity/${ propertyNodes }`, array[0]?.[1], list.elements[0]);
+    check(`${ parser.name }: array hole/${ propertyNodes }`, array[1]?.[1], null);
+  }
 }
 
 // A prior mirror owns the argument's slot only when that argument actually reaches the pattern.

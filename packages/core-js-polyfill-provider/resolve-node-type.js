@@ -54,6 +54,7 @@ import {
   // Shared with union, intersection and type-query readers on the oxc parser path.
   peelTSParenthesized,
   staticKeyNames,
+  programTopLevelIsRealm,
   walkAstNodes,
   cycleGuardHas,
   withCanonQuestion,
@@ -3942,8 +3943,9 @@ function createResolveNodeType(babelNodeType, t, {
       path = anchorPathScope(path);
       const binding = getScopeBinding({ scope: path.scope, name, path });
       const owner = binding?.scope?.block ?? binding?.scope?.path?.node;
-      if (closed && owner?.type === 'Program'
-        && bindingAnalysisCluster.isBindingExportedByName(name, findProgramPath(binding.path))) return null;
+      // Another classic script can read a realm-level lexical binding just as an importer can read an export.
+      if (closed && owner?.type === 'Program' && (programTopLevelIsRealm(owner)
+        || bindingAnalysisCluster.isBindingExportedByName(name, findProgramPath(binding.path)))) return null;
       return binding ? bindingAnalysisCluster.collectBindingReferences(binding, path) : null;
     },
     descendantShadowsStatic: (path, key) => staticFieldShadowable(anchorPathScope(path), key, false, true),

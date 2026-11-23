@@ -14,9 +14,10 @@ for ({
 }]) break;
 for (const _ref2 of [_globalThis]) {
   ({
-    [key]: other
-  } = _ref2.Math);
-  trunc = _Math$trunc;
+    Math: {
+      [(trunc = _Math$trunc, key)]: other
+    }
+  } = _ref2);
   break;
 }
 export { from, trunc, other };

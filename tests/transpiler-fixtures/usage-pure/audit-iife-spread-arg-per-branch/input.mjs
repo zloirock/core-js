@@ -4,3 +4,8 @@
 let c = true;
 const r = ((x, { from }) => from)(...[1, c ? Array : Iterator]);
 r([2]);
+
+export function read(choice) {
+  const method = ((x, { from }) => from)(...[1, choice ? Array : Iterator]);
+  return method([2]);
+}

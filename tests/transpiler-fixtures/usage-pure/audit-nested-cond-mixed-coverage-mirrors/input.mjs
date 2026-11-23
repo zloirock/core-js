@@ -2,7 +2,7 @@
 // sibling reads through the branch root passthrough - one unresolvable leaf must not
 // kill the whole mirror
 const userObj = { Array: {} };
-let useGlobal = false;
+const useGlobal = globalThis.useGlobal;
 const { Array: { of, isArray } } = useGlobal ? globalThis : userObj;
 export { of, isArray };
 

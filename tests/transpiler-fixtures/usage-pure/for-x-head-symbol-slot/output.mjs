@@ -5,17 +5,15 @@ import _Symbol$toStringTag from "@core-js/pure/actual/symbol/to-string-tag";
 // Both a direct symbol and its stable alias name the same slot on every iteration.
 let tag, from, of;
 for (const _ref of [Array, Array]) {
-  from = _Array$from;
   ({
     [_Symbol$toStringTag]: tag
-  } = _ref);
+  } = _ref), from = _Array$from;
   consume(tag, from([1]));
 }
 const key = _Symbol$toStringTag;
 for (const _ref2 of [Array]) {
-  of = _Array$of;
   ({
     [key]: tag
-  } = _ref2);
+  } = _ref2), of = _Array$of;
   consume(tag, of(2));
 }

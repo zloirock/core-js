@@ -27126,6 +27126,39 @@ function * generateArrayPatternReads() {
   })()`);
 }
 
+function * generateObjectPatternOrder() {
+  yield { ...snippet('object-pattern-order/ambient-source-member-target', `(() => {
+    const root = Function('return this')();
+    Object.defineProperty(root, 'observedListForPattern', { configurable: true, get() { log.push('source'); return [3]; } });
+    try {
+      const sink = {};
+      ({ at: sink.method } = observedListForPattern);
+      return sink.method.call([7], 0);
+    } finally { delete root.observedListForPattern; }
+  })()`), strip: true };
+  for (const fail of [false, true]) for (const target of ['binding', 'member']) {
+    const address = target === 'member' ? 'sink[key()]' : 'method';
+    yield { ...snippet(`object-pattern-order/receiver/${ target }/${ fail }`, `(() => {
+      let method;
+      const sink = {};
+      function key() { log.push("key"); return "method"; }
+      const box = { get row() { log.push("row"); ${ fail ? 'throw RangeError();' : 'return [5];' } } };
+      try { ({ row: { at: ${ address } } } = box); }
+      catch (error) { return error.name; }
+      return ${ target === 'member' ? 'sink.method' : 'method' }.call([5], 0);
+    })()`), strip: true };
+  }
+  for (const choice of ['user', 'null']) yield { ...snippet(`object-pattern-order/stored-selection/${ choice }`, `(() => {
+    let held;
+    const user = { Array: { from: () => [8] } };
+    function take(flag) {
+      const { Array: { from } } = flag ? (held = ${ choice } || globalThis) : user;
+      return [from([4]), held === user];
+    }
+    return [take(true), take(false)];
+  })()`), strip: true };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -28968,4 +29001,5 @@ export function * generate() {
   yield * generateMembershipOperands();
   yield * generateTypeDeclarationScopes();
   yield * generateArrayPatternReads();
+  yield * generateObjectPatternOrder();
 }

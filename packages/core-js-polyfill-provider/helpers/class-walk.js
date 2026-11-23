@@ -39,6 +39,7 @@ import {
   isReassignedBeyondDeclarator,
   isVarScopeBoundary,
   objectPropertiesForKey,
+  objectLiteralPrototypeValue,
   objectLevelPairedProperty,
   pairedArrayWrapInitElement,
   patternLiteralKeyPath,
@@ -1215,8 +1216,14 @@ function staticMemberReadValue(member, { preservesRead = false, returnSink = nul
 // has the same possible-overwrite standing, and a getter's effects do not erase its returned type
 // while that caller keeps the read itself.
 export function findNamespaceMemberValue(container, propName, scope, adapter, resolveKey, {
-  spreadVetoes = true, candidateSink = null, rescuesRead = false, rescueSink = null, getterSink = null, readNode = null,
+  spreadVetoes = true,
+  candidateSink = null,
+  rescuesRead = false,
+  rescueSink = null,
+  getterSink = null,
+  readNode = null,
   privateKey = false,
+  inherited = null,
 } = {}) {
   // the winning member's value for a REWRITING caller: it keeps the spread veto - which value wins
   // is still the literal's to say - and may keep the READ too, by re-emitting it where the source
@@ -1252,6 +1259,8 @@ export function findNamespaceMemberValue(container, propName, scope, adapter, re
         if (candidate) candidateSink.push(candidate);
       },
     });
+    if (member === null && inherited && !privateKey && container.superClass && !container.decorators?.length
+      && propName !== 'prototype' && propName !== 'length' && propName !== 'name') inherited(container.superClass);
     return member ? CLASS_DATA_FIELD_TYPES.has(member.type) ? member.value ?? null : readValue(member) : null;
   }
   if (container?.type === 'ObjectExpression') {
@@ -1296,6 +1305,10 @@ export function findNamespaceMemberValue(container, propName, scope, adapter, re
       // through, or a key whose read answers undefined; a GETTER is dynamic only in its body, so one
       // that RETURNS a pure expression names its value as plainly as a data property does
       return readValue(p);
+    }
+    if (inherited && !setterSeen) {
+      const prototype = objectLiteralPrototypeValue(container);
+      if (prototype) inherited(prototype);
     }
   }
   return null;

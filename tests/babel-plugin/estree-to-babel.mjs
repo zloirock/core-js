@@ -187,6 +187,13 @@ check('literal/plain zero stays a NumericLiteral', estreeToBabel(literal(0)).typ
 check('literal/fraction stays a NumericLiteral', print(literal(1.5)), '1.5');
 check('expressionStatement', print(expressionStatement(identifier('x'))), 'x;');
 check('blockStatement', print(blockStatement([expressionStatement(identifier('x'))])), '{\n  x;\n}');
+check('rest assignment target', print({ type: 'RestElement', argument: memberExpression(identifier('box'), literal(0), { computed: true }) }),
+  '...box[0]');
+check('spread object properties', print(objectExpression([{ type: 'SpreadElement', argument: identifier('source') }])),
+  '{\n  ...source\n}');
+check('for without clauses', print({ type: 'ForStatement', init: null, test: null, update: null, body: blockStatement([]) }), 'for (;;) {}');
+check('if with alternate', print({ type: 'IfStatement', test: identifier('x'), consequent: blockStatement([]), alternate: blockStatement([]) }),
+  'if (x) {} else {}');
 check('callExpression', print(callExpression(identifier('f'), [literal(1)])), 'f(1)');
 check('memberExpression/plain', print(memberExpression(identifier('a'), identifier('b'))), 'a.b');
 check('memberExpression/computed', print(memberExpression(identifier('a'), literal('k'), { computed: true })), 'a["k"]');

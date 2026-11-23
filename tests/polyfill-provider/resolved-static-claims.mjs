@@ -56,7 +56,9 @@ runBoth('write stays before key', 'let held; const result = (before(), held = Ar
   const plan = [...resolvedStaticClaimRoutes(facts(parser, path, {
     meta: { sideEffects: [before, key], receiverEffectCount: 1 },
   }))].at(-1);
-  checkDeep(`${ label }/ordered identities`, plan.effects, [before, store, key]);
+  const expected = [before, store, key];
+  check(`${ label }/effect count`, plan.effects.length, expected.length);
+  for (const [index, effect] of expected.entries()) check(`${ label }/source effect ${ index }`, plan.effects[index], effect);
 });
 
 for (const [source, setup, hintName, first, probe] of [

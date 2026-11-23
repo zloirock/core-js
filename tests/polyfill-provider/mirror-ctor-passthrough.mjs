@@ -866,8 +866,9 @@ for (const backed of [false, true]) for (const key of ['undefined', 'NaN', 'Infi
     });
     const [target] = plan?.targets ?? [];
     check(`${ label } retains the mirror`, !!target, true);
-    check(`${ label } keeps only the user read deferred`, !!target?.tree.entries.find(entry => entry.key === key)?.deferred,
-      key === 'nativeSlot');
+    const entry = target?.tree.entries.find(item => item.key === key);
+    check(`${ label } retains the native slot`, !!entry, true);
+    check(`${ label } keeps only the user read deferred`, entry && !!entry.deferred, key === 'nativeSlot');
     check(`${ label } defers independently of capture`, !!target?.deferredReads, key === 'nativeSlot');
     check(`${ label } captures only an unbacked receiver`, !!target?.localMemo, !backed && key === 'nativeSlot');
   },
@@ -891,8 +892,9 @@ for (const [name, source] of [
         ? { kind: 'instance', entry: `instance/${ meta.key }`, hintName: meta.key }
         : null,
   });
-  const prototype = plan?.targets?.[0].tree.entries.find(entry => entry.key === 'Array')
-    ?.child.entries.find(entry => entry.key === 'prototype')?.child;
+  const ctor = plan?.targets?.[0].tree.entries.find(entry => entry.key === 'Array')?.child;
+  check(`${ label } reads the shared constructor once`, ctor?.kind, 'receiver');
+  const prototype = ctor?.child?.entries.find(entry => entry.key === 'prototype')?.child;
   check(`${ label } keeps the nested default mirror`, !!prototype, true);
   check(`${ label } defers both nested reads`, prototype?.entries.every(entry => !!entry.deferred), true);
   check(`${ label } retains deferred reads`, plan?.targets?.[0].deferredReads, true);

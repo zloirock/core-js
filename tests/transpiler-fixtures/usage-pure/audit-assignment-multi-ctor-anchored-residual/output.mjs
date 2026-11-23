@@ -41,7 +41,9 @@ let from, customQ, fromEntries, groupBy, customZ, customR, customW;
   },
   Map: {
     groupBy: _Map$groupBy,
-    customZ: _Map.customZ
+    get customZ() {
+      return _Map.customZ;
+    }
   }
 });
 ({

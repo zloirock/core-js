@@ -1,6 +1,6 @@
 // Computed member targets take statics without moving target evaluation ahead of siblings.
 // A sole chain extracts in place; a shared pattern mirrors its receiver and keeps target order.
-// Nested instance targets remain native where an overwrite would re-read the receiver after the key.
+// A nested instance target captures its receiver before the key and reads the method once.
 let o;
 ({ [(e(), 'from')]: sink[k()] } = Array);
 ({ Object: { [(e(), 'fromEntries')]: sink[k2()] } } = globalThis);

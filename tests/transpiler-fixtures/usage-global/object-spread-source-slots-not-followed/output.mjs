@@ -8,6 +8,7 @@ import "core-js/modules/es.promise.catch";
 import "core-js/modules/es.promise.finally";
 import "core-js/modules/es.promise.try";
 import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.array.of";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.chunks";
 import "core-js/modules/es.iterator.dispose";

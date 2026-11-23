@@ -1,19 +1,43 @@
 import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-var _ref, _ref2;
-// A static keyed by an effect between a member target and a plain slot, assigned off a probed `window` and
-// off the realm: each leg keeps the source order, babel reading the constructor hop as a member while
-// unplugin destructures it (the sidecar).
+// A static read between a member target and a native slot evaluates its computed key once.
+// Both the probed window and the direct realm retain the order of the three writes.
 let f4, c4, f6, c6;
 const o = {};
-_ref = _globalThis.window.Array, {
-  isArray: o.g
-} = _ref, e(), f4 = _Array$fromAsync, {
-  custom: c4
-} = _ref;
-_ref2 = _globalThis.Array, {
-  isArray: o.h
-} = _ref2, e(), f6 = _Array$of, {
-  custom: c6
-} = _ref2;
+({
+  Array: {
+    isArray: o.g,
+    [(e(), "fromAsync")]: f4,
+    custom: c4
+  }
+} = (_ref => {
+  return {} = _ref, {
+    Array: (_ref2 => {
+      return _ref2 == null ? _ref2 : {
+        isArray: _ref2.isArray,
+        fromAsync: _Array$fromAsync,
+        get custom() {
+          return _ref2.custom;
+        }
+      };
+    })(_ref.Array)
+  };
+})(_globalThis.window));
+({
+  Array: {
+    isArray: o.h,
+    [(e(), 'of')]: f6,
+    custom: c6
+  }
+} = {
+  Array: (_ref3 => {
+    return _ref3 == null ? _ref3 : {
+      isArray: _ref3.isArray,
+      of: _Array$of,
+      get custom() {
+        return _ref3.custom;
+      }
+    };
+  })(_globalThis.Array)
+});

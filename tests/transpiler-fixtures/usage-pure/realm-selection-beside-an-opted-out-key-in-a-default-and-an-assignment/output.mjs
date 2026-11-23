@@ -29,6 +29,8 @@ let fe, oe;
   Object: {
     fromEntries: _Object$fromEntries,
     // core-js-disable-next-line
-    entries: _globalThis.Object.entries
+    get entries() {
+      return _globalThis.Object.entries;
+    }
   }
 } : fb);

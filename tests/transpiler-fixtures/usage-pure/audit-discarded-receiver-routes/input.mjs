@@ -15,8 +15,13 @@ export function assignOverQuietCallRoot() {
   ({ of } = mk().Array);
   return typeof of;
 }
+export let calls = 0;
+function effectfulRoot() {
+  calls++;
+  return globalThis;
+}
 export function assignOverEffectfulCallRoot() {
   let from;
-  ({ from } = mk().Array);
+  ({ from } = effectfulRoot().Array);
   return typeof from;
 }

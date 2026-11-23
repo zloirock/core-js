@@ -4,11 +4,11 @@ function eff() {
   return Object;
 }
 {
-  const f = _Array$from;
   const {
-    Array: {
-      [(eff('k2'), 'from')]: _unused
-    },
-    ...r
-  } = _globalThis;
+      Array: {
+        [(eff('k2'), 'from')]: _unused
+      },
+      ...r
+    } = _globalThis,
+    f = _Array$from;
 }

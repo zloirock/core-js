@@ -29,10 +29,14 @@ let byKey, c;
   deep: {
     c
   }
-} = (log(), {
-  groupBy: _Map$groupBy,
-  deep: Map.deep
-}));
+} = (log(), (_ref => {
+  return {
+    groupBy: _Map$groupBy,
+    get deep() {
+      return _ref.deep;
+    }
+  };
+})(_globalThis.Map)));
 const {
   groupBy: byFlag,
   deep: {

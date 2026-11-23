@@ -1,6 +1,5 @@
-// A static keyed by an effect between a member target and a plain slot, assigned off a probed `window` and
-// off the realm: each leg keeps the source order, babel reading the constructor hop as a member while
-// unplugin destructures it (the sidecar).
+// A static read between a member target and a native slot evaluates its computed key once.
+// Both the probed window and the direct realm retain the order of the three writes.
 let f4, c4, f6, c6;
 const o = {};
 ({ Array: { isArray: o.g, [(e(), "fromAsync")]: f4, custom: c4 } } = globalThis.window);

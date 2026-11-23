@@ -6782,7 +6782,8 @@ export function objectPropertyReadValue(prop, { preservesBody = false } = {}) {
 export function objectLevelPairedProperty(objectNode, key, nameLater = spelledSlotName, readOptions = {}) {
   if (objectNode?.type !== 'ObjectExpression') return null;
   const properties = objectPropertiesForKey(objectNode.properties, key);
-  const match = findObjectKeyBeforeSpread(properties, prop => spelledSlotName(prop) === key);
+  const match = findObjectKeyBeforeSpread(properties, prop => spelledSlotName(prop) === key
+    && (key !== '__proto__' || !isPrototypeDefinition(prop)));
   const read = objectPropertyReadValue(match, readOptions);
   if (!read) return null;
   if ((properties === objectNode.properties || nameLater !== spelledSlotName)
@@ -7746,12 +7747,14 @@ function pairPatternValues(pattern, rhs, name, ctx, pair) {
       // positional contract - exactly while positions are static, every static element from
       // the first spread on once shifted - so the two spellings of one read enumerate alike
       const arrayIndex = key !== null && rhs?.type === 'ArrayExpression' ? canonicalArrayIndex(key) : null;
+      const property = key !== null && rhs?.type === 'ObjectExpression'
+        ? findObjectKeyBeforeSpread(rhs.properties, rp => propKey(rp) === key, key) : null;
       const candidates = arrayIndex !== null ? arrayWrapSlotValueCandidates(rhs.elements, arrayIndex)
-        : key !== null
-          ? rhs?.type === 'ObjectExpression'
-            ? [objectPropertyReadValue(findObjectKeyBeforeSpread(rhs.properties, rp => propKey(rp) === key, key), ctx ?? {})]
-            : CLASS_NODE_TYPES.has(rhs?.type) ? [classStaticSlotValue(rhs, key)] : []
-          : [];
+        // The global write union keeps the getter and resolves each return at its own site.
+        : ctx?.enumerateGetterReturns && property?.kind === 'get'
+          ? collectOwnReturns(property.body ?? property.value.body).map(stmt => stmt.argument)
+          : property ? [objectPropertyReadValue(property, ctx ?? {})]
+            : key !== null && CLASS_NODE_TYPES.has(rhs?.type) ? [classStaticSlotValue(rhs, key)] : [];
       const paired = candidates.filter(Boolean);
       if (isDestructurePattern(slot)) {
         const levels = paired.length ? paired : [patternSourceSlotRead(rhs, key, ctx, true, prop)].filter(Boolean);
@@ -10694,14 +10697,18 @@ export function valueMayBeCallable(node, undefinedShadowed = false) {
   });
 }
 
-// is THIS property the one that installs a prototype? only a plain, non-computed, non-shorthand
-// `__proto__` data property does - a method, an accessor or a computed key of the same name creates
-// an ordinary own property instead. Null suppresses inheritance without lending dispatch;
-// callers checking inherited presence include that install too.
+// Only the colon form of __proto__ sets the prototype. Methods, accessors,
+// shorthand and computed keys of that name define an ordinary own property.
+function isPrototypeDefinition(prop) {
+  return (prop?.type === 'Property' || prop?.type === 'ObjectProperty')
+    && !prop.computed && !prop.shorthand && !prop.method && (!prop.kind || prop.kind === 'init')
+    && propertyKeyName(prop) === '__proto__';
+}
+
+// A null prototype suppresses inheritance without providing a method. Include
+// it when the caller asks whether the literal overrides the default prototype.
 export function propertyInstallsPrototype(prop, undefinedShadowed = false, includeNullPrototype = false) {
-  if (prop?.type !== 'Property' && prop?.type !== 'ObjectProperty') return false;
-  if (prop.computed || prop.shorthand || prop.method || (prop.kind && prop.kind !== 'init')) return false;
-  if (propertyKeyName(prop) !== '__proto__') return false;
+  if (!isPrototypeDefinition(prop)) return false;
   return includeNullPrototype && isNullLiteralNode(unwrapRuntimeExpr(prop.value))
     || prototypeValueMayDispatch(prop.value, undefinedShadowed);
 }

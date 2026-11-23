@@ -1,6 +1,6 @@
 // A nested instance claim whose member target is the assignment's only write takes the dispatch in the
-// statement's place: the setter runs once, with the polyfill. Beside a sibling the target stays native,
-// so its write keeps its order; an effectful key keeps the slot, and the target with it.
+// statement's place: the setter runs once, with the polyfill. A sibling reads the same captured
+// receiver after the write. An effectful key keeps its place before the target.
 const target = {};
 const arr = [1, 2];
 ({ C: { at: target.at } } = { C: arr });

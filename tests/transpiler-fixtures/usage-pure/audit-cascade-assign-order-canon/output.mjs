@@ -3,7 +3,7 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Symbol from "@core-js/pure/actual/symbol";
-var _ref, _ref2, _unused, _unused2;
+var _ref2, _ref3, _unused, _unused2;
 // Claimed statics retain their polyfills beside object rest.
 // Rest keeps its source and exclusions; instance slots remain native.
 let a, b;
@@ -12,10 +12,14 @@ let a, b;
   deep: {
     other: b
   }
-} = {
-  from: _Array$from,
-  deep: Array.deep
-});
+} = (_ref => {
+  return {
+    from: _Array$from,
+    get deep() {
+      return _ref.deep;
+    }
+  };
+})(_globalThis.Array));
 use(a, b);
 let s, f, x;
 ({
@@ -37,14 +41,14 @@ let s, f, x;
 });
 use(s, f, x);
 let g;
-_ref = _globalThis.Array, g = _Array$of, {
+_ref2 = _globalThis.Array, g = _Array$of, {
   of: _unused,
   ...rest
-} = _ref;
+} = _ref2;
 use(g, rest);
 let inner;
-_ref2 = _globalThis.Object, fromEntries = _Object$fromEntries, {
+_ref3 = _globalThis.Object, fromEntries = _Object$fromEntries, {
   fromEntries: _unused2,
   ...inner
-} = _ref2;
+} = _ref3;
 use(fromEntries, inner);

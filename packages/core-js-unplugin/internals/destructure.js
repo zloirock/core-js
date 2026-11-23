@@ -2333,6 +2333,7 @@ export default function createAstDestructureEmitter({
         declaration: host.declaration,
         local: propLocalName(prop),
         host: 'bodyless-decl',
+        seKey: prop.computed && computedKeyHasSideEffects(prop, keyCtx),
         metaPath,
         needsMemo,
         consumeResidualRead,

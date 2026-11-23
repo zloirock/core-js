@@ -4,9 +4,9 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // Rest keeps its source and exclusions; instance slots remain native.
 declare const a: () => void;
 declare const b: () => void;
-for (const from = (a(), b(), _Array$from), {
-    Array: _unused,
+for (const {} = (a(), b(), _globalThis), {
+    Array: {},
     ...rest
-  } = _globalThis; false;) {
+  } = _globalThis, from = _Array$from; false;) {
   console.log(from, rest);
 }
