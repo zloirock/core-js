@@ -230,13 +230,21 @@ function init() {
     });
   }
 
-  function showTooltip(element, message, time = 3000) {
-    tooltipText.innerHTML = message;
+  let latestCopy;
+  let popper;
+  let tooltipTimer;
+  function showTooltip(copy, element, message) {
+    if (copy !== latestCopy) return;
+    clearTimeout(tooltipTimer);
+    popper?.destroy();
+    tooltipText.textContent = message;
     tooltip.setAttribute('data-show', '');
-    createPopper(element, tooltip, { placement: 'bottom' });
-    setTimeout(() => {
+    popper = createPopper(element, tooltip, { placement: 'bottom' });
+    tooltipTimer = setTimeout(() => {
       tooltip.removeAttribute('data-show');
-    }, time);
+      // Keep the fading tooltip in place without extending the page or tracking its anchor while hidden.
+      popper.setOptions({ strategy: 'fixed', modifiers: [{ name: 'eventListeners', enabled: false }] });
+    }, 3000);
   }
 
   const sharedCode = pageParams.get('code');
@@ -276,10 +284,12 @@ function init() {
       e.preventDefault();
       pageParams.set('code', codeInput.value);
       location.hash = String(pageParams);
-      copyToClipboard(String(location)).then(() => {
-        showTooltip(linkButton, 'Link copied');
+      const copy = copyToClipboard(String(location));
+      latestCopy = copy;
+      copy.then(() => {
+        showTooltip(copy, linkButton, 'Link copied');
       }).catch(() => {
-        showTooltip(linkButton, 'Can\'t copy link. Please copy the link manually');
+        showTooltip(copy, linkButton, 'Can\'t copy link. Please copy the link manually');
       });
     });
   });

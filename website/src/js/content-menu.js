@@ -9,7 +9,8 @@ function init() {
     let nextItem;
     for (const trigger of triggers) {
       const target = document.querySelector(trigger.dataset.hash);
-      if (!target) continue;
+      // A heading in closed details can have a layout box even when it is not rendered.
+      if (!target || !(target.checkVisibility?.() ?? target.getClientRects().length)) continue;
       const { top } = target.getBoundingClientRect();
       if (top > window.innerHeight / 2) break;
       nextItem = trigger.parentElement;
@@ -42,6 +43,7 @@ function init() {
   });
 
   document.addEventListener('scroll', observeMenu);
+  document.addEventListener('toggle', observeMenu, true);
   observeMenu();
 }
 

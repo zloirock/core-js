@@ -9,6 +9,7 @@
   padding: 4px 8px;
   border-radius: 4px;
   opacity: 0;
+  pointer-events: none;
   transition: opacity 0.3s ease;
   @include themify($themes) {
     background: themed('font-color');
@@ -17,6 +18,7 @@
 
   &[data-show] {
     opacity: 1;
+    pointer-events: auto;
   }
 
   #tooltip-arrow, #tooltip-arrow::before {
