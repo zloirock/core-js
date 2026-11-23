@@ -91,6 +91,14 @@ await responseTest('<html>unavailable</html>', 502);
         [`/wd/hub/session/test-session/${ w3c ? 'execute/sync' : 'execute' }`, 'POST'],
         ...Array(3).fill(['/wd/hub/session/test-session', 'DELETE']),
       ], 'rejects null responses to every session command in both dialects #2');
+
+      if (w3c) {
+        globalThis.fetch = async (url, { method }) => method === 'DELETE'
+          ? { ok: false, status: 500, text: async () => '{"value":{"error":"unknown error","message":"unable to close session"}}' }
+          : { ok: false, status: 404, text: async () => '{"value":{"error":"invalid session id","message":"session has ended"}}' };
+        await rejects(session.execute('return 1'), { name: 'WebDriverError', message: /POST .*: session has ended$/ });
+        await rejects(session.quit(), { name: 'WebDriverError', message: /DELETE .*: unable to close session$/ });
+      }
     }
   } finally {
     globalThis.fetch = previous;

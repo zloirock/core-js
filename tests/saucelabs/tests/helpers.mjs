@@ -116,7 +116,9 @@ async function runFake({
         if (wrongDialect && sessions === 1) payload = { value: payload };
       } else if (options.method === 'DELETE') {
         quits++;
-        if (quits <= quitOutages) return { ok: false, status: 503, text: async () => '{}' };
+        if (quits <= quitOutages) return quits === 1
+          ? { ok: false, status: 503, text: async () => '{}' }
+          : { ok: true, status: 200, text: async () => '{"status":13,"value":{"message":"unable to close session"}}' };
         open--;
         const pool = platforms?.find(platform => path.includes(`/${ platform.name }`))?.pool;
         if (pool) openPools[pool]--;
@@ -129,7 +131,7 @@ async function runFake({
         if (retry && sessions <= hangs) hungPage = page;
         navigated = performance.now();
         if (!unwritableSessions) listedWhileOpen = await readFile(sessionsFile, 'utf8');
-        payload = retry && sessions <= navigationErrors ? { status: 13, value: { message: 'navigation failed' } } : {};
+        payload = retry && sessions <= navigationErrors ? { status: 6, value: { message: 'session has ended' } } : {};
       } else {
         const { script } = JSON.parse(options.body);
         const firstPoll = navigated !== undefined && script.startsWith('var results = ');
@@ -192,7 +194,7 @@ async function runFake({
       return { sessions, limitRequests, output: output.join('\n') };
     }
     if (quitOutages >= 3) {
-      await rejects(run(suite), /Sauce Labs run stopped: .*DELETE \/session\/\S+: HTTP 503/s, 'the run stops when a session stays open');
+      await rejects(run(suite), /Sauce Labs run stopped: .*DELETE \/session\/\S+: unable to close session/s, 'the run stops when a session stays open');
       const listedAfter = await readFile(sessionsFile, 'utf8');
       const attempts = quits;
       await import(`../close-sessions.mjs?run=${ runId }`);
@@ -281,8 +283,8 @@ async function runFake({
 {
   const { output, sessions } = await runFake({ navigationErrors: 3 });
   equal(sessions, 3, 'includes a session link when a page fails after session creation #1');
-  match(output, /test browser: https:\/\/app\.saucelabs\.com\/tests\/test-session-3.*navigation failed$/m, 'includes a session link when a page fails after session creation #2');
-  match(output, /test browser: https:\/\/app\.saucelabs\.com\/tests\/test-session-1: .*navigation failed, retrying \(2 of 3\)/, 'includes a session link when a page fails after session creation #3');
+  match(output, /test browser: https:\/\/app\.saucelabs\.com\/tests\/test-session-3.*session has ended$/m, 'includes a session link when a page fails after session creation #2');
+  match(output, /test browser: https:\/\/app\.saucelabs\.com\/tests\/test-session-1: .*session has ended, retrying \(2 of 3\)/, 'includes a session link when a page fails after session creation #3');
 }
 
 {
@@ -290,7 +292,7 @@ async function runFake({
   const { output, sessions, annotationRequests } = await runFake({ pages, firstResult: fail, retryPage: pages[1], navigationErrors: 3 });
   equal(sessions, 3, 'marks a session failed when navigation fails #1');
   equal(annotationRequests, 3, 'marks a session failed when navigation fails #2');
-  match(output, /test-session-3: unit-browser\/pure\.html: .*navigation failed$/m, 'reports the final navigation error');
+  match(output, /test-session-3: unit-browser\/pure\.html: .*session has ended$/m, 'reports the final navigation error');
   match(output, /global\.html: 1 of 1 assertions failed \(https:\/\/app\.saucelabs\.com\/tests\/test-session-1\)/, 'keeps completed results when every retry fails');
 }
 
@@ -507,7 +509,7 @@ for (const navigationErrors of [0, 1]) {
   equal(quits, 3);
   equal(listedAfter, `${ name }\n`, 'keeps the session id for workflow cleanup');
   equal(open, 0, 'workflow cleanup closes the listed session');
-  if (navigationErrors) ok(output.includes(`unit-browser/pure.html: POST /session/${ name }/url: navigation failed`), 'reports the page failure when closing its session also fails');
+  if (navigationErrors) ok(output.includes(`unit-browser/pure.html: POST /session/${ name }/url: session has ended`), 'reports the page failure when closing its session also fails');
 }
 
 await rejects(() => runFake({ base: 'http://example.test:bad/branch' }), /pass the http\(s\) URL/, 'rejects an invalid branch URL before opening a session');
