@@ -30,6 +30,8 @@ var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 // eslint-disable-next-line es/no-object-isextensible -- safe
 var isExtensible = Object.isExtensible;
 var at = uncurryThis(''.charAt);
+var concat = uncurryThis(''.concat);
+var indexOf = uncurryThis(''.indexOf);
 var slice = uncurryThis(''.slice);
 var exec = uncurryThis(/./.exec);
 var push = uncurryThis([].push);
@@ -38,9 +40,8 @@ var IS_DIGIT = /^\d$/;
 var IS_NON_ZERO_DIGIT = /^[1-9]$/;
 var IS_NUMBER_START = /^[\d-]$/;
 var IS_WHITESPACE = /^[\t\n\r ]$/;
-
-var PRIMITIVE = 0;
-var OBJECT = 1;
+// eslint-disable-next-line regexp/no-control-character -- these characters must be escaped in JSON strings
+var MUST_ESCAPE = /[\u0000-\u001F"\\]/;
 
 // old Edge throws instead of returning false
 if (reflectDefineProperty && fails(function () {
@@ -48,8 +49,7 @@ if (reflectDefineProperty && fails(function () {
 })) reflectDefineProperty = undefined;
 
 var $parse = function (source, reviver) {
-  source = toString(source);
-  var context = new Context(source, 0);
+  var context = new Context(source);
   var root = context.parse();
   var value = root.value;
   var endIndex = context.skip(IS_WHITESPACE, root.end);
@@ -85,6 +85,12 @@ var internalize = function (holder, name, reviver, node) {
   return call(reviver, holder, name, val, context);
 };
 
+var setProperty = function (object, key, value, update) {
+  // Old WebKit moves an existing data property to the end when defineProperty changes its value.
+  if (update) object[key] = value;
+  else createProperty(object, key, value);
+};
+
 var internalizeProperty = function (object, key, value, original) {
   // objects created by the parser cannot be proxies
   var method = !original && (value === undefined ? reflectDeleteProperty : reflectDefineProperty);
@@ -93,17 +99,20 @@ var internalizeProperty = function (object, key, value, original) {
     else method(object, key, createPropertyDescriptor(0, value));
     return;
   }
+  var update;
   // exact Proxy semantics require correct Reflect operations
   if (DESCRIPTORS) {
     var descriptor = getOwnPropertyDescriptor(object, key);
-    if (descriptor && !descriptor.configurable) return;
-    if (!descriptor && value !== undefined) {
+    if (descriptor) {
+      if (!descriptor.configurable) return;
+      update = original && descriptor.enumerable && hasOwn(descriptor, 'writable') && descriptor.writable;
+    } else if (value !== undefined) {
       if (isExtensible && !isExtensible(object)) return;
       if (isArray(object) && key >= object.length && !getOwnPropertyDescriptor(object, 'length').writable) return;
     }
   }
   if (value === undefined) delete object[key];
-  else createProperty(object, key, value);
+  else setProperty(object, key, value, update);
 };
 
 var Node = function (value, end, source, nodes) {
@@ -113,116 +122,78 @@ var Node = function (value, end, source, nodes) {
   this.nodes = nodes;
 };
 
-var Context = function (source, index) {
+var Context = function (source) {
   this.source = source;
-  this.index = index;
 };
 
 // https://www.json.org/json-en.html
 Context.prototype = {
-  fork: function (nextIndex) {
-    return new Context(this.source, nextIndex);
-  },
   parse: function () {
     var source = this.source;
-    var i = this.skip(IS_WHITESPACE, this.index);
-    var fork = this.fork(i);
-    var chr = at(source, i);
-    if (exec(IS_NUMBER_START, chr)) return fork.number();
+    var i = this.skip(IS_WHITESPACE, 0);
+    var frame, node, chr, array, key;
+    // Each frame holds an open container. Closing it produces a node for its parent.
+    while (true) {
+      if (node) {
+        if (!frame) return node;
+        if (frame.close === ']') {
+          push(frame.nodes, node);
+          push(frame.value, node.value);
+        } else {
+          createProperty(frame.nodes, frame.key, node);
+          setProperty(frame.value, frame.key, node.value, hasOwn(frame.value, frame.key));
+        }
+        i = this.until([',', frame.close], node.end);
+      } else {
+        chr = at(source, i);
+        if (chr !== '{' && chr !== '[') {
+          node = this.primitive(chr, i);
+          continue;
+        }
+        array = chr === '[';
+        frame = { parent: frame, close: array ? ']' : '}', value: array ? [] : {}, nodes: array ? [] : {}, key: '' };
+        i = this.skip(IS_WHITESPACE, i + 1);
+      }
+      if (at(source, i) === frame.close) {
+        node = new Node(frame.value, i + 1, null, frame.nodes);
+        frame = frame.parent;
+        continue;
+      }
+      // A completed child is followed by a comma here. Require another key or element.
+      if (node) {
+        i = this.skip(IS_WHITESPACE, i + 1);
+        node = undefined;
+      }
+      if (i === source.length) throw new SyntaxError('Unterminated ' + (frame.close === ']' ? 'array' : 'object') + ' at: ' + i);
+      if (frame.close === '}') {
+        key = this.string(this.until(['"'], i));
+        frame.key = key.value;
+        i = this.skip(IS_WHITESPACE, this.until([':'], key.end) + 1);
+      }
+    }
+  },
+  primitive: function (chr, i) {
+    if (exec(IS_NUMBER_START, chr)) return this.number(i);
     switch (chr) {
-      case '{':
-        return fork.object();
-      case '[':
-        return fork.array();
       case '"':
-        return fork.string();
+        return this.string(i);
       case 't':
-        return fork.keyword(true);
+        return this.keyword(true, i);
       case 'f':
-        return fork.keyword(false);
+        return this.keyword(false, i);
       case 'n':
-        return fork.keyword(null);
+        return this.keyword(null, i);
     } throw new SyntaxError('Unexpected character: "' + chr + '" at: ' + i);
   },
-  node: function (type, value, start, end, nodes) {
-    return new Node(value, end, type ? null : slice(this.source, start, end), nodes);
+  node: function (value, start, end) {
+    return new Node(value, end, slice(this.source, start, end));
   },
-  object: function () {
+  string: function (index) {
+    var parsed = parseJSONString(this.source, index + 1);
+    return this.node(parsed.value, index, parsed.end);
+  },
+  number: function (startIndex) {
     var source = this.source;
-    var i = this.index + 1;
-    var expectKeypair = false;
-    var object = {};
-    var nodes = {};
-    var closed = false;
-    while (i < source.length) {
-      i = this.until(expectKeypair ? ['"'] : ['"', '}'], i);
-      if (at(source, i) === '}') {
-        i++;
-        closed = true;
-        break;
-      }
-      // parsing the key
-      var result = this.fork(i).string();
-      var key = result.value;
-      i = result.end;
-      i = this.until([':'], i) + 1;
-      // parsing value
-      i = this.skip(IS_WHITESPACE, i);
-      result = this.fork(i).parse();
-      createProperty(nodes, key, result);
-      createProperty(object, key, result.value);
-      i = this.until([',', '}'], result.end);
-      var chr = at(source, i);
-      if (chr === ',') {
-        expectKeypair = true;
-        i++;
-      } else if (chr === '}') {
-        i++;
-        closed = true;
-        break;
-      }
-    }
-    if (!closed) throw new SyntaxError('Unterminated object at: ' + i);
-    return this.node(OBJECT, object, this.index, i, nodes);
-  },
-  array: function () {
-    var source = this.source;
-    var i = this.index + 1;
-    var expectElement = false;
-    var array = [];
-    var nodes = [];
-    var closed = false;
-    while (i < source.length) {
-      i = this.skip(IS_WHITESPACE, i);
-      if (at(source, i) === ']' && !expectElement) {
-        i++;
-        closed = true;
-        break;
-      }
-      var result = this.fork(i).parse();
-      push(nodes, result);
-      push(array, result.value);
-      i = this.until([',', ']'], result.end);
-      if (at(source, i) === ',') {
-        expectElement = true;
-        i++;
-      } else if (at(source, i) === ']') {
-        i++;
-        closed = true;
-        break;
-      }
-    }
-    if (!closed) throw new SyntaxError('Unterminated array at: ' + i);
-    return this.node(OBJECT, array, this.index, i, nodes);
-  },
-  string: function () {
-    var index = this.index;
-    var parsed = parseJSONString(this.source, this.index + 1);
-    return this.node(PRIMITIVE, parsed.value, index, parsed.end);
-  },
-  number: function () {
-    var source = this.source;
-    var startIndex = this.index;
     var i = startIndex;
     if (at(source, i) === '-') i++;
     if (at(source, i) === '0') i++;
@@ -240,14 +211,13 @@ Context.prototype = {
       i = this.skip(IS_DIGIT, i);
       if (exponentStartIndex === i) throw new SyntaxError("Failed to parse number's exponent value at: " + i);
     }
-    return this.node(PRIMITIVE, Number(slice(source, startIndex, i)), startIndex, i);
+    return this.node(Number(slice(source, startIndex, i)), startIndex, i);
   },
-  keyword: function (value) {
+  keyword: function (value, index) {
     var keyword = '' + value;
-    var index = this.index;
     var endIndex = index + keyword.length;
     if (slice(this.source, index, endIndex) !== keyword) throw new SyntaxError('Failed to parse value at: ' + index);
-    return this.node(PRIMITIVE, value, index, endIndex);
+    return this.node(value, index, endIndex);
   },
   skip: function (regex, i) {
     var source = this.source;
@@ -279,15 +249,65 @@ var PROPER_BASE_PARSE = !fails(function () {
   nativeParse('01');
 });
 
+// V8 ~ Chrome 128-155, NodeJS 23.0-24.22.0 and 25.0-26.12.0 can take the name of an escaped key
+// from an earlier object with the same preceding keys, https://issues.chromium.org/issues/521080746
+var SAFE_ESCAPED_KEYS = !fails(function () {
+  // the nested object is built first, and its rare first key keeps the shared shape free of other continuations
+  return !nativeParse('{"`":0,"\\t":{"`":0,"\\\\":0}}')['\t'];
+});
+
+var closingQuote = function (source, index) {
+  var start;
+  do {
+    index = indexOf(source, '"', index + 1);
+    if (index === -1) return -1;
+    start = index;
+    while (at(source, start - 1) === '\\') start--;
+  } while ((index - start) % 2);
+  return index;
+};
+
+var normalizeKeys = function (source) {
+  var backslash = indexOf(source, '\\');
+  if (backslash === -1 || indexOf(source, ':', backslash) === -1) return source;
+  var result = '';
+  var copied = 0;
+  var start, end, i, key;
+  do {
+    end = closingQuote(source, backslash);
+    if (end === -1) return;
+    i = end + 1;
+    while (exec(IS_WHITESPACE, at(source, i))) i++;
+    if (at(source, i) === ':') {
+      // Locate the opening quote before rewriting. A backslash outside a string must stay invalid.
+      i = copied;
+      do {
+        start = indexOf(source, '"', i);
+        if (start === -1 || start > backslash) return;
+        i = closingQuote(source, start) + 1;
+      } while (i <= backslash);
+      // V8 can decode the key as a standalone string. Only insert it if it can be written literally.
+      key = nativeParse(slice(source, start, end + 1));
+      if (exec(MUST_ESCAPE, key)) return;
+      result += slice(source, copied, start + 1) + key + '"';
+      copied = end + 1;
+    }
+    backslash = indexOf(source, '\\', end + 1);
+  } while (backslash !== -1);
+  return copied ? result + slice(source, copied) : source;
+};
+
 // `JSON.parse` method
 // https://tc39.es/ecma262/#sec-json.parse
 // https://github.com/tc39/proposal-json-parse-with-source
-$({ target: 'JSON', stat: true, forced: NO_SOURCE_SUPPORT }, {
+$({ target: 'JSON', stat: true, forced: NO_SOURCE_SUPPORT || !PROPER_BASE_PARSE || !SAFE_ESCAPED_KEYS }, {
   parse: function parse(text, reviver) {
-    // native parsers cannot recognize polyfilled symbols
-    // conversion still uses native String; polyfilled @@toPrimitive is not supported
-    return PROPER_BASE_PARSE && !isCallable(reviver)
-      ? nativeParse(NATIVE_SYMBOL ? text : toString(text))
-      : $parse(text, reviver);
+    // Native concatenation uses the string hint and rejects symbols. Shimmed symbols need our ToString.
+    if (typeof text != 'string') text = NATIVE_SYMBOL ? concat('', text) : toString(text);
+    if (PROPER_BASE_PARSE && (!NO_SOURCE_SUPPORT || !isCallable(reviver))) {
+      var source = SAFE_ESCAPED_KEYS ? text : normalizeKeys(text);
+      if (source !== undefined) return nativeParse(source, reviver);
+    }
+    return $parse(text, reviver);
   }
 });

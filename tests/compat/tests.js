@@ -1097,7 +1097,13 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     JSON.parse(unsafeInt, function (key, value, context) {
       source = context.source;
     });
-    return source === unsafeInt;
+    if (source !== unsafeInt || 1 / JSON.parse('-0 \t') !== -Infinity) return false;
+    // V8 ~ Chrome 128-155, https://issues.chromium.org/issues/521080746
+    if (!JSON.parse('{"`":0,"\\t":{"`":0,"\\\\":0}}')['\t']) return false;
+    try {
+      JSON.parse('01');
+    } catch (error) { return true; }
+    return false;
   },
   'es.json.raw-json': NATIVE_RAW_JSON,
   'es.json.stringify': [NATIVE_RAW_JSON, SYMBOLS_SUPPORT, function () {

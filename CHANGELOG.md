@@ -138,6 +138,8 @@
   - Fixed `Uint8Array.prototype.{ toBase64, toHex, setFromBase64, setFromHex }` polyfills on shared buffers
   - Improved hex decoding in the `Uint8Array` polyfills. `fromHex` decodes directly into the result, and `setFromHex` reads only the pairs that fit in the target
 - `JSON`
+  - Added a workaround for [V8 returning incorrect property names from `JSON.parse` when keys contain escapes](https://issues.chromium.org/issues/521080746), also reported in [NodeJS #66916](https://github.com/nodejs/node/issues/66916). The workaround keeps native parsing when all property names can be written literally, preserving escapes in string values
+  - Fixed the `JSON.parse` polyfill changing property order of parsed objects in old WebKit when a duplicate key or a reviver updates a value
   - Fixed order of `JSON.parse` dependencies loading, a regression since 3.47.0
   - Restored native `JSON.parse` delegation without a callable reviver in engines without native symbols, while preserving symbol conversion and detecting native parsing of numbers with leading zeros in IE
   - Fixed `JSON.parse` polyfill accepting malformed object keys after commas, mishandling rejected reviver property updates, and exposing `context.source` after a zero changes sign
@@ -272,6 +274,7 @@
     - `Math.sumPrecise` marked as properly supported from [V8 ~ Chrome 158](https://github.com/v8/v8/commit/b8851805ce36c5db7c2be14d94bef42b8baf5dbf) where the bug with modified prototypes of array iterators was fixed
     - `Math.sumPrecise` marked as [properly supported](https://github.com/WebKit/WebKit/pull/65558) from Bun 1.4.5
   - Other ECMAScript built-ins
+    - `JSON.parse` marked as properly supported from [V8 ~ Chrome 156](https://github.com/v8/v8/commit/93cd21e8254b65c15ff131b2dcadf19beadb559d) and NodeJS 26.12.1 because of the escaped keys bug above. NodeJS 24.22.1 has the fix too, but builds targeting it still include the module and keep the native parser
     - `Iterator.concat` no longer marked as supported in V8-based engines because of the iterator-closing bug above
     - `Reflect.construct` marked as properly supported from [FF45](https://bugzilla.mozilla.org/show_bug.cgi?id=1055472) instead of FF44 because of the built-in constructor bug above
     - `Symbol.dispose`, `Symbol.asyncDispose` and `Iterator.prototype[@@dispose]` marked as [shipped in FF141](https://bugzilla.mozilla.org/show_bug.cgi?id=1967744) instead of FF135 - before that, they were available only in Nightly

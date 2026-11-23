@@ -146,6 +146,11 @@ QUnit.test('JSON.parse', assert => {
     assert.throws(() => parse('[1,]', reviver), SyntaxError, `trailing-array-comma ${ note }`);
     assert.deepEqual(parse('{"a":1,"}":2}', reviver), { a: 1, '}': 2 }, `quoted-brace-key ${ note }`);
     assert.deepEqual(parse('{"a":1,"":2}', reviver), { a: 1, '': 2 }, `empty-key-after-comma ${ note }`);
+    assert.deepEqual(parse('{"file\\\\name":1,"quoted\\"name":2}', reviver), { 'file\\name': 1, 'quoted"name': 2 }, `escaped property names ${ note }`);
+    assert.deepEqual(parse('["path\\\\",":next","quote\\":value"]', reviver), ['path\\', ':next', 'quote":value'], `escaped string values ${ note }`);
+    assert.deepEqual(parse('{"a\\/b":1,"line\\u000Aend":2}', reviver), { 'a/b': 1, 'line\nend': 2 }, `required escape in a later key ${ note }`);
+    assert.throws(() => parse('["x"\\u002c":next"]', reviver), SyntaxError, `escape outside a string ${ note }`);
+    assert.throws(() => parse('{"good\\u0020key":1,"bad\\x61":2}', reviver), SyntaxError, `invalid escape in a later key ${ note }`);
 
     assert.throws(() => parse('{', reviver), SyntaxError, `unterminated-object-1 ${ note }`);
     assert.throws(() => parse('{"a":1,', reviver), SyntaxError, `unterminated-object-2 ${ note }`);
@@ -186,6 +191,25 @@ QUnit.test('JSON.parse', assert => {
       },
     }, reviver), EvalError, `text-object-abrupt-2 ${ note }`);
   }
+
+  assert.deepEqual(parse('{"first\\u0020name":1}', (key, value) => key === 'first name' ? value + 1 : value), { 'first name': 2 }, 'reviver receives the decoded key');
+  if (DESCRIPTORS && typeof Symbol.toStringTag == 'symbol') {
+    let reads = 0;
+    const text = defineProperty({ toString: () => '{"first\\u0020name":1}' }, Symbol.toStringTag, { get() { return ++reads; } });
+    assert.deepEqual(parse(text), { 'first name': 1 }, 'escaped key after string conversion');
+    assert.same(reads, 0, 'string conversion does not read @@toStringTag');
+  }
+
+  // V8 ~ Chrome 128-155 takes the name of an escaped key from an earlier object with the same preceding keys
+  // https://issues.chromium.org/issues/521080746
+  assert.deepEqual(parse('{"a":{"v8 escaped keys":1,"\\\\":2},"b":{"v8 escaped keys":1,"\\t":3},"c":{"v8 escaped keys":1,"\\u0041":4}}'), {
+    a: { 'v8 escaped keys': 1, '\\': 2 },
+    b: { 'v8 escaped keys': 1, '\t': 3 },
+    c: { 'v8 escaped keys': 1, A: 4 },
+  }, 'escaped keys after an object with the same preceding key');
+  const literal = { 'v8 escaped key': 1, '\\': 2 };
+  assert.deepEqual(parse('{"v8 escaped key":1,"\\u0041":3}'), { 'v8 escaped key': 1, A: 3 }, 'escaped key after an object literal with the same preceding key');
+  assert.deepEqual(parse('{"v8 escaped key":1,"\\\\":2}'), literal, 'escaped backslash key');
 
   // eslint-disable-next-line no-extend-native -- testing
   Array.prototype[1] = 3;
@@ -376,9 +400,28 @@ QUnit.test('JSON.parse', assert => {
   assert.throws(() => parse(), SyntaxError, 'no args');
 });
 
+QUnit.test('JSON.parse deeply nested containers', assert => {
+  const { parse } = JSON;
+  let depth = 5000;
+  const document = value => {
+    const layers = Array(depth + 1);
+    return `${ layers.join('[{"child":') }${ value }${ layers.join('}]') }`;
+  };
+  // Older native parsers limit nesting even for plain JSON.
+  try { parse(document('{"leaf":0}')); } catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+    depth = 32;
+  }
+  for (const [source, key] of [['leaf', 'leaf'], ['le\\u0061f', 'leaf'], ['line\\nbreak', 'line\nbreak']]) {
+    let result = parse(document(`{"${ source }" \t\r\n: "line\\nbreak"}`));
+    for (let i = 0; i < depth; i++) result = result[0].child;
+    assert.same(result[key], 'line\nbreak', `escaped string in nested arrays and objects, key ${ source }`);
+  }
+});
+
 QUnit.test('JSON.parse source access', assert => {
   const { parse } = JSON;
-  const { hasOwn } = Object;
+  const { hasOwn, keys } = Object;
   const spy = (k, v, { source: $source }) => source = $source;
   let source;
   parse('1234', spy);
@@ -397,6 +440,14 @@ QUnit.test('JSON.parse source access', assert => {
   assert.same(source, undefined, '[]');
   parse('9007199254740993', spy);
   assert.same(source, '9007199254740993', '9007199254740993');
+
+  const visits = [];
+  parse('{"\\u0061":1,"p\\/q":"\\u0078","a":2e1}', function (key, value, context) {
+    if (key) visits.push([key, value, context.source, keys(this)]);
+    return key === 'a' ? value + 1 : value;
+  });
+  const order = ['a', 'p/q'];
+  assert.deepEqual(visits, [['a', 20, '2e1', order], ['p/q', 'x', '"\\u0078"', order]], 'duplicate names, key order and original value sources');
 
   for (const [text, zero] of [['0', 0], ['-0', -0]]) {
     for (const array of [false, true]) {
