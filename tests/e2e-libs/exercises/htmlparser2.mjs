@@ -101,11 +101,11 @@ export function run() {
   // --- domutils ---
   const items = getElementsByTagName('li', doc, true);
   check('by_tag_name', items.length, 3);
-  check('has_attrib', hasAttrib(items[1], 'class'), true);
+  check('has_attrib', [hasAttrib(items[1], 'class'), hasAttrib(items[0], 'class')], [true, false]);
   check('siblings', getSiblings(items[0]).length, 3);
   check('children_count', getChildren(selectOne('#list', doc)).length, 3);
   check('find_one', getName(findOne(element => element.name === 'td', doc.children, true)), 'td');
-  check('exists_one', existsOne(element => element.name === 'table', doc.children), true);
+  check('exists_one', ['table', 'aside'].map(name => existsOne(element => element.name === name, doc.children)), [true, false]);
   check('get_text', getText(selectOne('title', doc)), 'T & t');
   check('inner_text', innerText(selectOne('#list', doc)).indexOf('one <x>'), 0);
   // both of domutils' `Array#includes` sites: `uniqueSort` de-duplicates with
@@ -140,11 +140,12 @@ export function run() {
   check('attr_suffix', selectAll('img[src$=".png"]', doc).length, 1);
   check('attr_substring', selectAll('img[alt*="imag"]', doc).length, 1);
   check('nth_child', textContent(selectOne('#list li:nth-child(3)', doc)), 'three ©');
-  check('nth_of_type', selectAll('#list li:nth-last-of-type(2n+1)', doc).length, 2);
+  const lists = parseDocument('<section><div><ul><li>a</li><em></em><li class="sel">b</li><li>c</li><li>d</li></ul></div></section><ul><li>e</li></ul>');
+  check('nth_of_type', selectAll('section li:nth-last-of-type(2n+1)', lists).map(node => textContent(node)), ['b', 'd']);
   check('pseudo_not', selectAll('#list li:not(.sel)', doc).length, 2);
   check('pseudo_contains', selectAll('li:contains("dash")', doc).length, 1);
   check('pseudo_icontains', selectAll('li:icontains("DASH")', doc).length, 1);
-  check('pseudo_has', selectAll('ul:has(li.sel)', doc).length, 1);
+  check('pseudo_has', selectAll('ul:has(li.sel)', lists).length, 1);
   check('is_match', is(items[1], 'li.sel[data-n="2nd"]'), true);
   // the compiled query is USED as one, not just handed back to `selectAll` - that entry point takes a
   // raw string too, so `compile = source => source` satisfied the count and the check said nothing
@@ -155,7 +156,7 @@ export function run() {
   // throwing "isSelected is not a function" out of the exercise and costing every check after it
   check('compiled_query_predicate',
     typeof isSelected === 'function' ? [isSelected(items[1]), isSelected(items[0])] : ['not a predicate'], [true, false]);
-  check('descendant_cache', selectAll('body #list li', doc).length, 3);
+  check('descendant', selectAll('section ul li', lists).map(node => textContent(node)), ['a', 'b', 'c', 'd']);
   // `:scope` has three implementations picked by context length; only the >= 2 one reaches
   // `context.includes(element)`, which is one of the two `Node[]`-annotated receivers the header is about
   //
@@ -168,7 +169,7 @@ export function run() {
   check('lang_reject', is(selectOne('#list', doc), ':lang(fr)'), false);
   // `:has()` marks the selector as carrying an expensive subselector, which is the only thing that
   // compiles `general.ts`'s `cachedDescendant` - the second of css-select's two `new WeakMap` sites
-  check('expensive_descendant', selectAll('body :has(li.sel) li', doc).length, 3);
+  check('expensive_descendant', selectAll('ul:has(li.sel) li', lists).map(node => textContent(node)), ['a', 'b', 'c', 'd']);
 
   check('selector_ast', parseSelector('a.b > c')[0].length, 4);
   check('selector_namespace', parseSelector('*|div')[0][0], { type: 'tag', name: 'div', namespace: '*' });

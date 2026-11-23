@@ -264,6 +264,9 @@ export function run() {
     return result;
   }
 
+  let subscribed = false;
+  const deferred = defer(() => of(subscribed));
+  subscribed = true;
   return Promise.all([
     // --- innerFrom: every branch of rxjs's interop hub ---
     collect(from(new Set(setInput))),
@@ -325,12 +328,12 @@ export function run() {
     firstValueFrom(of(5, 2, 9).pipe(max())),
     firstValueFrom(of(2, 4).pipe(every(x => x % 2 === 0))),
     firstValueFrom(of(1, 5, 8).pipe(find(x => x > 4))),
-    firstValueFrom(of(1, 5, 8).pipe(findIndex(x => x > 4))),
+    firstValueFrom(of(3, 5, 8).pipe(findIndex(x => x > 4))),
     firstValueFrom(of('a', 'b', 'c').pipe(elementAt(1))),
     firstValueFrom(EMPTY.pipe(isEmpty())),
     firstValueFrom(EMPTY.pipe(defaultIfEmpty('fallback'))),
     firstValueFrom(of(1, 2).pipe(sequenceEqual(of(1, 2)))),
-    firstValueFrom(of('only').pipe(single())),
+    firstValueFrom(of('first', 'only').pipe(single(value => value === 'only'))),
     firstValueFrom(of(1, 2, 3).pipe(last())),
     firstValueFrom(of(1, 2, 3).pipe(first(x => x > 1))),
 
@@ -338,7 +341,7 @@ export function run() {
     collect(of(1, 2).pipe(materialize(), map(notification => notification.kind))),
     collect(of(1).pipe(materialize(), dematerialize())),
     collect(throwError(() => new Error('boom')).pipe(catchError(() => of('recovered')))),
-    collect(defer(() => of('deferred'))),
+    collect(deferred),
     collect(generate(0, x => x < 3, x => x + 1)),
     collect(of(1, 2, 3).pipe(ignoreElements(), defaultIfEmpty('ignored'))),
 
@@ -407,7 +410,7 @@ export function run() {
     check('materialize_kinds', take(), ['N', 'N', 'C']);
     check('dematerialize', take(), [1]);
     check('catchError', take(), ['recovered']);
-    check('defer', take(), ['deferred']);
+    check('defer', take(), [true]);
     check('generate', take(), [0, 1, 2]);
     check('ignoreElements', take(), ['ignored']);
     check('firstValueFrom', take(), 42);

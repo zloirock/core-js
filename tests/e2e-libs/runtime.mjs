@@ -1,7 +1,7 @@
 import { MinifyOptions } from '@core-js/builder/config.js';
 import { transform as swcTransform } from '@swc/core';
 import { assertDetectionsStillNeedHelp, buildCell } from './bundle.mjs';
-import { groupByLibraryAndMethod } from './cells.mjs';
+import { allCells, groupByLibraryAndMethod } from './cells.mjs';
 import { checkResultProblem, errorReason } from './diagnostics.mjs';
 import { describeInput } from './input.mjs';
 import { librariesMatching, libraries } from './libraries.mjs';
@@ -161,8 +161,18 @@ const cellsBuiltHere = IS_SHARD ? shardSlice(libraryMethodGroups).flat()
 if (!IS_SHARD) await manifest.prepare();
 const input = await describeInput();
 
-// once per run, in the parent: the workaround in `bundle.mjs` has to still have a reason
-if (!IS_SHARD) await assertDetectionsStillNeedHelp();
+if (!IS_SHARD) {
+  await assertDetectionsStillNeedHelp();
+  const exercise = fileURLToPath(new URL('./fixtures/promise-rejection.mjs', import.meta.url));
+  const cell = allCells([{ name: 'promise-rejection', exercise }]).find(entry => entry.isReference && entry.method === 'usage-pure');
+  const { code } = await buildCell(cell);
+  for (const scheduler of ['queueMicrotask', 'setTimeout']) {
+    const result = await strippedLeg(`this.scheduleRejection = ${ scheduler };\n${ code }`, cell.label, ['completed']);
+    if (result.reason !== 'unhandled rejection - queued pure rejection') {
+      throw new Error(`${ scheduler } rejection control: ${ result.reason ?? 'unexpected success' }`);
+    }
+  }
+}
 
 await snapshots.ensureDirectory();
 
@@ -175,7 +185,7 @@ const tally = { failed: new Set(), redSnapshots: [], fromShards: 0 };
 for (const cell of cellsBuiltHere) rows.push(await runCell(cell));
 
 if (IS_SHARD) {
-  emitShardSummary({ failed: tally.failed.size, redSnapshots: tally.redSnapshots, rows });
+  emitShardSummary({ failed: tally.failed.size, redSnapshots: tally.redSnapshots, rows }, tally.failed.size || tally.redSnapshots.length);
 } else {
   if (shardCount > 1) await collectShards();
   if (!rows.length) throw new Error('no cells ran - the registry or METHODS is empty');

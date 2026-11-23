@@ -12,6 +12,10 @@
     window.parent.e2eFrameDone(CELL.label, CELL.expected, window.e2eCompatibilityMode(), checks, reason);
   }
 
+  if (window.e2eCompatibilityMode() !== undefined) {
+    send(null, 'IE compatibility mode');
+    return;
+  }
   setTimeout(function () {
     send(null, 'run() did not settle within ' + CELL.timeout + 'ms');
   }, CELL.timeout);

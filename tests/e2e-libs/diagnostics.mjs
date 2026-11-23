@@ -1,45 +1,24 @@
 // How this suite says what went wrong; the page programs answer the same in `harness/shared.js`.
 // No zx globals: `preflight-child.mjs` imports this under a bare `node`.
 
-import { inspect } from 'node:util';
+import { inspect, isDeepStrictEqual } from 'node:util';
 
 const REASON_MAX = 200; // a line or two; long enough for a named error and the message after it
 const VALUE_MAX = 2048;
 // the POSITION is what makes a frame: without it a line opening `at least one ...` is dropped as one
 const STACK_FRAME = /^at\s.*:\d+:\d+\)?$/;
-const NAMED_ERROR = /^\w*(?:Error|Exception)\b/;
-const ZX_FOOTER = /^(?:exit code|signal):/;
-
-// One console-width line out of an unknown throwable. `stderr` first, and no stack frame from either:
-// node prints the offending `file:line` before the error, and zx's frame names the `$` call.
+// The Node runners catch ordinary exceptions or an arbitrary value thrown by an exercise.
 export function errorReason(err) {
-  // each source is tried for CONTENT: on truthiness a stderr of one newline wins and reduces the line
-  // to `FAIL <label>: `, and `[object Object]` is a stringification rather than a reason
-  for (const property of ['stderr', 'message', null]) {
-    let text;
-    // this runs INSIDE the `catch` that reports a cell: a throw of its own takes the run down unprinted
+  for (const property of ['message', null, 'name']) {
     try {
-      const source = property === null ? err : err?.[property];
-      text = String(source ?? '');
-    } catch { continue; }
-    if (text === '[object Object]') continue;
-    const lines = text.split('\n').map(line => line.trim()).filter(line => line && !STACK_FRAME.test(line));
-    if (!lines.length) continue;
-    const named = lines.find(line => NAMED_ERROR.test(line));
-    if (named) return named.slice(0, REASON_MAX);
-    // zx appends its footer to the child's own output, so it is reported BESIDE what the child said
-    const footer = lines.filter(line => ZX_FOOTER.test(line));
-    const said = lines.find(line => !ZX_FOOTER.test(line));
-    return [said, ...footer].filter(Boolean).join(', ').slice(0, REASON_MAX);
-  }
-  const parts = [];
-  for (const property of ['name', 'exitCode']) {
-    try {
-      const value = err?.[property];
-      if (value !== undefined && value !== null && value !== '') parts.push(property === 'name' ? String(value) : `exit ${ value }`);
+      const value = property === null ? err : err?.[property];
+      const text = String(value ?? '');
+      if (text === '[object Object]') continue;
+      const lines = text.split('\n').map(line => line.trim()).filter(line => line && !STACK_FRAME.test(line));
+      if (lines.length) return lines.join(' ').slice(0, 2 * VALUE_MAX + REASON_MAX);
     } catch { /* Another property may still describe this exception. */ }
   }
-  return parts.join(', ').slice(0, REASON_MAX) || 'failed without a message';
+  return 'failed without a message';
 }
 
 // Node's inspector distinguishes missing array slots, undefined, strings and non-JSON values.
@@ -54,19 +33,42 @@ export function renderValue(value) {
   }
 }
 
-// Quote the first differing region when either string is too long to print in full.
-export function renderValues(first, second) {
+// Quote the differing region when the displayed values would hide it.
+export function renderValues(first, second, path = '', seen = new Set()) {
   const values = [renderValue(first), renderValue(second)];
-  if (typeof first !== 'string' || typeof second !== 'string' || first === second) return values;
-  if (values.every(text => !text.endsWith('...'))) return values;
+  if (values[0] === values[1] && first !== second && first && second
+    && typeof first === 'object' && typeof second === 'object' && !seen.has(first)) {
+    seen.add(first);
+    // inspect may omit array tails or deeply nested properties. Follow data properties
+    // only: formatting a difference should not need to invoke another accessor.
+    try {
+      for (const key of new Set([...Object.keys(first), ...Object.keys(second)])) {
+        const left = Object.getOwnPropertyDescriptor(first, key);
+        const right = Object.getOwnPropertyDescriptor(second, key);
+        if ((left && !Object.hasOwn(left, 'value')) || (right && !Object.hasOwn(right, 'value'))) continue;
+        if (left && right && isDeepStrictEqual(left.value, right.value)) continue;
+        const slot = `${ path }[${ Array.isArray(first) ? key : renderValue(key) }]`;
+        if (left && right) return renderValues(left.value, right.value, slot, seen);
+        return [left, right].map(side => `at ${ slot } ${ side ? renderValue(side.value) : '<missing>' }`);
+      }
+    } catch { /* Opaque objects still have the original inspector output. */ }
+  }
+  const location = path ? `at ${ path } ` : '';
+  if (typeof first !== 'string' || typeof second !== 'string' || first === second || values.every(text => !text.endsWith('...'))) {
+    return values.map(value => location + value);
+  }
   let offset = 0;
   while (first[offset] === second[offset]) offset++;
   const start = Math.max(0, offset - 24);
-  return [first, second].map(value => `at offset ${ offset } ${ renderValue(value.slice(start, offset + 24)) }`);
+  return [first, second].map(value => `${ location }at offset ${ offset } ${ renderValue(value.slice(start, offset + 24)) }`);
 }
 
 export function checkFailureLine(check) {
-  const [actual, expected] = renderValues(check.actual, check.expected);
+  // Use the values read by the comparison, including accessors and toJSON projections.
+  const { difference } = check;
+  const [actual, expected] = Array.isArray(difference?.pair)
+    ? renderValues(difference.pair[0], difference.pair[1], difference.path)
+    : renderValues(check.actual, check.expected);
   return `${ check.label } actual=${ actual } expected=${ expected }`;
 }
 
@@ -77,7 +79,7 @@ export function captureChecks(result) {
   const rows = [];
   for (let index = 0; index < checks.length; index++) {
     const check = checks[index];
-    rows.push(check && { label: check.label, pass: check.pass, actual: check.actual, expected: check.expected });
+    rows.push(check && { label: check.label, pass: check.pass, actual: check.actual, expected: check.expected, difference: check.difference });
   }
   return rows;
 }

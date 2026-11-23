@@ -18,9 +18,21 @@ export function unwrap(value) {
   return typeof toJSON === 'function' ? Function.prototype.call.call(toJSON, value) : value;
 }
 
-export function deepEqual(rawA, rawB) {
+export function deepEqual(rawA, rawB, difference) {
   const a = unwrap(rawA);
   const b = unwrap(rawB);
+  const equal = equalValues(a, b, difference);
+  if (!equal && difference && !difference.pair) difference.pair = [a, b];
+  return equal;
+}
+
+function equalProperty(a, b, key, difference) {
+  if (deepEqual(a[key], b[key], difference)) return true;
+  if (difference) difference.path = `[${ key }]${ difference.path || '' }`;
+  return false;
+}
+
+function equalValues(a, b, difference) {
   if (a === b) return true;
   // Compare NaN without using a built-in that the suite is testing.
   // eslint-disable-next-line no-self-compare, math/prefer-number-is-nan -- only NaN differs from itself
@@ -30,7 +42,7 @@ export function deepEqual(rawA, rawB) {
     for (let i = 0; i < a.length; i++) {
       const present = hasOwnProperty.call(a, i);
       if (present !== hasOwnProperty.call(b, i)) return false;
-      if (present && !deepEqual(a[i], b[i])) return false;
+      if (present && !equalProperty(a, b, i, difference)) return false;
     }
     return true;
   }
@@ -39,7 +51,7 @@ export function deepEqual(rawA, rawB) {
     // both ways is what makes a key present on one side only a difference
     const keys = Object.keys(a);
     return keys.length === Object.keys(b).length
-      && keys.every(key => Object.hasOwn(b, key) && deepEqual(a[key], b[key]));
+      && keys.every(key => Object.hasOwn(b, key) && equalProperty(a, b, key, difference));
   }
   return false;
 }
@@ -54,7 +66,9 @@ export function checker() {
     check(label, actual, expected) {
       if (labels.has(label)) throw new Error(`duplicate check label '${ label }' - a label names one check`);
       labels.add(label);
-      checks.push({ label, actual, expected, pass: deepEqual(actual, expected) });
+      const difference = {};
+      const pass = deepEqual(actual, expected, difference);
+      checks.push({ label, actual, expected, pass, difference: pass ? undefined : difference });
     },
   };
 }

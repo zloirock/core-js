@@ -14,14 +14,21 @@ export const { FIXTURE_SHARD } = process.env;
 // every process (the runners sort their directory walks)
 export function shardSlice(list) {
   const found = /^(?<index>\d+)\/(?<total>\d+)$/u.exec(FIXTURE_SHARD);
-  const index = Number(found.groups.index);
-  const total = Number(found.groups.total);
+  const index = Number(found?.groups.index);
+  const total = Number(found?.groups.total);
+  if (!Number.isSafeInteger(total) || index >= total) {
+    throw new Error(`invalid FIXTURE_SHARD '${ FIXTURE_SHARD }': expected index/total with 0 <= index < total`);
+  }
   return list.filter((_, i) => i % total === index);
 }
 
 // Keep results separate from stdout: diagnostics can print arbitrary fixture text.
-export function emitShardSummary(payload) {
-  process.send(payload);
+export function emitShardSummary(payload, failed = false) {
+  if (process.send) process.send(payload);
+  else {
+    console.log(JSON.stringify(payload));
+    if (failed) process.exitCode = 1;
+  }
 }
 
 function zxCliPath() {
@@ -91,7 +98,7 @@ export function defaultShardCount(fixtureCount) {
 // that dies without reporting fails the run loudly instead of vanishing from the totals.
 // runner parameters travel via `extraEnv`, not CLI args - the zx CLI keeps the script name
 // in `argv._`, so positional args would land off-by-one against the zxi-invoked parent
-export async function runShards({ script, shards, extraEnv = {} }) {
+export async function runShards({ script, shards, extraEnv = {}, print = echo }) {
   if (!Number.isSafeInteger(shards) || shards < 1) throw new Error(`expected a positive integer shard count, got ${ shards }`);
   const cli = zxCliPath();
   const runs = Array.from({ length: shards }, (_, index) => new Promise((resolve, reject) => {
@@ -111,33 +118,31 @@ export async function runShards({ script, shards, extraEnv = {} }) {
     });
     child.on('error', reject);
     child.on('close', (code, signal) => {
-      if (payload === undefined) {
-        return reject(new Error(`fixture shard ${ index }/${ shards } produced no result `
-          + `(code ${ code }, signal ${ signal })\n${ output }`));
+      const shard = `fixture shard ${ index }/${ shards }`;
+      let problem;
+      if (payload === undefined) problem = `${ shard } produced no result (code ${ code }, signal ${ signal })`;
+      else if (code !== 0) problem = `${ shard } failed after reporting (code ${ code }, signal ${ signal })`;
+      else if (duplicate || !payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        problem = `${ shard } must report exactly one result object`;
       }
-      if (code !== 0 || signal) {
-        return reject(new Error(`fixture shard ${ index }/${ shards } failed after reporting `
-          + `(code ${ code }, signal ${ signal })\n${ output }`));
-      }
-      if (duplicate || !payload || typeof payload !== 'object' || Array.isArray(payload)) {
-        return reject(new Error(`fixture shard ${ index }/${ shards } must report exactly one result object\n${ output }`));
-      }
-      resolve({ payload, output });
+      resolve({ shard, payload, output, problem });
     });
   }));
   const results = await Promise.all(runs);
+  for (const { output } of results) {
+    if (output.trim()) print(output.trimEnd());
+  }
   const totals = Object.create(null);
-  for (const { payload, output } of results) {
+  for (const { shard, payload, problem } of results) {
+    if (problem) throw new Error(problem);
     for (const [key, value] of Object.entries(payload)) {
       const previous = totals[key];
       if (typeof value === 'number' && (previous === undefined || typeof previous === 'number')) {
         totals[key] = (previous ?? 0) + value;
       } else if (Array.isArray(value) && (previous === undefined || Array.isArray(previous))) {
         totals[key] = (previous ?? []).concat(value);
-      } else throw new Error(`incompatible values for shard key \`${ key }\` - only numbers and arrays of the same kind merge`);
+      } else throw new Error(`${ shard }: incompatible values for shard key \`${ key }\` - only numbers and arrays of the same kind merge`);
     }
-    const trimmed = output.trim();
-    if (trimmed) echo(trimmed);
   }
   return totals;
 }

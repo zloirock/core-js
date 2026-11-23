@@ -291,7 +291,7 @@ const fixtures = await collectFixtures(subtree ? `${ fixturesDir }/${ subtree }`
 // a child reports through IPC; the parent aggregates and decides the exit
 if (FIXTURE_SHARD) {
   for (const directory of shardSlice(fixtures)) await runFixture(directory);
-  emitShardSummary({ passed, failed, skipped, created, rewritten, regenerated });
+  emitShardSummary({ passed, failed, skipped, created, rewritten, regenerated }, failed || created);
 } else {
   const shards = defaultShardCount(fixtures.length);
   echo(green(`babel-plugin fixtures: ${ cyan(fixtures.length) } in ${ cyan(shards) } shard(s); only failures and rewrites are printed below`));

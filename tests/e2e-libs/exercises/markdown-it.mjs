@@ -3,7 +3,7 @@
 //
 // Its reason is the SYNTAX axis: its export is a class wrapped to be callable without `new`, and the
 // wrapper reads `new.target` - `Reflect.construct(cls, args, new.target && new.target !== wrapper ?
-// new.target : cls)` - a form no other library here spells. Calling it directly and constructing
+// new.target : cls)` - forwarding the constructor of a derived class. Calling it directly and constructing
 // a subclass cover the fallback and the forwarded constructor.
 //
 // linkify-it, which markdown-it pulls in, builds its URL and e-mail patterns with the sticky flag at

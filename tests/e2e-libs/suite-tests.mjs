@@ -8,7 +8,8 @@ import { assertES5 } from '../../scripts/assert-es5.mjs';
 import { closeRollupBundle, makeStrictWarn } from '../transpiler-integration/warning-policy.mjs';
 import { allCells, RUN_TIMEOUT_MS } from './cells.mjs';
 import { checkFailureLine, checkResultProblem, errorReason, renderValue } from './diagnostics.mjs';
-import { deepEqual as exerciseEqual } from './exercises/checks.mjs';
+import { checker, deepEqual as exerciseEqual } from './exercises/checks.mjs';
+import { librariesMatching } from './libraries.mjs';
 import { reconcileRows, runtimeVerdict } from './manifest.mjs';
 import { cellScript } from './page.mjs';
 import { HERE, ROOT, isCoreJsModule } from './paths.mjs';
@@ -34,7 +35,29 @@ const projected = {
 strictEqual(exerciseEqual(projected, 1), true);
 strictEqual(reads, 1);
 
-strictEqual(errorReason({ get stderr() { throw new Error('broken stderr'); }, message: 'original cause' }), 'original cause');
+const differing = checker();
+function accessor(n) {
+  return { get value() { return n; } };
+}
+differing.check('projected', accessor(2), accessor(1));
+strictEqual(checkFailureLine(differing.checks[0]), 'projected actual=at [value] 2 expected=at [value] 1');
+function projection(n) {
+  return { toJSON() { return n; } };
+}
+differing.check('toJSON', projection(3), projection(1));
+strictEqual(checkFailureLine(differing.checks[1]), 'toJSON actual=3 expected=1');
+function proxy(value, stored) {
+  return new Proxy({ n: stored }, { get: (target, key) => key === 'n' ? value : target[key] });
+}
+differing.check('proxy', proxy(1, 90), proxy(2, 91));
+strictEqual(checkFailureLine(differing.checks[2]), 'proxy actual=at [n] 1 expected=at [n] 2');
+const issues = [{ code: 'invalid_type', message: 'Expected a number' }];
+strictEqual(errorReason(new Error(JSON.stringify(issues, null, 2))).includes('Expected a number'), true);
+const indices = Array.from({ length: 150 }, (_, i) => i);
+const damaged = indices.with(149, -1);
+const mismatch = checkFailureLine({ label: 'geometry', actual: [indices], expected: [damaged] });
+strictEqual(mismatch, 'geometry actual=at [0][149] 149 expected=at [0][149] -1');
+strictEqual(errorReason(new Error(`raw exercise failed - ${ mismatch }`)), `raw exercise failed - ${ mismatch }`);
 strictEqual(renderValue(undefined) === renderValue('undefined'), false);
 strictEqual(renderValue(sparse) === renderValue([undefined, undefined]), false);
 function books(title) { return { author: { all: [{ title }] } }; }
@@ -49,9 +72,10 @@ for (const suffix of ['green', '']) {
 }
 const earlyDifference = checkFailureLine({ label: 'svg', actual: `a${ longString }`, expected: `b${ longString }` });
 strictEqual(earlyDifference.includes('actual=at offset 0 "a') && earlyDifference.includes('expected=at offset 0 "b'), true);
-const hostile = { get [Symbol.toStringTag]() { throw new Error('broken tag'); } };
-hostile.cycle = hostile;
-strictEqual(checkFailureLine({ label: 'hostile', actual: hostile, expected: {} }).startsWith('hostile actual='), true);
+// URL's inspector needs the native internal slots.
+strictEqual(renderValue(Object.create(URL.prototype)), '<unrenderable>');
+throws(() => assertES5('() => 1', 'fixture'), /fixture: not ES5/u);
+throws(() => librariesMatching('absent-library'), /no library matches filter/u);
 
 const { hasOwn } = Object;
 try {
@@ -114,6 +138,7 @@ const sibling = { code: 'PLUGIN_WARNING', plugin: 'core-js-unplugin-helper', mes
 let forwarded;
 warn(sibling, warning => { forwarded = warning; });
 strictEqual(forwarded, sibling);
+throws(() => warn({ code: 'IMPORT_IS_UNDEFINED', message: 'absent export' }), /IMPORT_IS_UNDEFINED: absent export/u);
 for (const plugin of ['core-js-unplugin', 'core-js-unplugin:post']) {
   throws(() => warn({ ...sibling, plugin }), /sibling warning/u);
 }
@@ -187,18 +212,34 @@ E2E.run = () => ({
   // eslint-disable-next-line unicorn/no-thenable -- the first resolution adopts another thenable
   then(resolve, reject) {
     resolve(oneRead);
+    resolve({ checks: [] });
     reject(new Error('late outer notification'));
   },
 });
-strictEqual((await browserRun())[0].label, valid[0].label);
+strictEqual((await browserRun())[0]?.label, valid[0].label);
 strictEqual(thenReads, 1);
 // Calling a nested thenable inline lets it observe an unfinished outer call and consumes
 // one stack frame per resolution. The exercise's terminal checks still snapshot immediately.
-for (const host of [{ queueMicrotask }, { Promise }, { setImmediate }]) {
-  const realm = { ...host, addEventListener() { /* no independent rejection in this probe */ } };
+for (const method of ['queueMicrotask', 'Promise', 'setImmediate']) {
+  let scheduled = 0;
+  class HostPromise extends Promise {
+    // eslint-disable-next-line unicorn/no-thenable -- count jobs scheduled with the pre-bundle Promise method
+    then(...args) {
+      scheduled++;
+      return Reflect.apply(Promise.prototype.then, this, args);
+    }
+  }
+  const realm = {
+    [method]: method === 'Promise' ? HostPromise : job => {
+      scheduled++;
+      globalThis[method](job);
+    },
+    addEventListener() { /* no independent rejection in this probe */ },
+  };
   const check = { label: 'ready', pass: false };
   let chain = { checks: [check] };
-  for (let index = 0; index < 5000; index++) {
+  const depth = 5000;
+  for (let index = 0; index < depth; index++) {
     const next = chain;
     chain = {
       // eslint-disable-next-line unicorn/no-thenable -- each step publishes state after resolving
@@ -209,6 +250,9 @@ for (const host of [{ queueMicrotask }, { Promise }, { setImmediate }]) {
     };
   }
   runInNewContext(browserPrograms, { window: realm, E2E: { run: () => chain }, setTimeout });
+  delete HostPromise.prototype.then;
+  // The IE rejection tracker also uses setImmediate after the run.
+  realm[method] = method === 'setImmediate' ? setImmediate : undefined;
   let timer;
   try {
     const rows = await new Promise((resolve, reject) => {
@@ -216,6 +260,7 @@ for (const host of [{ queueMicrotask }, { Promise }, { setImmediate }]) {
       realm.e2eRun(resolve, reject);
     });
     strictEqual(rows[0].pass, true);
+    strictEqual(scheduled, depth - 1);
   } finally {
     clearTimeout(timer);
   }
@@ -247,7 +292,36 @@ E2E.run = async () => {
   events.get('error')({ message: 'uncaught in frame', filename: 'bundle.js', lineno: 20 });
   return { checks: valid };
 };
-await rejects(browserRun, /uncaught in frame/u);
+await rejects(browserRun, /uncaught in frame \(bundle\.js:20\)/u);
+delete window.e2eUncaughtError;
+E2E.run = () => new Promise(() => { /* never settles */ });
+let pendingError;
+window.e2eRun(() => {
+  throw new Error('pending exercise completed');
+}, reason => { pendingError = reason; });
+events.get('error')({ message: 'pending failure', filename: 'pending.js', lineno: 3 });
+strictEqual(pendingError?.message, 'pending failure (pending.js:3)');
+for (const mode of [7, 8, 10, 11, undefined]) {
+  const document = { documentMode: mode };
+  const realm = { document, addEventListener() { /* unused */ } };
+  runInNewContext(browserPrograms, { window: realm, document, setTimeout });
+  strictEqual(realm.e2eCompatibilityMode(), mode === 11 ? undefined : mode);
+}
+
+const banner = { innerText: '' };
+const legacyDocument = { documentMode: 8, getElementById: id => id === 'banner' ? banner : null };
+let frameResult;
+const compatibilityWindow = {
+  document: legacyDocument,
+  parent: { e2eFrameDone: (...args) => { frameResult = args; } },
+};
+for (const name of ['frame.js', 'banner.js']) {
+  const entry = await readFile(join(HERE, 'harness', name), 'utf8');
+  runInNewContext(browserPrograms + script + entry, { window: compatibilityWindow, document: legacyDocument });
+}
+deepEqual(frameResult.slice(2), [8, null, 'IE compatibility mode']);
+strictEqual(banner.className, 'red');
+strictEqual(banner.innerText, 'IE compatibility mode - documentMode=8');
 
 // The exercise's rejection and the native marker share a tracker. Timers can run before
 // either event. Only the marker itself may release a pending verdict.
@@ -346,6 +420,7 @@ const probe = `
   import { pathToFileURL } from 'node:url';
   import { preflight } from ${ JSON.stringify(new URL('./preflight.mjs', import.meta.url).href) };
   import { runWithDeadline } from ${ JSON.stringify(new URL('./deadline.mjs', import.meta.url).href) };
+  import { errorReason } from ${ JSON.stringify(new URL('./diagnostics.mjs', import.meta.url).href) };
   import { rawChecks } from ${ JSON.stringify(rawModule) };
   import { strippedFails, strippedLeg } from ${ JSON.stringify(strippedModule) };
   const { run: highlight } = await import(${ JSON.stringify(highlightModule) });
@@ -379,6 +454,26 @@ const probe = `
     await writeFile(mutating, 'const check = { label: "ok", pass: true, actual: { n: 0 } };'
       + 'export function run() { check.actual.n++; return { checks: [check] }; }');
     await rejects(rawChecks(mutating, { repeat: true }), /not deterministic: 'ok' gave .*1.*first run.*2.*second/);
+    await writeFile(mutating, 'let n = 0; export function run() { return { checks: [{ label: "svg".repeat(100), pass: true,'
+      + ' actual: "x".repeat(4096) + (++n === 1 ? "red" : "green") }] }; }');
+    await rejects(rawChecks(mutating, { repeat: true }), error => {
+      match(errorReason(error), /offset 4096 .*red.*first run.*offset 4096 .*green.*second/);
+      return true;
+    });
+    for (const collection of [
+      'new Set([n])',
+      'new Map([["key", n]])',
+      'new Map([[new Date(0), n], [new Date(0).toISOString(), 0]])',
+      'new Set(n === 1 ? [1, 2] : [2, 1])',
+      'Object.assign(new Map(), { map: n })',
+      'Object.assign(new Set(), { set: n })',
+    ]) {
+      await writeFile(mutating, 'let n = 0; export function run() { n++; return { checks: [{ label: "collection", pass: true, actual: '
+        + collection + ' }] }; }');
+      await rejects(rawChecks(mutating, { repeat: true }), /collection.*1.*first run.*2.*second/);
+    }
+    await writeFile(mutating, 'let pass = false; export function run() { pass = !pass; return { checks: [{ label: "ok", pass, actual: 1 }] }; }');
+    await rejects(rawChecks(mutating, { repeat: true }), /pass changed from true to false/);
     await writeFile(stalled, 'export function run() { for (;;) {} }');
     await rejects(rawChecks(stalled, { timeout: 500 }), /stalled\\.mjs run\\(\\) did not finish within 500ms/);
     const twice = join(scratch, 'twice.mjs');
@@ -405,7 +500,11 @@ const probe = `
     await new Promise(resolve => setTimeout(resolve, 250));
     await rejects(access(completed), { code: 'ENOENT' }, 'the watchdog must stop the nested command');
   } finally {
-    await rm(scratch, { recursive: true, force: true });
+    try {
+      await rm(scratch, { recursive: true, force: true });
+    } catch (error) {
+      console.warn('could not remove ' + scratch + ': ' + error.message);
+    }
   }
 
   const expected = ['ok'];
@@ -441,6 +540,10 @@ const probe = `
   const callbackError = 'this.E2E={run:function(){queueMicrotask(function(){queueMicrotask(function(){Promise.resolve();});});'
     + 'return {checks:[{label:"ok",pass:true}]};}}';
   match((await run(callbackError)).reason, /Promise is not defined/);
+  const timerError = 'this.E2E={run:function(){setTimeout(function(){throw Error("queued timer")},0);'
+    + 'return {checks:[{label:"ok",pass:true}]};}}';
+  match((await run(timerError)).reason, /queued timer/);
+  await rejects(preflight(timerError, 'timer'), /queued timer/);
   const latePromise = 'this.E2E={run:function(){'
     + '(async function () { for (var i = 0; i < 25; i++) await 0; setInterval(function () {}, 60000); })();'
     + 'return {checks:[{label:"ok",pass:true}]};}}';

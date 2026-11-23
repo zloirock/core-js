@@ -35,31 +35,28 @@ async function withTmpDir(fn) {
   }
 }
 
-// The tools with no code to classify by. esbuild and the webpack family already ERROR on an import
-// they cannot resolve - the case above - so what is left here is everything else they noticed, and
-// both hand it back as a value. Only webpack is silent about it on its own, since nothing calls
-// `stats.toString()`; esbuild's JS API logs at `warning` by default, and is set below to `silent` so
-// that this stays the one place a warning is printed rather than the second.
-//
-// Six of the eight adapters are reached by one of the two - esbuild, webpack and rspack here, rollup,
-// rolldown and vite by the handler above. rsbuild and farm are neither: both turn their own logging
-// down to keep progress lines out of a run this long, and neither hands warnings back as a value.
-// On those two a plugin that gave up on a module says so to nobody, and only the runtime assertions
-// are left to notice.
+// esbuild and the webpack family reject unresolved imports themselves. Print other warnings
+// on both successful and failed compilations. esbuild's own logger is silent to avoid duplicates.
+// The Rollup family delegates warning escalation to makeStrictWarn in warning-policy.mjs.
+// Rsbuild and Farm use their own logging and error paths.
 function reportWarnings(label, messages) {
   for (const message of messages) console.warn(`[${ label }] ${ message }`);
+}
+
+function esbuildWarning({ pluginName, text }) {
+  return pluginName ? `[${ pluginName }] ${ text }` : text;
 }
 
 export function makeBundlers({
   // the directory vite, rsbuild and farm root their configuration at
   root,
-  // the plugin name the escalation above matches on, derived by the caller from an instance
+  // the plugin name makeStrictWarn matches on, derived by the caller from an instance
   unpluginName,
 } = {}) {
   // vite, rsbuild and farm all resolve from `root`, and each of them silently falls back to the
   // process working directory - which under `zxi cd` is whichever suite happens to be running
   if (!root) throw new Error('makeBundlers: `root` is required');
-  // required rather than defaulted, for the reason the escalation block gives: a default IS a
+  // required rather than defaulted, because the plugin name comes from the caller: a default IS a
   // literal, and its drift is the silent kind
   if (!unpluginName) throw new Error('makeBundlers: `unpluginName` is required');
   const strictWarn = makeStrictWarn(unpluginName);
@@ -81,10 +78,14 @@ export function makeBundlers({
       });
       try {
         const stats = await promisify(instance.run.bind(instance))();
-        if (stats.hasErrors()) throw new Error(stats.compilation.errors[0].message);
         if (stats.hasWarnings()) reportWarnings(name, stats.compilation.warnings.map(warning => warning.message));
+        if (stats.hasErrors()) throw new Error(stats.compilation.errors[0].message);
       } finally {
-        await promisify(instance.close.bind(instance))();
+        try {
+          await promisify(instance.close.bind(instance))();
+        } catch (error) {
+          console.warn(`could not close ${ name } compiler: ${ error.message }`);
+        }
       }
       return { code: await readFile(join(dir, filename), 'utf8') };
     });
@@ -98,19 +99,25 @@ export function makeBundlers({
     // taken and ignored - a parameter that is accepted and dropped reads as one that is honoured
     async esbuild(input, plugins = []) {
       const { build } = await import('esbuild');
-      const result = await build({
-        ...typeof input === 'string' ? { entryPoints: [input] } : input,
-        plugins,
-        bundle: true,
-        write: false,
-        // see `reportWarnings`: the line it prints is the one this suite controls
-        logLevel: 'silent',
-        // the runner loads what it built, and this suite takes the output of two of its tools as
-        // CommonJS - this one and farm below - hence the extension that goes with it
-        format: 'cjs',
-        platform: 'node',
-      });
-      reportWarnings('esbuild', result.warnings.map(warning => warning.text));
+      let result;
+      try {
+        result = await build({
+          ...typeof input === 'string' ? { entryPoints: [input] } : input,
+          plugins,
+          bundle: true,
+          write: false,
+          // see `reportWarnings`: the line it prints is the one this suite controls
+          logLevel: 'silent',
+          // the runner loads what it built, and this suite takes the output of two of its tools as
+          // CommonJS - this one and farm below - hence the extension that goes with it
+          format: 'cjs',
+          platform: 'node',
+        });
+      } catch (error) {
+        reportWarnings('esbuild', (error.warnings ?? []).map(esbuildWarning));
+        throw error;
+      }
+      reportWarnings('esbuild', result.warnings.map(esbuildWarning));
       return { code: result.outputFiles[0].text, ext: '.cjs' };
     },
 
@@ -252,7 +259,7 @@ export function makeBundlers({
           },
           server: { hmr: false },
         });
-        // farm emits .js but both suites are `"type": "module"` - force CJS via .cjs extension
+        // Farm emits CommonJS in index.js. Use .cjs so Node selects the correct loader.
         return { code: await readFile(join(dir, 'index.js'), 'utf8'), ext: '.cjs' };
       });
     },

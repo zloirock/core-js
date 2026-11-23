@@ -14,7 +14,8 @@
 // engine without `Symbol` the global version's has to be on the global object before `_Symbol.js` loads.
 // The lookup's own `typeof global` and `typeof self` lower to Babel's `_typeof`, which puts `es.symbol`
 // into `_freeGlobal.js` and `_root.js` ahead of that read - in every `usage-global` cell but unplugin's
-// `pre`, which runs before Babel emits the helper. Handed a root without `Symbol`, `to_array` goes red;
+// `pre`, which runs before Babel emits the helper. The exercise also requests Symbol and can
+// supply it globally ahead of lodash. Without a root Symbol, `to_array` goes red;
 // without `Uint8Array`, the clone throws. The one part of the lookup a provider does see is `self`,
 // injected into `_root.js` by both: in the global version `web.self` redefines a `self` that is not the
 // global object, and in `usage-pure` the read itself is replaced by core-js's own `self`.
@@ -41,7 +42,8 @@ export function run() {
     [true, true, true, true, true]);
 
   const key = Symbol('key');
-  const source = { m: new Map([['k', { n: [1] }]]), s: new Set([2]), d: new Date(0), t: new Uint8Array([3, 4]), [key]: 5 };
+  const source = { m: new Map([['k', { n: [1] }]]), s: new Set([2]), d: new Date(0), t: new Uint8Array([3, 4]) };
+  source[key] = 5;
   const copy = cloneDeep(source);
   check('clone_deep', [
     copy.m.get('k'), copy.m.get('k') !== source.m.get('k'), copy.s.has(2), copy.d.getTime(),
@@ -54,11 +56,10 @@ export function run() {
     isEqual(new Set([{ b: 1 }]), new Set([{ b: 1 }])),
   ], [true, false, true]);
 
-  const iterable = {
-    * [Symbol.iterator]() {
-      yield 6;
-      yield 7;
-    },
+  const iterable = {};
+  iterable[Symbol.iterator] = () => {
+    let value = 6;
+    return { next: () => value <= 7 ? { value: value++, done: false } : { done: true } };
   };
   check('to_array', [toArray(new Set([1, 2])), toArray(new Map([['a', 1]])), toArray(iterable)], [[1, 2], [['a', 1]], [6, 7]]);
 

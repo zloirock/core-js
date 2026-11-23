@@ -11,19 +11,14 @@
 // below) keep what echarts and zrender put into the cell to about half of what importing the whole
 // package does, measured on the `usage-global` cell.
 //
-// The artifact is the check. Every assertion below reads GEOMETRY out of the emitted SVG - bar
-// heights against their data, the linear scale behind a line, two projected polygons that have to
-// come out side by side - so a rewrite that lands wrong changes a number rather than throwing. An
-// identity renderer, one handing its input back, reddens every one of them.
+// The exercise checks the rendered SVG against the input data, including the bar heights,
+// the line's scale and the relative placement of two projected polygons. It also checks
+// the option and map round-trips, disposal and the ECharts version.
 //
-// The render is READ by two more real packages rather than by code written for this file: the
-// document by fast-xml-parser, the path geometry by svg-pathdata. Both go through the same
-// down-compile and injection as echarts, so the cell takes three libraries to the floor - which is
-// the suite's whole subject. The one read left to this file is WHERE an element was placed, off its
-// `transform`, and that read stays bound to the form echarts writes. That does not let a broken
-// reader agree with a broken writer: the raw tier pins what both do untransformed, and the anchored
-// checks tie what is read to constants this file owns - the data, the categories, the placement the
-// option asked for - so a reader drifting in step with the writer still has to reproduce them.
+// fast-xml-parser reads the document and svg-pathdata decodes paths. Both packages pass
+// through the same compilation and injection as ECharts. The exercise interprets the SVG
+// viewport and composes element transforms with their ancestors to compare bar bounds,
+// marker centers and text origins in a common coordinate system.
 //
 // Canvas is deliberately not registered: `SVGRenderer` alone keeps the graph off `zrender`'s canvas
 // paths, which no realm here can execute. Interaction is out of scope for the same reason - mouse,
@@ -342,7 +337,7 @@ export function run() {
     echarts.getMap('demo').geoJSON.features.length, FEATURES.features.length);
 
   // --- the instance
-  check('option: the data round-trips', first.roundTrip.series?.[0]?.data, VALUES);
+  check('option: the data round-trips', [first.roundTrip.series?.[0]?.data, first.roundTrip.xAxis?.[0]?.data], [VALUES, CATEGORIES]);
   check('instance: dispose is reported', first.disposed, true);
   check('module: it names its version', typeof echarts.version, 'string');
 

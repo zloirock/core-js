@@ -2,6 +2,7 @@
 // Installed before the bundle in the frame and the standalone page. An uncaught error from either
 // bundle evaluation or the exercise must reach the cell's verdict.
 (function () {
+  if (window.document && document.documentMode && document.documentMode < 11) return;
   // Capture the native constructor before the bundle can replace it. Its rejection event is
   // delivered by the same tracker as an unhandled rejection from the exercise.
   // eslint-disable-next-line es/no-promise -- optional native rejection tracker, absent in IE11

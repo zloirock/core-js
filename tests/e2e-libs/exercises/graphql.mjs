@@ -19,7 +19,7 @@
 // With every getter answering `undefined` the exercise dies on its first type check, which is how
 // that path is known to be driven. The surface comes from elsewhere in the library: measured on the
 // babel-plugin cells against the union of the eleven reference baselines before it, `usage-global`
-// gains `String#matchAll` and `Promise.allSettled`, `usage-pure` those two and the array `flat` and
+// gains `String#matchAll`, `Promise.allSettled` and array `flat`, and `usage-pure` also adds array
 // `entries`. `matchAll` is `getLocation`, run for every error location here; `flat` joins the
 // fields of a conflict found in subfields, which `validate_conflict` provokes; `allSettled` and the
 // array `entries` are exercised by the async union query below.
@@ -104,7 +104,8 @@ export function run() {
   // --- execution: arguments with defaults, aliases, fragments on an interface and a union ---
   const books = exec('{ author(id: "a1") { name all: books { title } long: books(min: 200) { title } } }');
   check('execute_args', books.data, { author: { name: 'Ann', all: [{ title: 'Alpha' }, { title: 'Beta' }], long: [{ title: 'Beta' }] } });
-  const union = exec('query($f: Filter) { items(filter: $f) { __typename ... on Book { pages } ... on Node { id } } }', { f: { prefix: 'B', order: 'DESC' } });
+  const union = exec('query($f: Filter) { items(filter: $f) { __typename ... on Book { pages } ... on Author { authorId: id } ... on Node { id } } }',
+    { f: { prefix: 'B', order: 'DESC' } });
   check('execute_union', union.data, { items: [{ __typename: 'Book', pages: 300, id: 'b2' }] });
   check('execute_null', exec('{ author(id: "zz") { name } }').data, { author: null });
   check('execute_sum', exec('{ sum(a: 20, b: 22) }').data, { sum: 42 });
@@ -148,7 +149,7 @@ export function run() {
   schema.getType('Author').isTypeOf = value => value === AUTHOR;
   const rootValue = { items: () => new Promise(resolve => resolve([AUTHOR])) };
   // eslint-disable-next-line promise/prefer-await-to-then -- keep async execution in graphql
-  return graphql({ schema, source: '{ items { ... on Author { name } } }', rootValue }).then(result => {
+  return graphql({ schema, source: '{ items { ... on Author { name } ... on Book { bookId: id } } }', rootValue }).then(result => {
     check('execute_async_union', result.data, { items: [{ name: 'Ann' }] });
     return { checks };
   });

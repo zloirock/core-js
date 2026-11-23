@@ -7,9 +7,9 @@
 // it in the corpus did. Measured on the babel-plugin cells against the union of the six reference
 // baselines before it: `usage-pure` adds six entries - `flatMap`, string `includes`,
 // `Reflect.ownKeys`, `Number.MAX_SAFE_INTEGER`, `Object.is` and `queueMicrotask` - and
-// `usage-global` the last four of them. The checks below are laid out so that each of them EXECUTES
-// rather than only being injected: `flatMap` flattens the column groups, `includes` is how a dotted
-// accessor key is recognised, `MAX_SAFE_INTEGER` is the upper bound a column size is clamped to,
+// `usage-global` adds `flatMap`, its unscopables entry, `MAX_SAFE_INTEGER`, `Object.is` and
+// `queueMicrotask`. The checks below execute them: `flatMap` flattens the column groups, `includes`
+// recognises a dotted accessor key, `MAX_SAFE_INTEGER` is the upper bound a column size is clamped to,
 // and `queueMicrotask` is how the store binding defers the page reset a filter change causes.
 // `Object.is` and `Reflect.ownKeys` need no check of their own: every `set*` call below goes
 // through the table's structural state comparison, which starts with the one and walks keys with

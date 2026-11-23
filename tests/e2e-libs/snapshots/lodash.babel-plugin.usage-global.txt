@@ -34,7 +34,6 @@ core-js/modules/es.array.splice
 core-js/modules/es.array.unscopables.flat-map
 core-js/modules/es.array.values
 core-js/modules/es.date.to-json
-core-js/modules/es.date.to-primitive
 core-js/modules/es.function.name
 core-js/modules/es.iterator.constructor
 core-js/modules/es.iterator.drop
@@ -50,7 +49,6 @@ core-js/modules/es.iterator.reduce
 core-js/modules/es.iterator.some
 core-js/modules/es.iterator.take
 core-js/modules/es.iterator.to-array
-core-js/modules/es.json.to-string-tag
 core-js/modules/es.map.constructor
 core-js/modules/es.map.get-or-insert
 core-js/modules/es.map.get-or-insert-computed
@@ -73,14 +71,11 @@ core-js/modules/es.math.sign
 core-js/modules/es.math.sinh
 core-js/modules/es.math.sum-precise
 core-js/modules/es.math.tanh
-core-js/modules/es.math.to-string-tag
 core-js/modules/es.math.trunc
-core-js/modules/es.number.constructor
 core-js/modules/es.object.get-own-property-symbols
 core-js/modules/es.object.get-prototype-of
 core-js/modules/es.object.has-own
 core-js/modules/es.object.keys
-core-js/modules/es.object.set-prototype-of
 core-js/modules/es.object.to-string
 core-js/modules/es.parse-int
 core-js/modules/es.promise.catch
@@ -122,8 +117,6 @@ core-js/modules/es.string.trim-start
 core-js/modules/es.symbol.constructor
 core-js/modules/es.symbol.description
 core-js/modules/es.symbol.iterator
-core-js/modules/es.symbol.to-primitive
-core-js/modules/es.symbol.to-string-tag
 core-js/modules/es.typed-array.at
 core-js/modules/es.typed-array.copy-within
 core-js/modules/es.typed-array.entries

@@ -14,7 +14,6 @@
 @core-js/pure/full/array/instance/splice
 @core-js/pure/full/array/instance/unshift
 @core-js/pure/full/function/instance/name
-@core-js/pure/full/get-iterator-method
 @core-js/pure/full/instance/entries
 @core-js/pure/full/instance/for-each
 @core-js/pure/full/instance/includes

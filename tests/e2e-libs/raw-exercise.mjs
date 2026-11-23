@@ -1,6 +1,6 @@
 import { basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { isDeepStrictEqual } from 'node:util';
+import { isDeepStrictEqual, types } from 'node:util';
 import { runWithDeadline } from './deadline.mjs';
 import { captureChecks, checkResultProblem, checkRows, renderValues } from './diagnostics.mjs';
 import { unwrap } from './exercises/checks.mjs';
@@ -41,12 +41,19 @@ function snapshotActual(raw, copies = new WeakMap()) {
   if (!value || typeof value !== 'object') return value === 0 ? 0 : value;
   if (copies.has(value)) return copies.get(value);
   const array = Array.isArray(value);
-  const copy = array ? new Array(value.length) : Object.create(null);
+  const properties = array ? new Array(value.length) : Object.create(null);
+  const map = types.isMap(value);
+  const entries = map || types.isSet(value) ? [] : null;
+  // Keep ordered contents separate from the collection's own enumerable properties.
+  const copy = entries ? { [map ? 'map' : 'set']: entries, properties } : properties;
   copies.set(value, copy);
   if (array) {
     for (let i = 0; i < value.length; i++) if (Object.hasOwn(value, i)) copy[i] = snapshotActual(value[i], copies);
   } else {
-    for (const [key, entry] of Object.entries(value)) copy[key] = snapshotActual(entry, copies);
+    if (entries) {
+      for (const entry of value) entries.push(snapshotActual(entry, copies));
+    }
+    for (const [key, entry] of Object.entries(value)) properties[key] = snapshotActual(entry, copies);
   }
   return copy;
 }
@@ -60,7 +67,8 @@ function assertDeterministic(name, rows, first, second) {
     const other = second[index];
     if (check.label !== other.label) throw notDeterministic(`check #${ index + 1 } is '${ check.label }' on the first run and '${ other.label }' on the second`);
     const actual = snapshotActual(other.actual);
-    if (check.pass !== other.pass || !isDeepStrictEqual(first[index], actual)) {
+    if (check.pass !== other.pass) throw notDeterministic(`'${ check.label }' pass changed from ${ check.pass } to ${ other.pass }`);
+    if (!isDeepStrictEqual(first[index], actual)) {
       const [before, after] = renderValues(first[index], actual);
       throw notDeterministic(`'${ check.label }' gave ${ before } on the first run and ${ after } on the second`);
     }

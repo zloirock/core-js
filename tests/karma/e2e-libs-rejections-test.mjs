@@ -4,6 +4,7 @@ import { deepEqual } from 'node:assert/strict';
 import { once } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
+import { promisify } from 'node:util';
 import { webkit } from 'playwright';
 
 // Start navigation as the parent is parsed. Waiting for its load event before inserting the
@@ -71,7 +72,17 @@ export async function checkWebKitRejections() {
       }
     }
   } finally {
-    server.close();
-    await browser.close();
+    try {
+      await browser.close();
+    } catch (error) {
+      console.warn(`could not close WebKit: ${ error.message }`);
+    }
+    if (server.listening) {
+      try {
+        await promisify(server.close.bind(server))();
+      } catch (error) {
+        console.warn(`could not close HTTP server: ${ error.message }`);
+      }
+    }
   }
 }

@@ -88,6 +88,7 @@ jobs:
   e2e-libs:
     if: *not-duplicate
     runs-on: windows-2022
+    timeout-minutes: 90
     env:
       PLAYWRIGHT_BROWSERS_PATH: D:\ms-playwright
     steps:
@@ -111,12 +112,13 @@ jobs:
       # the runner has four vCPUs, and the default takes half of `os.cpus()`, which leaves two of
       # them idle while the runtime tier builds - its cells are CPU-bound, one build per process
       - run: npm run test-e2e-libs
+        timeout-minutes: 75
         env:
           E2E_LIBS_SHARDS: 4
       # the per-cell pages are the node pre-flight's table, re-runnable in a browser, and
       # manifest.json records aggregate cell verdicts. browser-results.json identifies which
       # browser reported each one, including IE11. Build failures are reported in the run log.
-      - if: failure()
+      - if: failure() || cancelled()
         uses: actions/upload-artifact@v7
         with:
           name: e2e-libs-artifacts

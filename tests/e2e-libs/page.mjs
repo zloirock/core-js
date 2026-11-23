@@ -47,7 +47,7 @@ function html(cell, checks, script) {
   // the banner's text is white unconditionally, so a state class this stylesheet does not define
   // paints white on white; the state rules carry the id, since a class alone loses to it on specificity
   return `<!doctype html>
-<html><head><meta charset="utf-8"><title>e2e-libs ${ esc(title) }/${ esc(subtitle) }</title>
+<html><head><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta charset="utf-8"><title>e2e-libs ${ esc(title) }/${ esc(subtitle) }</title>
 <style>
   body{font:14px/1.5 system-ui,sans-serif;margin:2rem;max-width:720px}
   #${ PAGE.banner }{padding:1rem;border-radius:8px;font-weight:700;font-size:18px;color:#fff;background:#525252}
@@ -78,7 +78,7 @@ function html(cell, checks, script) {
 function frameHtml(segments) {
   const harness = `${ '../'.repeat(segments.length + 1) }harness`;
   return `<!doctype html>
-<html><head><meta charset="utf-8"></head><body>
+<html><head><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta charset="utf-8"></head><body>
   <script src="${ harness }/trap.js"></script>
   <script src="bundle.js"></script>
   <script src="cell.js"></script>

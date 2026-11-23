@@ -8,7 +8,7 @@
     "@codemirror/state": "^6.7.1",
     "@lezer/common": "^1.5.2",
     "@lezer/css": "^1.3.4",
-    "@lezer/highlight": "^1.2.3",
+    "@lezer/highlight": "1.2.3",
     "@lezer/html": "^1.3.13",
     "@lezer/javascript": "^1.5.4",
     "@rollup/plugin-babel": "^7.1.0",
@@ -28,9 +28,9 @@
     "es-toolkit": "^1.52.0",
     "fast-xml-parser": "^4.5.7",
     "graphql": "^16.14.2",
-    "highlight.js": "^11.12.0",
+    "highlight.js": "11.12.0",
     "htmlparser2": "^12.0.0",
-    "ical.js": "^2.2.1",
+    "ical.js": "2.2.1",
     "immutable": "^5.1.9",
     "kysely": "^0.29.6",
     "liquidjs": "^10.30.0",
@@ -39,12 +39,15 @@
     "minimatch": "^10.2.6",
     "ml-matrix": "^6.15.0",
     "nth-check": "^3.0.1",
-    "planck": "^1.5.0",
+    "planck": "1.4.2",
     "rollup": "^4.62.4",
     "rxjs": "^7.8.2",
-    "svg-pathdata": "^9.0.0",
+    "svg-pathdata": "^8.0.0",
     "three": "^0.185.1",
     "xregexp": "^5.1.3",
     "zod3": "npm:zod@^3.25.76"
+  },
+  "overrides": {
+    "stage-js": "1.0.1"
   }
 }

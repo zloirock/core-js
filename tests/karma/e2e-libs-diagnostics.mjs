@@ -1,4 +1,4 @@
-// Observed on real IE11. A different assertion or another browser still fails the cell.
+// Expected IE11 errors, matched by cell and message. A different assertion or browser fails the cell.
 const iterableHelp = '\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.';
 const spread = `Invalid attempt to spread non-iterable instance.${ iterableHelp }`;
 const iterate = `Invalid attempt to iterate non-iterable instance.${ iterableHelp }`;
@@ -22,9 +22,8 @@ const IE11_ERRORS = new Map([
   ['liquidjs/unplugin/usage-pure/pre', /^Object doesn't support property or method 'from', line:1, col:1$/u],
   ['ical/unplugin/usage-pure/pre', spread],
   ['minimatch/unplugin/usage-pure/pre', weakSet],
-  ['immutable/unplugin/usage-pure/pre', iterate],
   ['lodash/babel-plugin/usage-pure', lodash],
-  ['lodash/unplugin/usage-pure/pre', symbol],
+  ['lodash/unplugin/usage-pure/pre', lodash],
   ['lodash/unplugin/usage-pure/post', lodash],
   ['lodash/unplugin/usage-pure/pre+post', lodash],
 ]);

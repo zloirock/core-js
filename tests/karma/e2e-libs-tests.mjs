@@ -18,7 +18,11 @@ try {
   deepEqual(JSON.parse(await readFile(previous)), { attempt: 1 });
   deepEqual(JSON.parse(await readFile(path)), { attempt: 2 });
 } finally {
-  await rm(scratch, { recursive: true, force: true });
+  try {
+    await rm(scratch, { recursive: true, force: true });
+  } catch (error) {
+    console.warn(`could not remove ${ scratch }: ${ error.message }`);
+  }
 }
 
 const frames = [{ label: 'diagnostic' }];

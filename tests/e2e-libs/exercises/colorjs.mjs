@@ -17,10 +17,9 @@
 // which re-dispatches `Symbol.replace`, keeps the group map in a `WeakMap` and calls the original
 // through `RegExp.exec`. The library names none of those three itself, so `es.symbol.replace` and
 // its pure twin enter the baselines from the FORM alone - unlike `object/from-entries` and the
-// `reflect/has`/`set` pair beside them, which are new to the corpus but named by the library and so
-// owed to usage detection. The percentage checks are what drive the form: a coordinate's range comes
-// out of `params.groups`, so a lowering that hands back no groups object throws here rather than
-// rounding differently.
+// `reflect/has`/`set` pair beside them, which come from library usage. The global reference also gains
+// `es.regexp.escape` relative to the preceding fixtures. The percentage checks drive the form: a
+// coordinate's range comes out of `params.groups`, so a lowering that omits the groups object throws.
 //
 // A run-time `new RegExp` would not do: es-toolkit and chrono-node build named groups from strings,
 // which Babel cannot lower, and only the global version installs core-js's RegExp - the pure one
@@ -51,7 +50,7 @@
 // `Proxy` behind a `typeof Proxy === 'undefined'` guard, so IE11 takes the library's fallback and
 // the accessor path is the one thing this exercise could not answer for. That is also what the
 // `reflect/has`/`set` pair in these baselines is: injected from the Proxy branch, and executed by
-// nothing here, while the other two new entries do run - the named-group literal 12 times over the
+// nothing here, while the parser and object conversion do run - the named-group literal 12 times over the
 // checks below and `Object.fromEntries` 6.
 import Color from 'colorjs.io';
 import { checker } from './checks.mjs';
@@ -70,9 +69,9 @@ export function run() {
 
   // --- the parser, and the named groups under it: a percentage carries the range its type declares,
   // and serialising an LCH lightness prints one back ---
-  const percent = new Color('rgb(0% 50% 100% / 0.5)');
-  check('percent_parse', [percent.coords, percent.alpha], [[0, 0.5, 1], 0.5]);
-  check('percent_serialize', new Color('lch', [50, 40, 200], 0.5).toString(), 'lch(50% 40 200 / 0.5)');
+  const percent = new Color('lab(50% 40% -40% / 0.5)');
+  check('percent_parse', [percent.coords, percent.alpha], [[50, 50, -50], 0.5]);
+  check('percent_serialize', new Color('oklab', [0.5, 0, 0], 0.5).toString(), 'oklab(50% 0 0 / 0.5)');
   check('hex_named', new Color('rebeccapurple').toString({ format: 'hex' }), '#639');
 
   // --- conversion: CSS Color 4 prints the first two for red, white pins the top of L*, and mid sRGB

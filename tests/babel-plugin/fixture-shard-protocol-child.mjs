@@ -1,4 +1,5 @@
 // The child half of fixture-shard-protocol.mjs, forked by runShards.
+import { setTimeout } from 'node:timers/promises';
 import { FIXTURE_SHARD, emitShardSummary } from './fixture-shards.mjs';
 
 const [index] = FIXTURE_SHARD.split('/', 1);
@@ -6,12 +7,34 @@ const [index] = FIXTURE_SHARD.split('/', 1);
 // Ordinary output deliberately resembles the old report format and lacks a trailing newline.
 process.stdout.write(`[fixture-shard-protocol] shard ${ index }: @@FIXTURE-SHARD@@{ordinary output}@@`);
 
+if (process.env.SHARD_PROTOCOL_ORDER) {
+  // Shard 1 leaves the marker as it exits. Shard 0 finishes its own split write afterwards.
+  const marker = process.env.SHARD_PROTOCOL_ORDER;
+  if (index === '0') {
+    const deadline = Date.now() + 30_000;
+    while (!await fs.pathExists(marker)) {
+      if (Date.now() >= deadline) throw new Error('shard 1 did not exit');
+      await setTimeout(10);
+    }
+  } else process.once('exit', () => {
+    // eslint-disable-next-line node/no-sync -- the exit handler cannot await a write
+    fs.writeFileSync(marker, '');
+  });
+  const bytes = Buffer.from('🌍');
+  process.stdout.write(bytes.subarray(0, 2));
+  await setTimeout(30);
+  process.stdout.write(bytes.subarray(2));
+}
+
 // SILENT exits cleanly having said nothing - the sneakier half of "produced no result", since a crash
 // is loud on its own while a silent zero would just vanish from the totals
-if (!process.env.SHARD_PROTOCOL_SILENT) {
+if (!process.env.SHARD_PROTOCOL_SILENT && !process.env.SHARD_PROTOCOL_EARLY_EXIT) {
   if (process.env.SHARD_PROTOCOL_DUPLICATE) emitShardSummary({ passed: 1 });
   if (process.env.SHARD_PROTOCOL_BAD) emitShardSummary({ passed: 'not a number' });
   else if (process.env.SHARD_PROTOCOL_MIXED) emitShardSummary({ passed: index === '0' ? 1 : [2] });
+  else if (process.env.SHARD_PROTOCOL_REVERSE) emitShardSummary({ passed: index === '0' ? [1] : 2 });
+  else if (process.env.SHARD_PROTOCOL_NULL) emitShardSummary(null);
+  else if (process.env.SHARD_PROTOCOL_STRING) emitShardSummary('invalid');
   else if (process.env.SHARD_PROTOCOL_ARRAY) emitShardSummary([]);
   else emitShardSummary({
     passed: Number(index) + 1,
@@ -19,4 +42,4 @@ if (!process.env.SHARD_PROTOCOL_SILENT) {
   });
 }
 
-if (process.env.SHARD_PROTOCOL_FATAL) process.exitCode = 2;
+if (process.env.SHARD_PROTOCOL_FATAL || process.env.SHARD_PROTOCOL_EARLY_EXIT) process.exitCode = 2;

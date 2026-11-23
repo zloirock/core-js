@@ -1,5 +1,6 @@
 import { access } from 'node:fs/promises';
 import { deepEqual, rejects } from 'node:assert/strict';
+import { makeBundlers } from './bundlers.mjs';
 import { withTmpDir, verifyInNode, verifyPhases, verifyDynamic } from './runtime.mjs';
 
 // An earlier global bundle must never supply natives to a later cell, even when
@@ -63,5 +64,21 @@ await rejects(withTmpDir(async dir => {
   throw new RangeError('cleanup control');
 }, "transpiler runtime's control-"), /cleanup control/u);
 await rejects(access(temporary), { code: 'ENOENT' });
+checks += 2;
+const bundlers = makeBundlers({ root: import.meta.dirname, unpluginName: 'fixture' });
+const warnings = [];
+const { warn } = console;
+try {
+  console.warn = warning => warnings.push(warning);
+  await rejects(bundlers.esbuild({ stdin: { contents: '' } }, [{
+    name: 'fixture',
+    setup(build) {
+      build.onStart(() => ({ warnings: [{ text: 'build warning' }], errors: [{ text: 'build failure' }] }));
+    },
+  }]), /build failure/u);
+} finally {
+  console.warn = warn;
+}
+deepEqual(warnings, ['[esbuild] [fixture] build warning']);
 checks += 2;
 console.log(`integration-runtime: ${ checks } passed, 0 failed`);

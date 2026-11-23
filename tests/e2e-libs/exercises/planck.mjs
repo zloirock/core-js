@@ -16,7 +16,7 @@
 // - which is what the baselines record. `usage-global` injects `es.string.sub`, since patching a
 // prototype costs nothing to be wrong about. `usage-pure` rewrites NOTHING: the receiver resolves to
 // planck's own class, so no helper is put in front of the call. Measured both ways, from the sources
-// and from the published JS (`.work/defense/probe-planck-annotations.mjs`) - the annotations are not
+// and from the published JS - the annotations are not
 // what decides it. So the collision here is a recorded resolution, not the IE11 trap that a receiver
 // the provider CANNOT resolve would be.
 //
@@ -202,13 +202,13 @@ export function run() {
   // `toJson` renders a REF GRAPH - a flat array whose entries point at each other by index - so the
   // round-trip below travels as text, the way a saved level would
   const json = Serializer.toJson(world);
-  check('json_ref_graph', [Array.isArray(json), round(num(json[0] && json[0].gravity && json[0].gravity.y))], [true, GRAVITY]);
+  check('json_ref_graph', [Array.isArray(json), round(num(json?.[0]?.gravity?.y))], [true, GRAVITY]);
   // eslint-disable-next-line unicorn/prefer-structured-clone -- exercise the serializer through JSON text
-  const restored = Serializer.fromJson(JSON.parse(JSON.stringify(json)));
+  const restored = Array.isArray(json) ? Serializer.fromJson(JSON.parse(JSON.stringify(json))) : null;
   // that it is a REBUILT world, not the one that was serialized: counting bodies alone is satisfied
   // by a `fromJson` handing its argument's own world straight back, and so is the height below
-  check('json_body_count', [restored.getBodyCount(), restored === world], [2, false]);
-  let restoredBox = restored.getBodyList();
+  check('json_body_count', [restored?.getBodyCount?.(), restored === world], [2, false]);
+  let restoredBox = restored?.getBodyList?.();
   while (restoredBox && restoredBox.isStatic()) restoredBox = restoredBox.getNext();
   // the settled height survives the trip, on a body that is a new object
   check('json_roundtrip_rest_height', [round(num(restoredBox && restoredBox.getPosition().y), 1), restoredBox === box], [0.3, false]);

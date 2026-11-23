@@ -154,7 +154,7 @@ export function run() {
   check('text_ops', [twoLines.length, twoLines.lines, twoLines.sliceString(1, 5), twoLines.lineAt(4).number], [7, 2, 'bc\nd', 2]);
   check('text_replace', twoLines.replace(1, 3, Text.of(['XY'])).toString(), 'aXY\ndef');
 
-  // --- unicode helpers: String#codePointAt and String.fromCodePoint inside @codemirror/state ---
+  // --- unicode helpers: @codemirror/state's own code point helpers ---
   const astral = codePointAt('\u{1F600}x', 0);
   check('unicode_code_point', [astral, codePointSize(astral), fromCodePoint(astral), fromCodePoint(0x41)], [0x1F600, 2, '\u{1F600}', 'A']);
   // a combining acute: one grapheme cluster spanning two code units
@@ -162,7 +162,7 @@ export function run() {
   check('unicode_columns', [countColumn('\tab', 4), countColumn('abc', 4), findColumn('\tab', 5, 4)], [6, 3, 2]);
 
   // --- character categories. The library builds its word-char regexp from a unicode property escape
-  // inside a try/catch; IE11 cannot parse that, so there it answers from the manual fallback path ---
+  // inside a try/catch; IE11 rejects the pattern at construction and uses the manual fallback ---
   const catState = EditorState.create({ doc: 'hello world_x 42' });
   const categorize = catState.charCategorizer(0);
   check('char_categories', ['a', 'é', '界', ' ', '+'].map(categorize),
@@ -230,12 +230,17 @@ export function run() {
   const fieldSpec = { count: editCount };
   let jsonState = EditorState.create({ doc: 'hello', selection: EditorSelection.single(1, 3), extensions: [editCount] });
   jsonState = jsonState.update({ changes: { from: 5, to: 5, insert: '!' } }).state;
-  const backState = EditorState.fromJSON(jsonState.toJSON(fieldSpec), { extensions: [editCount] }, fieldSpec);
-  check('json_state_roundtrip', [backState.doc.toString(), backState.selection.main.from, backState.selection.main.to, backState.field(editCount)], ['hello!', 1, 3, 1]);
-  const changeJson = ChangeSet.fromJSON(ChangeSet.of([{ from: 1, to: 2, insert: 'X' }], 5).toJSON());
-  check('json_changeset_roundtrip', [changeJson.length, changeJson.newLength, changeJson.apply(Text.of(['abcde'])).toString()], [5, 5, 'aXcde']);
-  const selBack = EditorSelection.fromJSON(EditorSelection.create([EditorSelection.range(0, 2), EditorSelection.cursor(4)], 1).toJSON());
-  check('json_selection_roundtrip', [selBack.ranges.length, selBack.mainIndex, selBack.main.from], [2, 1, 4]);
+  const stateJSON = jsonState.toJSON(fieldSpec);
+  const backState = EditorState.fromJSON(stateJSON, { extensions: [editCount] }, fieldSpec);
+  check('json_state_roundtrip', [stateJSON.doc, backState.doc.toString(), backState.selection.main.from, backState.selection.main.to, backState.field(editCount)],
+    ['hello!', 'hello!', 1, 3, 1]);
+  const encodedChange = ChangeSet.of([{ from: 1, to: 2, insert: 'X' }], 5).toJSON();
+  const changeJson = ChangeSet.fromJSON(encodedChange);
+  check('json_changeset_roundtrip', [Array.isArray(encodedChange), changeJson.length, changeJson.newLength, changeJson.apply(Text.of(['abcde'])).toString()],
+    [true, 5, 5, 'aXcde']);
+  const encodedSelection = EditorSelection.create([EditorSelection.range(0, 2), EditorSelection.cursor(4)], 1).toJSON();
+  const selBack = EditorSelection.fromJSON(encodedSelection);
+  check('json_selection_roundtrip', [encodedSelection.main, selBack.ranges.length, selBack.mainIndex, selBack.main.from], [1, 2, 1, 4]);
 
   // --- ChangeSet algebra ---
   const base = Text.of(['abcdef']);
@@ -257,7 +262,7 @@ export function run() {
   const tree = jsParser.parse(doc);
   const stats = survey(tree);
   check('parse_no_errors', stats.errors, 0);
-  check('tree_covers_doc', tree.length, doc.length);
+  check('tree_covers_doc', [tree.type.name, tree.length], ['Script', doc.length]);
   check('function_decls', stats.byType.FunctionDeclaration, 1);
   check('class_decls', stats.byType.ClassDeclaration, 1);
   check('method_decls', stats.byType.MethodDeclaration, 2);
@@ -320,7 +325,7 @@ export function run() {
   const full = jsParser.parse(newDoc);
   check('incremental_matches_full', shape(incremental) === shape(full), true);
   check('incremental_no_errors', survey(incremental).errors, 0);
-  check('incremental_covers_doc', incremental.length, newDoc.length);
+  check('incremental_covers_doc', [incremental.type.name, incremental.length], ['Script', newDoc.length]);
 
   // --- highlight layer (pure: emits ranges + class names, no DOM) ---
   const spans = [];

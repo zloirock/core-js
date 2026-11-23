@@ -123,7 +123,7 @@ export function run() {
       return migrator.migrateToLatest();
     })
     .then(outcome => {
-      check('migrate_results', [outcome.error, outcome.results.map(result => [result.migrationName, result.direction, result.status])],
+      check('migrate_results', [outcome.error?.message ?? outcome.error, outcome.results?.map(result => [result.migrationName, result.direction, result.status])],
         [undefined, [['001_person', 'Up', 'Success'], ['002_pet', 'Up', 'Success']]]);
       // the MySQL adapter takes and releases its named lock through its own `sql` tagged templates,
       // around the DDL the migrations built. The templates' interpolations are what is checked: one

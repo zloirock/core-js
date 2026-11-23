@@ -1,7 +1,10 @@
 import { once } from 'node:events';
-import { setImmediate } from 'node:timers/promises';
+import { setImmediate, setTimeout } from 'node:timers/promises';
 import { errorReason } from './diagnostics.mjs';
 
+// A fork waiting on user code can otherwise keep its handles after its caller exits.
+// eslint-disable-next-line node/no-process-exit -- the caller is gone and the exercise can still hold handles
+process.once('disconnect', () => process.exit(1));
 const [{ module, method, args }] = await once(process, 'message');
 // Keep a never-settling exercise alive until the caller's deadline.
 process.channel.ref();
@@ -18,7 +21,8 @@ process.on('uncaughtException', error => {
 try {
   process.send({ type: 'e2e-libs:ready' });
   const result = await run(...args, () => process.send({ type: 'e2e-libs:repeat' }));
-  // Give Node a turn to report unhandled rejections before returning the verdict.
+  // Let already queued timers run, then let Node deliver their unhandled rejections.
+  await setTimeout(0);
   await setImmediate();
   process.send({ type: 'e2e-libs:result', result });
 } catch (error) {

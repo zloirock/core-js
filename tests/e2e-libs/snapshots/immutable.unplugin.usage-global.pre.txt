@@ -1,2 +1,0 @@
--core-js/modules/es.regexp.exec
--core-js/modules/es.regexp.test

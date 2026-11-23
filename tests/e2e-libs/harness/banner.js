@@ -16,7 +16,8 @@
     var element = document.getElementById(BANNER);
     if (!element) return;
     element.className = state;
-    element.textContent = text;
+    if ('textContent' in element) element.textContent = text;
+    else element.innerText = text;
   }
 
   // guarded like the banner above, and for the same reason
@@ -34,7 +35,8 @@
     var row = document.createElement('tr');
     var cell = document.createElement('td');
     cell.colSpan = 2;
-    cell.textContent = text;
+    if ('textContent' in cell) cell.textContent = text;
+    else cell.innerText = text;
     row.appendChild(cell);
     tbody.appendChild(row);
   }
@@ -42,12 +44,6 @@
   function render(checks) {
     if (settled) return;
     settled = true;
-    var mode = window.e2eCompatibilityMode();
-    if (mode !== undefined) {
-      paint(FAIL, 'IE compatibility mode - documentMode=' + mode + '. These checks ran, but not on the floor this page is for.');
-      tableSays('Browser results unavailable in IE compatibility mode.');
-      return;
-    }
     var problem = window.e2eLabelProblem(checks, EXPECTED);
     if (problem !== null) {
       paint(FAIL, 'FAIL - ' + problem);
@@ -85,6 +81,13 @@
     settled = true;
     paint(FAIL, 'ERROR - ' + window.e2eReason(err));
     tableSays('The browser exercise ended with an error.');
+  }
+
+  var mode = window.e2eCompatibilityMode();
+  if (mode !== undefined) {
+    paint(FAIL, 'IE compatibility mode - documentMode=' + mode);
+    tableSays('Browser results unavailable in IE compatibility mode.');
+    return;
   }
 
   setTimeout(function () {

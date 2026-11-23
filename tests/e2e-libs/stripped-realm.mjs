@@ -1,7 +1,7 @@
 // The `usage-pure` oracle: a missed REWRITE of a built-in the manifest strips is a raw read that throws
 // here, where every other realm still answers it with the native; one it keeps answers here too.
 // A child process owns each context, so even code that stalls in a callback has a deadline.
-import { setImmediate } from 'node:timers/promises';
+import { setTimeout as delay } from 'node:timers/promises';
 import { createContext, runInContext } from 'node:vm';
 import { captureChecks, checkFailureLine, checkResultProblem, errorReason } from './diagnostics.mjs';
 import { E2E_STRIP_REALM_GLOBALS, ITERATOR_PROTO_HELPERS, buildStripScript } from '../transpiler-differential/strip-manifest.mjs';
@@ -30,7 +30,12 @@ export function strippedFails(result, phase) {
 // Drain callbacks already queued by a synchronous run before committing its result.
 async function runExercise(context, label) {
   const result = await runInContext('E2E.run()', context, { filename: `${ label } [run]` });
-  return setImmediate(captureChecks(result));
+  const checks = captureChecks(result);
+  // A queued callback can reject a pure Promise. Its microtask schedules the
+  // unhandled-rejection notification on the realm's timer queue.
+  await delay(0);
+  await delay(0);
+  return checks;
 }
 
 export async function runStripped(code, label, expected) {
@@ -54,6 +59,7 @@ export async function runStripped(code, label, expected) {
     // bare of other node globals, so a pure ponyfill takes the same path it would in a browser
     const context = createContext({
       console,
+      onunhandledrejection: event => reject(new Error(`unhandled rejection - ${ errorReason(event.reason) }`)),
       queueMicrotask: fn => queueMicrotask(guardCallback(fn)),
       setTimeout: (fn, ...args) => setTimeout(guardCallback(fn), ...args),
       setInterval: (fn, ...args) => setInterval(guardCallback(fn), ...args),

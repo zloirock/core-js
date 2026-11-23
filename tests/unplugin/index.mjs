@@ -491,10 +491,14 @@ if (!subtree) {
   }
 }
 
+function hasFailures() {
+  return counts.failed || counts.phaseFailed || strictPrePost && counts.phaseKnown;
+}
+
 // a child reports through IPC; the parent aggregates and decides the exit
 if (FIXTURE_SHARD) {
   for (const dir of shardSlice(fixtures)) await runFixture(dir);
-  emitShardSummary(counts);
+  emitShardSummary(counts, hasFailures());
 } else {
   const shards = defaultShardCount(fixtures.length);
   echo(green(`unplugin fixtures (structural against the babel baseline): ${ cyan(fixtures.length) } in ${ cyan(shards) } shard(s); only failures and rewrites are printed below`));
@@ -544,5 +548,5 @@ if (FIXTURE_SHARD) {
   if (!OVERWRITE && !subtree && counts.phaseRecorded !== KNOWN_PHASE_IMPORT_DIFFERENCES.size) {
     throw new Error('pre+post known differences were not all checked');
   }
-  if (failed || phaseFailed || strictPrePost && phaseKnown) throw new Error('Some tests have failed');
+  if (hasFailures()) throw new Error('Some tests have failed');
 }

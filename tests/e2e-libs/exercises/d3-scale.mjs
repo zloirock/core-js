@@ -5,14 +5,13 @@
 //
 // Its reason is the SURFACE axis, reached through a shape no library here has: `internmap` declares
 // `InternMap extends Map` and `InternSet extends Set`, and every method of both is a `super.get` /
-// `set` / `has` / `add` / `delete` on the built-in parent - the only other `extends` of a built-in
-// in the corpus is three's `Error`, and nothing else calls a built-in parent through `super`.
+// `set` / `has` / `add` / `delete` on the built-in collection parent.
 // `internmap` EXPORTS those classes, and an exported subclass hands its parent's statics to
 // importers the provider cannot see, so it imports the whole namespace - a subclass kept inside its
 // module costs only `.../constructor`. Measured on the babel-plugin cells against the union of the
 // ten reference baselines before it, `usage-pure` gains `@core-js/pure/full/map` and `.../set`,
-// where the corpus only ever held `.../constructor`, and `usage-global` gains `es.map.group-by`,
-// which nothing here calls. The two flavors lower the class differently. The global one keeps the
+// where the corpus only ever held `.../constructor`, and both flavors gain number toPrecision. The global reference also gains
+// `es.map.group-by`, which nothing here calls. The two flavors lower the class differently. The global one keeps the
 // built-in's name, so Babel wraps it in `_wrapNativeSuper`, which asks whether the parent reads as
 // native; in the pure one the parent is core-js's own `Map`, a name Babel does not know, so
 // `_callSuper` constructs it directly. Both go through `Reflect.construct` where there is one. A

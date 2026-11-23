@@ -26,7 +26,8 @@ export function run() {
   }
   check('output_filters', sync('{{ "hello" | upcase }} {{ "a,b,c" | split: "," | join: "-" }} {{ 3.14159 | round: 2 }}'), 'HELLO a-b-c 3.14');
   check('for_range', sync('{% for i in (1..4) %}{{ i }}{% unless forloop.last %},{% endunless %}{% endfor %}'), '1,2,3,4');
-  check('if_and_default', sync('{% if n > 1 %}many{% else %}one{% endif %} {{ missing | default: "n/a" }}', { n: 2 }), 'many n/a');
+  const conditional = '{% if n > 1 %}many{% else %}one{% endif %} {{ value | default: "n/a" }}';
+  check('if_and_default', [sync(conditional, { n: 2 }), sync(conditional, { n: 1, value: 'x' })], ['many n/a', 'one x']);
   check('assign_capture', sync('{% assign x = "ab" | twice %}{% capture y %}[{{ x }}]{% endcapture %}{{ y }}'), '[abab]');
   check('case', sync('{% case k %}{% when "a" %}A{% when "b", "c" %}BC{% else %}?{% endcase %}', { k: 'c' }), 'BC');
   check('raw', sync('{% raw %}{{ not rendered }}{% endraw %}'), '{{ not rendered }}');
