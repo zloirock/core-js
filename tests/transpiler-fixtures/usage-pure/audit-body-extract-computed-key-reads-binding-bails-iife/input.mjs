@@ -1,5 +1,4 @@
-// A computed key reads the preceding parameter binding in an IIFE.
-// Mirror and body extraction would move that read out of order; the parameter stays native.
+// The first binding receives its fallback before the computed key reads it in the IIFE.
 (function pick({ of, [of]: picked } = Array) {
   return [of, picked];
 })();

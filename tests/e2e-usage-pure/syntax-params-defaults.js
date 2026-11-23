@@ -6,8 +6,6 @@
 // effect must run ONLY when the default fires, and the scope-gate / per-branch paths must stay
 // runtime-correct. Generic "default value works" tests are intentionally absent.
 
-const nativeArrayOf = Object.getOwnPropertyDescriptor(Array, 'of')?.value;
-
 // --- Synth-swap: a caller-passed receiver overrides the polyfilled default ---
 
 QUnit.test('params: param-default no-arg uses the polyfill, caller receiver overrides it', assert => {
@@ -117,8 +115,9 @@ QUnit.test('params: computed key reading a sibling binding stays correct', asser
     return [typeof of, picked];
   }
   const [ofType, picked] = fn();
-  assert.same(ofType, typeof E2E_POST_LOWERED === 'undefined' ? typeof nativeArrayOf : 'function');
+  assert.same(ofType, 'function');
   assert.same(picked, undefined);
+  assert.deepEqual(fn({ of: 'own', own: 7 }), ['string', 7]);
 });
 
 QUnit.test('params: computed const-key param overridden by caller receiver', assert => {

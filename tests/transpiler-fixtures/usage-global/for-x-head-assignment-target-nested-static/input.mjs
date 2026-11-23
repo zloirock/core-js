@@ -12,4 +12,5 @@ for ({ groupBy: { name: viaGroup } } of [Map]) eff(viaGroup);
 
 // The call runs once before the loop binds the nested static.
 function make() { eff(); return Array; }
-for ({ of: { name: via } } of [make()]) eff(via);
+let via;
+for ({ fromAsync: { name: via } } of [make()]) eff(via);

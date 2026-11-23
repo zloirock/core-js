@@ -130,7 +130,8 @@ import {
   patternHopKeysToHost,
   planSideEffectKeyStrategy,
   pruneHopFromLevels,
-  constructorDefaultStaticFallback,
+  parameterDefaultStaticFallback,
+  restArrayMethodFallback,
   qualifiesForParamBodyExtract,
   planParameterInstanceExtraction,
   receiverPerformsEveryInitEffect,
@@ -1166,11 +1167,12 @@ export default function createDestructureEmitter({
         collapseRetainedProxyReceiver(synthSwap, paramDefault.node, 'right', aliasCtxFromPath(paramDefault));
       }
       // An open caller set cannot justify replacing a caller-supplied value.
-      if (paramsHaveInvisibleCallers(prop, { paramNeverOverridden: paramDefaultNeverOverridden })) {
-        const fallback = constructorDefaultStaticFallback(prop, meta, () => injectPureImport(entry, hintName).name);
-        if (fallback) prop.get('value').replaceWith(t.assignmentPattern(prop.node.value, estreeToBabel(fallback)));
+      const fallback = parameterDefaultStaticFallback(prop, meta, () => injectPureImport(entry, hintName).name);
+      if (fallback) {
+        prop.get('value').replaceWith(t.assignmentPattern(prop.node.value, estreeToBabel(fallback)));
         return;
       }
+      if (paramsHaveInvisibleCallers(prop, { paramNeverOverridden: paramDefaultNeverOverridden })) return;
       // a side-effecting computed key (`{ [(eff(), 'from')]: from }`) must NOT body-extract: that
       // removes the key text and drops the prefix effects.
       if (!computedKeyHasSideEffects(prop.node, aliasCtxFromPath(prop))) tryBodyExtractFromParamDestructure(prop, entry, hintName);
@@ -1885,11 +1887,11 @@ export default function createDestructureEmitter({
   // (`({ map: box.m } = _Iterator)` -> `_mapMaybeArray(_Iterator)`), injecting an entry for a call
   // the source never makes. a STATIC's ponyfill is NOT this: `_Array$of` is a function value whose
   // `name` / `length` / `at` ARE its own instance members, so only a constructor binding declines
-  function anchoredCtorResidualLeaf(prop) {
+  function anchoredCtorResidualLeaf(prop, meta) {
     // ... and only a leaf the raw canon actually KEEPS, which is a MEMBER TARGET: a leaf binding a
     // NAME is served by the ordinary claim, and that claim is the only route it has - refusing it
     // here left `({ Promise: { name } } = globalThis)` reading `_Promise.name` raw on a floor engine
-    if (!t.isMemberExpression(patternSlotTarget(prop.node.value))) return false;
+    if (meta?.placement === 'static' || !t.isMemberExpression(patternSlotTarget(prop.node.value))) return false;
     const host = destructurePatternHostPath(prop)?.node;
     const init = host?.type === 'VariableDeclarator' ? host.init
       : host?.type === 'AssignmentExpression' ? host.right : null;
@@ -2229,7 +2231,8 @@ export default function createDestructureEmitter({
       planConsumedProps.add(extraction.prop);
       skippedNodes.add(extraction.prop);
     }
-    if (plan.array.assignment) {
+    if (plan.array.expression) declarator.replaceWith(t.sequenceExpression(rendered.map(node => node.expression)));
+    else if (plan.array.assignment) {
       let statement = declarator.findParent(item => item.node === plan.array.statement);
       // Declaring refs can brace a loop and shift this statement without refreshing
       // its cached sibling key. Reacquire its path before inserting the reads.
@@ -2664,7 +2667,8 @@ export default function createDestructureEmitter({
   // post-traverse drain prints the sink from that render, so a later enter-visit rebuild
   // would mutate a node the drain no longer reads
   function tryInPlaceAnchoredRebuild(assignPath) {
-    if (cascadedAssignments.has(assignPath.node) || synthPlanDeps.mirroredHosts.has(assignPath.node)) return;
+    if (!assignmentValueDiscarded(assignPath) || cascadedAssignments.has(assignPath.node)
+      || synthPlanDeps.mirroredHosts.has(assignPath.node)) return;
     const fake = { id: assignPath.node.left, init: assignPath.node.right, loc: assignPath.node.loc };
     const plan = buildFlattenPlan({ declaratorNode: fake, scope: assignPath.scope, path: assignPath });
     if (tryMirrorFlattenPlan(assignPath, plan)) return;
@@ -3346,6 +3350,11 @@ export default function createDestructureEmitter({
   // Declarations keep the capture in the original slot; assignments use the shared expression
   // render. Prime receiver types before moving source patterns across Babel's requeue.
   function capturePatternForExtraction(prop, entry, hintName, kind, meta) {
+    const restMethod = restArrayMethodFallback(prop, entry);
+    if (restMethod) {
+      prop.get('value').replaceWith(t.assignmentPattern(prop.node.value, injectPureImport(restMethod, hintName)));
+      return true;
+    }
     if (captureDefaultPatternForExtraction(prop, meta)) return true;
     // The complete array plan owns source captures before any per-property rewrite.
     if (renderArrayFlattenPlan(prop)) return true;
@@ -3819,7 +3828,8 @@ export default function createDestructureEmitter({
     const hostDeclarator = prop.findParent(item => item.isVariableDeclarator());
     const navReceiver = prop.parentPath.parentPath?.isObjectProperty?.()
       ? resolveNestedReceiverNode(prop, { allowNavSegments: true, adapter }) : null;
-    const chained = typedNav || hopChainNamesMissingAbleCtor(prop) || wholeInitMemoized.has(hostDeclarator?.node)
+    const chained = entry === 'get-iterator-method' || typedNav || hopChainNamesMissingAbleCtor(prop)
+      || wholeInitMemoized.has(hostDeclarator?.node)
       || surfaceRespelledHosts.has(hostDeclarator?.node)
       || (!!navReceiver && dispatchMayReadNav(prop, navReceiver, { isOwnAlias: isOwnPureAlias, adapter }));
     // ... and only a leaf whose own key evaluates nothing: an EFFECTFUL key runs where it stands, so
@@ -4660,7 +4670,7 @@ export default function createDestructureEmitter({
     // family, ahead of every route
     if (ownEmittedPatternClaim(prop, ownOutputTests(injector), adapter)
       || sentinelAlreadyProcessed(prop, { node: prop.node, meta, injector })
-      || anchoredCtorResidualLeaf(prop)) return;
+      || anchoredCtorResidualLeaf(prop, meta)) return;
     // the group's size is read HERE, at the first prop of it to dispatch - the emissions below
     // splice props out, and the receiver plan must judge the group the source wrote
     patternSizeOf(prop.parentPath);
@@ -6171,7 +6181,7 @@ export default function createDestructureEmitter({
   return {
     captureParameterInstance,
     capturePatternForExtraction({ prop, meta }) {
-      if (anchoredCtorResidualLeaf(prop) || retainedClaimProps.has(prop.node)) return true;
+      if (anchoredCtorResidualLeaf(prop, meta) || retainedClaimProps.has(prop.node)) return true;
       const pure = isSourcedSymbolIteratorMeta(meta) ? SYMBOL_ITERATOR_PURE_RESULT : resolvePure(meta, prop);
       if (!pure && !meta.fromFallback) return false;
       // An anchored host can rebuild while retaining this raw symbol slot. Let its

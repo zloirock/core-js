@@ -1,17 +1,19 @@
+import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // The spread reads precede the symbol extraction, as they preceded the native pattern read.
 function symbolBehindSpread(extra) {
-  const {
-    w: {
-      [_Symbol$iterator]: _unused
-    }
-  } = {
+  const aheadSymbol = _getIteratorMethod({
     ...extra,
     w: _globalThis
-  };
-  const aheadSymbol = _getIteratorMethod(_globalThis);
+  }.w);
   return aheadSymbol;
 }
-export default [symbolBehindSpread({})];
+const events = [];
+const method = symbolBehindSpread({
+  get w() {
+    _pushMaybeArray(events).call(events, 'spread');
+    return null;
+  }
+});
+export default [method, events];

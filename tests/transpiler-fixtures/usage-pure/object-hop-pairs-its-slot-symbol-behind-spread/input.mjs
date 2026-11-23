@@ -3,4 +3,6 @@ function symbolBehindSpread(extra) {
   const { w: { [Symbol.iterator]: aheadSymbol } } = { ...extra, w: globalThis };
   return aheadSymbol;
 }
-export default [symbolBehindSpread({})];
+const events = [];
+const method = symbolBehindSpread({ get w() { events.push('spread'); return null; } });
+export default [method, events];

@@ -2,4 +2,4 @@
 const [a] = [Array];
 const [b] = [a];
 const [c] = [b];
-c.from([3]);
+c.of([3]);

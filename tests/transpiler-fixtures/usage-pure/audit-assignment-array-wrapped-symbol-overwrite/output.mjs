@@ -1,10 +1,5 @@
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-// Object-rest keeps the affected assignment pattern native and preserves its RHS value.
-// Independent reads and key/default expressions still receive their own polyfills.
-// a `[Symbol.iterator]`-keyed target in a destructuring ASSIGNMENT under an ArrayPattern
-// wrapper has no declaration to host an extraction - the destructure assigns natively
-// first, then a post-statement overwrite rebinds the target through the iterator-method
-// helper so the polyfill wins
+// Object rest excludes the original key. The iterator symbol is rewritten in the native pattern.
 let it, r;
 [{
   [_Symbol$iterator]: it,

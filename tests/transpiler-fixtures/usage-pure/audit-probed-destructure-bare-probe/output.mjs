@@ -2,6 +2,7 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Promise from "@core-js/pure/actual/promise";
 import _structuredClone from "@core-js/pure/actual/structured-clone";
+var _ref, _ref2;
 // The exported constructor includes its static methods for external consumers.
 export const viaBareProbePoly = (_globalThis.window.Promise, _Promise);
 export const {
@@ -37,11 +38,11 @@ export const {
   Array: {
     of: viaBareProbeTernary
   }
-} = _globalThis.setTimeout ? null == _globalThis.window ? _globalThis.window : {
+} = _globalThis.setTimeout ? null == (_ref = _globalThis.window) ? _ref : {
   Array: {
     of: _Array$of
   }
-} : null == _globalThis.window ? _globalThis.window : {
+} : null == (_ref2 = _globalThis.window) ? _ref2 : {
   Array: {
     of: _Array$of
   }

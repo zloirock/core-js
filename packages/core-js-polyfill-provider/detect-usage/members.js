@@ -10,6 +10,8 @@ import {
   claimDeleteOperand,
   climbTransparentWrapperPath,
   collectFoldedReceiverSideEffects,
+  containerSlotWritten,
+  followConstIdentifierInit,
   findNodeSlot,
   pathOfNode,
   deleteHostAboveChain,
@@ -39,6 +41,7 @@ import {
   memberProxyHopName,
   nestedSequenceValueSpelling,
   nodeCarriesSourceSpan,
+  nodePositionKey,
   peelNestedSequenceExpressions,
   peelParenAndTSParentPath,
   peelSequenceTail,
@@ -48,10 +51,12 @@ import {
   proxyNavEffectsHarvestable,
   runStandsInLoweredGuardTest,
   rootProgramOf,
+  findNearestVarScopeOwner,
   SKIPPABLE_WRAPPER_TYPES,
   spineHasOptionalHop,
   subtreeContainsNode,
   propertyKeyName,
+  provablyPrecedes,
   staticMemberKeyName,
   stepOverChainWrappers,
   unwrapRuntimeExpr,
@@ -62,6 +67,7 @@ import {
   peelChainAssignment,
   unwrapTransparentSeq,
 } from '../helpers/ast-patterns.js';
+import { pureImportSourceEntry, pureImportSubpath } from '../helpers/path-normalize.js';
 import {
   GET_ITERATOR_ENTRY,
   IS_ITERABLE_ENTRY,
@@ -108,6 +114,7 @@ import {
   isSymbolSourcedKey,
   collectChainAssignsThroughMemberChain,
   seBearingChainRootCall,
+  computedKeyWellKnownSymbolName,
   symbolSourcedFoldedKey,
   ownChainOptionalCount,
   canCollapseDeletedNavigation,
@@ -2043,6 +2050,7 @@ export function handleMemberExpressionNode({
   if (adapter.isOptedOut?.(object, true)) return null;
   const symbolKey = resolveComputedSymbolKey({ node, scope, adapter, path });
   if (symbolKey) {
+    if (symbolKey.key === 'Symbol.iterator' && readsOwnIterator(object, { scope, adapter, path })) return null;
     // mark both positions so neither the member-visitor (outer MemberExpression.object) nor
     // the identifier-visitor (unwrapped Identifier) re-enters this node. `asSymbolRef`
     // already walked the `unwrapTransparentSeq` chain and confirmed the binding guard
@@ -2151,6 +2159,7 @@ export function handleMemberExpressionNode({
     return meta;
   }
   const builtMeta = buildMemberMeta({ node, scope, adapter, path, resolveStaticKey, resolvePure, proxySegments });
+  if (builtMeta && isSourcedSymbolIteratorMeta(builtMeta) && readsOwnIterator(object, { scope, adapter, path })) return null;
   const meta = importedStaticReadMeta({ node: object, scope, adapter, path, meta: builtMeta });
   // a static the user monkey-patches in this file is NOT a polyfillable static: binding the
   // read to the frozen receiver-less import would bypass the patch, and bailing whole leaves
@@ -2400,6 +2409,82 @@ export function handleMemberExpressionNode({
     }
   }
   return meta;
+}
+
+const ITERATOR_BINDING_USES = new WeakMap();
+
+function isIteratorMethodLookup(node, ctx) {
+  const callee = node?.type === 'CallExpression' && node.callee;
+  if (callee?.type !== 'Identifier') return false;
+  const binding = ctx.adapter.getBinding({ ...ctx, name: callee.name, read: callee });
+  return pureImportSourceEntry(pureImportSubpath(binding?.importSource, ctx.adapter.packages)) === 'get-iterator-method';
+}
+
+// A user-defined iterator is an ordinary property, including when its value is falsy.
+// Leave the read or call intact so the symbol key itself still gets its polyfill.
+export function readsOwnIterator(receiver, ctx) {
+  if (ctx.adapter.method !== 'usage-pure') return false;
+  let source = peelReceiverSequenceTail(receiver);
+  while (source?.type === 'AssignmentExpression' && source.operator === '=' && source.left.type === 'Identifier'
+    && ctx.adapter.hasBinding({ ...ctx, name: source.left.name })) source = peelReceiverSequenceTail(source.right);
+  const local = source?.type === 'Identifier';
+  const origin = local ? followConstIdentifierInit({ node: source, readNode: source, ctx }) : { node: source, ctx };
+  if (origin.node?.type !== 'ObjectExpression' && origin.node?.type !== 'ArrayExpression') return false;
+  // Keep the existing extraction when a mirror already holds the helper's result.
+  const declares = origin.node.properties?.some(prop => prop.computed
+    && computedKeyWellKnownSymbolName({ ...origin.ctx, keyNode: prop.key }) === 'iterator'
+    && !isIteratorMethodLookup(prop.value, origin.ctx)) ?? false;
+  if (!local || !containerSlotWritten(source, [Symbol.iterator], ctx, ctx.path.node)) return declares;
+  // An alias may share the object with a writer outside this binding's references.
+  const declaration = origin.readNode;
+  if (declaration?.id?.name !== source.name) return false;
+  let uses = ITERATOR_BINDING_USES.get(declaration);
+  if (uses?.adapter !== ctx.adapter) {
+    uses = localIteratorUses(source, ctx);
+    ITERATOR_BINDING_USES.set(declaration, uses);
+  }
+  if (!uses.opaque || uses.opaque.size && !(uses.opaque.size === 1 && uses.opaque.has(nodePositionKey(source) ?? source))) return false;
+  if (declares) return true;
+  if (origin.node.type === 'ObjectExpression' && origin.node.properties.length
+    || ctx.adapter.isMutatedStaticSlot?.('Object.prototype', 'Symbol.iterator')
+    || origin.node.type === 'ArrayExpression' && ctx.adapter.isMutatedStaticSlot?.('Array.prototype', 'Symbol.iterator')) return false;
+  // A preceding store in the same statement list ran on every path to this read.
+  // Walk out through branches and loops, but never out of the executing function.
+  const owner = findNearestVarScopeOwner(ctx.path);
+  for (let { path } = ctx; path && path.node !== owner?.node; path = path.parentPath) {
+    if (provablyPrecedes(uses.firstWrite.get(path.container), path.node)) return true;
+  }
+  return false;
+}
+
+function localIteratorUses(source, { path, adapter }) {
+  const refs = adapter.collectBindingReferences?.(path, source.name, { closed: true });
+  const firstWrite = new Map();
+  const opaque = refs && new Set();
+  for (const ref of refs ?? []) {
+    const member = ref.parentPath;
+    // A preceding read can already be lowered when the write and its later reader are visited.
+    if (member?.node.arguments?.length === 1 && member.node.arguments[0].type === 'Identifier'
+      && member.node.arguments[0].name === source.name
+      && isIteratorMethodLookup(member.node, { path: member, scope: ref.scope, adapter })) continue;
+    const use = member?.parentPath?.node;
+    if (isMemberAccessNode(member?.node) && member.node.object === ref.node && member.node.computed
+      && computedKeyWellKnownSymbolName({ keyNode: member.node.property, scope: ref.scope, adapter, path: member }) === 'iterator') {
+      if (use?.type === 'AssignmentExpression' && use.operator === '=' && use.left === member.node) {
+        const statement = member.parentPath.parentPath;
+        if (statement?.node.type === 'ExpressionStatement' && Number.isInteger(statement.key)) {
+          const previous = firstWrite.get(statement.container);
+          if (!previous || provablyPrecedes(statement.node, previous)) firstWrite.set(statement.container, statement.node);
+        }
+        continue;
+      }
+      if (!isMemberMutationContext(member.node, use, member.parentPath.parentPath?.node)
+        && use?.callee !== member.node && use?.tag !== member.node) continue;
+    }
+    // The emitter can rebuild the current read inside a surrounding call.
+    opaque.add(nodePositionKey(ref.node) ?? ref.node);
+  }
+  return { adapter, firstWrite, opaque };
 }
 
 // tag a meta whose computed key folded to `Symbol.X` with symbol provenance - the same contract

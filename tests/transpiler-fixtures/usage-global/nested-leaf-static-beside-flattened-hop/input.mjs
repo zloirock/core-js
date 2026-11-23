@@ -3,6 +3,6 @@
 // as the host's last or first declarator - never an emptied twin pattern with the binding unassigned
 const W = { w: Array, k: 1 };
 let { k, w: { name: splitName, from: splitFrom } } = W;
-let q = 1, { w: { name: lastName, from: lastFrom } } = W;
-let { w: { name: firstName, from: firstFrom } } = W, q2 = 2;
-export { k, splitName, splitFrom, q, lastName, lastFrom, firstName, firstFrom, q2 };
+let q = 1, { w: { name: lastName, of: lastOf } } = W;
+let { w: { name: firstName, fromAsync: firstFromAsync } } = W, q2 = 2;
+export { k, splitName, splitFrom, q, lastName, lastOf, firstName, firstFromAsync, q2 };

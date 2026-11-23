@@ -8,7 +8,7 @@ testBeforeLowering('destructuring: a keyed array iterator serves its yielded rec
   Object.defineProperty(first, 'at', {
     get() {
       events.push('get:at');
-      return function () { return this[this.length - 1]; };
+      return function () { return 10 + this[this.length - 1]; };
     },
   });
   const row = [[], 0];
@@ -32,10 +32,9 @@ testBeforeLowering('destructuring: a keyed array iterator serves its yielded rec
     };
   };
   const { w: [{ at: method }, tail] } = { w: row };
-  assert.same(method.call([1, 2], -1), 2);
+  assert.same(method.call([1, 2], -1), 12);
   assert.same(tail, 9);
-  assert.same(events.indexOf('get:at') < events.indexOf('get:tail'), true);
-  assert.same(events.at(-1), 'return');
+  assert.deepEqual(events, ['next:0', 'get:at', 'next:1', 'get:tail', 'return']);
 });
 
 testBeforeLowering('destructuring: a keyed array iterator can yield a different instance family', assert => {

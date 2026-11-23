@@ -1,9 +1,17 @@
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.at";
+import "core-js/modules/es.array.find-last";
+import "core-js/modules/es.array.find-last-index";
 import "core-js/modules/es.array.flat";
+import "core-js/modules/es.array.flat-map";
 import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.includes";
+import "core-js/modules/es.array.sort";
 import "core-js/modules/es.array.species";
+import "core-js/modules/es.array.to-reversed";
+import "core-js/modules/es.array.to-sorted";
 import "core-js/modules/es.array.unscopables.flat";
+import "core-js/modules/es.array.unscopables.flat-map";
 import "core-js/modules/es.string.iterator";
 // an unbraced `var` whose nested leaf flattens keeps every other declarator of that `var`: the
 // flattened pair joins the declarator list in place, beside a sibling another route rewrote first,
@@ -23,20 +31,20 @@ if (box) var {
   } = Array,
   {
     y: {
-      at: afterStatic,
-      flat: afterStaticFlat
+      flatMap: afterStatic,
+      includes: afterStaticFlat
     }
   } = box;
 if (box) var {
     y: {
-      at: one,
-      flat: oneFlat
+      findLast: one,
+      findLastIndex: oneFlat
     }
   } = box,
   {
     y: {
-      at: two,
-      flat: twoFlat
+      toSorted: two,
+      toReversed: twoFlat
     }
   } = box;
 export { q, afterSibling, afterSiblingFlat, staticFirst, afterStatic, afterStaticFlat, one, oneFlat, two, twoFlat };

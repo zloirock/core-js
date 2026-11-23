@@ -1,6 +1,5 @@
-// A constructor level of the realm read beside an extracted claim, over a sequence init and over a call:
-// babel anchors the residual on the level it captures, while unplugin re-reads the root and keeps the level
-// in the pattern (the sidecar).
+// Read the constructor once after the prefix, then bind its method and native sibling.
+// The assignment must also call mk once before reading the numeric property.
 const { Array: { prototype: { at: a2 }, foo: b2 } } = (eff(), globalThis);
 let f3, z3;
 function mk() { return globalThis; }

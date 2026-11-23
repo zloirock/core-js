@@ -124,6 +124,7 @@ import {
   servedRead,
 } from './detect-usage/resolve.js';
 import {
+  carriedInitReceiverNode,
   decidedRunningOperand,
   decidedRunningValue,
   discardRescueNodesWithReads,
@@ -461,7 +462,9 @@ export function renderArrayDestructurePlan(plan, {
       .map(declarator => expressionStatement(assignmentExpression('=', declarator.id, declarator.init)));
   }
   function extract(extraction, receiver) {
-    let value = read(extraction, receiver);
+    let value = extraction.narrow ? renderCtorIdentityNarrow(extraction.narrow, memberFromKeyName(cloneNode(receiver), extraction.key), {
+      injectImport, spellRecv: () => cloneNode(receiver),
+    }) : read(extraction, receiver);
     if (extraction.defaultNode) {
       const memo = mintDeclaredRef();
       value = renderInstanceDefaultGuard({
@@ -519,8 +522,10 @@ export function renderArrayDestructurePlan(plan, {
       );
     }
     const plannedElements = new Map(plan.array.elements.map(element => [element.sourceNode ?? element.node, element]));
+    const result = plan.array.expression ? identifier(mintDeclaredRef()) : null;
     const capture = plan.array.assignment
-      ? expressionStatement(assignmentExpression('=', captured.capture.id, captured.capture.init))
+      ? expressionStatement(assignmentExpression('=', captured.capture.id,
+        result ? assignmentExpression('=', result, captured.capture.init) : captured.capture.init))
       : variableDeclaration(kind, [captured.capture]);
     return [
       capture,
@@ -589,6 +594,7 @@ export function renderArrayDestructurePlan(plan, {
         }
         return [...leading, ...renderLeaf(receiver)];
       }),
+      ...result ? [expressionStatement(cloneNode(result))] : [],
     ];
   }
   const refs = new Map();
@@ -935,7 +941,10 @@ export function renderNestedKeyedPatternCapture(plan, {
           ? conditionalExpression(nullFirstGuardTest(outerValue),
             memberExpression(typeof outer === 'string' ? identifier(outer) : embed(cloneNode(outer)), valueLiteral(''), { computed: true }),
             typeof outer === 'string' ? identifier(outer) : embed(cloneNode(outer))) : outerValue;
-        if (inlineLeaf && index === inlineAt && prop === level.prop) {
+        if (prop === level.prop && anchorPure && plan.ancestors.length === 1 && injectImport) {
+          if (ref) ordered.push({ declarator: variableDeclarator(identifier(ref),
+            identifier(injectImport(anchorPure.entry, anchorPure.hintName))) });
+        } else if (inlineLeaf && index === inlineAt && prop === level.prop) {
           // This read only navigates the captured source; the leaf dispatch owns the claim.
           // Keep source children visitable without claiming the generated slot again.
           const leafReceiver = pairedRoot ? init : markRenderedProbeRead(renderSynthSlotRead({
@@ -1541,14 +1550,18 @@ export function planRetainedObjectCapture(options) {
     && options.injectorState?.isOwnPassGeneratedName?.(receiver.name) ? receiver.name : undefined;
   const plan = planRetainedObjectCaptureShape({ ...options, init, writtenInit: options.init, receiverRef });
   if (!plan) return null;
-  const reuseReceiver = !receiverRef && !sharedSlot
-    && (sourceReceiver?.type === 'Identifier' || sourceReceiver?.type === 'ThisExpression') && isReReferenceableAcrossReads(sourceReceiver,
-    { scope: options.hostPath?.scope, path: options.hostPath, adapter: options.adapter, injectorState: options.injectorState });
   const preserveResult = !options.assignment || !options.hostPath || !assignmentValueDiscarded(options.hostPath);
   // A sole dispatch performs the original receiver read itself. An effectful key can
   // precede only an inert private allocation whose result the host does not expose.
   const keyEffects = options.prop?.computed && computedKeyHasSideEffects(options.prop,
     { scope: options.hostPath?.scope, path: options.hostPath, adapter: options.adapter });
+  // The key can replace an ambient realm such as window between coercion and lookup.
+  const reuseReceiver = !receiverRef && !sharedSlot
+    && (sourceReceiver?.type === 'Identifier' || sourceReceiver?.type === 'ThisExpression')
+    && !(options.assignment && options.entry === 'get-iterator-method' && keyEffects
+      && !plan.provenReceiver && POSSIBLE_GLOBAL_OBJECTS.has(sourceReceiver.name))
+    && isReReferenceableAcrossReads(sourceReceiver,
+      { scope: options.hostPath?.scope, path: options.hostPath, adapter: options.adapter, injectorState: options.injectorState });
   const inlineReceiver = (!options.assignment || !preserveResult) && options.kind === 'instance' && !plan.narrow
     && !plan.coerceReceiver && plan.pattern?.properties.length === 1 && !plan.rest
     && (!keyEffects || isConstantLiteralReceiver(receiver));
@@ -1826,11 +1839,15 @@ function planRetainedObjectCaptureShape({
   if (rest && kind === 'instance') return null;
   // A retained hop and its siblings share one source read. Keep the iterator
   // dispatch at its property position, where earlier writes and later getters can observe it.
-  if (assignment && entry === 'get-iterator-method' && !capturedResult && !pattern.properties.includes(prop)
-    && (isPureNavReceiver(peelNestedSequenceExpressions(init).tail)
-      || allProxySelectingInit(init, ctx))) {
+  if (entry === 'get-iterator-method' && !pattern.properties.includes(prop)
+    && (assignment ? !capturedResult && (isPureNavReceiver(peelNestedSequenceExpressions(init).tail) || allProxySelectingInit(init, ctx))
+      : hostPath && unwrapRuntimeExpr(init)?.type === 'ObjectExpression' && mayHaveSideEffects(init, ctx))) {
     const capture = planNestedKeyedPatternCapture({ pattern, init, prop, kind, entry, ctx, holdsReceiver: true });
-    if (capture && !capture.rest && (capture.splitCapture || capture.leafPattern.properties.length > 1)
+    // A sole declaration leaf can still carry its slot prefix directly. A spread or
+    // another initializer effect requires the whole literal before the method read.
+    const leaf = !assignment && capture && !capture.splitCapture && pathOfNode(hostPath, prop);
+    if (capture && !capture.rest && (capture.leafPattern.properties.length > 1 || (assignment ? capture.splitCapture
+      : !capture.splitCapture && !(leaf && carriedInitReceiverNode({ path: leaf, initNode: init, adapter }))))
       && !capturedRealmCtorPure({ capture, ...ctx, resolveGlobalPolyfill: name => resolvePure?.({ kind: 'global', name }, hostPath) })) {
       return { capture, assignment, innerPlan: { pattern: capture.leafPattern, prop, assignment } };
     }
@@ -2202,14 +2219,14 @@ function planRetainedObjectCaptureShape({
     && pattern.properties.includes(prop)
     && (consumed || rest || symbolPattern || computedKeyHasSideEffects(prop, ctx) || keyOrderSplit);
   if (kind !== 'instance' && !symbolPattern && !retainedStatic && !nestedSibling && !narrow) return null;
-  // A keyed iterator (including its default) reads its slot before the next sibling.
-  const iteratorWithSibling = keyedElement && entry === 'get-iterator-method'
-    && target?.type === 'Identifier' && pattern.properties.length > 1;
+  // Read the iterator after its key and before its default or the next sibling.
+  const orderedIterator = keyedElement && entry === 'get-iterator-method'
+    && target?.type === 'Identifier' && (pattern.properties.length > 1 || assignment && pattern.properties[0] === prop);
   // A consumed global assignment must still yield the realm while its target receives the
   // polyfilled value. A discarded continuation with a key effect uses that same capture;
   // quiet hops and source discarded writes keep their existing direct extraction.
   // ... asked of the init as written (`writtenInit`): the realm route that owns it reads that spelling
-  if (!provenCtorName && !symbolPattern && !nestedSibling && !iteratorWithSibling && adapter
+  if (!provenCtorName && !symbolPattern && !nestedSibling && !orderedIterator && adapter
     && (kind !== 'global' || !assignment || assignmentValueDiscarded(hostPath) && (!servedGlobal || target?.type !== 'ObjectPattern'))
     && allProxySelectingInit(writtenInit ?? init, { ...ctx, injectorState })) return null;
   const siblingStatics = siblingStaticEntries();
@@ -2234,7 +2251,7 @@ function planRetainedObjectCaptureShape({
     assignment,
     prop,
     // This route admits forward binding reads in a flat key; the render must evaluate them.
-    keepKeyReads: !!ordered?.flat,
+    keepKeyReads: !!ordered?.flat || orderedIterator,
     readStaticSlots: !!keyedStaticGroup && !assignment,
     narrow,
     retainedStatic,
@@ -2413,6 +2430,7 @@ export function renderRetainedObjectCapture(plan, {
       mintRef: plan.assignment ? mintDeclaredRef : mintRef, embed,
       receiverRef: !plan.assignment ? plan.receiverRef : null,
       receiverNode: !plan.assignment ? plan.receiverNode : null,
+      anchorPure,
       injectImport,
       coerceLeaf,
     });

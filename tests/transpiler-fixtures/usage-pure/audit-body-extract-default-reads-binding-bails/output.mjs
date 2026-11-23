@@ -1,7 +1,7 @@
-// Rest-bearing parameters keep their native bindings and defaults in parameter scope.
-// Independent reads and key/default expressions still receive their own polyfills.
+import _Array$of from "@core-js/pure/actual/array/of";
+// A later parameter default sees the first binding, including the fallback for an omitted argument.
 function g({
-  of,
+  of = arguments.length && arguments[0] !== void 0 ? void 0 : _Array$of,
   dflt = of,
   ...rest
 } = Array) {

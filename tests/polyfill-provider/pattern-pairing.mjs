@@ -1,6 +1,7 @@
 // Defaults and shared literal slots contribute once, while every distinct source survives.
 import {
   followConstLiteralAlias,
+  isPropertyNode,
   cycleGuardHas,
   patternMemberTargetPairs,
   patternReceiverSlotNodes,
@@ -13,6 +14,7 @@ import {
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { resolveObjectName } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import { createPatternBindings } from '../../packages/core-js-polyfill-provider/resolve-node-type/pattern-bindings.js';
 import { adapters, createChecker, resolvePure } from './harness.mjs';
 
 const { check, checkDeep, finish, runBoth } = createChecker('pattern-pairing');
@@ -244,5 +246,18 @@ for (const parser of adapters) for (const assigned of [false, true]) for (const 
   check(`${ label }/counter armed`, reads > size, true);
   check(`${ label }/bounded pairing (${ reads })`, reads <= 8 * (size + 1) ** 3, true);
 }
+
+const { findArrayPatternKeyPath } = createPatternBindings({
+  babelNodeType: node => isPropertyNode(node) ? 'ObjectProperty' : node.type,
+  getKeyName: key => key.name,
+});
+for (const [source, name, expected] of [
+  ['const [...{ length }] = rows;', 'length', [-1, 'length']],
+  ['const [first, ...{ length: rest }] = rows;', 'rest', [-2, 'length']],
+  ['const [first, ...{ length: rest }] = rows;', 'length', null],
+]) runBoth(`array rest binding ${ name }`, source, (parser, tree, label) => {
+  const pattern = parser.pickPath(tree, 'ArrayPattern');
+  checkDeep(label, findArrayPatternKeyPath(pattern.node, name, pattern.scope), expected);
+});
 
 finish();

@@ -3,4 +3,4 @@ let a, b, c;
 [a] = [Array];
 [b] = [a];
 [c] = [b];
-c.from([3]);
+c.of([3]);

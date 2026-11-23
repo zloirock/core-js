@@ -10,7 +10,7 @@ import {
   typeOnlyImportShadows,
   walkTypeAnnotationGlobals,
 } from './annotations.js';
-import { isKnownGlobalName } from './globals.js';
+import { isKnownGlobalName, isSourcedSymbolIteratorMeta } from './globals.js';
 import { hasMemberDefinitionKey } from '../index.js';
 import {
   aliasWriteCtorNames,
@@ -20,10 +20,11 @@ import {
   defaultDroppedAsDead,
   destructurePatternHostPath,
   prepareDestructureUnion,
+  resolveNestedReceiverNode,
   staticContainerReceiverName,
 } from './destructure.js';
 import { agreeingTernaryArm, resolveObjectName } from './resolve.js';
-import { handleBinaryIn, handleMemberExpressionNode, tagSymbolSourcedMeta } from './members.js';
+import { handleBinaryIn, handleMemberExpressionNode, readsOwnIterator, tagSymbolSourcedMeta } from './members.js';
 import {
   assignmentValueDiscarded,
   canonQuestionScope,
@@ -297,6 +298,8 @@ export function createUsageHandlerCore({
     }
     const { scope } = path;
     const tagged = meta ? tagSymbolSourcedMeta({ meta, keyNode, computed, scope, adapter, path }) : null;
+    if (method === 'usage-pure' && tagged && isSourcedSymbolIteratorMeta(tagged)
+      && readsOwnIterator(resolveNestedReceiverNode(path, { allowInitCarriedEffects: true, adapter }), { scope, adapter, path })) return;
     // usage-global reachable receiver / key union, in the member twin's order: its verdict phase
     // runs BEFORE the primary dispatch (it is what stamps `receiverInstanceFree`, and the primary
     // has to see it - otherwise the resolver's placement-agnostic instance fallback fabricates rows

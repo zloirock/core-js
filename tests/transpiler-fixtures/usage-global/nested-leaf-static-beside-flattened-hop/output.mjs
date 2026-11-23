@@ -1,5 +1,12 @@
 import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.promise.constructor";
+import "core-js/modules/es.promise.catch";
+import "core-js/modules/es.promise.finally";
+import "core-js/modules/es.promise.resolve";
+import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.array.from-async";
 import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.of";
 import "core-js/modules/es.function.name";
 import "core-js/modules/es.string.iterator";
 // a static beside an instance claim in one nested leaf whose hop the flatten moves out of its host:
@@ -20,14 +27,14 @@ let q = 1,
   {
     w: {
       name: lastName,
-      from: lastFrom
+      of: lastOf
     }
   } = W;
 let {
     w: {
       name: firstName,
-      from: firstFrom
+      fromAsync: firstFromAsync
     }
   } = W,
   q2 = 2;
-export { k, splitName, splitFrom, q, lastName, lastFrom, firstName, firstFrom, q2 };
+export { k, splitName, splitFrom, q, lastName, lastOf, firstName, firstFromAsync, q2 };

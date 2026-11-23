@@ -26994,6 +26994,138 @@ function * generateTypeDeclarationScopes() {
     export const r = Map.Status.Ok;`);
 }
 
+function * generateArrayPatternReads() {
+  function row(name, expression) {
+    return { name: `array-pattern-read/${ name }`, strip: true, code: `export const effects = [];\nexport const r = ${ expression };` };
+  }
+  for (const parameter of ['...{ at }', '[head, ...{ at }] = [1, 2]']) {
+    yield row(`rest/${ parameter.startsWith('...') ? 'arguments' : 'default' }`,
+      `(function (${ parameter }) { return at.call([7], -1); })()`);
+  }
+  yield row('rest/loop', '(() => { for (const [head, ...{ at }] of [[1, 2]]) return at.call([7], -1); })()');
+  yield row('rest/written', `(() => {
+    const original = Object.getOwnPropertyDescriptor(Array.prototype, 'at');
+    try {
+      Array.prototype.at = undefined;
+      function read(...{ at }) { return typeof at; }
+      return read(7);
+    } finally {
+      if (original) Object.defineProperty(Array.prototype, 'at', original);
+      else delete Array.prototype.at;
+    }
+  })()`);
+  yield row('earlier-parameter', `(() => {
+    function read({ from, [effects.push(typeof from)]: tail } = Array) { return typeof from; }
+    return [read(), read({ from: 9 }), read({})];
+  })()`);
+  yield row('conditional-static', `(() => {
+    function read(rows, choice, custom) {
+      let includes, of;
+      ([{ includes }, { of }] = [rows, (effects.push('select'), choice) ? Array : custom]);
+      return [includes.call(rows, 5), of(7)];
+    }
+    return [read([5], true, {}), read([], false, { of(x) { return x + 2; } })];
+  })()`);
+  yield row('spread', `(() => {
+    function* rows() { effects.push('iterate'); yield [7]; }
+    const { 0: { at } } = [...rows()];
+    return at.call([7], 0);
+  })()`);
+  yield row('computed-key', `(() => {
+    let key = 'Promise';
+    key = 'Array';
+    const { [key]: { from } } = globalThis;
+    return from('ab');
+  })()`);
+  yield row('result-identity', `(() => {
+    let method, same;
+    for (const { groupBy } = (same = (({ Map: { groupBy: method } } = globalThis) === globalThis), Map); false;) {}
+    return [same, typeof method];
+  })()`);
+  yield row('member-target', `(() => {
+    const box = {};
+    const result = ({ Promise: { race: box.race } } = globalThis);
+    return [result === globalThis, typeof box.race];
+  })()`);
+  for (const choice of [false, true]) {
+    yield row(`selected-assignment/${ choice }`, `(() => {
+      const custom = { get of() { effects.push('custom'); return n => n + 10; } };
+      let at, of;
+      const result = ([{ at }, { of }] = [[], (effects.push('choice'), ${ choice }) ? Array : custom]);
+      return [of(1), typeof at, result[1] === custom];
+    })()`);
+  }
+  yield row('close-on-getter', `(() => {
+    const row = { [Symbol.iterator]() {
+      return {
+        next() {
+          effects.push('next');
+          return { value: { get at() { effects.push('at'); throw new RangeError(); } } };
+        },
+        return() { effects.push('return'); return {}; }
+      };
+    } };
+    try { const [{ at }, tail] = row; return [at, tail]; } catch (error) { return error.name; }
+  })()`);
+  yield row('single-iterator-read', `(() => {
+    function read(extra, source) { const { w: { [Symbol.iterator]: method } } = { ...extra, w: source }; return method(); }
+    let count = 0;
+    const source = { get [Symbol.iterator]() { effects.push('get'); const n = ++count; return () => n; } };
+    return read({ get w() { effects.push('spread'); return null; } }, source);
+  })()`);
+  yield row('own-iterator-before-sibling', `(() => {
+    const { w: { [Symbol.iterator]: it, other } } = { w: {
+      other: 41, [Symbol.iterator]: null, get [Symbol.toStringTag]() { effects.push('tag'); this.other = 99; }
+    } };
+    return [it, other];
+  })()`);
+  yield row('written-iterator-optional-call', `(() => {
+    const array = [];
+    array[Symbol.iterator] = false;
+    try { array[Symbol.iterator]?.(); } catch (error) { return error.name; }
+  })()`);
+  yield row('iterator-read-before-and-after-write', `(() => {
+    const array = [];
+    const before = typeof array[Symbol.iterator];
+    array[Symbol.iterator] = false;
+    return [before, array[Symbol.iterator]];
+  })()`);
+  yield row('keyed-iterator-assignment-result', `(() => {
+    let count = 0;
+    const previous = Object.getOwnPropertyDescriptor(globalThis, Symbol.iterator);
+    Object.defineProperty(globalThis, Symbol.iterator, {
+      configurable: true,
+      get() { effects.push('get'); const n = ++count; return function * () { yield n; }; }
+    });
+    try {
+      let method;
+      const receiver = ({ [(effects.push('key'), Symbol.iterator)]: method = (effects.push('default'), null) } = globalThis);
+      return [method.call(receiver).next().value, receiver === globalThis];
+    } finally {
+      if (previous) Object.defineProperty(globalThis, Symbol.iterator, previous);
+      else delete globalThis[Symbol.iterator];
+    }
+  })()`);
+  yield row('own-iterator-through-key-alias', `(() => {
+    const key = Symbol.iterator;
+    const source = { get [key]() { effects.push('get'); return null; }, get [Symbol.toStringTag]() { throw new RangeError(); } };
+    return source[key];
+  })()`);
+  yield row('iterator-before-sibling', `(() => {
+    let calls = 0;
+    function make() {
+      const n = ++calls;
+      effects.push('make', n);
+      return {
+        get [Symbol.iterator]() { effects.push('iterator', n); return () => n; },
+        get other() { effects.push('other', n); return n; }
+      };
+    }
+    const { w: { [Symbol.iterator]: method, other } } = { x: effects.push('prefix'), w: make() };
+    return [method(), other, calls];
+  })()`);
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -28835,4 +28967,5 @@ export function * generate() {
   yield * generateWrittenSlotExtractions();
   yield * generateMembershipOperands();
   yield * generateTypeDeclarationScopes();
+  yield * generateArrayPatternReads();
 }

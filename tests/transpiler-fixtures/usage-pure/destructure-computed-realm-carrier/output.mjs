@@ -5,11 +5,12 @@ function getRealm() {
   effect();
   return _globalThis;
 }
-const _ref = getRealm();
-const flat = _flatMaybeArray(_ref.Array.prototype);
-const {
-  Array: {
+const _ref2 = getRealm(),
+  {
+    Array: _ref
+  } = _ref2;
+const flat = _flatMaybeArray(_ref.prototype),
+  {
     isArray
-  }
-} = _ref;
+  } = _ref;
 use(flat, isArray);

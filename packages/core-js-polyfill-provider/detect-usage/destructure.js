@@ -2428,19 +2428,19 @@ export function conditionalDestructureLeftUntouchedWarning(key) {
   return `conditional destructure with polyfill candidate left untouched ("${ key }" on fallback branch) - runtime availability depends on the selected branch`;
 }
 
-// A constructor may be called again through the first instance. If a computed sibling
-// prevents mirroring the default, keep every native Get in the pattern. Supply the missing
-// static only when this invocation used the default. At the first binding of parameter zero
-// no earlier parameter or key could have altered the constructor's own arguments object.
-export function constructorDefaultStaticFallback(propPath, meta, inject) {
+// A later key or default can read the first binding. An escaped constructor can also be
+// called again with a different receiver. Keep the original Get and supply its missing method
+// only when this invocation used the parameter default, before any user key can alter arguments.
+export function parameterDefaultStaticFallback(propPath, meta, inject) {
   const pattern = propPath.parentPath;
   const param = pattern?.parentPath;
   const fn = param?.parentPath;
   if (propPath.node.value?.type !== 'Identifier' || propPath.node.computed || pattern.node.properties[0] !== propPath.node
     || param?.node.type !== 'AssignmentPattern' || fn?.node.params?.[0] !== param.node
-    || fn.node.type !== 'FunctionExpression' || param.node.right.type !== 'Identifier'
+    || fn.node.type === 'ArrowFunctionExpression' || param.node.right.type !== 'Identifier'
     || param.node.right.name !== meta?.object || !NATIVE_STATIC_OWNERS.has(meta.object)
     || findIifeCallSite(fn, param.node)?.callPath.node.type !== 'NewExpression'
+      && !paramListReadsName(pattern.node.properties.slice(1), propPath.node.value.name)
     || fn.node.params.some(slot => patternBindsName(slot, 'arguments'))) return null;
   const args = identifier('arguments');
   const supplied = logicalExpression('&&', memberFromKeyName(args, 'length'),
@@ -8691,9 +8691,8 @@ export function buildNestedParamSynthPlan(options) {
         // ahead of every write of its slot is the realm still, as the tree that mirrored it took it
         receiverRead: { node: leaf, path: receiverContext(leaf).path },
         ...probeArm ? { nullTestOn: probeArm.left, keepArm: probeArm.right } : {},
-        // the probe stands on both halves, so the arm it keeps is a COPY: one node in two tree
-        // positions aliases every later rewrite of the arm across both of them
-        ...ternaryProbeArm ? { nullTestOn: leaf, keepArm: cloneNode(leaf) } : {},
+        // The nullish arm keeps the value of the original probe. Capture it once when rendering.
+        ...ternaryProbeArm ? { nullTestOn: leaf, keepArm: leaf } : {},
         ...receiverNode ? { receiverNode } : {},
         ...!receiverNode && (keepPrefix || memo) ? { keepPrefix: true } : {},
         ...memo ? { memo: true } : {},
@@ -10015,6 +10014,7 @@ export function applyNestedParamSynthPlan({
     // A probe arm carries its original selection into renderMirrorTarget at the insertion
     // boundary, after native target recovery. Replacing only the arm with an always-defined
     // literal would kill its fallback; dropping the probe would lose the source branch.
+    const probeRef = target.nullTestOn && target.keepArm === target.nullTestOn ? mintMemoRef(target) : null;
     if (!replaceTarget(node, renderTree(tree, {
       mintLocalRef: () => mintMemoRef({ ...target, localMemo: true }),
       receiverName: memoRef ?? receiverName,
@@ -10033,7 +10033,8 @@ export function applyNestedParamSynthPlan({
       preserveNullishReceiver: target.preserveNullishReceiver,
       preserveFalsyReceiver: target.preserveFalsyReceiver,
       ...target.localMemo ? { memoActivation: [memoRef], memoArguments: [embed(node)] } : {},
-    }), target)) continue;
+    }), probeRef ? { ...target, nullTestOn: assignmentExpression('=', identifier(probeRef), target.nullTestOn),
+      keepArm: identifier(probeRef) } : target)) continue;
     // a null-test re-spelling KEEPS two of the source's own nodes - the probe it tests and the arm it
     // falls back to - so the skip would silence the visitor over reads that are still in the tree and
     // still owe their substitution (`globalThis.window` raw, where every other read is `_globalThis`)
@@ -10346,7 +10347,7 @@ function computeNestedDestructureReceiver(outerProp, adapter, {
     const pattern = cur.parentPath;
     if (pattern?.node?.type !== 'ObjectPattern') return null;
     const key = sharedResolveKey({
-      node: cur.node.key, computed: cur.node.computed, scope: pattern.scope, adapter,
+      node: cur.node.key, computed: cur.node.computed, scope: pattern.scope, adapter, path: cur, usageNode: cur.node.key,
       // a key that only folds PAST AN EFFECT still names the hop: the level keeps the hop the way a
       // rest sibling does (the hop retires to a sentinel, the key runs once where it stands), so the
       // fold keeps the key node and every flavor rewrites on the same name
@@ -10668,10 +10669,19 @@ function arrayWrappedLeafHost(objectPattern) {
     ? { host: 'nested', outerProp: parent, objectPattern } : { host: 'array', objectPattern };
 }
 
-// Classify an ObjectPattern leaf's host for both emitters: initializer, parameter default,
-// nested property, array wrapper, IIFE argument or parameter requiring a caller census.
-// Known loop elements use the init route; unresolved loop heads, rest and catch stay opaque.
-// `host: 'none'` means the path is not a supported destructure leaf.
+function isArrayRestPattern(pattern) {
+  const rest = pattern?.parentPath;
+  const owner = rest?.parentPath?.node;
+  return rest?.node.type === 'RestElement' && (owner?.type === 'ArrayPattern' || owner?.params?.includes(rest.node));
+}
+
+// A rest binding creates a fresh array. Its own pattern still reads each key in place.
+export function restArrayMethodFallback(propPath, entry) {
+  return propPath.node.value?.type === 'Identifier' && entry?.startsWith('array/instance/')
+    && isArrayRestPattern(propPath.parentPath) ? entry.replace('/instance/', '/prototype/') : null;
+}
+
+// Both array rest and parameter rest create a fresh array before binding its properties.
 export function classifyDestructureLeafHost({ objectPattern }) {
   const parent = objectPattern?.parentPath;
   const parentNode = parent?.node;
@@ -10725,6 +10735,8 @@ export function classifyDestructureLeafHost({ objectPattern }) {
         : { host: 'opaque' };
     }
     case 'RestElement':
+      if (isArrayRestPattern(objectPattern)) return { host: 'array-rest' };
+      return { host: 'opaque' };
     case 'CatchClause':
       return { host: 'opaque' };
     default: {
@@ -10960,6 +10972,9 @@ export function buildDestructureLeafMeta({
     // break omitted
     case 'opaque':
       return key ? { kind: 'property', object: null, key, placement: null } : null;
+    case 'array-rest':
+      return key && !adapter.isMutatedStatic?.('Array.prototype', key)
+        ? { kind: 'property', object: 'Array', key, placement: 'prototype' } : null;
     case 'init':
       if (!key) return null;
       // A mixed literal has no single receiver type. Each element can still carry its own
@@ -11239,6 +11254,8 @@ export function planNestedKeyedPatternCapture({
       || (plansLeaf ? patternSlotTarget(prop.value)?.type !== 'Identifier' && !fragmentMember(prop)
         : prop.computed || prop.value?.type !== 'Identifier')))
     || (!force && !rest && !hostRest && !(holdsReceiver || nativeLeaf
+      || plansLeaf && splitCapture && ancestors.slice(1).some(level => level.pattern.properties.length > 1)
+        && (inner.properties.length > 1 || initRunsCode(init, ctx))
       || ((storedValue || (sharedLeaf && inner.properties.length > 1)) && ancestors.every(level => level.pattern.properties.length === 1)))
       && [...ancestors.flatMap(level => level.pattern.properties), ...inner.properties]
         .every(prop => !computedKeyHasSideEffects(prop, ctx))
@@ -11359,6 +11376,7 @@ export function orderedClaimCapture({
   // Ordinary statement hosts carry a sole receiver prefix through their flat extraction.
   // Assignments and loop initializers retain the capture needed to serve a nested user receiver.
   const effectLeaf = effectInit && (effectInit.type === 'ObjectExpression'
+    || effectInit.type === 'ArrayExpression' && effectInit.elements.some(item => item?.type === 'SpreadElement')
     || prefix.length && !isSeFreeMemberReceiver(effectInit)
       && (assignment || isForInitDeclaration(hostPath.parentPath?.parentPath?.node, hostPath.parentPath?.node)))
     ? pathOfNode(hostPath, prop) : null;

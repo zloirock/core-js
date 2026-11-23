@@ -15,4 +15,4 @@ const behindPure = _atMaybeArray(_ref2);
 const {
   length: pureLength
 } = _ref2;
-export const r = [behindEffect(0), behindLength, behindPure(0), pureLength, log.length];
+export const r = [behindEffect.call([7, 8], 0), behindLength, behindPure.call([7, 8], 0), pureLength, log];

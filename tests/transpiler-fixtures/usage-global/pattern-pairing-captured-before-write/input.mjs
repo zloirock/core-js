@@ -3,4 +3,4 @@ let first;
 [first] = [Array];
 const [held] = [first];
 [first] = [Object];
-held.from([3]);
+held.of([3]);

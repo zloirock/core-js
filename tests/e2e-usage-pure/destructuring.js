@@ -22,6 +22,49 @@ const nativeMap = Object.getOwnPropertyDescriptor(globalThis, 'Map')?.value;
 const nativeSet = Object.getOwnPropertyDescriptor(globalThis, 'Set')?.value;
 const nativeArrayIterator = Object.getOwnPropertyDescriptor(Array.prototype, Symbol.iterator)?.value;
 
+QUnit.test('destructuring: conditional positional statics keep the selected receiver', assert => {
+  const effects = [];
+  function read(rows, flag, custom) {
+    let includes, of;
+    // eslint-disable-next-line prefer-const -- this exercises the assignment plan
+    [{ includes }, { of }] = [rows, (effects.push('select'), flag) ? Array : custom];
+    return [includes.call(rows, 5), of(7)];
+  }
+  assert.deepEqual(read([5], true, {}), [true, [7]]);
+  assert.deepEqual(read([], false, { of(value) { return value + 2; } }), [false, 9]);
+  assert.deepEqual(effects, ['select', 'select']);
+});
+
+QUnit.test('destructuring: a parameter key sees the method of the default or the supplied object', assert => {
+  const effects = [];
+  function read({ from, [effects.push(typeof from)]: other } = Array) { return [typeof from, other]; }
+  assert.deepEqual(read(), ['function', undefined]);
+  assert.deepEqual(read({ from: 9, 2: 'own' }), ['number', 'own']);
+  assert.deepEqual(read({}), ['undefined', undefined]);
+  assert.deepEqual(effects, ['function', 'number', 'undefined']);
+});
+
+QUnit.test('destructuring: array holes retain effects, lengths and detached method behaviour', assert => {
+  const effects = [];
+  const rows = [[7, 8]];
+  const [, { at: first, length: size }] = [effects.push('first'), rows.flat()];
+  const [, { at: second, length: otherSize }] = [effects.push('second'), rows.flat()];
+  assert.deepEqual([first.call([7, 8], 0), size, second.call([7, 8], -1), otherSize], [7, 2, 8, 2]);
+  assert.deepEqual(effects, ['first', 'second']);
+  assert.throws(() => first(0), TypeError);
+});
+
+QUnit.test('destructuring: a spread supplies its numeric property once', assert => {
+  const events = [];
+  function * rows() {
+    events.push('iterate');
+    yield [7];
+  }
+  const { 0: { at } } = [...rows()];
+  assert.same(at.call([7], -1), 7);
+  assert.deepEqual(events, ['iterate']);
+});
+
 QUnit.test('destructuring: const { from } = Array', assert => {
   const { from } = Array;
   assert.deepEqual(from([1, 2, 3]), [1, 2, 3]);
@@ -1207,8 +1250,9 @@ QUnit.test('computed-key: sibling-binding read stays single-read', assert => {
     return [typeof of, picked];
   }
   const [ofType, picked] = fn();
-  assert.same(ofType, POST_LOWERED ? 'function' : typeof nativeArrayOf);
+  assert.same(ofType, 'function');
   assert.same(picked, undefined);
+  assert.deepEqual(fn({ of: 'own', own: 7 }), ['string', 7]);
 });
 
 // computed destructure key with a side-effecting prefix `[(eff(), 'from')]` resolving to a
@@ -1496,13 +1540,12 @@ QUnit.test('destructuring: nested instance method in a multi-declarator polyfill
   assert.deepEqual(m.call(arr), [1, 2]);
 });
 
-// two separate destructure declarators in one declaration - a static (`from`) and a nested instance
-// (`flat`): both polyfill, the instance binds via its own trailing sibling declarator
-QUnit.test('destructuring: two destructure declarators (static + nested instance) both polyfill', assert => {
+// The static stays in the literal wrapper. The adjacent instance method binds in the same declaration.
+QUnit.test('destructuring: a native static pattern and a polyfilled nested instance share one declaration', assert => {
   const arr = [1, [2]];
-  // eslint-disable-next-line no-unused-vars -- retain the original native pattern while checking its independent effects and neighbours
   const { a: { from: f } } = { a: Array },
         { y: { flat: m } } = { y: arr };
+  assert.same(f, POST_LOWERED ? Array.from : nativeArrayFrom);
   assert.deepEqual(m.call(arr), [1, 2]);
 });
 
@@ -2036,20 +2079,24 @@ QUnit.test('destructuring: multi-key call branch memoizes the call once', assert
 // nested conditional with two call branches: only the taken branch's call runs, exactly once,
 // and its branch-specific polyfill binds
 QUnit.test('destructuring: nested conditional call branches memoize per leaf', assert => {
-  const a = false;
-  const b = true;
-  let c = 0;
-  // eslint-disable-next-line unicorn/no-unnecessary-nested-ternary -- the nested conditional receiver is the subject under test
-  const { of, custom } = a ? (() => {
-    c++;
-    return Array;
-  })() : (b ? (() => {
-    c++;
-    return Array;
-  })() : Array);
-  assert.deepEqual(of(7), [7]);
-  assert.same(custom, undefined);
-  assert.same(c, 1);
+  const events = [];
+  function read(a, b) {
+    const { of, custom } = a ? (() => {
+      events.push('outer');
+      return Array;
+    })() : (b ? (() => {
+      events.push('inner');
+      return Array;
+    })() : Array);
+    assert.deepEqual(of(7), [7]);
+    assert.same(custom, undefined);
+  }
+  read(true, true);
+  assert.deepEqual(events, ['outer']);
+  read(false, true);
+  assert.deepEqual(events, ['outer', 'inner']);
+  read(false, false);
+  assert.deepEqual(events, ['outer', 'inner']);
 });
 
 // Object-rest remains native even when every caller uses the parameter default.
@@ -2463,11 +2510,12 @@ QUnit.test('destructuring: spread args, wrapper defaults, captured super alias',
 // init element, excludes the consumed key) and the polyfill overrides the captured binding
 QUnit.test('destructuring: assignment array wrap with rest cascade', assert => {
   let from, rest;
-  // eslint-disable-next-line prefer-const -- the ASSIGNMENT-form destructure is the shape under test
   [{ from, ...rest }] = [Array];
   assert.same(from([7])[0], 7);
-  // pristine built-in statics are non-enumerable, so rest only proves the consumed-key exclusion
   assert.false('from' in rest);
+  [{ from, ...rest }] = [{ from: 13, kept: 17 }];
+  assert.same(from, 13);
+  assert.deepEqual(rest, { kept: 17 });
 });
 
 // an unclassifiable IIFE arg keeps native priority (caller value wins) while the wrapper
@@ -4774,8 +4822,7 @@ QUnit.test('destructuring: a claim under a keyed wrapper reads its own hop', ass
   const { pair: [{ y: { flat: raw } }], zn } = { pair: [nb], zn: log.push('n') };
   assert.same(zn, 1, 'a neighbour key keeps its own value');
   assert.same(log.join(','), 'n', 'its effect ran exactly once');
-  assert.same(raw === undefined || typeof raw === 'function', true,
-    'and the claim beside it binds whatever the engine holds - that row stays native by design');
+  assert.deepEqual(raw.call([[3]]), [3], 'the adjacent effect preserves the extracted method');
 });
 
 // an ASSIGNMENT host binds no declaration for a positional claim's minted name, but a hoisted `var`
@@ -5150,12 +5197,10 @@ QUnit.test('destructuring: a carried init reads through its wrappers', assert =>
   const [{ y: { at: viaParenElement } }] = [({ y: rows() })];
   assert.same(typeof viaParenElement, typeof viaParenSlot, 'the wrapper host answers the same');
   assert.same(log.join(','), 'rows,rows,rows', 'still one read each');
-  // ... and a SEQUENCE prefix keeps the claim native on both legs - what this locks is the effect
-  // ORDER, which is the invariant the peel must not disturb: the prefix runs first, the slot once
+  // The sequence evaluates the prefix before the receiver and its method.
   const { y: { at: viaSeqPrefix } } = (lead(), { y: rows() });
   assert.same(log.join(','), 'rows,rows,rows,lead,rows', 'the prefix runs once, before the slot');
-  assert.same(viaSeqPrefix === undefined || typeof viaSeqPrefix === 'function', true,
-    'and the leaf binds what the realm holds for it');
+  assert.same(viaSeqPrefix.call([3], -1), 3);
 });
 
 // a for-x HEAD is not a statement list, so extracting a claim out of it relocates what the pattern
@@ -5298,7 +5343,7 @@ QUnit.test('destructuring: a wrapped host keeps what it binds beside the hop', a
   // every binding the source wrote, in the order the source reads them
   const [{ lead, y: { flat, extra }, top }] = [nested];
   assert.same([lead, extra, top].join(','), '5,7,4', 'everything beside the hop still binds');
-  assert.same(typeof flat === 'function' || flat === undefined, true, 'the claim binds what the realm holds');
+  assert.deepEqual(flat.call([[3]]), [3], 'the selected array supplies the method');
   assert.same(order.join(','), 'lead,y,top', 'each read where the source reads it');
   const [{ y: { flat: flatA }, top: topA }] = [nested];
   assert.same(topA, 4, 'a sibling after the hop alone');
@@ -5319,12 +5364,10 @@ QUnit.test('destructuring: several statics off a guarded binding each take their
   assert.same(of(7, 8).length, 2, 'and so does the second');
   const { of: of2, from: from2 } = M;
   assert.same([typeof of2, typeof from2].join(','), 'function,function', 'order in the pattern decides nothing');
-  // a prop the plan cannot answer keeps the WHOLE pattern - the negative the split is gated on. the
-  // claim is then DECLINED, so `from3` holds what the realm holds, exactly as the source's own read
-  // would: what the decline owes is the bindings, not the polyfill
+  // The supported static remains callable beside the native isArray binding.
   const { from: from3, isArray } = M;
   assert.same(typeof isArray, 'function', 'a mixed pattern still binds its unclaimed props');
-  assert.same(from3 === undefined || typeof from3 === 'function', true, 'and the claim binds the raw slot');
+  assert.deepEqual(from3('ab'), ['a', 'b']);
   // source order of the reads, where the slots can observe it
   const order = [];
   const probe = Object.defineProperties({}, {
@@ -5693,7 +5736,7 @@ QUnit.test('destructuring: a wrapper residual keeps its spread, its write and it
   // eslint-disable-next-line no-unreachable-loop, no-unused-vars -- observe the original initializer once
   for (const [{ Object: { fromEntries } }] = [written = (eff('q'), globalThis), 7]; ;) break;
   assert.same(written, globalThis);
-  assert.same(order.at(-1), 'q');
+  assert.deepEqual(order, ['w', 'e', 'f', 'q']);
 });
 
 // the shapes the wrapper convergence closed last: a kept write under a MULTI-element assignment
@@ -6290,9 +6333,7 @@ QUnit.test('destructuring: several SE keys on one pattern read in key order', as
   assert.same(segAt.call([7], -1), 7, 'the first claim binds a working method');
   assert.deepEqual(segFlat.call([[8]]), [8], 'the second claim binds a working method');
   assert.same(z, 9, '... and the trailing prop still binds');
-  assert.true(log.indexOf('at') < log.indexOf('get-at'), 'the first key runs before its property is read');
-  assert.true(log.lastIndexOf('get-at') < log.indexOf('flat'), '... and every read of it precedes the second key');
-  assert.true(log.indexOf('flat') < log.indexOf('get-flat'), 'the second key runs before its property is read');
+  assert.deepEqual(log, ['at', 'get-at', 'flat', 'get-flat']);
 });
 
 // an UNCLAIMED effectful key beside a claim still segments the residual at the claim: native reads
@@ -6313,8 +6354,7 @@ QUnit.test('destructuring: an unclaimed effectful key beside a claim keeps the p
   const { [(log.push('k1'), 'of')]: o, [(log.push('k2'), 'at')]: a, m } = recv;
   assert.same(typeof a, 'function', 'the claim bound the polyfilled method');
   assert.same(m, 'm', 'the trailing prop bound');
-  assert.deepEqual(log.slice(0, 3), ['k1', 'k2', 'at'], 'keys, then the claimed slot');
-  assert.same(log.at(-1), 'm', 'the trailing prop reads last');
+  assert.deepEqual(log, ['k1', 'k2', 'at', 'm']);
 });
 
 QUnit.test('destructuring: constructors under a literal hop work beside sibling claims', assert => {
@@ -9362,7 +9402,10 @@ QUnit.test('destructuring: assignment hosts share a receiver capture with their 
   if (events.length) ({ at, length } = holder.rows);
   assert.same(at.call([4, 9], -1), 9);
   assert.same(length, 2);
+  at = includes = null;
   (events.push('before'), ({ at, includes } = holder.rows), events.push('after'));
+  assert.same(at.call([4, 9], -1), 9);
+  assert.true(includes.call([4, 9], 4));
   const returned = ({ at, length } = holder.rows);
   assert.same(returned.length, 2);
   assert.same(at.call(returned, -1), 9);

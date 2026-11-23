@@ -19,12 +19,13 @@ const viaParenWrapSlot = _atMaybeArray(_ref.y);
 // ... and the wrapper HOST reads through them too, narrow included: the alias walk that decides
 // whether the element leaks climbs to its declarator, and a fixed hop count - or an init matched by
 // identity - answers `leak` on the leg whose parser keeps the paren, which costs the read its type
+const [, _ref2] = [hb, arr];
 const viaParenWrapInit = _atMaybeArray(hb.y);
-const [{}, viaParenWrapTail] = [hb, arr];
-const [, _ref2] = [hb, _flatMaybeArray(arr).call(arr)];
-const _ref3 = hb.y;
-const viaParenWrapPair = _atMaybeArray(_ref3);
-const viaParenWrapPairLast = _findLastMaybeArray(_ref3);
-const viaParenWrapPairTail = _ref2;
+const viaParenWrapTail = _ref2;
+const [, _ref3] = [hb, _flatMaybeArray(arr).call(arr)];
+const _ref4 = hb.y;
+const viaParenWrapPair = _atMaybeArray(_ref4);
+const viaParenWrapPairLast = _findLastMaybeArray(_ref4);
+const viaParenWrapPairTail = _ref3;
 export { viaParenSlot, viaParenInit, viaParenWrapSlot };
 export { viaParenWrapInit, viaParenWrapTail, viaParenWrapPair, viaParenWrapPairLast, viaParenWrapPairTail };

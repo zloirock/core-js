@@ -603,7 +603,7 @@ runBoth(
 for (const source of [
   'const [{ from, at }] = [pick ? Array : user];',
   'let from, at; ([{ from, at }] = [pick ? Array : user]);',
-]) runBoth('array plan/native static and instance share the original receiver decision', source, (parser, program, label) => {
+]) runBoth('array plan/selected static and instance share the original receiver decision', source, (parser, program, label) => {
   const arrayPath = parser.pickPath(
     program,
     source.startsWith('const') ? 'VariableDeclarator' : 'AssignmentExpression',
@@ -617,8 +617,10 @@ for (const source of [
       : meta.key === 'at' ? { kind: 'instance', entry: 'actual/instance/at', hintName: 'at' } : null,
   });
   checkTruthy(`${ label } capture owns original array`, plan?.array.capture);
-  check(`${ label } static sibling stays native`, plan?.array.elements[0].children.at(0).kind, 'verbatim');
-  checkDeep(`${ label } original instance decision`, plan?.extractions.map(item => item.localName), ['at']);
+  const assignment = arrayPath.node.type === 'AssignmentExpression';
+  check(`${ label } static slot`, plan?.array.elements[0].children[0].kind, assignment ? 'consumed' : 'verbatim');
+  checkDeep(`${ label } claimed properties`, plan?.extractions.map(item => item.localName), assignment ? ['from', 'at'] : ['at']);
+  if (assignment) checkTruthy(`${ label } static checks the captured receiver`, plan.extractions[0].narrow);
 });
 
 runBoth(

@@ -28,4 +28,4 @@ const {
 const {
   other
 } = _globalThis;
-export const r = [typeof viaSurface, viaMemo(0), memoLength, typeof mixedInstance, typeof mixedStatic, typeof other, log.length];
+export const r = [typeof viaSurface, viaMemo.call([7, 8], 0), memoLength, typeof mixedInstance, typeof mixedStatic, typeof other, log];

@@ -61,25 +61,141 @@ cases.push(['capture/string', `let from, at;
 'RangeError', ['key', 'get'], ['usage-global', 'usage-pure']], ['present user slot', `function key() { effects.push('key'); return 'present'; }
   const source = { present: { groupBy() { effects.push('custom'); return 23; } } };
   const { [key()]: { groupBy } = (effects.push('default'), Map) } = source; return groupBy();`,
-23, ['key', 'custom'], ['usage-global', 'usage-pure']]);
+23, ['key', 'custom'], ['usage-global', 'usage-pure']], ['iterator close on first property', `const row = {
+    [Symbol.iterator]() {
+      return {
+        next() { effects.push('next'); return { value: { get at() { effects.push('at'); throw new RangeError(); } } }; },
+        return() { effects.push('return'); return {}; },
+      };
+    },
+  };
+  try { const [{ at }, tail] = row; return [at, tail]; } catch (error) { return error.name; }`,
+'RangeError', ['next', 'at', 'return'], ['usage-pure']]);
+for (const abrupt of [false, true]) {
+  const effects = ['spread', 'source', 1, 'iterator', 1];
+  if (!abrupt) effects.push('other', 1);
+  cases.push([`nested iterator order/${ abrupt }`, `let count = 0;
+    function read() {
+      const id = ++count;
+      effects.push('source', id);
+      return {
+        get [Symbol.iterator]() { effects.push('iterator', id); ${ abrupt ? 'throw new RangeError();' : 'return () => id;' } },
+        get other() { effects.push('other', id); return id; }
+      };
+    }
+    try {
+      const extra = { get before() { effects.push('spread'); return 0; } };
+      const { w: { [Symbol.iterator]: method, other } } = { ...extra, w: read() };
+      return [method(), other];
+    } catch (error) { return error.name; }`,
+  abrupt ? 'RangeError' : [1, 1], effects, ['usage-pure']]);
+}
+cases.push(['missing iterator before sibling', `const receiver = new Proxy({
+    other: 41,
+    get [Symbol.toStringTag]() { effects.push('tag'); this.other = 99; },
+  }, {
+    get(object, key) { effects.push(key === Symbol.iterator ? 'iterator' : String(key)); return object[key]; },
+    has() { throw new RangeError('has'); },
+  });
+  const { w: { [Symbol.iterator]: it, other } } = { w: receiver };
+  return [typeof it, other];`, ['undefined', 41], ['iterator', 'other'], ['usage-pure'],
+[['undefined', 99], ['iterator', 'Symbol(Symbol.toStringTag)', 'tag', 'other']]], ['missing iterator in parameter', `function read(value) {
+    const { w: { [Symbol.iterator]: it, other } } = { w: value };
+    return [typeof it, other];
+  }
+  return read({ other: 41, get [Symbol.toStringTag]() { effects.push('tag'); this.other = 99; } });`,
+['undefined', 41], [], ['usage-pure'], [['undefined', 99], ['tag']]]);
+for (const [name, body, expected, effects] of [
+  ['own null', 'return ({ [Symbol.iterator]: null })[Symbol.iterator];', null, []],
+  ['own iterator in a rebuilt call', `const flag = JSON.parse('true');
+    const key = Symbol.iterator;
+    const selected = flag ? key : key;
+    const source = { [Symbol.iterator]: null, 'Symbol.iterator': 7 };
+    const out = [];
+    out.push(source[(effects.push('key'), selected)]);
+    return out[0];`, null, ['key']],
+  ['own assignment', 'let m; ({ [Symbol.iterator]: m } = { [Symbol.iterator]: null }); return m;', null, []],
+  ['nested false', 'const { w: { [Symbol.iterator]: { n = 3 } } } = { w: { [Symbol.iterator]: false } }; return n;', 3, []],
+  ['getter before sibling', `const { [Symbol.iterator]: method, next } = {
+    get [Symbol.iterator]() { effects.push('iterator'); return false; },
+    get [Symbol.toStringTag]() { throw new RangeError(); },
+    get next() { effects.push('next'); return 41; }
+  }; return [method, next];`, [false, 41], ['iterator', 'next']],
+  ['written optional call', `const a = []; a[Symbol.iterator] = false;
+    try { a[Symbol.iterator]?.(); } catch (error) { return error.name; }`, 'TypeError', []],
+]) cases.push([name, body, expected, effects, ['usage-pure', 'usage-global']]);
+cases.push(['iterator before and after write', `const a = [];
+  const before = typeof a[Symbol.iterator];
+  a[Symbol.iterator] = false;
+  return [before, a[Symbol.iterator]];`, ['function', false], [], ['usage-pure']]);
+const arrayFixture = await fs.readFile(new URL('../transpiler-fixtures/usage-pure/iterator-assignment-captures-replaced-global/input.mjs', import.meta.url), 'utf8');
+cases.push(['iterator assignment on a replaced array', `${ arrayFixture.replace('export function', 'function') }
+  const expose = rows => Object.defineProperty(self, 'window', { configurable: true, value: rows });
+  return first(expose, () => { effects.push('default'); return function * () { yield 77; }; });`, 3, [], ['usage-pure']],
+['iterator assignment key TDZ', `Object.defineProperty(self, 'window', { value: [3], configurable: true });
+  try {
+    let method;
+    ({ [(effects.push('key'), later, Symbol.iterator)]: method } = window);
+    const later = 1;
+    return method.call(window).next().value + later;
+  } catch (error) { return error.name; }`, 'ReferenceError', ['key'], ['usage-pure']]);
+for (const mode of ['array', 'getter', 'missing', 'null', 'throw']) {
+  const receiver = mode === 'null' ? 'null' : mode === 'missing' ? '{}' : '[3]';
+  const getter = mode === 'getter' ? `let count = 0;
+    Object.defineProperty(rows, Symbol.iterator, { get() {
+      effects.push('get'); const n = ++count; return function * () { yield n; };
+    } });` : '';
+  const expected = { array: [3, true], getter: [1, true], missing: [77, true], null: 'TypeError', throw: 'RangeError' };
+  const trace = { array: ['key'], getter: ['key', 'get'], missing: ['key', 'default'], null: [], throw: ['key'] };
+  cases.push([`keyed iterator assignment/${ mode }`, `const rows = ${ receiver };
+    ${ getter }
+    Object.defineProperty(self, 'window', { configurable: true, value: rows });
+    function key() {
+      effects.push('key');
+      ${ mode === 'throw' ? 'throw new RangeError();' : "Object.defineProperty(self, 'window', { value: [9] });" }
+    }
+    function fallback() { effects.push('default'); return function * () { yield 77; }; }
+    let method;
+    try {
+      const source = ({ [(key(), Symbol.iterator)]: method = fallback() } = window);
+      return [method.call(source).next().value, source === rows];
+    } catch (error) { return error.name; }`, expected[mode], trace[mode], ['usage-pure']]);
+}
+for (const assignment of [false, true]) {
+  const pattern = '{ Map: { groupBy, name }, [effects.push(typeof groupBy)]: other }';
+  const statement = assignment ? `let groupBy, name, other; (${ pattern } = globalThis);` : `const ${ pattern } = globalThis;`;
+  cases.push([`captured Map/${ assignment ? 'assignment' : 'declaration' }`, `${ statement } return [name, typeof groupBy];`,
+    ['Map', 'function'], ['function'], ['usage-pure']]);
+}
+
 const directory = await fs.mkdtemp(path.join(import.meta.dirname, '../transpiler-differential/tmp/default-claims-'));
 let serial = 0;
 try {
-  for (const [name, body, expected, effects, methods] of cases) {
+  await fs.writeFile(path.join(directory, 'missing-iterator.mjs'), 'delete Array.prototype[Symbol.iterator];');
+  for (const [name, body, expected, effects, methods, helperResult] of cases) {
     const source = scenarioSource(`export const effects = []; export const r = (() => { ${ body } })();`);
     const nativeFile = path.join(directory, `case-${ serial++ }.mjs`);
     await fs.writeFile(nativeFile, source);
     const want = `OK|${ JSON.stringify(expected) }|${ JSON.stringify(effects) }`;
     check(`${ name }/native`, await runInWorker(nativeFile, { strip: false }), want);
+    // On opaque receivers the public helper also looks up a legacy iterator.
+    const transformed = helperResult ? `OK|${ JSON.stringify(helperResult[0]) }|${ JSON.stringify(helperResult[1]) }` : want;
     for (const method of methods) for (const host of ['babel', 'unplugin', 'pre+post']) {
       const output = await transform(source, host, method);
       if (name.startsWith('capture/') && method === 'usage-pure') {
         check(`${ name }/${ host }/no generated navigation helper`, /actual\/instance\/(?:entries|values)["']/u.test(output), false);
       }
       const file = path.join(directory, `case-${ serial++ }.mjs`);
-      await fs.writeFile(file, output);
+      // The runtime initializes its collection helpers with native Map. Remove the ambient
+      // constructor after imports, before the generated pattern first accesses its receiver.
+      await fs.writeFile(file, name.startsWith('captured Map/') ? `delete self.Map;\n${ output }` : output);
       for (const strip of [false, true]) check(`${ name }/${ method }/${ host }/${ strip }`, await runInWorker(file, { strip,
-        stripGlobals: name.startsWith('global/AggregateError/') ? ['Iterator', 'globalThis', 'AggregateError'] : undefined }), want);
+        stripGlobals: name.startsWith('global/AggregateError/') ? ['Iterator', 'globalThis', 'AggregateError'] : undefined }), transformed);
+      if (['iterator before and after write', 'iterator assignment on a replaced array', 'keyed iterator assignment/array'].includes(name)) {
+        const legacy = path.join(directory, `legacy-${ serial++ }.mjs`);
+        await fs.writeFile(legacy, `import './missing-iterator.mjs';\nexport * from ${ JSON.stringify(pathToFileURL(file).href) };`);
+        check(`${ name }/${ host }/missing array iterator at startup`, await runInWorker(legacy, { strip: false }), want);
+      }
     }
   }
 } finally {

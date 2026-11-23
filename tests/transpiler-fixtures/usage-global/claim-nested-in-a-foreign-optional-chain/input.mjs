@@ -7,4 +7,5 @@ const r3 = host?.a.b(Promise?.resolve(3));
 const r4 = host?.fn?.(Object?.entries);
 const r5 = globalThis.window?.Array.isArray([4]);
 const r6 = list.flat?.(1);
-console.log(r1, r2, r3, r4, r5, r6);
+const r7 = globalThis.window?.Array.fromAsync([4]);
+console.log(r1, r2, r3, r4, r5, r6, r7);

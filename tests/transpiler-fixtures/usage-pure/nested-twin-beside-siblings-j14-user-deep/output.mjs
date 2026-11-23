@@ -1,17 +1,22 @@
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 const deep = {
   y: {
     z: [1]
   }
 };
 const {
-  y: {
-    z: {
-      at: userDeep,
-      other: o5
-    },
+    y: _ref
+  } = deep,
+  {
+    z: _ref2
+  } = _ref,
+  userDeep = _atMaybeArray(_ref2),
+  {
+    other: o5
+  } = _ref2,
+  {
     junk: j14
-  }
-} = deep;
+  } = _ref;
 export { userDeep };
 export { o5 };
 export { j14 };

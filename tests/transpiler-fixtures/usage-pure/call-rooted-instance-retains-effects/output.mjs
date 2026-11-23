@@ -5,11 +5,12 @@ function get() {
   effect();
   return _globalThis;
 }
-const _ref = get();
-const flat = _flatMaybeArray(_ref.Array.prototype);
-const {
-  Array: {
+const _ref2 = get(),
+  {
+    Array: _ref
+  } = _ref2;
+const flat = _flatMaybeArray(_ref.prototype),
+  {
     isArray
-  }
-} = _ref;
+  } = _ref;
 export { flat, isArray };

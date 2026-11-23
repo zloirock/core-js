@@ -4,11 +4,13 @@ import "core-js/modules/es.symbol.iterator";
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.at";
+import "core-js/modules/es.array.flat-map";
 import "core-js/modules/es.array.from";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.array.map";
 import "core-js/modules/es.array.of";
 import "core-js/modules/es.array.species";
+import "core-js/modules/es.array.unscopables.flat-map";
 import "core-js/modules/es.array.values";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.string.iterator";
@@ -38,7 +40,7 @@ const {
 const [{
   ['Array']: {
     prototype: {
-      forEach
+      flatMap
     }
   }
 }] = [globalThis];
@@ -61,4 +63,4 @@ const {
     of
   }
 } = globalThis;
-use(at, includes, forEach, map, values, of);
+use(at, includes, flatMap, map, values, of);

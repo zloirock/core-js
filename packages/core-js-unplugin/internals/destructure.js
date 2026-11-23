@@ -20,7 +20,8 @@ import {
   isReReferenceableReceiver,
   patternComputedKeysSynthSafe,
   planSideEffectKeyStrategy,
-  constructorDefaultStaticFallback,
+  parameterDefaultStaticFallback,
+  restArrayMethodFallback,
   qualifiesForParamBodyExtract,
   planParameterInstanceExtraction,
   renderSynthTree,
@@ -148,6 +149,7 @@ import { detectIifeArgReceiverPath, findSynthSwapReceiver } from './destructure-
 import { nodeSite, stampNodeSite } from './nav-spine.js';
 import { replaceNodeInTree } from './emit-shared.js';
 import {
+  assignmentPattern,
   blockStatement,
   expressionStatement,
   memberFromKeyName,
@@ -805,6 +807,12 @@ export default function createAstDestructureEmitter({
   // Bind the shared ordered capture before a host-specific route can consume its pattern.
   // eslint-disable-next-line max-statements -- apply default, retained and ordinary plans to their native hosts
   function capturePatternForExtraction({ metaPath, meta, kind, entry, hintName }) {
+    const restMethod = restArrayMethodFallback(metaPath, entry);
+    if (restMethod) {
+      metaPath.node.value = assignmentPattern(metaPath.node.value, identifier(injectPureImport(restMethod, hintName)));
+      markRewrite();
+      return true;
+    }
     if (!entry && !meta.fromFallback) return false;
     const capturePlan = planRetainedObjectCapture({
       propPath: metaPath,
@@ -1137,7 +1145,8 @@ export default function createAstDestructureEmitter({
     for (const extraction of plan.extractions) skippedNodes.add(extraction.prop);
     // the render copies the pattern's targets into the statements it plans: the source pattern leaves
     noteRenderRetiredWrites(plan.array.assignment ? declarator.node.left : declarator.node.id);
-    if (plan.array.assignment) {
+    if (plan.array.expression) declarator.replaceWith(sequenceExpression(rendered.map(node => node.expression)));
+    else if (plan.array.assignment) {
       const statement = declarator.findParent(item => item.node === plan.array.statement);
       declarator.get('left').replaceWith(rendered[0].expression.left);
       if (plan.array.bodyless) statement.replaceWith(bodylessSlotReplacement(statement.node, [statement.node, ...rendered.slice(1)]));
@@ -1654,14 +1663,13 @@ export default function createAstDestructureEmitter({
     // extraction would bind the same name a second time - and out of the CALLER's reach, where the
     // literal keeps it caller-correct. the capture route asks the same marker one level over
     if (branchMirrorPatterns.has(pattern)) return;
-    if (paramsHaveInvisibleCallers(metaPath, { paramNeverOverridden: paramDefaultNeverOverridden })) {
-      const fallback = constructorDefaultStaticFallback(metaPath, meta, () => injectPureImport(entry, hintName));
-      if (fallback) {
-        prop.value = { type: 'AssignmentPattern', left: prop.value, right: fallback };
-        markRewrite();
-      }
+    const fallback = parameterDefaultStaticFallback(metaPath, meta, () => injectPureImport(entry, hintName));
+    if (fallback) {
+      prop.value = assignmentPattern(prop.value, fallback);
+      markRewrite();
       return;
     }
+    if (paramsHaveInvisibleCallers(metaPath, { paramNeverOverridden: paramDefaultNeverOverridden })) return;
     const keyHasSideEffect = computedKeyHasSideEffects(prop, { scope: metaPath.scope, adapter, path: metaPath });
     if (!keyHasSideEffect) tryBodyExtractParam({ metaPath, prop, pattern, entry, hintName });
   }

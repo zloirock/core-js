@@ -4,6 +4,7 @@ import "core-js/modules/es.symbol.iterator";
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.of";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
 // A named parameter consumes a receiver inside an array and an object wrapper. The supplied
@@ -11,17 +12,17 @@ import "core-js/modules/web.dom-collections.iterator";
 // The wrappers do not expose Array itself or require its other statics.
 function read({
   slot: [{
-    from
+    of
   }]
 }) {
-  return from;
+  return of;
 }
 read({
   slot: [Array]
 })([1, 2]);
 read({
   slot: [{
-    from: value => value
+    of: value => value
   }]
 })(3);
 read({
