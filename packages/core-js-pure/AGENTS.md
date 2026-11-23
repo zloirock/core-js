@@ -21,4 +21,4 @@ An override is the heavy instrument, and not the first one to reach for. When a 
 - No global built-in may be added or mutated, on any code path, including feature detection. The one deliberate exception is the `__core-js_shared__` store that `internals/shared-store.js` installs - shared state and debugging info live there by design, do not "fix" it
 - Everything must work when the corresponding global built-in is missing, broken, or replaced
 - The pure flavor gives no guarantee about `.name` of the exported methods - `make-built-in` is a no-op here
-- The whole TypedArray family is stubbed out, constructors included: the overrides are empty and the entry points still resolve, to an empty object
+- TypedArray polyfills, including the constructors, have empty overrides. `actual/typed-array` exports the shared `internals/path` namespace with entries such as `Object` and `Array`. Individual constructor entries such as `actual/uint8-array` export the host constructor when available
