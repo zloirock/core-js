@@ -1,3 +1,4 @@
+core-js/modules/es.array.concat
 core-js/modules/es.array.entries
 core-js/modules/es.array.fill
 core-js/modules/es.array.from

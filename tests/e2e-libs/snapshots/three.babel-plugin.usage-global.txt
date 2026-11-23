@@ -46,6 +46,7 @@ core-js/modules/es.iterator.filter
 core-js/modules/es.iterator.find
 core-js/modules/es.iterator.for-each
 core-js/modules/es.iterator.includes
+core-js/modules/es.iterator.join
 core-js/modules/es.iterator.map
 core-js/modules/es.iterator.to-array
 core-js/modules/es.json.stringify

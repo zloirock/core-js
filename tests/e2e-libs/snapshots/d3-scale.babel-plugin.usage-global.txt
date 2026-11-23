@@ -43,6 +43,15 @@ core-js/modules/es.math.log2
 core-js/modules/es.math.sign
 core-js/modules/es.math.to-string-tag
 core-js/modules/es.number.constructor
+core-js/modules/es.number.epsilon
+core-js/modules/es.number.is-finite
+core-js/modules/es.number.is-integer
+core-js/modules/es.number.is-nan
+core-js/modules/es.number.is-safe-integer
+core-js/modules/es.number.max-safe-integer
+core-js/modules/es.number.min-safe-integer
+core-js/modules/es.number.parse-float
+core-js/modules/es.number.parse-int
 core-js/modules/es.number.to-exponential
 core-js/modules/es.number.to-fixed
 core-js/modules/es.number.to-precision
