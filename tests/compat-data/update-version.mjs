@@ -42,7 +42,7 @@ try {
     });
   }
 
-  await run`zx -- ${ path.resolve('scripts/update-version.mjs') }`;
+  await run`zx -- ${ path.resolve('scripts/update-version.mjs').replaceAll(path.sep, '/') }`;
 
   for (const name of histories) {
     const history = await fs.readJson(path.join(directory, 'packages/core-js-compat', `${ name }.json`));
