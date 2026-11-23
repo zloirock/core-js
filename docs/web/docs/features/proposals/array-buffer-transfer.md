@@ -22,6 +22,9 @@ core-js/es|stable|actual|full/array-buffer/transfer
 core-js/es|stable|actual|full/array-buffer/transfer-to-fixed-length
 ```
 
+> [!WARNING]
+> The `transfer` and `transferToFixedLength` polyfills require native support for transferring an `ArrayBuffer` with `structuredClone` or `MessageChannel`.
+
 ## Examples
 ```js
 const buffer = Int8Array.of(1, 2, 3, 4, 5, 6, 7, 8).buffer;

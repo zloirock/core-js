@@ -20,6 +20,9 @@ core-js(-pure)/es|stable|actual|full/iterator/chunks
 core-js(-pure)/es|stable|actual|full/iterator/windows
 ```
 
+> [!WARNING]
+> With `Iterator` from `core-js-pure/es/iterator`, call the polyfilled instance methods on `Iterator.from(iterable)`.
+
 ## Examples
 ```js
 const digits = () => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].values();

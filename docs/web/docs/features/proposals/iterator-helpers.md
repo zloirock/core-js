@@ -42,6 +42,9 @@ core-js(-pure)/es|stable|actual|full/iterator/take
 core-js(-pure)/es|stable|actual|full/iterator/to-array
 ```
 
+> [!WARNING]
+> With `Iterator` from `core-js-pure/es/iterator`, call the polyfilled instance methods on `Iterator.from(iterable)`.
+
 ## Examples
 ```js
 [1, 2, 3, 4, 5, 6, 7].values()

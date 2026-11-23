@@ -6,7 +6,7 @@
 > These are only built-ins for Explicit Resource Management; the `using` syntax requires [transpiler support](https://babeljs.io/docs/babel-plugin-transform-explicit-resource-management).
 
 > [!WARNING]
-> By default, `core-js` has no access to the real `%AsyncIteratorPrototype%`, so in engines without native support, async generator objects do not get `@@asyncDispose`. To fix it, set the `USE_FUNCTION_CONSTRUCTOR` option of `core-js/configurator` to `true` or pass `%AsyncIteratorPrototype%` to it as the `AsyncIteratorPrototype` option, see [`AsyncIterator` helpers caveats]({docs-version}/docs/features/proposals/async-iterator-helpers#h-caveats).
+> To add `@@asyncDispose` to async generators, the global polyfill needs access to `%AsyncIteratorPrototype%`. If the engine does not expose `AsyncIterator`, set `USE_FUNCTION_CONSTRUCTOR` to `true` or pass the prototype as `AsyncIteratorPrototype` to `core-js/configurator` before loading the polyfill. See [`AsyncIterator` helpers caveats]({docs-version}/docs/features/proposals/async-iterator-helpers#h-caveats).
 
 ## Modules
 [`es.async-disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.async-disposable-stack.constructor.js), [`es.async-iterator.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.async-iterator.async-dispose.js), [`es.disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.disposable-stack.constructor.js), [`es.iterator.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.dispose.js), [`es.suppressed-error.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.suppressed-error.constructor.js), [`es.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.async-dispose.js) and [`es.symbol.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.dispose.js).
@@ -63,8 +63,10 @@ class AsyncIterator {
 core-js/proposals/explicit-resource-management
 core-js(-pure)/es|stable|actual|full/async-disposable-stack
 core-js(-pure)/es|stable|actual|full/async-disposable-stack/constructor
-core-js(-pure)/es|stable|actual|full/async-iterator
-core-js(-pure)/es|stable|actual|full/async-iterator/async-dispose
+core-js/es|stable/async-iterator
+core-js/es|stable/async-iterator/async-dispose
+core-js(-pure)/actual|full/async-iterator
+core-js(-pure)/actual|full/async-iterator/async-dispose
 core-js(-pure)/es|stable|actual|full/disposable-stack
 core-js(-pure)/es|stable|actual|full/disposable-stack/constructor
 core-js(-pure)/es|stable|actual|full/iterator/dispose

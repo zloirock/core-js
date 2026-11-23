@@ -100,7 +100,7 @@ symbol === Symbol.for('key'); // => true
 Symbol.keyFor(symbol);        // => 'key'
 ```
 
-## Example with methods for getting own object keys
+## Examples with methods for getting own object keys
 ```js
 let object = { a: 1 };
 Object.defineProperty(object, 'b', { value: 2 });
@@ -123,7 +123,7 @@ Symbol().description;      // => undefined
 - `Symbol.for` and `Symbol.keyFor` can't be polyfilled cross-realm.
 - By default, to hide the keys, `Symbol` polyfill defines a setter in `Object.prototype`. For this reason, an uncontrolled creation of symbols can cause a memory leak and the `in` operator does not work correctly with the `Symbol` polyfill: `Symbol() in {} // => true`.
 
-You can disable defining setters in `Object.prototype`. *Example*:
+You can disable defining setters in `Object.prototype`. *Examples*:
 ```ts
 Symbol.useSimple();
 let object1 = { [Symbol('symbol1')]: true };

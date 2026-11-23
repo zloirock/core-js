@@ -18,6 +18,9 @@ core-js/proposals/iterator-includes
 core-js(-pure)/es|stable|actual|full/iterator/includes
 ```
 
+> [!WARNING]
+> With `Iterator` from `core-js-pure/es/iterator`, call the polyfilled instance methods on `Iterator.from(iterable)`.
+
 ## Examples
 ```js
 [1, 2, 3].values().includes(2);     // => true

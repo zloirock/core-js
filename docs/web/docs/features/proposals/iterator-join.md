@@ -18,6 +18,9 @@ core-js/proposals/iterator-join
 core-js(-pure)/es|stable|actual|full/iterator/join
 ```
 
+> [!WARNING]
+> With `Iterator` from `core-js-pure/es/iterator`, call the polyfilled instance methods on `Iterator.from(iterable)`.
+
 ## Examples
 ```js
 [1, 2, 3].values().join();     // => '1,2,3'

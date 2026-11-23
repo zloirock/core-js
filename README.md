@@ -1931,7 +1931,7 @@ weakset.has(b);   // => false
 > These are only built-ins for Explicit Resource Management; the `using` syntax requires [transpiler support](https://babeljs.io/docs/babel-plugin-transform-explicit-resource-management).
 
 > [!WARNING]
-> By default, `core-js` has no access to the real `%AsyncIteratorPrototype%`, so in engines without native support, async generator objects do not get `@@asyncDispose`. To fix it, set the `USE_FUNCTION_CONSTRUCTOR` option of `core-js/configurator` to `true` or pass `%AsyncIteratorPrototype%` to it as the `AsyncIteratorPrototype` option, see [`AsyncIterator` helpers caveats](#caveats).
+> To add `@@asyncDispose` to async generators, the global polyfill needs access to `%AsyncIteratorPrototype%`. If the engine does not expose `AsyncIterator`, set `USE_FUNCTION_CONSTRUCTOR` to `true` or pass the prototype as `AsyncIteratorPrototype` to `core-js/configurator` before loading the polyfill. See [`AsyncIterator` helpers caveats](#caveats).
 
 Modules [`es.disposable-stack.constructor`](./packages/core-js/modules/es.disposable-stack.constructor.js), [`es.iterator.dispose`](./packages/core-js/modules/es.iterator.dispose.js), [`es.async-disposable-stack.constructor`](./packages/core-js/modules/es.async-disposable-stack.constructor.js), [`es.async-iterator.async-dispose`](./packages/core-js/modules/es.async-iterator.async-dispose.js), [`es.suppressed-error.constructor`](./packages/core-js/modules/es.suppressed-error.constructor.js), [`es.symbol.async-dispose`](./packages/core-js/modules/es.symbol.async-dispose.js), [`es.symbol.dispose`](./packages/core-js/modules/es.symbol.dispose.js).
 ```ts
@@ -1986,8 +1986,10 @@ core-js(-pure)/es|stable|actual|full/disposable-stack/constructor
 core-js(-pure)/es|stable|actual|full/async-disposable-stack
 core-js(-pure)/es|stable|actual|full/async-disposable-stack/constructor
 core-js(-pure)/es|stable|actual|full/iterator/dispose
-core-js(-pure)/es|stable|actual|full/async-iterator
-core-js(-pure)/es|stable|actual|full/async-iterator/async-dispose
+core-js/es|stable/async-iterator
+core-js/es|stable/async-iterator/async-dispose
+core-js(-pure)/actual|full/async-iterator
+core-js(-pure)/actual|full/async-iterator/async-dispose
 core-js(-pure)/es|stable|actual|full/suppressed-error
 core-js(-pure)/es|stable|actual|full/symbol/async-dispose
 core-js(-pure)/es|stable|actual|full/symbol/dispose
@@ -2592,7 +2594,7 @@ core-js/proposals/is-error
 > These are only built-ins for Explicit Resource Management; the `using` syntax requires [transpiler support](https://babeljs.io/docs/babel-plugin-transform-explicit-resource-management).
 
 > [!WARNING]
-> By default, `core-js` has no access to the real `%AsyncIteratorPrototype%`, so in engines without native support, async generator objects do not get `@@asyncDispose`. To fix it, set the `USE_FUNCTION_CONSTRUCTOR` option of `core-js/configurator` to `true` or pass `%AsyncIteratorPrototype%` to it as the `AsyncIteratorPrototype` option, see [`AsyncIterator` helpers caveats](#caveats).
+> To add `@@asyncDispose` to async generators, the global polyfill needs access to `%AsyncIteratorPrototype%`. If the engine does not expose `AsyncIterator`, set `USE_FUNCTION_CONSTRUCTOR` to `true` or pass the prototype as `AsyncIteratorPrototype` to `core-js/configurator` before loading the polyfill. See [`AsyncIterator` helpers caveats](#caveats).
 ```ts
 class Symbol {
   static asyncDispose: @@asyncDispose;
@@ -3384,7 +3386,7 @@ core-js/proposals/observable
 core-js(-pure)/full/observable
 core-js(-pure)/full/symbol/observable
 ```
-*Example*:
+*Examples*:
 ```js
 new Observable(observer => {
   observer.next('hello');

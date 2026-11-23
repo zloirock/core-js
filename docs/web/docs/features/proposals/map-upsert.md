@@ -27,6 +27,9 @@ core-js(-pure)/es|stable|actual|full/weak-map/get-or-insert
 core-js(-pure)/es|stable|actual|full/weak-map/get-or-insert-computed
 ```
 
+> [!WARNING]
+> Using a native symbol as a `WeakMap` key requires engine support for symbol keys in weak collections.
+
 ## Examples
 ```js
 const map = new Map([['a', 1]]);

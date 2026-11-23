@@ -146,7 +146,7 @@ d.resolve(42);
 d.promise.then(console.log); // -> 42
 ```
 
-## Example with async functions
+## Examples with async functions
 ```js
 let delay = time => new Promise(resolve => setTimeout(resolve, time));
 
