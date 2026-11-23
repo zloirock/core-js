@@ -89,6 +89,6 @@ const errorDescriptorAfterImport = runInContext(errorDescriptorScript, context);
 QUnit.on('runEnd', run => {
   const { passed, failed, todo, total } = run.testCounts;
   console.log(`# stripped-realm ${ name }${ withWindow ? ' (window present)' : '' }: ${ passed }/${ total } passed, ${ failed } failed, ${ todo } todo`);
-  if (total === todo || failed > 0 || run.status === 'failed') process.exitCode = 1;
+  if (passed === 0 || failed > 0 || run.status === 'failed') process.exitCode = 1;
 });
 QUnit.start();
