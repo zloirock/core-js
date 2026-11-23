@@ -12,8 +12,8 @@ Rule sets are declared as plain objects at the top - `base` and `baseStyle` firs
 
 That bottom part decides what actually applies to a file, and it is dozens of bindings with deliberately overlapping globs - no summary here can replace reading the ones that match. Three examples, picked because they carry product consequences rather than style:
 
-- ES5 *syntax* is bound to `packages/core-js?(-pure)/**` and to `tests/compat/*.js`, and to nothing else
-- the forbidden built-ins are a separate set, and it reaches further: the same runtime packages, plus `tests/helpers/` and `tests/unit-pure/` - the pure tests import those helpers - plus the compat runners, but not `tests/compat/tests.js`, where touching a modern built-in is the whole point of the file
+- ES5 *syntax* is bound to `packages/core-js?(-pure)/**`, `tests/compat/*.js` and `tests/unit-browser/*.js`
+- the forbidden built-ins are a separate set. They apply to the same runtime packages, `tests/unit-browser/*.js`, `tests/helpers/`, `tests/unit-pure/`, `tests/wpt-url-resources/` and `tests/compat/*-runner.js`. The pure tests import the helpers, and `tests/compat/tests.js` uses modern built-ins to probe the engine
 - fenced `js` blocks in markdown are linted like any other source, but `docs/**` is ignored, so the snippets on the site are checked by nothing
 
 Files that are not bound anywhere are usually not mis-globbed but listed in the single `ignores` block, which covers the generated and vendored trees.

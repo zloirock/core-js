@@ -7,7 +7,7 @@ var fails = require('../internals/fails');
 
 // MS Edge argumentsList argument is optional
 var OPTIONAL_ARGUMENTS_LIST = !fails(function () {
-  // eslint-disable-next-line es/no-reflect -- required for testing
+  // eslint-disable-next-line es/no-reflect, unicorn/no-invalid-argument-count -- required for testing
   Reflect.apply(function () { /* empty */ });
 });
 

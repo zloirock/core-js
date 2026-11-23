@@ -20,6 +20,7 @@ QUnit.test('Array.from', assert => {
       1: '2',
       2: '3',
     },
+    // eslint-disable-next-line unicorn/no-invalid-argument-count -- https://github.com/sindresorhus/eslint-plugin-unicorn/issues/4044
     arguments: function () {
       return arguments;
     }('1', '2', '3'),
@@ -37,6 +38,7 @@ QUnit.test('Array.from', assert => {
       length: 1,
       0: 1,
     },
+    // eslint-disable-next-line unicorn/no-invalid-argument-count -- https://github.com/sindresorhus/eslint-plugin-unicorn/issues/4044
     arguments: function () {
       return arguments;
     }(1),

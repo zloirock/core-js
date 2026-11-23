@@ -14,6 +14,7 @@ QUnit.test('getIterator helper', assert => {
 });
 
 QUnit.test('getIterator helper, arguments', assert => {
+  // eslint-disable-next-line unicorn/no-invalid-argument-count -- https://github.com/sindresorhus/eslint-plugin-unicorn/issues/4044
   const args = function () {
     // eslint-disable-next-line prefer-rest-params -- required for testing
     return arguments;

@@ -1677,6 +1677,8 @@ const forbidES2015BuiltIns = {
   'math/prefer-number-max-safe-integer': OFF,
   // enforce the use of `Number.MIN_SAFE_INTEGER` instead of other ways
   'math/prefer-number-min-safe-integer': OFF,
+  // some legacy engines ignore iterable arguments to the native collection constructors
+  'unicorn/no-invalid-argument-count': [ERROR, { 'new Map': 0, 'new Set': 0, 'new WeakMap': 0 }],
   // prefer iterating an array directly or with `Array#keys()` over `Array#entries()` when the index or value is unused
   'unicorn/prefer-array-iterable-methods': OFF,
   // prefer modern `Math` APIs over legacy patterns

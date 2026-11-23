@@ -34,6 +34,7 @@ var FORCED = SET_LIKE_INCORRECT_BEHAVIOR || fails(function () {
       };
     },
   };
+  // eslint-disable-next-line unicorn/no-invalid-argument-count -- testing native Set.prototype.difference
   var baseSet = new Set([1, 2, 3, 4]);
   // eslint-disable-next-line es/no-set-prototype-difference -- testing
   return baseSet.difference(setLike).size !== 3;
