@@ -2,8 +2,9 @@
 // "no new branch without canon check" rule: `find` opens with name/contract matches from the
 // cached AST index, then probe text search over code and comments; `show` prints a found
 // function whole; `dupes` / `contracts` enumerate the index.
-import { createHash } from 'node:crypto';
+import { createHash, hash } from 'node:crypto';
 import { createRequire } from 'node:module';
+import { isDeepStrictEqual } from 'node:util';
 import { parse } from '@babel/parser';
 
 const { cyan, green, red } = chalk;
@@ -18,13 +19,8 @@ const PACKAGES = [
 ];
 
 const CACHE_DIR = path.join(os.homedir(), '.cache', 'core-js-canon');
-// the cache is valid only when built by THIS exact extraction over THIS checkout, and developers run
-// different branches - and copies of one branch - against one shared cache dir - so the hash of
-// everything extraction depends on keys the cache file: the script itself (import.meta.url, not
-// `__filename` - under the zxi bootstrap the global names the BOOTSTRAP script), the @babel/parser
-// version (a caret dependency: installs diverge while the script hash stays put) and the directory the
-// scan runs in (two checkouts with the same file count would otherwise take each other's index for
-// fresh). no manual schema number, no collisions
+// Keep a cache per checkout, extractor and parser version. loadIndex checks the paths and contents
+// of that checkout's sources. Under zxi, __filename names the bootstrap and import.meta.url names this script.
 const PARSER_VERSION = createRequire(import.meta.url)('@babel/parser/package.json').version;
 const INDEX_KEY = createHash('sha256')
   .update(await fs.readFile(new URL(import.meta.url)))
@@ -54,8 +50,7 @@ const asJSON = !!argv.json;
 
 async function scanFiles() {
   const files = await glob(PACKAGES.map(pkg => `${ pkg }/**/*.{js,mjs}`), { ignore: ['**/node_modules/**'] });
-  const stats = await Promise.all(files.map(file => fs.stat(file)));
-  return { files, maxMtimeMs: Math.max(...stats.map(entry => entry.mtimeMs)) };
+  return files.sort();
 }
 
 // --- Index build ---
@@ -133,14 +128,16 @@ function contractOf(comments, startLine) {
   return first || null;
 }
 
-function collectExportedNames(body) {
+function collectExports(body) {
   const names = new Set();
+  let defaultExport;
   for (const statement of body) {
     if (statement.type === 'ExportDefaultDeclaration') {
-      if (statement.declaration?.id) names.add(statement.declaration.id.name);
+      defaultExport = statement;
+      if (statement.declaration.type === 'Identifier') names.add(statement.declaration.name);
       continue;
     }
-    if (statement.type !== 'ExportNamedDeclaration') continue;
+    if (statement.type !== 'ExportNamedDeclaration' || statement.source) continue;
     const { declaration } = statement;
     if (declaration?.id) names.add(declaration.id.name);
     for (const declarator of declaration?.declarations ?? []) {
@@ -148,11 +145,15 @@ function collectExportedNames(body) {
     }
     for (const specifier of statement.specifiers) names.add(specifier.local?.name ?? specifier.exported.name);
   }
-  return names;
+  return { names, defaultExport };
 }
 
-function namedFunctionOf(node) {
-  if (node.type === 'FunctionDeclaration' && node.id) return { name: node.id.name };
+function namedFunctionOf(node, isDefault) {
+  // Named expressions include callbacks and recursive IIFEs. An anonymous default gets its export name.
+  if (node.type === 'FunctionDeclaration' || FUNCTION_EXPRESSION_TYPES.has(node.type)) {
+    if (node.id) return { name: node.id.name };
+    return isDefault ? { name: 'default' } : null;
+  }
   if (node.type === 'VariableDeclarator' && node.id.type === 'Identifier' && node.init && FUNCTION_EXPRESSION_TYPES.has(node.init.type)) {
     return { name: node.id.name };
   }
@@ -168,8 +169,6 @@ function namedFunctionOf(node) {
   if (node.type === 'VariableDeclarator' && node.id.type === 'Identifier' && node.init) {
     return { name: node.id.name, data: true };
   }
-  // standalone named function expression - argument position, named recursive IIFE
-  if (node.type === 'FunctionExpression' && node.id) return { name: node.id.name };
   // `adapter.helper = function (...) {}` - the member key names the function
   if (node.type === 'AssignmentExpression' && node.operator === '=' && node.left.type === 'MemberExpression'
     && !node.left.computed && node.left.property.type === 'Identifier'
@@ -187,7 +186,7 @@ function indexSource({ source, file, entries }) {
     console.error(red(`parse failed: ${ file } - ${ error.message }`));
     return;
   }
-  const exported = collectExportedNames(ast.program.body);
+  const { names, defaultExport } = collectExports(ast.program.body);
   // `inherited` forwards leading comments from export / variable-declaration wrappers one level down
   function visit(node, chain, inherited, fnDepth = 0) {
     if (Array.isArray(node)) {
@@ -195,7 +194,8 @@ function indexSource({ source, file, entries }) {
       return;
     }
     if (!node || typeof node.type !== 'string') return;
-    const named = namedFunctionOf(node);
+    const isDefault = node === defaultExport?.declaration;
+    const named = namedFunctionOf(node, isDefault);
     if (named && (!named.data || fnDepth === 0)) {
       entries.push({
         name: named.name,
@@ -203,8 +203,9 @@ function indexSource({ source, file, entries }) {
         line: node.loc.start.line,
         endLine: node.loc.end.line,
         parent: chain.join(' > ') || null,
-        exported: fnDepth === 0 && exported.has(named.name),
-        contract: contractOf(node.leadingComments ?? inherited, node.loc.start.line),
+        exported: fnDepth === 0 && (isDefault || names.has(named.name)),
+        contract: contractOf(node.leadingComments ?? inherited, node.loc.start.line)
+          ?? (isDefault ? contractOf(defaultExport.leadingComments, defaultExport.loc.start.line) : null),
         tokens: tokenize(named.name),
         ...named.data ? { data: true } : {},
       });
@@ -234,18 +235,19 @@ async function pruneStaleCaches() {
 }
 
 async function loadIndex({ force = false } = {}) {
-  const { files, maxMtimeMs } = await scanFiles();
+  const files = await scanFiles();
+  const sources = await Promise.all(files.map(async file => ({ file, source: await fs.readFile(file) })));
+  const fingerprints = sources.map(({ file, source }) => [file, hash('sha256', source)]);
   if (!force && await fs.pathExists(INDEX_PATH)) {
     try {
       const cached = await fs.readJson(INDEX_PATH);
-      if (cached.fileCount === files.length && cached.maxMtimeMs >= maxMtimeMs) return cached;
+      if (Array.isArray(cached.entries) && isDeepStrictEqual(cached.fingerprints, fingerprints)) return cached;
     } catch { /* corrupt or concurrently half-written cache - fall through to a rebuild */ }
   }
   const started = Date.now();
   const entries = [];
-  const sources = await Promise.all(files.map(async file => ({ file, source: await fs.readFile(file, 'utf8') })));
-  for (const { file, source } of sources) indexSource({ source, file, entries });
-  const index = { maxMtimeMs, fileCount: files.length, entries };
+  for (const { file, source } of sources) indexSource({ source: source.toString('utf8'), file, entries });
+  const index = { fingerprints, entries };
   // tmp + rename keeps a concurrent reader off a half-written cache
   const tmp = `${ INDEX_PATH }.${ process.pid }.tmp`;
   await fs.outputJson(tmp, index);
@@ -412,17 +414,18 @@ async function commandShow(targets) {
   }
 }
 
+// Different modules can export unrelated anonymous functions under the same `default` label.
+function symbolKey(entry) {
+  return entry.exported && entry.name === 'default' ? `${ entry.file }#default` : entry.name;
+}
+
 async function commandDupes() {
   const min = argv.min ?? 2;
-  const byName = new Map();
-  for (const entry of (await loadIndex()).entries) {
-    if (!byName.has(entry.name)) byName.set(entry.name, []);
-    byName.get(entry.name).push(entry);
-  }
+  const byName = Map.groupBy((await loadIndex()).entries, symbolKey);
   const dupes = [];
-  for (const [name, entries] of byName) {
+  for (const entries of byName.values()) {
     const files = new Set(entries.map(entry => entry.file)).size;
-    if (files >= min) dupes.push({ name, entries, files });
+    if (files >= min) dupes.push({ name: entries[0].name, entries, files });
   }
   dupes.sort((a, b) => b.files - a.files || (a.name < b.name ? -1 : 1));
   if (asJSON) {
@@ -475,7 +478,7 @@ const DESCENDS = /=\s*[\w$.?]+\.expression\b|\.get\('expression'\)/;
 // wrappers are their own question and have no canon set. an ENUMERATION, like `dupes` - a site
 // mixing a wrapper test with an identity or terminator rule is a legitimate hit to adjudicate
 async function commandSets() {
-  const { files } = await scanFiles();
+  const files = await scanFiles();
   const hits = [];
   const scanned = files.filter(name => !name.endsWith(CANON_HOME));
   for (const file of scanned) {
@@ -515,12 +518,15 @@ async function commandSets() {
 // --- Delta ---
 
 // named symbols of one file version through the SAME extraction that builds the index, so the
-// delta and the index cannot disagree on what counts as a symbol; first entry per name wins
+// delta and the index agree on what counts as a symbol. Keep the first entry for each symbol key.
 function symbolsOf(source, file) {
   const entries = [];
   if (source !== null) indexSource({ source, file, entries });
   const byName = new Map();
-  for (const entry of entries) if (!byName.has(entry.name)) byName.set(entry.name, entry);
+  for (const entry of entries) {
+    const key = symbolKey(entry);
+    if (!byName.has(key)) byName.set(key, entry);
+  }
   return byName;
 }
 
@@ -545,16 +551,16 @@ async function commandDelta(raw = 'HEAD') {
   const refA = rawA || 'HEAD';
   const refB = rawB === undefined ? undefined : rawB || 'HEAD';
   const scope = ['--', ...PACKAGES];
-  const diffed = await $({ nothrow: true, quiet: true })`git diff --name-only ${ refB ? [refA, refB] : [refA] } ${ scope }`;
+  const diffed = await $({ nothrow: true, quiet: true })`git diff --name-only -z ${ refB ? [refA, refB] : [refA] } ${ scope }`;
   if (diffed.exitCode !== 0) {
     console.error(red(`git diff failed: ${ diffed.stderr.trim().split('\n', 1)[0] }`));
     process.exitCode = 1;
     return;
   }
-  let files = diffed.stdout.split('\n');
+  let files = diffed.stdout.split('\0');
   if (!refB) {
     // a brand-new untracked helper file is invisible to `git diff`, and is all added symbols
-    files = files.concat((await $({ quiet: true })`git ls-files --others --exclude-standard ${ scope }`).stdout.split('\n'));
+    files = files.concat((await $({ quiet: true })`git ls-files -z --others --exclude-standard ${ scope }`).stdout.split('\0'));
   }
   const index = await loadIndex();
   const added = [];
@@ -562,18 +568,17 @@ async function commandDelta(raw = 'HEAD') {
   for (const file of scoped) {
     const before = symbolsOf(await gitSource(refA, file), file);
     const source = refB ? await gitSource(refB, file) : await fs.pathExists(file) ? await fs.readFile(file, 'utf8') : null;
-    for (const [name, entry] of symbolsOf(source, file)) {
-      if (!before.has(name)) added.push({ name, file, line: entry.line });
+    for (const [key, entry] of symbolsOf(source, file)) {
+      if (before.has(key)) continue;
+      const { name, line } = entry;
+      // Hard duplicates share a symbol key across files. Near matches exclude that name.
+      const dups = index.entries.filter(candidate => candidate.file !== file && symbolKey(candidate) === key);
+      const near = scoreIndex(index.entries, name, 8)
+        .map(result => result.entry)
+        .filter(candidate => candidate.name !== name)
+        .slice(0, 3);
+      added.push({ name, file, line, dups, near });
     }
-  }
-  for (const record of added) {
-    // same-name definitions are hard dup findings; near matches are the adjudication material -
-    // same-name rows are excluded from `near` so the two tiers never repeat each other
-    record.dups = index.entries.filter(entry => entry.name === record.name && entry.file !== record.file);
-    record.near = scoreIndex(index.entries, record.name, 8)
-      .map(({ entry }) => entry)
-      .filter(entry => entry.name !== record.name)
-      .slice(0, 3);
   }
   if (asJSON) {
     echo(JSON.stringify({ mode: 'delta', from: refA, to: refB ?? 'worktree', added }));
