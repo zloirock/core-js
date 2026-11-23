@@ -2081,7 +2081,10 @@ const nodePackages = {
   ...forbidSomeES2025Syntax,
   // disallow explicit resource management syntax
   'es/no-using-declarations': ERROR,
+  // allow JSON imports with attributes and trailing commas in `import()`
   'es/no-import-attributes': OFF,
+  'es/no-dynamic-import-options': OFF,
+  'es/no-trailing-dynamic-import-commas': OFF,
   'es/no-json-modules': OFF,
   // prefer JSON imports over reading and parsing JSON files
   'unicorn/prefer-json-import': ERROR,
