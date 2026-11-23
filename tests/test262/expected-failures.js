@@ -65,9 +65,6 @@ module.exports = [
   // Native V8 setFromBase64 rejects trailing garbage even when the target is already full.
   'built-ins/Uint8Array/prototype/setFromBase64/trailing-garbage.js',
 
-  // The Set methods proposal adds join, which Array.prototype.toString calls on a Set.
-  'built-ins/Array/prototype/toString/non-callable-join-string-tag.js',
-
   // Native V8 exposes distinct restricted-function accessors instead of one %ThrowTypeError%.
   'built-ins/Function/prototype/arguments/prop-desc.js',
   'built-ins/Function/prototype/caller/prop-desc.js',
@@ -108,28 +105,4 @@ module.exports = [
   'built-ins/String/prototype/split/cstm-split-on-boolean-primitive.js',
   'built-ins/String/prototype/split/cstm-split-on-number-primitive.js',
   'built-ins/String/prototype/split/cstm-split-on-string-primitive.js',
-
-  // The full v3 bundle retains the old Set methods proposal for backward compatibility.
-  // Its iterable adapter accepts arrays/strings and reads size before GetSetRecord does.
-  'built-ins/Set/prototype/difference/array-throws.js',
-  'built-ins/Set/prototype/difference/called-with-object.js',
-  'built-ins/Set/prototype/difference/set-like-class-order.js',
-  'built-ins/Set/prototype/intersection/array-throws.js',
-  'built-ins/Set/prototype/intersection/called-with-object.js',
-  'built-ins/Set/prototype/intersection/set-like-class-order.js',
-  'built-ins/Set/prototype/isDisjointFrom/array-throws.js',
-  'built-ins/Set/prototype/isDisjointFrom/called-with-object.js',
-  'built-ins/Set/prototype/isDisjointFrom/set-like-class-order.js',
-  'built-ins/Set/prototype/isSubsetOf/array-throws.js',
-  'built-ins/Set/prototype/isSubsetOf/called-with-object.js',
-  'built-ins/Set/prototype/isSubsetOf/set-like-class-order.js',
-  'built-ins/Set/prototype/isSupersetOf/array-throws.js',
-  'built-ins/Set/prototype/isSupersetOf/called-with-object.js',
-  'built-ins/Set/prototype/isSupersetOf/set-like-class-order.js',
-  'built-ins/Set/prototype/symmetricDifference/array-throws.js',
-  'built-ins/Set/prototype/symmetricDifference/called-with-object.js',
-  'built-ins/Set/prototype/symmetricDifference/set-like-class-order.js',
-  'built-ins/Set/prototype/union/array-throws.js',
-  'built-ins/Set/prototype/union/called-with-object.js',
-  'built-ins/Set/prototype/union/set-like-class-order.js',
 ];

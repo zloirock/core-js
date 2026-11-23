@@ -5,11 +5,13 @@ import preprocessor from './preprocessor.js';
 
 for (const file of [
   'Array/prototype/map/length.js',
+  'Array/prototype/toString/non-callable-join-string-tag.js',
   'AsyncDisposableStack/constructor.js',
   'DataView/prototype/getFloat16/return-values.js',
   'DataView/prototype/setFloat16/set-values-little-endian-order.js',
   'DisposableStack/constructor.js',
   'Object/prototype/toString/symbol-tag-non-str-builtin.js',
+  'Set/prototype/union/set-like-class-order.js',
   'SuppressedError/length.js',
   'Uint8Array/fromBase64/alphabet.js',
   'Uint8Array/prototype/toHex/results.js',
