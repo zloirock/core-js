@@ -8,7 +8,7 @@
 ## Built-ins signatures
 ```ts
 class Object {
-  static hasOwn(object: object, key: PropertyKey): boolean;
+  static hasOwn(value: any, key: PropertyKey): boolean; // throws if value is null or undefined
 }
 ```
 

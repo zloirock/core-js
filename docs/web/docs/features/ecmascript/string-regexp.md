@@ -26,6 +26,7 @@ class String {
   matchAll<T>(matcher: { @@matchAll(input: string): T }): T;
   matchAll(pattern?: string | RegExp): Iterator;
   replace(template: any, replacer: any): any; // ES2015+ fix for @@replace support
+  replaceAll<T>(searchValue: { @@replace(input, replacement): T }, replacement: any): T;
   replaceAll(searchValue: string | RegExp, replacement: string): string;
   replaceAll(searchValue: string, replacer: (match, offset, input) => string): string;
   replaceAll(searchValue: RegExp, replacer: (match, capture1, ..., captureN, offset, input, groups?) => string): string;

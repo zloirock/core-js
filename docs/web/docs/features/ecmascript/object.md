@@ -24,7 +24,7 @@ class Object {
   static getOwnPropertyNames(object: any): Array<string>;
   static getPrototypeOf(object: any): Object | null;
   static groupBy(items: Iterable, callbackfn: (value: any, index: number) => key): { [key]: Array<mixed> };
-  static hasOwn(object: object, key: PropertyKey): boolean;
+  static hasOwn(value: any, key: PropertyKey): boolean; // throws if value is null or undefined
   static is(value1: any, value2: any): boolean;
   static isExtensible(object: any): boolean;
   static isFrozen(object: any): boolean;

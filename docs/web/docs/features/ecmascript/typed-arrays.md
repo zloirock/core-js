@@ -7,7 +7,7 @@ Implementations and fixes for `ArrayBuffer`, `DataView`, Typed Arrays constructo
 ## Built-ins signatures
 ```ts
 class ArrayBuffer {
-  constructor(length: any): ArrayBuffer;
+  constructor(length?: any): ArrayBuffer;
   readonly attribute byteLength: number;
   readonly attribute detached: boolean;
   slice(start?: any, end?: any): ArrayBuffer;
@@ -52,7 +52,7 @@ class [
   Float32Array,
   Float64Array,
 ] extends %TypedArray% {
-  constructor(length: number): %TypedArray%;
+  constructor(length?: number): %TypedArray%;
   constructor(object: %TypedArray% | Iterable | ArrayLike): %TypedArray%;
   constructor(buffer: ArrayBuffer, byteOffset?: number, length?: number): %TypedArray%;
   BYTES_PER_ELEMENT: number;
@@ -60,30 +60,31 @@ class [
 }
 
 class %TypedArray% {
+  // element is bigint for BigInt64Array and BigUint64Array, and number for other typed arrays.
   at(index: int): number | bigint | void;
   copyWithin(target: number, start: number, end?: number): this;
   entries(): Iterator<[index, value]>;
-  every(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): boolean;
-  fill(value: number, start?: number, end?: number): this;
-  filter(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): %TypedArray%;
-  find(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): any;
-  findIndex(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): number;
+  every(callbackfn: (value: element, index: number, target: %TypedArray%) => boolean, thisArg?: any): boolean;
+  fill(value: element, start?: number, end?: number): this;
+  filter(callbackfn: (value: element, index: number, target: %TypedArray%) => boolean, thisArg?: any): %TypedArray%;
+  find(callbackfn: (value: element, index: number, target: %TypedArray%) => boolean, thisArg?: any): any;
+  findIndex(callbackfn: (value: element, index: number, target: %TypedArray%) => boolean, thisArg?: any): number;
   findLast(callbackfn: (value: any, index: number, target: %TypedArray%) => boolean, thisArg?: any): any;
   findLastIndex(callbackfn: (value: any, index: number, target: %TypedArray%) => boolean, thisArg?: any): number;
-  forEach(callbackfn: (value: number, index: number, target: %TypedArray%) => void, thisArg?: any): void;
+  forEach(callbackfn: (value: element, index: number, target: %TypedArray%) => void, thisArg?: any): void;
   includes(searchElement: any, from?: number): boolean;
   indexOf(searchElement: any, from?: number): number;
   join(separator: string = ','): string;
   keys(): Iterator<index>;
   lastIndexOf(searchElement: any, from?: number): number;
-  map(mapFn: (value: number, index: number, target: %TypedArray%) => number, thisArg?: any): %TypedArray%;
-  reduce(callbackfn: (memo: any, value: number, index: number, target: %TypedArray%) => any, initialValue?: any): any;
-  reduceRight(callbackfn: (memo: any, value: number, index: number, target: %TypedArray%) => any, initialValue?: any): any;
+  map(mapFn: (value: element, index: number, target: %TypedArray%) => element, thisArg?: any): %TypedArray%;
+  reduce(callbackfn: (memo: any, value: element, index: number, target: %TypedArray%) => any, initialValue?: any): any;
+  reduceRight(callbackfn: (memo: any, value: element, index: number, target: %TypedArray%) => any, initialValue?: any): any;
   reverse(): this;
   set(array: ArrayLike, offset?: number): void;
   slice(start?: number, end?: number): %TypedArray%;
-  some(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): boolean;
-  sort(comparefn?: (a: number, b: number) => number): this; // with modern behavior like stable sort
+  some(callbackfn: (value: element, index: number, target: %TypedArray%) => boolean, thisArg?: any): boolean;
+  sort(comparefn?: (a: element, b: element) => number): this; // with modern behavior like stable sort
   subarray(begin?: number, end?: number): %TypedArray%;
   toReversed(): %TypedArray%;
   toSorted(comparefn?: (a: any, b: any) => number): %TypedArray%;

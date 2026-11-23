@@ -8,14 +8,14 @@
 class Promise {
   constructor(executor: (resolve: Function, reject: Function) => void): Promise;
   then(onFulfilled?: Function, onRejected?: Function): Promise;
-  catch(onRejected: Function): Promise;
+  catch(onRejected?: Function): Promise;
   finally<T>(this: Promise<T>, onFinally?: any): Promise<T>;
   static all(iterable: Iterable): Promise;
   static allSettled(iterable: Iterable): Promise;
   static any(promises: Iterable): Promise;
   static race(iterable: Iterable): Promise;
-  static reject(r: any): Promise;
-  static resolve(x: any): Promise;
+  static reject(r?: any): Promise;
+  static resolve(x?: any): Promise;
   static try(callbackfn: Function, ...args: Array<mixed>): Promise;
   static withResolvers(): { promise: Promise, resolve: Function, reject: Function };
 }

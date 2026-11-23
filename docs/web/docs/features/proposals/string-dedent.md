@@ -8,7 +8,8 @@
 ## Built-ins signatures
 ```ts
 class String {
-  static dedent(templateOrTag: { raw: ReadonlyArray<string> } | function, ...substitutions: Array<string>): string | function;
+  static dedent(template: { raw: ReadonlyArray<string> }, ...substitutions: Array<mixed>): string;
+  static dedent(tag: function): function;
 }
 ```
 

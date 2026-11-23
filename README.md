@@ -517,7 +517,7 @@ class Object {
   static getOwnPropertyNames(object: any): Array<string>;
   static getPrototypeOf(object: any): Object | null;
   static groupBy(items: Iterable, callbackfn: (value: any, index: number) => key): { [key]: Array<mixed> };
-  static hasOwn(object: object, key: PropertyKey): boolean;
+  static hasOwn(value: any, key: PropertyKey): boolean; // throws if value is null or undefined
   static is(value1: any, value2: any): boolean;
   static isExtensible(object: any): boolean;
   static isFrozen(object: any): boolean;
@@ -1040,6 +1040,7 @@ class String {
   matchAll<T>(matcher: { @@matchAll(input: string): T }): T;
   matchAll(pattern?: string | RegExp): Iterator;
   replace(template: any, replacer: any): any; // ES2015+ fix for @@replace support
+  replaceAll<T>(searchValue: { @@replace(input, replacement): T }, replacement: any): T;
   replaceAll(searchValue: string | RegExp, replacement: string): string;
   replaceAll(searchValue: string, replacer: (match, offset, input) => string): string;
   replaceAll(searchValue: RegExp, replacer: (match, capture1, ..., captureN, offset, input, groups?) => string): string;
@@ -1387,14 +1388,14 @@ Modules [`es.promise`](./packages/core-js/modules/es.promise.js), [`es.promise.a
 class Promise {
   constructor(executor: (resolve: Function, reject: Function) => void): Promise;
   then(onFulfilled?: Function, onRejected?: Function): Promise;
-  catch(onRejected: Function): Promise;
+  catch(onRejected?: Function): Promise;
   finally<T>(this: Promise<T>, onFinally?: any): Promise<T>;
   static all(iterable: Iterable): Promise;
   static allSettled(iterable: Iterable): Promise;
   static any(promises: Iterable): Promise;
   static race(iterable: Iterable): Promise;
-  static reject(r: any): Promise;
-  static resolve(x: any): Promise;
+  static reject(r?: any): Promise;
+  static resolve(x?: any): Promise;
   static try(callbackfn: Function, ...args: Array<mixed>): Promise;
   static withResolvers(): { promise: Promise, resolve: Function, reject: Function };
 }
@@ -2043,7 +2044,7 @@ Implementations and fixes for `ArrayBuffer`, `DataView`, Typed Arrays constructo
 Modules [`es.array-buffer.constructor`](./packages/core-js/modules/es.array-buffer.constructor.js), [`es.array-buffer.is-view`](./packages/core-js/modules/es.array-buffer.is-view.js), [`es.array-buffer.detached`](./packages/core-js/modules/es.array-buffer.detached.js), [`es.array-buffer.slice`](./packages/core-js/modules/es.array-buffer.slice.js), [`es.array-buffer.transfer`](./packages/core-js/modules/es.array-buffer.transfer.js), [`es.array-buffer.transfer-to-fixed-length`](./packages/core-js/modules/es.array-buffer.transfer-to-fixed-length.js), [`es.data-view`](./packages/core-js/modules/es.data-view.js), [`es.data-view.get-float16`](./packages/core-js/modules/es.data-view.get-float16.js), [`es.data-view.set-float16`](./packages/core-js/modules/es.data-view.set-float16.js), [`es.typed-array.int8-array`](./packages/core-js/modules/es.typed-array.int8-array.js), [`es.typed-array.uint8-array`](./packages/core-js/modules/es.typed-array.uint8-array.js), [`es.typed-array.uint8-clamped-array`](./packages/core-js/modules/es.typed-array.uint8-clamped-array.js), [`es.typed-array.int16-array`](./packages/core-js/modules/es.typed-array.int16-array.js), [`es.typed-array.uint16-array`](./packages/core-js/modules/es.typed-array.uint16-array.js), [`es.typed-array.int32-array`](./packages/core-js/modules/es.typed-array.int32-array.js), [`es.typed-array.uint32-array`](./packages/core-js/modules/es.typed-array.uint32-array.js), [`es.typed-array.float32-array`](./packages/core-js/modules/es.typed-array.float32-array.js), [`es.typed-array.float64-array`](./packages/core-js/modules/es.typed-array.float64-array.js), [`es.typed-array.copy-within`](./packages/core-js/modules/es.typed-array.copy-within.js), [`es.typed-array.every`](./packages/core-js/modules/es.typed-array.every.js), [`es.typed-array.fill`](./packages/core-js/modules/es.typed-array.fill.js), [`es.typed-array.filter`](./packages/core-js/modules/es.typed-array.filter.js), [`es.typed-array.find`](./packages/core-js/modules/es.typed-array.find.js), [`es.typed-array.find-index`](./packages/core-js/modules/es.typed-array.find-index.js), [`es.typed-array.find-last`](./packages/core-js/modules/es.typed-array.find-last.js), [`es.typed-array.find-last-index`](./packages/core-js/modules/es.typed-array.find-last-index.js), [`es.typed-array.for-each`](./packages/core-js/modules/es.typed-array.for-each.js), [`es.typed-array.from`](./packages/core-js/modules/es.typed-array.from.js), [`es.typed-array.includes`](./packages/core-js/modules/es.typed-array.includes.js), [`es.typed-array.index-of`](./packages/core-js/modules/es.typed-array.index-of.js), [`es.typed-array.iterator`](./packages/core-js/modules/es.typed-array.iterator.js), [`es.typed-array.join`](./packages/core-js/modules/es.typed-array.join.js), [`es.typed-array.last-index-of`](./packages/core-js/modules/es.typed-array.last-index-of.js), [`es.typed-array.map`](./packages/core-js/modules/es.typed-array.map.js), [`es.typed-array.of`](./packages/core-js/modules/es.typed-array.of.js), [`es.typed-array.reduce`](./packages/core-js/modules/es.typed-array.reduce.js), [`es.typed-array.reduce-right`](./packages/core-js/modules/es.typed-array.reduce-right.js), [`es.typed-array.reverse`](./packages/core-js/modules/es.typed-array.reverse.js), [`es.typed-array.set`](./packages/core-js/modules/es.typed-array.set.js), [`es.typed-array.slice`](./packages/core-js/modules/es.typed-array.slice.js), [`es.typed-array.some`](./packages/core-js/modules/es.typed-array.some.js), [`es.typed-array.sort`](./packages/core-js/modules/es.typed-array.sort.js), [`es.typed-array.subarray`](./packages/core-js/modules/es.typed-array.subarray.js), [`es.typed-array.to-locale-string`](./packages/core-js/modules/es.typed-array.to-locale-string.js), [`es.typed-array.to-string`](./packages/core-js/modules/es.typed-array.to-string.js), [`es.typed-array.at`](./packages/core-js/modules/es.typed-array.at.js), [`es.typed-array.to-reversed`](./packages/core-js/modules/es.typed-array.to-reversed.js), [`es.typed-array.to-sorted`](./packages/core-js/modules/es.typed-array.to-sorted.js), [`es.typed-array.with`](./packages/core-js/modules/es.typed-array.with.js), [`es.uint8-array.from-base64`](./packages/core-js/modules/es.uint8-array.from-base64.js), [`es.uint8-array.from-hex`](./packages/core-js/modules/es.uint8-array.from-hex.js), [`es.uint8-array.set-from-base64`](./packages/core-js/modules/es.uint8-array.set-from-base64.js), [`es.uint8-array.set-from-hex`](./packages/core-js/modules/es.uint8-array.set-from-hex.js), [`es.uint8-array.to-base64`](./packages/core-js/modules/es.uint8-array.to-base64.js), [`es.uint8-array.to-hex`](./packages/core-js/modules/es.uint8-array.to-hex.js).
 ```ts
 class ArrayBuffer {
-  constructor(length: any): ArrayBuffer;
+  constructor(length?: any): ArrayBuffer;
   readonly attribute byteLength: number;
   readonly attribute detached: boolean;
   slice(start?: any, end?: any): ArrayBuffer;
@@ -2088,7 +2089,7 @@ class [
   Float32Array,
   Float64Array,
 ] extends %TypedArray% {
-  constructor(length: number): %TypedArray%;
+  constructor(length?: number): %TypedArray%;
   constructor(object: %TypedArray% | Iterable | ArrayLike): %TypedArray%;
   constructor(buffer: ArrayBuffer, byteOffset?: number, length?: number): %TypedArray%;
   BYTES_PER_ELEMENT: number;
@@ -2096,30 +2097,31 @@ class [
 }
 
 class %TypedArray% {
+  // element is bigint for BigInt64Array and BigUint64Array, and number for other typed arrays.
   at(index: int): number | bigint | void;
   copyWithin(target: number, start: number, end?: number): this;
   entries(): Iterator<[index, value]>;
-  every(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): boolean;
-  fill(value: number, start?: number, end?: number): this;
-  filter(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): %TypedArray%;
-  find(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): any;
-  findIndex(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): number;
+  every(callbackfn: (value: element, index: number, target: %TypedArray%) => boolean, thisArg?: any): boolean;
+  fill(value: element, start?: number, end?: number): this;
+  filter(callbackfn: (value: element, index: number, target: %TypedArray%) => boolean, thisArg?: any): %TypedArray%;
+  find(callbackfn: (value: element, index: number, target: %TypedArray%) => boolean, thisArg?: any): any;
+  findIndex(callbackfn: (value: element, index: number, target: %TypedArray%) => boolean, thisArg?: any): number;
   findLast(callbackfn: (value: any, index: number, target: %TypedArray%) => boolean, thisArg?: any): any;
   findLastIndex(callbackfn: (value: any, index: number, target: %TypedArray%) => boolean, thisArg?: any): number;
-  forEach(callbackfn: (value: number, index: number, target: %TypedArray%) => void, thisArg?: any): void;
+  forEach(callbackfn: (value: element, index: number, target: %TypedArray%) => void, thisArg?: any): void;
   includes(searchElement: any, from?: number): boolean;
   indexOf(searchElement: any, from?: number): number;
   join(separator: string = ','): string;
   keys(): Iterator<index>;
   lastIndexOf(searchElement: any, from?: number): number;
-  map(mapFn: (value: number, index: number, target: %TypedArray%) => number, thisArg?: any): %TypedArray%;
-  reduce(callbackfn: (memo: any, value: number, index: number, target: %TypedArray%) => any, initialValue?: any): any;
-  reduceRight(callbackfn: (memo: any, value: number, index: number, target: %TypedArray%) => any, initialValue?: any): any;
+  map(mapFn: (value: element, index: number, target: %TypedArray%) => element, thisArg?: any): %TypedArray%;
+  reduce(callbackfn: (memo: any, value: element, index: number, target: %TypedArray%) => any, initialValue?: any): any;
+  reduceRight(callbackfn: (memo: any, value: element, index: number, target: %TypedArray%) => any, initialValue?: any): any;
   reverse(): this;
   set(array: ArrayLike, offset?: number): void;
   slice(start?: number, end?: number): %TypedArray%;
-  some(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): boolean;
-  sort(comparefn?: (a: number, b: number) => number): this; // with modern behavior like stable sort
+  some(callbackfn: (value: element, index: number, target: %TypedArray%) => boolean, thisArg?: any): boolean;
+  sort(comparefn?: (a: element, b: element) => number): this; // with modern behavior like stable sort
   subarray(begin?: number, end?: number): %TypedArray%;
   toReversed(): %TypedArray%;
   toSorted(comparefn?: (a: any, b: any) => number): %TypedArray%;
@@ -2842,7 +2844,7 @@ core-js/proposals/object-getownpropertydescriptors
 ##### [Accessible `Object.prototype.hasOwnProperty`](https://github.com/tc39/proposal-accessible-object-hasownproperty)[⬆](#index)
 ```ts
 class Object {
-  static hasOwn(object: object, key: PropertyKey): boolean;
+  static hasOwn(value: any, key: PropertyKey): boolean; // throws if value is null or undefined
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
@@ -2875,6 +2877,7 @@ core-js/proposals/string-match-all
 ##### [`String.prototype.replaceAll`](https://github.com/tc39/proposal-string-replaceall)[⬆](#index)
 ```ts
 class String {
+  replaceAll<T>(searchValue: { @@replace(input, replacement): T }, replacement: any): T;
   replaceAll(searchValue: string | RegExp, replacement: string): string;
   replaceAll(searchValue: string, replacer: (match, offset, input) => string): string;
   replaceAll(searchValue: RegExp, replacer: (match, capture1, ..., captureN, offset, input, groups?) => string): string;
@@ -3293,7 +3296,8 @@ core-js(-pure)/full/number(/virtual)/clamp
 Modules [`esnext.string.dedent`](./packages/core-js/modules/esnext.string.dedent.js).
 ```ts
 class String {
-  static dedent(templateOrTag: { raw: ReadonlyArray<string> } | function, ...substitutions: Array<string>): string | function;
+  static dedent(template: { raw: ReadonlyArray<string> }, ...substitutions: Array<mixed>): string;
+  static dedent(tag: function): function;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
