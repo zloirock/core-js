@@ -1,4 +1,3 @@
-/* eslint-disable prefer-regex-literals -- required for testing */
 /* eslint-disable regexp/no-empty-group, regexp/no-empty-capturing-group -- required for testing */
 /* eslint-disable regexp/optimal-lookaround-quantifier, regexp/no-lazy-ends -- required for testing */
 import { GLOBAL, NATIVE, STRICT } from '../helpers/constants.js';

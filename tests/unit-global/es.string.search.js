@@ -1,4 +1,3 @@
-/* eslint-disable prefer-regex-literals -- required for testing */
 import { GLOBAL, STRICT } from '../helpers/constants.js';
 
 const Symbol = GLOBAL.Symbol || {};

@@ -1,4 +1,4 @@
-/* eslint-disable prefer-regex-literals, regexp/sort-flags, regexp/no-useless-flag -- required for testing */
+/* eslint-disable regexp/sort-flags, regexp/no-useless-flag -- required for testing */
 import { STRICT } from '../helpers/constants.js';
 
 QUnit.test('RegExp#toString', assert => {

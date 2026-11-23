@@ -1,4 +1,4 @@
-/* eslint-disable prefer-regex-literals, regexp/no-unused-capturing-group, unicorn/prefer-string-replace-all -- required for testing */
+/* eslint-disable regexp/no-unused-capturing-group, unicorn/prefer-string-replace-all -- required for testing */
 import { GLOBAL, NATIVE, STRICT } from '../helpers/constants.js';
 
 const Symbol = GLOBAL.Symbol || {};

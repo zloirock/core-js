@@ -159,7 +159,7 @@ const base = {
   // require grouped accessor pairs in object literals and classes
   'grouped-accessor-pairs': [ERROR, 'getBeforeSet'],
   // require identifiers to match a specified regular expression
-  'id-match': [ERROR, '^[$A-Za-z]|(?:[A-Z][A-Z\\d_]*[A-Z\\d])|(?:[$A-Za-z]\\w*[A-Za-z\\d])$', {
+  'id-match': [ERROR, '^[$A-Za-z](?:[$\\w]*[A-Za-z\\d])?$', {
     onlyDeclarations: true,
     ignoreDestructuring: true,
   }],
@@ -1121,6 +1121,8 @@ const useES3Syntax = {
   '@stylistic/comma-dangle': [ERROR, NEVER],
   // require or disallow use of quotes around object literal property names
   '@stylistic/quote-props': [ERROR, 'as-needed', { keywords: true }],
+  // legacy scripts cannot start with a hashbang
+  'es/no-hashbang': ERROR,
   // enforce the use of exponentiation (`**`) operator instead of other calculations
   'math/prefer-exponentiation-operator': OFF,
   // prefer lookarounds over capturing group that do not replace
@@ -1866,6 +1868,8 @@ const transpiledAndPolyfilled = {
       message: 'Use RegExp constructors for the d, s, v and y flags',
     },
   ],
+  // allow the constructor form required for these flags
+  'prefer-regex-literals': OFF,
   // disallow accessor properties
   'es/no-accessor-properties': ERROR,
   // disallow async functions
@@ -2486,6 +2490,7 @@ export default [
       'tests/compat/*.js',
       'tests/unit-browser/*.js',
     ],
+    ignores: ['**/*.md/**'],
     languageOptions: {
       ecmaVersion: 3,
     },
