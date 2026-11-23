@@ -896,8 +896,6 @@ const base = {
   'unicorn/prefer-includes': ERROR,
   // prefer iterator helpers over temporary arrays from iterators
   'unicorn/prefer-iterator-helpers': ERROR,
-  // prefer passing iterables directly to constructors instead of filling empty collections
-  'unicorn/prefer-iterable-in-constructor': ERROR,
   // prefer `Iterator#toArray()` over temporary arrays from iterator spreads
   'unicorn/prefer-iterator-to-array': ERROR,
   // prefer moving `.toArray()` to the end of iterator helper chains
