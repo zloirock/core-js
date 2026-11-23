@@ -9,6 +9,7 @@ const { UPDATE_DEPENDENCIES } = process.env;
 const ignore = new Set([
   'scripts/check-actions',
   'scripts/usage',
+  'tests/saucelabs',
   'tests/test262',
   'tests/unit-bun',
   'tests/unit-deno',

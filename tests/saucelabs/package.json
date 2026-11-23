@@ -1,0 +1,6 @@
+{
+  "name": "tests/saucelabs",
+  "devDependencies": {
+    "undici": "^7.30.2"
+  }
+}

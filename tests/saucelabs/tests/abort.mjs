@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { setImmediate } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 
-const scenarios = ['polling', 'starting', 'retrying', 'annotating', 'annotation-error', 'annotating-failed', 'closing'];
+const scenarios = ['polling', 'starting', 'page-context', 'navigation-error', 'retrying', 'annotating', 'annotation-error', 'annotating-failed', 'closing'];
 
 if (fileURLToPath(import.meta.url) !== process.argv[1]) {
   const sessionsDir = await mkdtemp(join(tmpdir(), 'saucelabs-abort-'));
@@ -33,6 +33,7 @@ if (fileURLToPath(import.meta.url) !== process.argv[1]) {
   const otherCommit = 'b'.repeat(40);
   const page = 'unit-browser/global.html';
   const pageUrl = `http://example.test/branch/${ page }`;
+  const stopReason = `${ page }: bundles of ${ otherCommit } instead of ${ commit }`;
 
   if (!scenarios.includes(scenario)) throw new Error(`Unknown abort scenario: ${ scenario }`);
   if (!sessionsFile) throw new Error('SAUCE_SESSIONS_FILE is required by the abort scenario');
@@ -45,6 +46,7 @@ if (fileURLToPath(import.meta.url) !== process.argv[1]) {
 
   process.env.SAUCE_USERNAME = 'test';
   process.env.SAUCE_ACCESS_KEY = 'test';
+  process.env.SAUCE_REGION = 'eu-central-1';
   globalThis.$ = {};
   globalThis.argv = { _: ['http://example.test/branch', commit] };
   globalThis.chalk = { cyan: String, green: String, red: String, yellow: String };
@@ -86,9 +88,13 @@ if (fileURLToPath(import.meta.url) !== process.argv[1]) {
       closed.push(id);
     } else if (path.endsWith('/url')) {
       navigations++;
-      if (id === 'other' && scenario === 'retrying') payload = { status: 13, value: { message: 'navigation failed' } };
+      if (id === 'other' && ['navigation-error', 'retrying'].includes(scenario)) {
+        if (scenario === 'navigation-error') await waitForAbort();
+        payload = { status: 13, value: { message: 'navigation failed' } };
+      }
     } else {
       const { script } = JSON.parse(options.body);
+      if (id === 'other' && scenario === 'page-context' && script.startsWith('sauce:context=')) await waitForAbort();
       if (script.startsWith('sauce:job-result=')) {
         annotations.push([id, script]);
         if (id === 'other' && (annotating || scenario === 'retrying')) {
@@ -120,7 +126,7 @@ if (fileURLToPath(import.meta.url) !== process.argv[1]) {
       if (!otherFinished) throw new Error('foreign or unfinished results must not be evaluated');
       return { passed: otherPassed, summary: otherPassed ? 'ok' : 'assertion failed', details: [] };
     },
-  }), { message: `Sauce Labs run stopped: ${ page }: bundles of ${ otherCommit } instead of ${ commit }` }, scenario);
+  }), { message: `Sauce Labs run stopped: ${ stopReason }` }, scenario);
   deepEqual(opened, ['changing', 'other'], `${ scenario }: no queued platform or retry starts`);
   deepEqual(closed.sort(), ['changing', 'other'], `${ scenario }: every created session closes`);
   const otherResults = scenario === 'closing' ? ['passed'] : ['failed'];
@@ -129,7 +135,11 @@ if (fileURLToPath(import.meta.url) !== process.argv[1]) {
     ['changing', 'sauce:job-result=failed'],
     ...otherResults.map(result => ['other', `sauce:job-result=${ result }`]),
   ], `${ scenario }: session results reflect when the abort happened`);
-  equal(navigations, scenario === 'starting' ? 1 : 2, `${ scenario }: no further page starts`);
+  equal(navigations, ['starting', 'page-context'].includes(scenario) ? 1 : 2, `${ scenario }: no further page starts`);
   equal(pollsAfterStop, 0, `${ scenario }: the stop interrupts a polling wait, no page is polled after it`);
+  if (['page-context', 'polling', 'navigation-error'].includes(scenario)) {
+    const message = scenario === 'navigation-error' ? `${ page }: POST /session/other/url: navigation failed` : `run stopped: ${ stopReason }`;
+    equal(output.find(line => line.startsWith('other: ')), `other: https://app.eu-central-1.saucelabs.com/tests/other: ${ message }`, `${ scenario }: reports what failed in this session`);
+  }
   doesNotMatch(output.join('\n'), /all the browsers passed|retrying/, `${ scenario }: no retry or success is reported`);
 }

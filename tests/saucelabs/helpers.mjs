@@ -174,6 +174,7 @@ async function runSession(suite, platform, controller, pages) {
   const start = pages.length;
   let hung;
   let jobResult;
+  let failure;
   try {
     for (const page of suite.pages.slice(start)) {
       signal.throwIfAborted();
@@ -186,7 +187,7 @@ async function runSession(suite, platform, controller, pages) {
       try {
         result = await runPage(suite, session, page, controller);
       } catch (error) {
-        if (!signal.aborted) error.message = `${ page }: ${ error.message }`;
+        if (error !== signal.reason) error.message = `${ page }: ${ error.message }`;
         throw error;
       }
       pages.push({ ...result, sessionId: session.id });
@@ -199,12 +200,12 @@ async function runSession(suite, platform, controller, pages) {
     signal.throwIfAborted();
   } catch (error) {
     // The abort reason belongs to the whole run; each session keeps its own error and link.
-    const failure = signal.aborted ? new Error(`run stopped: ${ signal.reason.message }`, { cause: signal.reason }) : error;
-    failure.sessionId = session.id;
+    failure = signal.aborted && (error === signal.reason || error.cause === signal.reason)
+      ? new Error(`run stopped: ${ signal.reason.message }`, { cause: signal.reason })
+      : error;
     if (jobResult !== 'failed') await annotateJob(session, platform, 'failed');
-    throw failure;
   } finally {
-    await session.quit();
+    await session.quit(failure);
   }
   return session.id;
 }

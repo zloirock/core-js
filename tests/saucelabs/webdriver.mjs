@@ -1,4 +1,5 @@
 import { setTimeout } from 'node:timers/promises';
+import { getGlobalDispatcher } from 'undici';
 
 export class WebDriverError extends Error {
   constructor(message, options) {
@@ -19,6 +20,12 @@ async function request(hub, authorization, method, path, body, timeout = COMMAND
       headers: { authorization, 'content-type': 'application/json' },
       body: body && JSON.stringify(body),
       signal: AbortSignal.timeout(timeout),
+      // The default transport times out after five minutes, even with a longer abort deadline.
+      dispatcher: {
+        dispatch(options, handler) {
+          return getGlobalDispatcher().dispatch({ ...options, headersTimeout: timeout, bodyTimeout: timeout }, handler);
+        },
+      },
     });
     // JSON Wire answers a navigation with an empty body
     const text = await response.text();
@@ -65,25 +72,31 @@ export async function createSession({ hub, username, accessKey, w3c, capabilitie
   const payload = await request(hub, authorization, 'POST', '/session', body, SESSION_TIMEOUT);
   const expected = w3c ? payload.value?.sessionId : payload.sessionId;
   const id = (typeof expected === 'string' && expected) || (w3c ? payload.sessionId : payload.value?.sessionId);
-  if (typeof id === 'string' && id) {
-    await trackSession?.(id, true);
-    if (id === expected) return {
-      id,
-      navigate: url => command('/url', { url }),
-      execute: async script => (await command(w3c ? '/execute/sync' : '/execute', { script, args: [] })).value,
-      quit,
-    };
-    // A reply in the other dialect may still have created a session.
-    await quit();
-  }
-  throw new WebDriverError(`POST /session: no session id in ${ JSON.stringify(payload).slice(0, 200) }`);
+  if (typeof id !== 'string' || !id) throw new WebDriverError(`POST /session: no session id in ${ JSON.stringify(payload).slice(0, 200) }`);
+  await trackSession?.(id, true);
+  if (id !== expected) return quit(new WebDriverError(`POST /session: expected a ${ w3c ? 'W3C' : 'JSON Wire' } session id in ${ JSON.stringify(payload).slice(0, 200) }`));
+  return {
+    id,
+    navigate: url => command('/url', { url }),
+    execute: async script => (await command(w3c ? '/execute/sync' : '/execute', { script, args: [] })).value,
+    quit,
+  };
 
   function command(path, data) {
     return request(hub, authorization, 'POST', sessionPath(id) + path, data);
   }
 
-  async function quit() {
-    await closeSession(hub, authorization, id);
-    await trackSession?.(id, false);
+  // Report a failed attempt with its session link, including any failure to close it.
+  async function quit(failure) {
+    try {
+      await closeSession(hub, authorization, id);
+      await trackSession?.(id, false);
+    } catch (error) {
+      failure = failure ? new AggregateError([failure, error], `${ failure.message }\n${ error.message }`) : error;
+    }
+    if (failure) {
+      failure.sessionId = id;
+      throw failure;
+    }
   }
 }

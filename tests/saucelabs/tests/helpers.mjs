@@ -5,21 +5,39 @@ import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import { evaluate } from '../evaluate.mjs';
 
-const sessionsFile = join(await mkdtemp(join(tmpdir(), 'saucelabs-')), 'sessions');
+const sauceEnv = { SAUCE_USERNAME: 'test', SAUCE_ACCESS_KEY: 'test', SAUCE_REGION: 'us-west-1' };
 
 const pass = { done: true, failed: 0, total: 1, failures: [] };
 const fail = { ...pass, failed: 1, failures: [{ test: 'compare', message: 'first assertion' }] };
 
 async function runFake({
-  firstResult = pass, marker = 404, hangs = 0, sessionNull = false, dynamicQueue = false, navigationErrors = 0, wrongPage = false,
-  pageUrl, commits, pages = ['unit-browser/global.html'], retryPage = pages[0], unwritableSessions = false, noReporter = false,
-  limits = { organization: 1, team: 1 }, limitStatus = 200, platforms,
+  firstResult = pass,
+  marker = 404,
+  hangs = 0,
+  sessionNull = false,
+  dynamicQueue = false,
+  navigationErrors = 0,
+  wrongPage = false,
+  pageUrl,
+  commits,
+  pages = ['unit-browser/global.html'],
+  retryPage = pages[0],
+  unwritableSessions = false,
+  noReporter = false,
+  limits = { organization: 1, team: 1 },
+  limitStatus = 200,
+  platforms,
   polling = { pollInterval: 0 },
-  latePage = false, pendingFailures = [],
-  limitOutages = 0, quitOutages = 0, base = 'http://EXAMPLE.test:80/branch/?from=pages#readme',
+  latePage = false,
+  pendingFailures = [],
+  wrongDialect = false,
+  limitOutages = 0,
+  quitOutages = 0,
+  base = 'http://EXAMPLE.test:80/branch/?from=pages#readme',
 } = {}) {
   const previous = {
     username: process.env.SAUCE_USERNAME,
+    region: process.env.SAUCE_REGION,
     sessionsFile: process.env.SAUCE_SESSIONS_FILE,
     accessKey: process.env.SAUCE_ACCESS_KEY,
     fetch: globalThis.fetch,
@@ -53,14 +71,13 @@ async function runFake({
   const slow = new Promise(resolve => { releaseSlow = resolve; });
   const next = new Promise(resolve => { nextStarted = resolve; });
   let fastFinished = false;
+  const sessionsDir = await mkdtemp(join(tmpdir(), 'saucelabs-'));
+  const sessionsFile = join(sessionsDir, 'sessions');
+  // The runner and workflow cleanup start in fresh processes for each run.
+  const runId = encodeURIComponent(sessionsDir);
   try {
-    process.env.SAUCE_USERNAME = 'test';
-    process.env.SAUCE_ACCESS_KEY = 'test';
-    process.env.SAUCE_SESSIONS_FILE = sessionsFile;
-    if (unwritableSessions) {
-      await rm(sessionsFile, { force: true });
-      await mkdir(sessionsFile);
-    }
+    Object.assign(process.env, sauceEnv, { SAUCE_SESSIONS_FILE: sessionsFile });
+    if (unwritableSessions) await mkdir(sessionsFile);
     globalThis.$ = {};
     globalThis.argv = { _: [base, 'a'.repeat(40)] };
     globalThis.chalk = { cyan: String, green: String, red: String, yellow: String };
@@ -96,6 +113,7 @@ async function runFake({
         const pool = platforms?.find(platform => platform.name === name)?.pool;
         if (pool) poolPeaks[pool] = Math.max(poolPeaks[pool] ?? 0, openPools[pool] = (openPools[pool] ?? 0) + 1);
         payload = sessionNull ? null : { sessionId: dynamicQueue || platforms ? name : `test-session-${ sessions }` };
+        if (wrongDialect && sessions === 1) payload = { value: payload };
       } else if (options.method === 'DELETE') {
         quits++;
         if (quits <= quitOutages) return { ok: false, status: 503, text: async () => '{}' };
@@ -146,7 +164,7 @@ async function runFake({
       }
       return { ok: true, text: async () => JSON.stringify(payload) };
     };
-    const { run } = await import(`../helpers.mjs?base=${ encodeURIComponent(base) }`);
+    const { run } = await import(`../helpers.mjs?run=${ runId }`);
     const suite = {
       name: 'unit', pages, platforms: [{
         name: 'test browser', w3c: false, capabilities: { browserName: 'firefox', version: '7' },
@@ -174,15 +192,19 @@ async function runFake({
       return { sessions, limitRequests, output: output.join('\n') };
     }
     if (quitOutages >= 3) {
-      await rejects(run(suite), /Sauce Labs run stopped: DELETE /, 'the run stops when a session stays open');
+      await rejects(run(suite), /Sauce Labs run stopped: .*DELETE \/session\/\S+: HTTP 503/s, 'the run stops when a session stays open');
       const listedAfter = await readFile(sessionsFile, 'utf8');
       const attempts = quits;
-      await import('../close-sessions.mjs');
-      return { sessions, quits: attempts, listedAfter, open };
+      await import(`../close-sessions.mjs?run=${ runId }`);
+      return { output: output.join('\n'), sessions, quits: attempts, listedAfter, open };
     }
     if (foreignBundles) await rejects(run(suite), new RegExp(`Sauce Labs run stopped: unit-browser/global\\.html: bundles of .* instead of ${ 'a'.repeat(40) }`), 'the run stops on foreign bundles');
     else if (emptyPool || !evaluate(firstResult).passed || noReporter || hangs === 3 || sessionNull || navigationErrors === 3 || wrongPage) await rejects(run(suite), /Sauce Labs run failed/, 'the run fails');
     else await run(suite);
+    if (sessionNull) {
+      await rejects(readFile(sessionsFile), { code: 'ENOENT' }, 'does not list a session that returned no id');
+      return { output: output.join('\n'), sessions };
+    }
     return {
       output: output.join('\n'), exitCodeWhileRunning, navigations, annotations, sessions, peak, poolPeaks, quits, annotationRequests, markerRequests, listedWhileOpen,
       pollDelays,
@@ -190,15 +212,15 @@ async function runFake({
       listedAfter: unwritableSessions ? undefined : await readFile(sessionsFile, 'utf8'),
     };
   } finally {
-    if (unwritableSessions) await rm(sessionsFile, { recursive: true });
     Date.now = previous.now;
     for (const [name, value] of Object.entries({
-      SAUCE_USERNAME: previous.username, SAUCE_ACCESS_KEY: previous.accessKey, SAUCE_SESSIONS_FILE: previous.sessionsFile,
+      SAUCE_USERNAME: previous.username, SAUCE_ACCESS_KEY: previous.accessKey, SAUCE_REGION: previous.region, SAUCE_SESSIONS_FILE: previous.sessionsFile,
     })) {
       if (value === undefined) delete process.env[name];
       else process.env[name] = value;
     }
     for (const name of ['fetch', '$', 'argv', 'chalk', 'echo']) globalThis[name] = previous[name];
+    await rm(sessionsDir, { recursive: true, force: true });
   }
 }
 
@@ -395,13 +417,13 @@ async function runFake({
 }
 
 {
-  const { exitCode, stderr } = await $({ nothrow: true, quiet: true, timeout: '1m', env: { ...process.env, SAUCE_USERNAME: 'test', SAUCE_ACCESS_KEY: 'test' } })`npm run -s test-saucelabs -- http://example.test/branch --all=false`;
+  const { exitCode, stderr } = await $({ nothrow: true, quiet: true, timeout: '1m', env: { ...process.env, ...sauceEnv } })`npm run -s test-saucelabs -- http://example.test/branch --all=false`;
   notEqual(exitCode, 0, 'test-saucelabs passes its options to the suite literally #1');
   match(stderr, /unknown option --all=false/, 'test-saucelabs passes its options to the suite literally #2');
 }
 
 {
-  const { exitCode, stderr } = await $({ nothrow: true, quiet: true, timeout: '1m', env: { ...process.env, SAUCE_USERNAME: 'test', SAUCE_ACCESS_KEY: 'test' } })`npm run -s test-saucelabs -- http://example.test/branch ${ 'a'.repeat(40) } extra`;
+  const { exitCode, stderr } = await $({ nothrow: true, quiet: true, timeout: '1m', env: { ...process.env, ...sauceEnv } })`npm run -s test-saucelabs -- http://example.test/branch ${ 'a'.repeat(40) } extra`;
   notEqual(exitCode, 0, 'test-saucelabs rejects an argument after the commit #1');
   match(stderr, /unexpected arguments extra/, 'test-saucelabs rejects an argument after the commit #2');
 }
@@ -471,11 +493,21 @@ for (const limits of [{ organization: 2, team: 3 }, { organization: 3, team: 2 }
 }
 
 {
-  const { sessions, quits, listedAfter, open } = await runFake({ platforms: [{ name: 'first' }, { name: 'next' }], quitOutages: 3 });
+  const { output } = await runFake({ wrongDialect: true });
+  match(output, /https:\/\/app\.saucelabs\.com\/tests\/test-session-1: POST \/session: expected a JSON Wire session id.*retrying \(2 of 3\)/, 'links the session created in the other dialect');
+}
+
+for (const navigationErrors of [0, 1]) {
+  const name = navigationErrors ? 'navigation-error' : 'completed';
+  const pages = ['unit-browser/global.html', 'unit-browser/pure.html'];
+  const { output, sessions, quits, listedAfter, open } = await runFake({
+    platforms: [{ name }, { name: 'next' }], pages, retryPage: pages[1], navigationErrors, quitOutages: 3,
+  });
   equal(sessions, 1, 'keeps the occupied slot after the last failed DELETE');
   equal(quits, 3);
-  equal(listedAfter, 'first\n', 'keeps the session id for workflow cleanup');
+  equal(listedAfter, `${ name }\n`, 'keeps the session id for workflow cleanup');
   equal(open, 0, 'workflow cleanup closes the listed session');
+  if (navigationErrors) ok(output.includes(`unit-browser/pure.html: POST /session/${ name }/url: navigation failed`), 'reports the page failure when closing its session also fails');
 }
 
 await rejects(() => runFake({ base: 'http://example.test:bad/branch' }), /pass the http\(s\) URL/, 'rejects an invalid branch URL before opening a session');

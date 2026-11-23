@@ -1,7 +1,28 @@
 import { deepEqual, rejects } from 'node:assert/strict';
+import { getGlobalDispatcher } from 'undici';
 import { createSession, WebDriverError } from '../webdriver.mjs';
 
 const options = { hub: 'https://example.test/wd/hub', username: 'test', accessKey: 'test', w3c: false, capabilities: {} };
+
+{
+  const dispatcher = getGlobalDispatcher();
+  const ownDispatch = Object.getOwnPropertyDescriptor(dispatcher, 'dispatch');
+  const { verbose } = $;
+  const timeouts = [];
+  try {
+    $.verbose = false;
+    dispatcher.dispatch = ({ headersTimeout, bodyTimeout }) => {
+      timeouts.push([headersTimeout, bodyTimeout]);
+      throw new Error('hub unavailable');
+    };
+    await rejects(createSession(options), WebDriverError);
+    deepEqual(timeouts, [[15 * 6e4, 15 * 6e4]], 'the transport waits for the queued session and its response body');
+  } finally {
+    if (ownDispatch) Object.defineProperty(dispatcher, 'dispatch', ownDispatch);
+    else delete dispatcher.dispatch;
+    $.verbose = verbose;
+  }
+}
 
 async function responseTest(body, status = 200) {
   const previous = globalThis.fetch;
@@ -29,7 +50,9 @@ async function responseTest(body, status = 200) {
           : { ok: false, status: 404, text: async () => '{"value":{"error":"invalid session id"}}' };
       };
       const tracked = [];
-      await rejects(createSession({ ...options, w3c, trackSession: (id, open) => tracked.push([id, open]) }), /no session id/);
+      await rejects(createSession({ ...options, w3c, trackSession: (id, open) => tracked.push([id, open]) }), {
+        name: 'WebDriverError', sessionId: 'orphan', message: w3c ? /expected a W3C session id/ : /expected a JSON Wire session id/,
+      }, 'a retried attempt carries the id returned in the other dialect');
       deepEqual(paths, [['/wd/hub/session', 'POST'], ['/wd/hub/session/orphan', 'DELETE'], ['/wd/hub/session/orphan', 'DELETE']]);
       deepEqual(tracked, [['orphan', true], ['orphan', false]], 'tracks a session returned in the wrong dialect until the hub confirms it is gone');
     }
