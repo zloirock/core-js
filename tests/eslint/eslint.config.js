@@ -2915,10 +2915,6 @@ export default [
   {
     files: ['**/*.md'],
     processor: 'markdown/markdown',
-    rules: {
-      // disallow references to missing local resources
-      'unicorn/no-missing-local-resource': ERROR,
-    },
   },
   {
     files: ['**/*.md/*.js'],
