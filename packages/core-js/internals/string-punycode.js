@@ -70,7 +70,7 @@ var ucs2encode = function (codePoint) {
  * Converts a digit/integer into a basic code point.
  */
 var digitToBasic = function (digit) {
-  //  0..25 map to ASCII a..z or A..Z
+  //  0..25 map to ASCII a..z
   // 26..35 map to ASCII 0..9
   return digit + 22 + 75 * (digit < 26);
 };
@@ -127,6 +127,7 @@ var addPosition = function (tree, index) {
 /**
  * Converts a string of Unicode symbols (e.g. a domain name label) to a
  * Punycode string of ASCII-only symbols.
+ * Returns `null` on overflow.
  */
 var encode = function (input) {
   var output = [];
