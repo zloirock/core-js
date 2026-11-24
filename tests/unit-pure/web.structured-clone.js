@@ -11,6 +11,7 @@ import rawJSON from 'core-js-pure/es/json/raw-json';
 import assign from 'core-js-pure/es/object/assign';
 import objectCreate from 'core-js-pure/es/object/create';
 import defineProperty from 'core-js-pure/es/object/define-property';
+import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';
 import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
 import keys from 'core-js-pure/es/object/keys';
 import Symbol from 'core-js-pure/es/symbol';
@@ -156,6 +157,11 @@ QUnit.module('structuredClone', () => {
     for (const regex of regexes) cloneObjectTest(assert, regex, (orig, clone) => {
       assert.same(orig.toString(), clone.toString(), `regex ${ regex }`);
     });
+    const re = /b/g;
+    if (DESCRIPTORS && !getOwnPropertyDescriptor(re, 'source')) {
+      defineProperty(re, 'source', { get() { return assert.avoid('read public source'); } });
+      assert.same(structuredClone(re).exec('b')?.[0], 'b');
+    }
   });
 
   if (fromSource('ArrayBuffer.prototype.slice || DataView')) {

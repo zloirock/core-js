@@ -142,17 +142,17 @@
   - Added missed detection of [`Uint8Array.prototype.setFromBase64` reading past the last chunk that fits](https://github.com/tc39/test262/pull/4605) in [V8](https://groups.google.com/g/v8-dev/c/sMEwyJ9GtY0) and [JavaScriptCore](https://github.com/WebKit/WebKit/blob/52cfc989e4a5cf1cc63da6d72b65d16946f821f5/JSTests/test262/expectations.yaml#L55-L57)
   - Fixed `Uint8Array.prototype.{ toBase64, toHex, setFromBase64, setFromHex }` polyfills on shared buffers
   - Improved hex decoding in the `Uint8Array` polyfills. `fromHex` decodes directly into the result, and `setFromHex` reads only the pairs that fit in the target
-- `JSON`
-  - Added a workaround for [V8 returning incorrect property names from `JSON.parse` when keys contain escapes](https://issues.chromium.org/issues/521080746), also reported in [NodeJS #66916](https://github.com/nodejs/node/issues/66916). The workaround keeps native parsing when all property names can be written literally, preserving escapes in string values
-  - Fixed the `JSON.parse` polyfill changing property order of parsed objects in old WebKit when a duplicate key or a reviver updates a value
-  - Fixed `JSON.parse` and `JSON.rawJSON` accepting malformed numbers in Hermes and ChakraCore
-  - Fixed array index keys passed to `JSON.parse` revivers in Rhino
-  - Fixed order of `JSON.parse` dependencies loading, a regression since 3.47.0
-  - Restored native `JSON.parse` delegation without a callable reviver in engines without native symbols, while preserving symbol conversion and detecting native parsing of numbers with leading zeros in IE
-  - Fixed `JSON.parse` polyfill accepting malformed object keys after commas, mishandling rejected reviver property updates, and exposing `context.source` after a zero changes sign
-  - Fixed `JSON.stringify` with an array replacer - the `__proto__` key is no longer lost in [FF < 39](https://bugzilla.mozilla.org/show_bug.cgi?id=837630), polyfilled symbols are no longer serialized as objects (both are regressions since 3.50.0), the length of a proxy of an array is converted to an integer
-  - Fixed `JSON.stringify` polyfill with a `space` containing quotes or lone surrogates - it no longer throws or corrupts keys in case of raw JSON values or an array replacer with integer-like keys, lone surrogates are no longer escaped in engines without well-formed `JSON.stringify`
-  - Fixed `JSON.stringify` polyfill returning a string instead of `undefined` in IE8 for values serialized to `undefined`, for `undefined` and symbols without an array or function replacer it's a regression since 3.47.0
+- `String` and `RegExp` methods
+  - Fixed `String.dedent` line splitting, CR / CRLF normalization, validation of raw templates with large lengths, and vertical tab escapes in old IE; documented its frozen `raw` requirement
+  - Fixed `String.prototype.{ match, matchAll, search }` polyfills with a non-regex argument: like `RegExpCreate`, they convert it to a string, so a regex-like object is no longer read by its `source`, and the pure version of `matchAll` throws on a symbol
+  - Fixed loss of emulated named capturing groups when copying a `RegExp`, including in `matchAll`, `split` and `structuredClone`. `RegExp#toString` preserves the group names and escapes slashes and line terminators. In engines where an own `source` cannot be replaced, direct reads still expose the native pattern
+  - Added a workaround for [`RegExp#source` emitting a literal line terminator after a backslash in V8 before Chrome 83](https://github.com/v8/v8/commit/eea168f8afd94955dc306143e0e1d680a96b050d)
+  - Added a workaround for Rhino 1.7.x copying `lastIndex` from the pattern passed to `RegExp#compile`
+  - Fixed `RegExp#compile` handling of named capturing groups and the `s` and `y` flags when these features are emulated. The `RegExp` constructor and `compile` now reject repeated emulated flags
+  - Fixed the `RegExp#@@split` polyfill bypassing the species constructor and reading `exec` on the original regexp in legacy engines, and returning an incorrect trailing substring in Rhino 1.8
+  - Fixed `matchAll` losing named groups and ignoring `RegExp[@@species]` in Hermes, and `RegExp#toString` emitting literal line terminators in Rhino and IE8-
+  - The `String.prototype.{ match, search }` polyfills now check that native methods throw a `TypeError` for a symbol argument. [Firefox 49-52](https://bugzilla.mozilla.org/show_bug.cgi?id=1317309) accepted the argument
+  - The `String.prototype.toWellFormed` polyfill now returns already well-formed strings directly, avoiding a temporary array
 - `Number.prototype.{ toExponential, toFixed, toPrecision }` improvements and fixes:
   - **`Number.prototype.{ toExponential, toFixed, toPrecision }` polyfills accept up to 100 digits, [as required since ES2018](https://github.com/tc39/ecma262/pull/857)**, added detection of native methods limited to 20 / 21 digits. The `Number.prototype.toExponential` polyfill no longer throws on 21-100 fraction digits in FF86-, a regression since 3.20.0
   - Fixed `Number.prototype.toExponential` polyfill accuracy with decimals close to a rounding half, values next to powers of ten and big fraction digits - it generates exact digits now, for some decimals it's a regression since 3.49.0
@@ -166,12 +166,19 @@
   - Added missed detection of native `Math.tanh` returning `NaN` on big arguments and `0` on tiny ones in [V8 ~ Chrome < 48](https://issues.chromium.org/issues/41480547)
   - Improved accuracy of `Math.{ expm1, sinh, tanh }` polyfills with small arguments and of `Math.atanh` polyfill near `-1`
   - `Math.sumPrecise` polyfill adds values on the fly instead of buffering the whole input, so it uses constant memory
+- `JSON`
+  - Added a workaround for [V8 returning incorrect property names from `JSON.parse` when keys contain escapes](https://issues.chromium.org/issues/521080746), also reported in [NodeJS #66916](https://github.com/nodejs/node/issues/66916). The workaround keeps native parsing when all property names can be written literally, preserving escapes in string values
+  - Fixed the `JSON.parse` polyfill changing property order of parsed objects in old WebKit when a duplicate key or a reviver updates a value
+  - Fixed `JSON.parse` and `JSON.rawJSON` accepting malformed numbers in Hermes and ChakraCore
+  - Fixed array index keys passed to `JSON.parse` revivers in Rhino
+  - Fixed order of `JSON.parse` dependencies loading, a regression since 3.47.0
+  - Restored native `JSON.parse` delegation without a callable reviver in engines without native symbols, while preserving symbol conversion and detecting native parsing of numbers with leading zeros in IE
+  - Fixed `JSON.parse` polyfill accepting malformed object keys after commas, mishandling rejected reviver property updates, and exposing `context.source` after a zero changes sign
+  - Fixed `JSON.stringify` with an array replacer - the `__proto__` key is no longer lost in [FF < 39](https://bugzilla.mozilla.org/show_bug.cgi?id=837630), polyfilled symbols are no longer serialized as objects (both are regressions since 3.50.0), the length of a proxy of an array is converted to an integer
+  - Fixed `JSON.stringify` polyfill with a `space` containing quotes or lone surrogates - it no longer throws or corrupts keys in case of raw JSON values or an array replacer with integer-like keys, lone surrogates are no longer escaped in engines without well-formed `JSON.stringify`
+  - Fixed `JSON.stringify` polyfill returning a string instead of `undefined` in IE8 for values serialized to `undefined`, for `undefined` and symbols without an array or function replacer it's a regression since 3.47.0
 - Fixed the name of `Date.prototype.toUTCString` when polyfilling `Date.prototype.toGMTString`
 - Stopped replacing the native `Promise` in [Deno < 1.24](https://github.com/denoland/deno/pull/15211) solely for `unhandledrejection` support, fixing broken Web Streams and timers; this emulation remains available in the pure version
-- Fixed `String.dedent` line splitting, CR / CRLF normalization, validation of raw templates with large lengths, and vertical tab escapes in old IE; documented its frozen `raw` requirement
-- Fixed `String.prototype.{ match, matchAll, search }` polyfills with a non-regex argument: like `RegExpCreate`, they convert it to a string, so a regex-like object is no longer read by its `source`, and the pure version of `matchAll` throws on a symbol
-- The `String.prototype.{ match, search }` polyfills now check that native methods throw a `TypeError` for a symbol argument. [Firefox 49-52](https://bugzilla.mozilla.org/show_bug.cgi?id=1317309) accepted the argument
-- The `String.prototype.toWellFormed` polyfill now returns already well-formed strings directly, avoiding a temporary array
 - `core-js-pure`
   - Fixed subclassing some wrapped native constructors in the pure version, [#1585](https://github.com/zloirock/core-js/issues/1585)
   - Fixed writable `.prototype` properties of polyfilled constructors and constructor wrappers in the pure version without modifying native constructors

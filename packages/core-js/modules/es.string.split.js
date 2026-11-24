@@ -11,6 +11,9 @@ var toLength = require('../internals/to-length');
 var toString = require('../internals/to-string');
 var getMethod = require('../internals/get-method');
 var getRegExpFlags = require('../internals/regexp-get-flags');
+var getRegExpSource = require('../internals/regexp-get-source');
+var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
+var defaultExec = require('../internals/regexp-exec');
 var regExpExec = require('../internals/regexp-exec-abstract');
 var stickyHelpers = require('../internals/regexp-sticky-helpers');
 var fails = require('../internals/fails');
@@ -43,7 +46,9 @@ var BUGGY = 'abbc'.split(/(b)*/)[1] === 'c' ||
   ''.split(/.?/).length;
 
 // @@split logic
-fixRegExpWellKnownSymbolLogic('split', function (SPLIT, nativeSplit, maybeCallNative) {
+fixRegExpWellKnownSymbolLogic('split', function (SPLIT, nativeSplit, _, nonDelegating) {
+  var DefaultRegExp = RegExp;
+  var legacySplit = nonDelegating && !BUGGY && nativeSplit;
   var internalSplit = '0'.split(undefined, 0).length ? function (separator, limit) {
     return separator === undefined && limit === 0 ? [] : call(nativeSplit, this, separator, limit);
   } : nativeSplit;
@@ -66,23 +71,24 @@ fixRegExpWellKnownSymbolLogic('split', function (SPLIT, nativeSplit, maybeCallNa
     function (string, limit) {
       var rx = anObject(this);
       var S = toString(string);
-
-      if (!BUGGY) {
-        var res = maybeCallNative(internalSplit, rx, S, limit, internalSplit !== nativeSplit);
-        if (res.done) return res.value;
-      }
-
       var C = speciesConstructor(rx, RegExp);
       var flags = toString(getRegExpFlags(rx));
       var unicodeMatching = !!~stringIndexOf(flags, 'u') || !!~stringIndexOf(flags, 'v');
+      var pattern = rx;
+      var useNative;
       if (UNSUPPORTED_Y) {
+        pattern = getRegExpSource(rx);
+        // ES5 split can execute an ordinary copy directly. A custom species or exec needs the anchored matcher.
+        useNative = legacySplit && C === DefaultRegExp && typeof pattern == 'string'
+          && (limit === undefined || typeof limit == 'number') && !~stringIndexOf(flags, 's')
+          && (getOwnPropertyDescriptor(DefaultRegExp.prototype, 'exec') || {}).value === defaultExec;
+        if (!useNative) pattern = '^(?:' + pattern + ')';
         if (!~stringIndexOf(flags, 'g')) flags += 'g';
       } else if (!~stringIndexOf(flags, 'y')) flags += 'y';
-      // ^(? + rx + ) is needed, in combination with some S slicing, to
-      // simulate the 'y' flag.
-      var splitter = new C(UNSUPPORTED_Y ? '^(?:' + rx.source + ')' : rx, flags);
+      var splitter = new C(pattern, flags);
       var lim = limit === undefined ? MAX_UINT32 : limit >>> 0;
       if (lim === 0) return [];
+      if (useNative) return call(legacySplit, S, splitter, lim);
       if (S.length === 0) return regExpExec(splitter, S) === null ? [S] : [];
       var p = 0;
       var q = 0;
@@ -97,13 +103,15 @@ fixRegExpWellKnownSymbolLogic('split', function (SPLIT, nativeSplit, maybeCallNa
         ) {
           q = advanceStringIndex(S, q, unicodeMatching);
         } else {
-          push(A, stringSlice(S, p, q));
+          var part = stringSlice(S, p, q);
+          // Rhino 1.8 loses these indices if they are updated after collecting the captures.
+          q = p = e;
+          push(A, part);
           if (A.length === lim) return A;
           for (var i = 1; i <= z.length - 1; i++) {
             push(A, z[i]);
             if (A.length === lim) return A;
           }
-          q = p = e;
         }
       }
       push(A, stringSlice(S, p));

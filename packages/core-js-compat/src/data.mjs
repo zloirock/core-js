@@ -1741,7 +1741,9 @@ export const data = {
     safari: '14.0',
   },
   'es.regexp.constructor': {
-    chrome: '64',
+    // V8 fixed escaping a backslash followed by a line terminator in RegExp#source.
+    // https://github.com/v8/v8/commit/eea168f8afd94955dc306143e0e1d680a96b050d
+    chrome: '83', // '64',
     firefox: '78',
     safari: '11.1',
   },
@@ -1795,7 +1797,8 @@ export const data = {
     chrome: '50',
     firefox: '46',
     hermes: '0.1',
-    rhino: '1.7.15',
+    // Rhino still leaves literal line terminators in its non-configurable source.
+    // rhino: '1.7.15',
     safari: '10.0',
   },
   // TODO: Remove this module from `core-js@4` since it's replaced to module below
@@ -1981,7 +1984,8 @@ export const data = {
     // Early implementations does not throw an error on non-global regex
     chrome: '80',   // '73',
     firefox: '73',  // '67',
-    hermes: '0.6',
+    // Hermes ignores RegExp species and drops named groups when cloning the matcher.
+    // hermes: '0.6',
     rhino: '1.8.0',
     safari: '13.1', // '13',
   },

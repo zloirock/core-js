@@ -143,3 +143,22 @@ QUnit.test('String#matchAll', assert => {
     assert.throws(() => matchAll.call(undefined, /./g), TypeError, 'Throws on undefined as `this`');
   }
 });
+
+if (DESCRIPTORS) QUnit.test('String#matchAll copies named groups', assert => {
+  // Named group literals do not parse in old engines.
+  const re = RegExp('(?<number>\\d)(?<letter>\\D)', 'g');
+  re.lastIndex = 2;
+  const groups = Array.from('0x1a2b'.matchAll(re), match => match.groups);
+  assert.deepEqual(groups, [{ number: '1', letter: 'a' }, { number: '2', letter: 'b' }]);
+  assert.same(re.lastIndex, 2);
+
+  re.constructor = {
+    // eslint-disable-next-line object-shorthand -- constructor
+    [Symbol.species]: function (pattern, flags) {
+      assert.same(pattern, re);
+      assert.same(flags, 'g');
+      return new RegExp(pattern, flags);
+    },
+  };
+  assert.same('0x1a'.matchAll(re).next().value.groups?.letter, 'a');
+});

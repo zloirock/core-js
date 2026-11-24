@@ -1,6 +1,6 @@
 /* eslint-disable regexp/no-empty-group, regexp/no-empty-capturing-group -- required for testing */
 /* eslint-disable regexp/optimal-lookaround-quantifier, regexp/no-lazy-ends -- required for testing */
-import { GLOBAL, NATIVE, STRICT } from '../helpers/constants.js';
+import { DESCRIPTORS, GLOBAL, NATIVE, STRICT } from '../helpers/constants.js';
 
 const Symbol = GLOBAL.Symbol || {};
 
@@ -774,6 +774,31 @@ QUnit.test('RegExp#@@split delegates to exec', assert => {
     },
   };
   assert.throws(() => re[Symbol.split]('123451234'));
+});
+
+if (DESCRIPTORS) QUnit.test('RegExp#@@split preserves named groups in the splitter', assert => {
+  const re = RegExp('(?<sep>,)');
+  let separator;
+  assert.deepEqual('a,b'.split(re), ['a', ',', 'b']);
+  assert.deepEqual('a\nb'.split(RegExp('(?<sep>.)', 's'), 4), ['', 'a', '', '\n']);
+  re.constructor = {
+    // eslint-disable-next-line object-shorthand -- constructor
+    [Symbol.species]: function (pattern, flags) {
+      const splitter = new RegExp(pattern, flags);
+      splitter.exec = function (string) {
+        const match = RegExp.prototype.exec.call(this, string);
+        if (match) separator = match.groups?.sep;
+        return match;
+      };
+      return splitter;
+    },
+  };
+  assert.deepEqual(re[Symbol.split]('a,b'), ['a', ',', 'b']);
+  assert.same(separator, ',');
+  Object.defineProperty(re, 'exec', {
+    get() { return assert.avoid('should not read exec on the original regexp'); },
+  });
+  assert.deepEqual(re[Symbol.split]('a,b'), ['a', ',', 'b']);
 });
 
 QUnit.test('RegExp#@@split applies the limit to captures returned by the splitter', assert => {

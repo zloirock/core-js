@@ -298,6 +298,11 @@ function NCG_SUPPORT() {
     'b'.replace(re, '$<a>c') === 'bc';
 }
 
+function REGEXP_SOURCE_SUPPORT() {
+  var source = GLOBAL.RegExp('/\n\r\u2028\u2029\\\n').source;
+  return source.charAt(0) !== '/' && !/[\n\r\u2028\u2029]/.test(source);
+}
+
 function createIsRegExpLogicTest(name) {
   return function () {
     var regexp = /./;
@@ -1606,7 +1611,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.reflect.to-string-tag': function () {
     return Reflect[Symbol.toStringTag];
   },
-  'es.regexp.constructor': [NCG_SUPPORT, function () {
+  'es.regexp.constructor': [NCG_SUPPORT, REGEXP_SOURCE_SUPPORT, function () {
     var re1 = /a/g;
     var re2 = /a/g;
     re2[Symbol.match] = false;
@@ -1692,8 +1697,10 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return re.test('abc') === true && execCalled;
   },
   'es.regexp.to-string': function () {
+    var source = Object.getOwnPropertyDescriptor(/a/, 'source');
     return RegExp.prototype.toString.call({ source: 'a', flags: 'b' }) === '/a/b'
-      && RegExp.prototype.toString.name === 'toString';
+      && RegExp.prototype.toString.name === 'toString'
+      && (!source || source.configurable || NCG_SUPPORT() && REGEXP_SOURCE_SUPPORT());
   },
   'es.set.constructor': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
     var called = 0;
@@ -1799,7 +1806,15 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       // eslint-disable-next-line regexp/no-missing-g-flag -- required for testing
       'a'.matchAll(/./);
     } catch (error) {
-      return 'a'.matchAll(/./g);
+      var re = /a/g;
+      var called = false;
+      re.constructor = {};
+      re.constructor[Symbol.species] = function () {
+        called = true;
+        return re;
+      };
+      'a'.matchAll(re);
+      return called;
     }
   },
   'es.string.pad-end': function () {

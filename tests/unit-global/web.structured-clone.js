@@ -140,6 +140,15 @@ QUnit.module('structuredClone', () => {
     for (const regex of regexes) cloneObjectTest(assert, regex, (orig, clone) => {
       assert.same(orig.toString(), clone.toString(), `regex ${ regex }`);
     });
+    if (DESCRIPTORS) {
+      // Named group literals do not parse in old engines.
+      const re = RegExp('(?<letter>b)\\k<letter>', 'gi');
+      re.lastIndex = 2;
+      const clone = structuredClone(re);
+      assert.same(clone.lastIndex, 0);
+      assert.same(clone.exec('BB')?.groups?.letter, 'B');
+      assert.same(re.lastIndex, 2);
+    }
   });
 
   if (fromSource('ArrayBuffer.prototype.slice || DataView')) {

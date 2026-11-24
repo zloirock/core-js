@@ -65,19 +65,17 @@ module.exports = function (KEY, exec, FORCED, SHAM) {
 
   if (FORCED || (KEY === 'match' || KEY === 'search') && !hasCorrectSymbolFallback(KEY, SYMBOL)) {
     var nativeRegExpMethod = /./[SYMBOL];
-    var methods = exec(SYMBOL, ''[KEY], function (nativeMethod, regexp, str, arg2, forceStringMethod) {
+    var methods = exec(SYMBOL, ''[KEY], function (nativeMethod, regexp, str, arg2) {
       var $exec = regexp.exec;
       if ($exec === regexpExec || $exec === RegExpPrototype.exec) {
-        if (DELEGATES_TO_SYMBOL && !forceStringMethod) {
-          // The native String method already delegates to @@method (this
-          // polyfilled function), leasing to infinite recursion.
-          // We avoid it by directly calling the native @@method method.
+        if (DELEGATES_TO_SYMBOL) {
+          // The native String method would delegate back to this polyfill.
           return { done: true, value: call(nativeRegExpMethod, regexp, str, arg2) };
         }
         return { done: true, value: call(nativeMethod, str, regexp, arg2) };
       }
       return { done: false };
-    });
+    }, !DELEGATES_TO_SYMBOL);
 
     defineBuiltIn(String.prototype, KEY, methods[0]);
     // a broken String fallback does not require replacing a working RegExp method

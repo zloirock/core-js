@@ -3,9 +3,17 @@
 import { DESCRIPTORS, GLOBAL } from '../helpers/constants.js';
 import { nativeSubclass } from '../helpers/helpers.js';
 
-const { getPrototypeOf } = Object;
+const { defineProperty, getPrototypeOf, hasOwn } = Object;
 
 if (DESCRIPTORS) {
+  const canSetSourceGetter = (() => {
+    const re = /a/;
+    try {
+      defineProperty(re, 'source', { configurable: true, get: () => 'b' });
+      return re.source === 'b';
+    } catch { return false; }
+  })();
+
   QUnit.test('RegExp constructor', assert => {
     const Symbol = GLOBAL.Symbol || {};
     assert.isFunction(RegExp);
@@ -80,6 +88,8 @@ if (DESCRIPTORS) {
     const dotAllNCG = RegExp('(?<a>.).(?<b>.)', 's').exec('a\nb');
     assert.same(dotAllNCG?.groups?.a, 'a', 'dotAll + NCG groups #1');
     assert.same(dotAllNCG?.groups?.b, 'b', 'dotAll + NCG groups #2');
+    const mixed = RegExp('(?<part>[./]\\.)/.\n', 's');
+    assert.same(mixed.exec('/./\n\n')?.groups?.part, '/.', 'dotAll preserves character classes and escapes');
   });
 
   QUnit.test('RegExp NCG', assert => {
@@ -130,5 +140,119 @@ if (DESCRIPTORS) {
     // eslint-disable-next-line regexp/no-unused-capturing-group -- required for testing
     assert.same(RegExp('(?<a>x)\\\\k<a>').exec('x\\k<a>')?.[0], 'x\\k<a>', 'NCG \\\\k not confused with \\k backreference');
     assert.same(RegExp('(?<a>x)\\\\\\k<a>').exec('x\\x')?.[0], 'x\\x', 'NCG escaped backslash before backreference');
+  });
+
+  QUnit.test('RegExp copies named groups', assert => {
+    const re = RegExp('(?<letter>b)\\k<letter>', 'g');
+    re.lastIndex = 2;
+    const copy = new RegExp(re);
+    assert.same(copy.lastIndex, 0);
+    assert.same(copy.exec('bb')?.groups?.letter, 'b');
+    assert.same(RegExp(copy, 'i').exec('BB')?.groups?.letter, 'B');
+    assert.same('bb'.replace(new RegExp(copy), '<$<letter>>'), '<b>');
+    assert.same(re.lastIndex, 2);
+    assert.same(hasOwn(RegExp('a\\\\/b'), 'source'), hasOwn(/a/, 'source'), 'untranslated patterns keep the native source');
+
+    if (canSetSourceGetter) {
+      assert.same(re.source, '(?<letter>b)\\k<letter>');
+      let reads = 0;
+      defineProperty(re, 'source', { configurable: true, get() {
+        reads++;
+        return 'other';
+      } });
+      assert.same(new RegExp(re).exec('bb')?.groups?.letter, 'b', 'copies the original pattern');
+      re.lastIndex = 0;
+      assert.same(re.exec('bb')?.groups?.letter, 'b');
+      assert.same(reads, 0, 'copy and exec use the original pattern');
+      assert.same(String(re), '/other/g', 'toString reads the public source');
+      assert.same(reads, 1);
+    }
+  });
+
+  // eslint-disable-next-line es/no-regexp-prototype-compile -- test Annex B reinitialization
+  const { compile } = RegExp.prototype;
+  if (compile) QUnit.test('RegExp#compile reinitializes emulated patterns and flags', assert => {
+    const re = /a/;
+    const pattern = { toString: () => '(?<part>.)\\k<part>' };
+    defineProperty(pattern, GLOBAL.Symbol.match, { get: () => assert.avoid('compile should not read @@match') });
+    defineProperty(pattern, GLOBAL.Symbol.toStringTag, { get: () => assert.avoid('compile should not read @@toStringTag') });
+    assert.throws(() => compile.call(RegExp.prototype, pattern, 'sy'), TypeError);
+    const inherited = Object.create(/original/);
+    inherited.toString = () => 'converted';
+    assert.throws(() => compile.call(inherited, pattern), TypeError);
+    assert.true(compile.call(re, inherited).test('converted'), 'an object inheriting from a RegExp is converted to a string');
+    assert.same(compile.call(re, pattern, 'sy'), re);
+    assert.same(re.exec('\n\n')?.groups?.part, '\n');
+    assert.same(re.lastIndex, 2);
+    assert.throws(() => compile.call(re, /b/, 'i'), TypeError);
+    assert.throws(() => compile.call(re, '['), SyntaxError);
+    assert.same(re.lastIndex, 2, 'a failed compile keeps lastIndex');
+    for (const flags of ['ss', 'yy', 'sys']) {
+      assert.throws(() => RegExp('.', flags), SyntaxError);
+      assert.throws(() => compile.call(re, '.', flags), SyntaxError);
+    }
+
+    for (const flag of ['s', 'y']) {
+      const from = RegExp('.', `g${ flag }`);
+      from.lastIndex = 3;
+      compile.call(re, from);
+      assert.same(from.lastIndex, 3, 'checking the matcher keeps the argument lastIndex');
+      assert.same(re.flags, from.flags, 'copies the flags from a RegExp');
+      assert.same(re.test('\n'), flag === 's');
+      compile.call(from, 'b');
+      assert.same(from.flags, '', 'clears the flag without a saved source');
+      assert.false(from.test('\n'));
+      assert.true(from.test('ab'));
+      assert.same(re.flags, `g${ flag }`, 'recompiling the argument leaves the copy intact');
+    }
+  });
+
+  if (compile) QUnit.test('RegExp copies after recompiling named groups', assert => {
+    const re = RegExp('(?<letter>b)');
+    re.lastIndex = 3;
+    compile.call(re, re);
+    assert.same(re.lastIndex, 0, 'self copy resets lastIndex');
+    assert.same(re.exec('b')?.groups?.letter, 'b', 'self copy');
+    const other = /a/;
+    re.lastIndex = 3;
+    compile.call(other, re);
+    assert.same(other.lastIndex, 0, 'the target starts at zero');
+    assert.same(re.lastIndex, 3, 'the source retains its lastIndex');
+    assert.same(other.exec('b')?.groups?.letter, 'b', 'copy into a different regexp');
+    assert.same(String(other), '/(?<letter>b)/');
+    if (canSetSourceGetter) assert.same(other.source, '(?<letter>b)', 'recompilation preserves the named source');
+    const frozenIndex = /a/;
+    defineProperty(frozenIndex, 'lastIndex', { writable: false });
+    try {
+      compile.call(frozenIndex, re);
+    } catch (error) { assert.true(error instanceof TypeError); }
+    assert.same(new RegExp(frozenIndex).exec('b')?.groups?.letter, 'b', 'the matcher changes before resetting lastIndex');
+    assert.throws(() => compile.call(re, '['), SyntaxError);
+    assert.same(new RegExp(re).exec('b')?.groups?.letter, 'b', 'failed compilation preserves the pattern');
+    const nested = /a/;
+    compile.call(nested, { toString() {
+      compile.call(nested, re);
+      return 'c';
+    } });
+    assert.same(String(nested), '/c/', 'outer compilation wins after coercion');
+    assert.true(new RegExp(nested).test('c'));
+    compile.call(re, '(b)');
+    assert.same(re.source, '(b)', 'recompilation drops the old source');
+    assert.same(new RegExp(re).exec('b').groups, undefined, 'recompiling the same native pattern drops the name');
+    assert.same(String(re), '/(b)/');
+    compile.call(re, 'c');
+    assert.same(new RegExp(re).exec('c').groups, undefined);
+    if (canSetSourceGetter) {
+      defineProperty(other, 'source', { configurable: true, get: () => 'public\nsource' });
+      compile.call(other, RegExp('(?<letter>d)'));
+      assert.same(other.source, 'public\nsource', 'recompiling a named pattern preserves the own getter');
+      assert.same(other.exec('d')?.groups?.letter, 'd');
+      compile.call(other, 'c');
+      assert.same(String(other), '/public\nsource/', 'toString preserves the public getter after compile');
+      if (GLOBAL.Symbol?.toStringTag) defineProperty(other, GLOBAL.Symbol.toStringTag, { get() {
+        throw new Error('unexpected toStringTag access');
+      } });
+      assert.same(new RegExp(other, 'i').source, 'c', 'a copy uses the recompiled matcher');
+    }
   });
 }

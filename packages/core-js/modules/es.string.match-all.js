@@ -14,6 +14,7 @@ var isObject = require('../internals/is-object');
 var classof = require('../internals/classof-raw');
 var isRegExp = require('../internals/is-regexp');
 var getRegExpFlags = require('../internals/regexp-get-flags');
+var getRegExpSource = require('../internals/regexp-get-source');
 var getMethod = require('../internals/get-method');
 var defineBuiltIn = require('../internals/define-built-in');
 var fails = require('../internals/fails');
@@ -25,6 +26,7 @@ var InternalStateModule = require('../internals/internal-state');
 var IS_PURE = require('../internals/is-pure');
 
 var MATCH_ALL = wellKnownSymbol('matchAll');
+var SPECIES = wellKnownSymbol('species');
 var REGEXP_STRING = 'RegExp String';
 var REGEXP_STRING_ITERATOR = REGEXP_STRING + ' Iterator';
 var setInternalState = InternalStateModule.set;
@@ -33,10 +35,30 @@ var RegExpPrototype = RegExp.prototype;
 var $TypeError = TypeError;
 var stringIndexOf = uncurryThis(''.indexOf);
 var nativeMatchAll = uncurryThis(''.matchAll);
+var nativeRegExpMatchAll = RegExpPrototype[MATCH_ALL];
+
+// Hermes clones the native matcher directly, losing emulated groups and ignoring species.
+var IGNORES_SPECIES = nativeRegExpMatchAll && fails(function () {
+  var receiver = { flags: 'g', constructor: {} };
+  var called = false;
+  receiver.constructor[SPECIES] = function () {
+    called = true;
+    return /a/g;
+  };
+  call(nativeRegExpMatchAll, receiver, '');
+  return !called;
+});
+
+// ES5 constructors reject flags when the pattern is a RegExp.
+var ES5RegExp = fails(function () {
+  // eslint-disable-next-line prefer-regex-literals -- check the constructor overload
+  return !new RegExp(/a/, 'i').ignoreCase;
+}) && RegExp;
 
 var WORKS_WITH_NON_GLOBAL_REGEX = !!nativeMatchAll && !fails(function () {
   nativeMatchAll('a', /./);
 });
+var USE_NATIVE = WORKS_WITH_NON_GLOBAL_REGEX && !(IS_PURE && IGNORES_SPECIES);
 
 var $RegExpStringIterator = createIteratorConstructor(function RegExpStringIterator(regexp, string, $global, fullUnicode) {
   setInternalState(this, {
@@ -70,7 +92,7 @@ var $matchAll = function (string) {
   var S = toString(string);
   var C = speciesConstructor(R, RegExp);
   var flags = toString(getRegExpFlags(R));
-  var matcher = new C(C === RegExp ? R.source : R, flags);
+  var matcher = new C(C === ES5RegExp && (isRegExp(R) || classof(R) === 'RegExp') ? getRegExpSource(R) : R, flags);
   var $global = !!~stringIndexOf(flags, 'g');
   var fullUnicode = !!~stringIndexOf(flags, 'u') || !!~stringIndexOf(flags, 'v');
   matcher.lastIndex = toLength(R.lastIndex);
@@ -79,7 +101,7 @@ var $matchAll = function (string) {
 
 // `String.prototype.matchAll` method
 // https://tc39.es/ecma262/#sec-string.prototype.matchall
-$({ target: 'String', proto: true, forced: WORKS_WITH_NON_GLOBAL_REGEX }, {
+$({ target: 'String', proto: true, forced: WORKS_WITH_NON_GLOBAL_REGEX || IS_PURE && IGNORES_SPECIES }, {
   matchAll: function matchAll(regexp) {
     var O = requireObjectCoercible(this);
     var flags, S, matcher, rx;
@@ -88,15 +110,16 @@ $({ target: 'String', proto: true, forced: WORKS_WITH_NON_GLOBAL_REGEX }, {
         flags = toString(requireObjectCoercible(getRegExpFlags(regexp)));
         if (!~stringIndexOf(flags, 'g')) throw new $TypeError('`.matchAll` does not allow non-global regexes');
       }
-      if (WORKS_WITH_NON_GLOBAL_REGEX) return nativeMatchAll(O, regexp);
+      if (USE_NATIVE) return nativeMatchAll(O, regexp);
       matcher = getMethod(regexp, MATCH_ALL);
-      if (matcher === undefined && IS_PURE && classof(regexp) === 'RegExp') matcher = $matchAll;
+      if (IS_PURE && (matcher === undefined && classof(regexp) === 'RegExp'
+        || IGNORES_SPECIES && matcher === nativeRegExpMatchAll)) matcher = $matchAll;
       if (matcher !== undefined) return call(matcher, regexp, O);
-    } else if (WORKS_WITH_NON_GLOBAL_REGEX) return nativeMatchAll(O, regexp);
+    } else if (USE_NATIVE) return nativeMatchAll(O, regexp);
     S = toString(O);
     rx = new RegExp(normalizeStringArgument(regexp), 'g');
     return IS_PURE ? call($matchAll, rx, S) : rx[MATCH_ALL](S);
   }
 });
 
-IS_PURE || MATCH_ALL in RegExpPrototype || defineBuiltIn(RegExpPrototype, MATCH_ALL, $matchAll);
+if (!IS_PURE && (!nativeRegExpMatchAll || IGNORES_SPECIES)) defineBuiltIn(RegExpPrototype, MATCH_ALL, $matchAll);

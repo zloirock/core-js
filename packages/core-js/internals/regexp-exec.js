@@ -5,6 +5,7 @@ var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var toString = require('../internals/to-string');
 var regexpFlags = require('../internals/regexp-flags');
+var getRegExpSource = require('../internals/regexp-get-source');
 var stickyHelpers = require('../internals/regexp-sticky-helpers');
 var shared = require('../internals/shared');
 var create = require('../internals/object-create');
@@ -44,6 +45,8 @@ var setGroups = function (re, groups) {
 };
 
 if (PATCH) {
+  // Keep the original RegExp receiver check across copies of core-js.
+  shared('native-regexp-exec', nativeExec);
   patchedExec = function exec(string) {
     var re = this;
     var state = getInternalState(re);
@@ -64,10 +67,11 @@ if (PATCH) {
     var groups = state.groups;
     var sticky = UNSUPPORTED_Y && re.sticky;
     var flags = call(regexpFlags, re);
-    var source = re.source;
+    var source;
     var charsAdded = 0;
     var strCopy = str;
 
+    if (sticky || NPCG_INCLUDED) source = getRegExpSource(re);
     if (sticky) {
       flags = replace(flags, 'y', '');
       if (indexOf(flags, 'g') === -1) {

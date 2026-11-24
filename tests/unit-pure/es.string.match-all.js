@@ -1,8 +1,10 @@
-import { STRICT } from '../helpers/constants.js';
+import { DESCRIPTORS, STRICT } from '../helpers/constants.js';
 
 import Symbol from 'core-js-pure/es/symbol';
 import from from 'core-js-pure/es/array/from';
 import assign from 'core-js-pure/es/object/assign';
+import defineProperty from 'core-js-pure/es/object/define-property';
+import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';
 import matchAll from 'core-js-pure/es/string/match-all';
 
 QUnit.test('String#matchAll', assert => {
@@ -142,4 +144,21 @@ QUnit.test('String#matchAll', assert => {
     assert.throws(() => matchAll(null, /./g), TypeError, 'Throws on null as `this`');
     assert.throws(() => matchAll(undefined, /./g), TypeError, 'Throws on undefined as `this`');
   }
+});
+
+QUnit.test('String#matchAll copies the original RegExp pattern', assert => {
+  const re = /b/g;
+  if (DESCRIPTORS && !getOwnPropertyDescriptor(re, 'source')) {
+    defineProperty(re, 'source', { get() { return assert.avoid('read public source'); } });
+  }
+  assert.same(matchAll('ab', re).next().value?.[0], 'b');
+  re.constructor = {
+    // eslint-disable-next-line object-shorthand -- constructor
+    [Symbol.species]: function (pattern, flags) {
+      assert.same(pattern, re);
+      assert.same(flags, 'g');
+      return /a/g;
+    },
+  };
+  assert.same(matchAll('ab', re).next().value?.[0], 'a');
 });
