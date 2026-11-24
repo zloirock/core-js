@@ -1,5 +1,6 @@
 'use strict';
-require('../stable');
-require('../stage/3');
+var stable = require('../stable');
+var stage = require('../stage/3');
 
-module.exports = require('../internals/path');
+// Use both exports so bundlers keep the registrations on their shared namespace.
+module.exports = stable && stage;

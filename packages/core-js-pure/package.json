@@ -75,7 +75,8 @@
     "url": "http://zloirock.ru"
   },
   "sideEffects": [
-    "./modules/*.js"
+    "./modules/*.js",
+    "./proposals/*.js"
   ],
   "main": "index.js",
   "scripts": {
