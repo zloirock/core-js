@@ -1,6 +1,10 @@
 import { deepEqual, ok, throws } from 'node:assert/strict';
 import compat from '@core-js/compat/compat.js';
 
+// The default-target cases run without Browserslist environment overrides.
+delete process.env.BROWSERSLIST;
+delete process.env.BROWSERSLIST_CONFIG;
+
 deepEqual(compat({
   modules: [
     'es/math',
@@ -111,6 +115,27 @@ deepEqual(compat({
     'es.math.atanh': {},
   },
 }, 'no exclude');
+
+const configPath = await fs.mkdtemp(path.join(os.tmpdir(), 'core-js-compat-'));
+const configFile = path.join(configPath, 'targets');
+const options = { modules: 'es.array.at', configPath };
+const { env } = process;
+try {
+  await fs.writeFile(configFile, 'ie 11');
+  process.env = { ...env, BROWSERSLIST_ROOT_PATH: configPath };
+  deepEqual(compat(options).list, ['es.array.at'], 'no browserslist config');
+
+  process.env.BROWSERSLIST = 'chrome 100';
+  deepEqual(compat(options).list, [], 'BROWSERSLIST');
+  deepEqual(compat({ ...options, ignoreBrowserslistConfig: true }).list, ['es.array.at'], 'ignore BROWSERSLIST');
+
+  delete process.env.BROWSERSLIST;
+  process.env.BROWSERSLIST_CONFIG = configFile;
+  deepEqual(compat(options).targets, { 'es.array.at': { ie: '11' } }, 'BROWSERSLIST_CONFIG');
+} finally {
+  process.env = env;
+  await fs.remove(configPath);
+}
 
 deepEqual(compat({ exclude: null }), compat(), 'exclude: null means no exclusions');
 

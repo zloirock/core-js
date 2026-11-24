@@ -20,7 +20,7 @@ const { script } = await builder({
   // entries / modules to exclude, by default - empty list
   exclude: [/^es\.math\./, 'es.number.constructor'],
   // optional browserslist or @core-js/compat format query
-  // when not specified, project browserslist config is used if present
+  // when `targets` is omitted, use BROWSERSLIST, BROWSERSLIST_CONFIG, or the project Browserslist config
   targets: '> 0.5%, not dead, ie 11',
   // directory to search for browserslist config (for monorepos)
   // configPath: './packages/app',

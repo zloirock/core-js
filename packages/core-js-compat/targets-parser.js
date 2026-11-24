@@ -79,9 +79,9 @@ export default function (targets) {
       list.push(...entries(browsers));
     }
   } else if (!list.length && !node && !normalizedESModules && !ignoreBrowserslistConfig) {
-    // No explicit targets - use project browserslist config if present (not defaults)
+    // Without explicit targets, use Browserslist only when configured.
     const path = configPath || '.';
-    if (browserslist.findConfig(path)) {
+    if (process.env.BROWSERSLIST || process.env.BROWSERSLIST_CONFIG || browserslist.findConfig(path)) {
       list.push(...browserslist(undefined, { path, env: browserslistEnv, mobileToDesktop: true }).map(it => it.split(' ')));
     }
   }

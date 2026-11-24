@@ -6,6 +6,10 @@ import { getRolldownOptions } from '@core-js/builder/config.js';
 const { tmpdir } = os;
 const { join } = path;
 
+// The default-target cases run without Browserslist environment overrides.
+delete process.env.BROWSERSLIST;
+delete process.env.BROWSERSLIST_CONFIG;
+
 const { script } = await builder({
   modules: 'actual',
   exclude: [/group-by/, 'es.typed-array.with'],

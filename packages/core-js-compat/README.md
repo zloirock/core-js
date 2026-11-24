@@ -19,7 +19,7 @@ const {
   targets,                    // object with targets for each module
 } = compat({
   targets: '> 1%',            // browserslist query or object of minimum environment versions to support, see below
-  // when `targets` is not specified, project browserslist config is used if present
+  // when `targets` is omitted, use BROWSERSLIST, BROWSERSLIST_CONFIG, or the project Browserslist config
   configPath: './packages/app', // directory to search for browserslist config (for monorepos)
   ignoreBrowserslistConfig: false, // set to `true` to ignore browserslist config
   modules: [                  // optional list / filter of modules - regex, string or an array of them:
