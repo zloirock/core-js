@@ -3,7 +3,7 @@
 /* eslint-disable es/no-error-cause, es/no-typed-arrays -- safe */
 import getBuiltInNodeModule from 'core-js-pure/internals/get-built-in-node-module';
 import { DESCRIPTORS, GLOBAL, NODE, NODE_MESSAGE_PORT_TYPE_ERROR, BUN, DENO, DENO_VERSION } from '../helpers/constants.js';
-import { bufferToArray, fromSource } from '../helpers/helpers.js';
+import { bufferToArray, createIterator, fromSource, observableReturn } from '../helpers/helpers.js';
 
 import structuredClone from 'core-js-pure/stable/structured-clone';
 import from from 'core-js-pure/es/array/from';
@@ -870,6 +870,29 @@ QUnit.module('structuredClone', () => {
   });
 
   QUnit.test('transfer list validation', assert => {
+    const iterator = createIterator([{}, 1, 2], observableReturn);
+    const transfer = { [Symbol.iterator]() { return iterator; } };
+    assert.throws(() => structuredClone(1, { transfer }), TypeError, 'primitive entry is rejected during sequence conversion');
+    assert.same(iterator.returnCalls, 0, 'conversion failure leaves the iterator open');
+    assert.same(iterator.next().value, 2, 'conversion stops at the primitive entry');
+
+    if (DESCRIPTORS) {
+      const growing = [];
+      const marker = new Error();
+      defineProperty(growing, 0, { get() {
+        defineProperty(growing, 1, { get() { throw marker; } });
+        return {};
+      } });
+      assert.throws(() => structuredClone(1, { transfer: growing }), error => error === marker, 'reads an entry appended during iteration');
+
+      const shrinking = [{}, 1];
+      defineProperty(shrinking, 0, { get() {
+        shrinking.length = 1;
+        return {};
+      } });
+      assert.throws(() => structuredClone(1, { transfer: shrinking }), isTransferError, 'checks the remaining object after the list shrinks');
+    }
+
     assert.throws(() => structuredClone(1, { transfer: [{}] }), isTransferError, 'non-transferable object');
     if (typeof ArrayBuffer == 'function') {
       const buffer = new ArrayBuffer(8);

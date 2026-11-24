@@ -13,7 +13,8 @@ var isNullOrUndefined = require('../internals/is-null-or-undefined');
 var isObject = require('../internals/is-object');
 var isRawJSON = require('../internals/is-raw-json');
 var isSymbol = require('../internals/is-symbol');
-var iterate = require('../internals/iterate');
+var getIteratorRecord = require('../internals/get-iterator-record');
+var iterateSimple = require('../internals/iterate-simple');
 var anObject = require('../internals/an-object');
 var classof = require('../internals/classof');
 var hasOwn = require('../internals/has-own-property');
@@ -585,7 +586,8 @@ var prepareTransfer = function (rawTransfer, map) {
 
   var transfer = [];
 
-  iterate(rawTransfer, function (value) {
+  // Web IDL sequence conversion leaves the iterator open if an element cannot be converted.
+  iterateSimple(getIteratorRecord(rawTransfer), function (value) {
     push(transfer, anObject(value));
   });
 
