@@ -1801,6 +1801,9 @@ if (NATIVE_BODIES) QUnit[BODY_UNSUPPORTED ? 'skip' : 'test']('URLSearchParams wi
   const moved = new URL('https://example.com/?z=0');
   const movedParams = moved.searchParams;
   moved.search = '?y=2&x=1';
+  // Chromium before 116 corrupts noncharacters in a native list that the `search` setter writes.
+  // https://issues.chromium.org/issues/40256685
+  const noncharacters = '__proto__=%EF%B7%90&b=1&b=%EF%BF%BF&%F4%8F%BF%BF=x&b=2';
   const request = new GLOBAL.Request('https://example.com/', { body: changed, method: 'POST' });
   const response = new GLOBAL.Response(bound);
   if (!BODY_TYPE_LEGACY) {
@@ -1830,5 +1833,19 @@ if (NATIVE_BODIES) QUnit[BODY_UNSUPPORTED ? 'skip' : 'test']('URLSearchParams wi
     return body(new URL('https://example.com/?w=1').searchParams);
   }).then(text => {
     assert.same(text, 'w=1', 'of a new URL');
+    moved.search = noncharacters;
+    return body(movedParams);
+  }).then(text => {
+    assert.same(text, noncharacters, 'noncharacters after replacing the query');
+    if (GLOBAL.URLSearchParams) try {
+      GLOBAL.URLSearchParams.prototype.append.call(movedParams, 'borrowed', '1');
+    } catch (error) {
+      // A native method can only mutate a native receiver.
+      assert.same(error.name, 'TypeError');
+    }
+    movedParams.append('last', '2');
+    return body(movedParams);
+  }).then(text => {
+    assert.same(text, String(movedParams), 'native body after a borrowed append followed by a public append');
   });
 });

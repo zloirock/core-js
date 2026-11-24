@@ -2004,6 +2004,16 @@ if (typeof Request == 'function') {
     });
   });
 
+  // Chromium before 116 corrupts noncharacters in a native list that the `search` setter writes.
+  // https://issues.chromium.org/issues/40256685
+  QUnit.test('URLSearchParams with Request, UTF-8 noncharacters in a bound list', assert => {
+    const query = '__proto__=%EF%B7%90&%EF%BF%BF=x&b=1&b=2';
+    const params = new URL(`http://example.com/?${ query }`).searchParams;
+    params.append('end', '\uDBFF\uDFFF');
+    const request = new Request('http://example.com/', { method: 'POST', body: params });
+    return request.text().then(text => assert.same(text, `${ query }&end=%F4%8F%BF%BF`));
+  });
+
   if (DESCRIPTORS) QUnit[NODE_REQUEST_INIT_LEGACY ? 'skip' : 'test']('Request reads an ordinary body once', assert => {
     return new Request('http://example.com/', changingRequestBody(assert)).text().then(text => {
       assert.same(text, 'first');

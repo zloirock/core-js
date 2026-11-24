@@ -52,6 +52,8 @@ var NativeURL = globalThis.URL;
 var NativeURLSearchParams = globalThis.URLSearchParams;
 var NativeURLSearchParamsPrototype = NativeURLSearchParams && NativeURLSearchParams.prototype;
 var charAt = uncurryThis(''.charAt);
+var exec = uncurryThis(/./.exec);
+var indexOf = uncurryThis(''.indexOf);
 var join = uncurryThis([].join);
 var push = uncurryThis([].push);
 var replace = uncurryThis(''.replace);
@@ -84,9 +86,9 @@ var NATIVE_CARRIER = !!setPrototypeOf && !fails(function () {
 
 // `searchParams` of a URL can be replaced as a whole, and a native list can be emptied only entry by entry.
 // Where a native `URL` keeps its `searchParams` in line with its query, the instance is `searchParams` of
-// an own native `URL`, and the whole list is written by the native `search` setter.
+// an own native `URL`, and the native `search` setter can replace its list in one operation.
 var NATIVE_URL = 'http://a';
-var nativeGetSearchParams, nativeSetSearch;
+var nativeGetSearchParams, nativeSetSearch, stringifyBrokenCarrier;
 var NATIVE_URL_CARRIER = NATIVE_CARRIER && !fails(function () {
   var url = new NativeURL(NATIVE_URL);
   nativeGetSearchParams = uncurryThisAccessor(NativeURL.prototype, 'searchParams', 'get');
@@ -94,11 +96,22 @@ var NATIVE_URL_CARRIER = NATIVE_CARRIER && !fails(function () {
   var params = nativeGetSearchParams(url);
   nativeSetSearch(url, 'b=1&a=+%2B');
   if (hasInternalState(params) || String(params) !== 'b=1&a=+%2B') return true;
+  if (!USE_NATIVE_URL) {
+    // Chromium before 116 corrupts percent-encoded Unicode noncharacters while it parses a query, so a native list
+    // written by the `search` setter differs from the list of the polyfill, and native consumers of the instance,
+    // like `fetch`, send the corrupted entries. Native mutators keep those characters, and the native
+    // serializer shows the list that the consumers read.
+    // https://issues.chromium.org/issues/40256685
+    nativeSetSearch(url, 'c=%EF%BF%BF');
+    if (String(params) !== 'c=%EF%BF%BF') stringifyBrokenCarrier = uncurryThis(NativeURLSearchParamsPrototype.toString);
+  }
   nativeSetSearch(url, '');
   return String(params) !== '';
 });
 
 var plus = /\+/g;
+// Unicode noncharacters in a serialized list: U+FDD0-FDEF and the last two code points of each plane.
+var encodedNoncharacter = /%EF%B7%[9A][0-9A-F]|(?:%EF|%F[0-4]%[89AB]F)%BF%B[EF]/;
 
 // https://url.spec.whatwg.org/#urlencoded-parsing - `+` decodes to a space
 var decodeQueryComponent = function (input) {
@@ -254,7 +267,9 @@ URLSearchParamsState.prototype = {
   // writes a change of the list to the native object of the instance and to the URL: a native `method`
   // repeats the change on the native list, without it the native list is rewritten
   commit: function (method, key, value) {
-    if (this.listed) {
+    // the list of a native `URL` with the broken parser takes the change by the native `method` as well,
+    // which keeps noncharacters and costs less than a repair of the rewritten list
+    if (this.listed || (this.carrier && stringifyBrokenCarrier && method)) {
       // a native method could take an explicit `undefined` value for a string
       if (method === nativeDelete && value === undefined) method(this.facade, key);
       else if (method) method(this.facade, key, value);
@@ -271,8 +286,14 @@ URLSearchParamsState.prototype = {
   updateURL: function () {
     if (this.url) {
       this.url.update();
-      // the query of the URL is the serialized list
-      if (this.carrier) nativeSetSearch(this.carrier, this.url.query || '');
+      if (this.carrier) {
+        // the query of the URL is the serialized list
+        var query = this.url.query || '';
+        // With the broken parser, the native list is rewritten only when it differs from the list: a native
+        // method repeated the change in another way or is absent, or a native mutator was called on the instance
+        // directly, without the polyfill.
+        if (!stringifyBrokenCarrier || stringifyBrokenCarrier(this.facade) !== query) this.fill(query);
+      }
     }
   },
   // empties the native list kept by its methods, it has the keys of the entries
@@ -282,12 +303,41 @@ URLSearchParamsState.prototype = {
     while (index < entries.length) nativeDelete(this.facade, entries[index++].key);
   },
   // writes the entries to the native list: emptied, or of a native `URL`
-  fill: function () {
+  fill: function (query) {
     var entries = this.entries;
     var index = 0;
-    var entry;
-    if (this.carrier) nativeSetSearch(this.carrier, this.serialize());
-    else if (this.listed) while (index < entries.length) {
+    var entry, i;
+    if (this.carrier) {
+      if (query === undefined) query = this.serialize();
+      // the setter writes the whole list at once, and only the broken parser corrupts noncharacters in it
+      if (!stringifyBrokenCarrier || !exec(encodedNoncharacter, query)) return nativeSetSearch(this.carrier, query);
+      var fields = split(query, '&');
+      var repeated = create(null);
+      var fixes = [];
+      for (i = 0; i < entries.length; i++) {
+        var key = entries[i].key;
+        repeated[key] = hasOwn(repeated, key);
+      }
+      // Only the parser puts an entry in the middle of a native list, so the setter still writes the entries
+      // up to the first one that cannot be repaired afterwards. A native `set` repairs the value of a unique name
+      // in place. It cannot rename an entry or address one of the entries of a repeated name: from such an entry
+      // on, the rest of the list is appended in order. Each native mutator of the list of a URL serializes
+      // the whole list, so a long rest is slow.
+      for (; index < entries.length; index++) {
+        var match = exec(encodedNoncharacter, fields[index]);
+        if (!match) continue;
+        entry = entries[index];
+        if (match.index < indexOf(fields[index], '=') || repeated[entry.key]) break;
+        push(fixes, entry);
+      }
+      fields.length = index;
+      nativeSetSearch(this.carrier, index === entries.length ? query : join(fields, '&'));
+      for (i = 0; i < fixes.length; i++) {
+        entry = fixes[i];
+        nativeSet(this.facade, entry.key, entry.value);
+      }
+    } else if (!this.listed) return;
+    while (index < entries.length) {
       entry = entries[index++];
       nativeAppend(this.facade, entry.key, entry.value);
     }

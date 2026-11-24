@@ -8,6 +8,7 @@
     - Added integration of polyfilled `URLSearchParams` with native `Response`, `XMLHttpRequest` and `navigator.sendBeacon` in engines where they do not take such instances, and fixed installation of the native body wrappers in Deno
     - Fixed the native body wrappers for polyfilled `URLSearchParams`: subclassing of `Request`, calling an overridden `toString` instead of serializing the internal parameter list, reading `RequestInit.body` more than once, and dropping the headers of a `Request` passed as the input
     - Fixed the pure version rewriting the native `Request.prototype.constructor` in engines where it polyfills `URLSearchParams`
+    - Fixed [Chromium before 116 corrupting Unicode noncharacters](https://issues.chromium.org/issues/40256685) in native request and response bodies built from a polyfilled `url.searchParams`
   - Unicode and encoding:
     - Added Unicode normalization and compatibility mapping of `URL` polyfill domains through the native `String.prototype.normalize`, where it's available
     - Fixed mapping of mathematical Latin letters and digits in `URL` domains, [#1223](https://github.com/zloirock/core-js/issues/1223)
