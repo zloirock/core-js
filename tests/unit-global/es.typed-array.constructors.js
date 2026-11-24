@@ -170,5 +170,7 @@ for (const { name, TypedArray, bytes } of TYPED_ARRAYS) {
     assert.same(getter.call([]), undefined);
     assert.same(getter.call({}), undefined);
     assert.same(getter.call(), undefined);
+    assert.same(getter.call(Object.create(TypedArray.prototype)), undefined, 'ignores an object with a typed array prototype');
+    assert.same(getter.call(new DataView(new ArrayBuffer(8))), undefined, 'ignores a DataView');
   });
 }

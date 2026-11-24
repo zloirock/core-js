@@ -1,6 +1,7 @@
 import Promise from '@core-js/pure/es/promise';
 import ITERATOR from '@core-js/pure/es/symbol/iterator';
 import ASYNC_ITERATOR from '@core-js/pure/es/symbol/async-iterator';
+import { GLOBAL } from './constants.js';
 
 export function is(a, b) {
   // eslint-disable-next-line no-self-compare -- NaN check
@@ -185,6 +186,19 @@ export function timeLimitedPromise(time, functionOrPromise) {
     clearTimeout(timer);
     throw error;
   });
+}
+
+// calls the callback with the global object of another realm, in the environments which can create it
+export function withForeignRealm(callback) {
+  const { document } = GLOBAL;
+  if (!document) return;
+  const iframe = document.createElement('iframe');
+  document.documentElement.appendChild(iframe);
+  try {
+    callback(iframe.contentWindow);
+  } finally {
+    document.documentElement.removeChild(iframe);
+  }
 }
 
 export function fromSource(source) {

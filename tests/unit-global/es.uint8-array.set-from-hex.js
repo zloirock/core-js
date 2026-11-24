@@ -1,3 +1,4 @@
+import { withForeignRealm } from '../helpers/helpers.js';
 import { GLOBAL } from '../helpers/constants.js';
 
 QUnit.test('Uint8Array.prototype.setFromHex', assert => {
@@ -71,6 +72,21 @@ QUnit.test('Uint8Array.prototype.setFromHex', assert => {
 
   assert.throws(() => setFromHex.call(Array(11), '48656c6c6f20576f726c64'), TypeError, "isn't generic, this #1");
   assert.throws(() => setFromHex.call(new Int8Array(11), '48656c6c6f20576f726c64'), TypeError, "isn't generic, this #2");
+
+  const fake = Object.defineProperty([0, 0], Symbol.toStringTag, { value: 'Uint8Array' });
+  assert.throws(() => setFromHex.call(fake, '01ff'), TypeError, 'rejects an object with an Uint8Array tag');
+  const tagged = new Uint8Array(2);
+  // typed arrays of old Firefox are not extensible
+  if (Object.isExtensible(tagged)) {
+    Object.defineProperty(tagged, Symbol.toStringTag, { get() { return assert.avoid(); } });
+    setFromHex.call(tagged, '01ff');
+    assert.arrayEqual(tagged, [1, 255], 'ignores an own @@toStringTag');
+  }
+  withForeignRealm(foreign => {
+    const array = new foreign.Uint8Array(2);
+    setFromHex.call(array, '01ff');
+    assert.arrayEqual(array, [1, 255], 'accepts an Uint8Array from another realm');
+  });
   assert.throws(() => new Uint8Array(11).setFromHex(null), TypeError, "isn't generic, arg #1");
   assert.throws(() => new Uint8Array(11).setFromHex(undefined), TypeError, "isn't generic, arg #2");
   assert.throws(() => new Uint8Array(11).setFromHex(1234), TypeError, "isn't generic, arg #3");

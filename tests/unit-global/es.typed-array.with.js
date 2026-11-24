@@ -1,4 +1,4 @@
-import { createConversionChecker } from '../helpers/helpers.js';
+import { createConversionChecker, withForeignRealm } from '../helpers/helpers.js';
 import { TYPED_ARRAYS_WITH_BIG_INT } from '../helpers/constants.js';
 
 QUnit.test('%TypedArrayPrototype%.with', assert => {
@@ -31,6 +31,13 @@ QUnit.test('%TypedArrayPrototype%.with', assert => {
     assert.same(checker.$toString, 0, 'toString calls');
     if ($ !== Number) assert.throws(() => new TypedArray(1).with(0, 1), TypeError, 'converts the value with ToBigInt');
 
+    const tagged = new TypedArray([$(1), $(2)]);
+    // typed arrays of old Firefox are not extensible
+    if (Object.isExtensible(tagged)) {
+      Object.defineProperty(tagged, Symbol.toStringTag, { get() { return assert.avoid(); } });
+      assert.arrayEqual(withAt.call(tagged, 0, $(3)), [$(3), $(2)], 'ignores an own @@toStringTag');
+    }
+
     assert.true(!!function () {
       try {
         new TypedArray(1).with(2, { valueOf() { throw 8; } });
@@ -44,4 +51,10 @@ QUnit.test('%TypedArrayPrototype%.with', assert => {
     // WebKit doesn't handle this correctly. It should truncate a negative fractional index to zero, but instead throws an error
     assert.same(new TypedArray(1).with(-0.5, $(1))[0], $(1));
   }
+
+  withForeignRealm(foreign => {
+    const result = Uint16Array.prototype.with.call(new foreign.Uint16Array([3, 1, 2]), 0, 9);
+    assert.true(result instanceof Uint16Array, 'creates an array of the current realm from an array of another one');
+    assert.arrayEqual(result, [9, 1, 2], 'works with a typed array from another realm');
+  });
 });

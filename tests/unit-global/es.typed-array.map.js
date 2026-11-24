@@ -1,3 +1,4 @@
+import { withForeignRealm } from '../helpers/helpers.js';
 import { TYPED_ARRAYS } from '../helpers/constants.js';
 
 QUnit.test('%TypedArrayPrototype%.map', assert => {
@@ -30,4 +31,9 @@ QUnit.test('%TypedArrayPrototype%.map', assert => {
     assert.same(keys, '012');
     assert.throws(() => map.call([0], () => { /* empty */ }), "isn't generic");
   }
+
+  withForeignRealm(foreign => {
+    const result = Uint16Array.prototype.map.call(new foreign.Uint16Array([3, 1, 2]), it => it * 2);
+    assert.arrayEqual(result, [6, 2, 4], 'works with a typed array from another realm');
+  });
 });

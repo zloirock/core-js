@@ -1,3 +1,4 @@
+import { withForeignRealm } from '../helpers/helpers.js';
 import { GLOBAL } from '../helpers/constants.js';
 
 QUnit.test('Uint8Array.prototype.setFromBase64', assert => {
@@ -28,6 +29,21 @@ QUnit.test('Uint8Array.prototype.setFromBase64', assert => {
 
   assert.throws(() => setFromBase64.call(Array(16), 'SGVsbG8gV29ybGQ='), TypeError, "isn't generic, this #1");
   assert.throws(() => setFromBase64.call(new Int8Array(16), 'SGVsbG8gV29ybGQ='), TypeError, "isn't generic, this #2");
+
+  const fake = Object.defineProperty([0, 0], Symbol.toStringTag, { value: 'Uint8Array' });
+  assert.throws(() => setFromBase64.call(fake, 'Af8='), TypeError, 'rejects an object with an Uint8Array tag');
+  const tagged = new Uint8Array(2);
+  // typed arrays of old Firefox are not extensible
+  if (Object.isExtensible(tagged)) {
+    Object.defineProperty(tagged, Symbol.toStringTag, { get() { return assert.avoid(); } });
+    setFromBase64.call(tagged, 'Af8=');
+    assert.arrayEqual(tagged, [1, 255], 'ignores an own @@toStringTag');
+  }
+  withForeignRealm(foreign => {
+    const array = new foreign.Uint8Array(2);
+    setFromBase64.call(array, 'Af8=');
+    assert.arrayEqual(array, [1, 255], 'accepts an Uint8Array from another realm');
+  });
   assert.throws(() => new Uint8Array(16).setFromBase64(null), TypeError, "isn't generic, arg #1");
   assert.throws(() => new Uint8Array(16).setFromBase64(undefined), TypeError, "isn't generic, arg #2");
   assert.throws(() => new Uint8Array(16).setFromBase64(1234), TypeError, "isn't generic, arg #3");

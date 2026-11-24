@@ -1,7 +1,6 @@
 'use strict';
-var isObject = require('../internals/is-object');
-var getTypedArrayConstructor = require('../internals/get-typed-array-constructor');
+var getTypedArrayName = require('../internals/get-typed-array-name');
 
 module.exports = function (it) {
-  return isObject(it) && !!getTypedArrayConstructor(it);
+  return !!getTypedArrayName(it);
 };

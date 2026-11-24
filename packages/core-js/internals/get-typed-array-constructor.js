@@ -1,6 +1,8 @@
 'use strict';
-var getTypedArrayMetadata = require('../internals/typed-array-core').getTypedArrayMetadata;
+var getTypedArrayName = require('../internals/get-typed-array-name');
+var NativeTypedArrayConstructors = require('../internals/typed-array-core').NativeTypedArrayConstructors;
 
+// the constructor of the current realm for [[TypedArrayName]] of the passed typed array
 module.exports = function (it) {
-  return getTypedArrayMetadata(it, 'TypedArrayConstructor');
+  return NativeTypedArrayConstructors[getTypedArrayName(it)];
 };

@@ -1,4 +1,4 @@
-import { createTypedArraySortCases } from '../helpers/helpers.js';
+import { createTypedArraySortCases, withForeignRealm } from '../helpers/helpers.js';
 import { TYPED_ARRAYS } from '../helpers/constants.js';
 
 QUnit.test('%TypedArrayPrototype%.toSorted', assert => {
@@ -36,4 +36,10 @@ QUnit.test('%TypedArrayPrototype%.toSorted', assert => {
     assert.throws(() => toSorted.call(undefined), TypeError, "isn't generic #2");
     assert.throws(() => toSorted.call([1, 2]), TypeError, "isn't generic #3");
   }
+
+  withForeignRealm(foreign => {
+    const result = Uint16Array.prototype.toSorted.call(new foreign.Uint16Array([3, 1, 2]));
+    assert.true(result instanceof Uint16Array, 'creates an array of the current realm from an array of another one');
+    assert.arrayEqual(result, [1, 2, 3], 'works with a typed array from another realm');
+  });
 });

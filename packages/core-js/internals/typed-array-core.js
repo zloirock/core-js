@@ -1,29 +1,18 @@
 'use strict';
 var globalThis = require('../internals/global-this');
 var isCallable = require('../internals/is-callable');
-var isObject = require('../internals/is-object');
-var hasOwn = require('../internals/has-own-property');
 var setPrototypeOf = require('../internals/object-set-prototype-of-simple');
-var InternalStateModule = require('../internals/internal-state');
 var TypedArrayConstructors = require('../internals/typed-array-constructors');
 
-var enforceInternalState = InternalStateModule.enforce;
-var getInternalState = InternalStateModule.get;
 var getPrototypeOf = Object.getPrototypeOf;
 var TypedArray = getPrototypeOf(Int8Array);
 var TypedArrayPrototype = getPrototypeOf(Int8Array.prototype);
 var $TypeError = TypeError;
+var NativeTypedArrayConstructors = {};
 
 // WebKit bug - typed arrays constructors prototype is Object.prototype
 var INCORRECT_TYPED_ARRAY_CONSTRUCTOR = !isCallable(TypedArray) || TypedArray === Function.prototype;
 var INCORRECT_TYPED_ARRAY_PROTOTYPE = !TypedArrayPrototype || TypedArrayPrototype === Object.prototype;
-
-var getTypedArrayMetadata = function (it, key) {
-  var proto = getPrototypeOf(it);
-  if (!isObject(proto)) return;
-  var state = getInternalState(proto);
-  return hasOwn(state, key) ? state[key] : getTypedArrayMetadata(proto, key);
-};
 
 if (INCORRECT_TYPED_ARRAY_CONSTRUCTOR) {
   // eslint-disable-next-line no-shadow -- safe
@@ -53,14 +42,12 @@ Object.keys(TypedArrayConstructors).forEach(function (name) {
     if (getPrototypeOf(Prototype) !== TypedArrayPrototype) {
       setPrototypeOf(Prototype, TypedArrayPrototype);
     }
-    var state = enforceInternalState(Prototype);
-    state.TypedArrayConstructor = Constructor;
-    state.TypedArrayName = name;
+    NativeTypedArrayConstructors[name] = Constructor;
   }
 });
 
 module.exports = {
   TypedArray: TypedArray,
   TypedArrayPrototype: TypedArrayPrototype,
-  getTypedArrayMetadata: getTypedArrayMetadata,
+  NativeTypedArrayConstructors: NativeTypedArrayConstructors,
 };

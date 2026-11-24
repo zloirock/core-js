@@ -1,7 +1,7 @@
 'use strict';
-var classof = require('../internals/classof');
+var getTypedArrayName = require('../internals/get-typed-array-name');
 
 module.exports = function (it) {
-  var klass = classof(it);
-  return klass === 'BigInt64Array' || klass === 'BigUint64Array';
+  var name = getTypedArrayName(it);
+  return name === 'BigInt64Array' || name === 'BigUint64Array';
 };

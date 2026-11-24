@@ -1,3 +1,4 @@
+import { withForeignRealm } from '../helpers/helpers.js';
 import { GLOBAL } from '../helpers/constants.js';
 
 QUnit.test('Uint8Array.prototype.toBase64', assert => {
@@ -47,6 +48,17 @@ QUnit.test('Uint8Array.prototype.toBase64', assert => {
   assert.throws(() => toBase64.call(undefined), TypeError, "isn't generic #2");
   assert.throws(() => toBase64.call(new Int16Array([1])), TypeError, "isn't generic #3");
   assert.throws(() => toBase64.call([1]), TypeError, "isn't generic #4");
+
+  assert.throws(() => toBase64.call(Object.defineProperty([1], Symbol.toStringTag, { value: 'Uint8Array' })), TypeError, 'rejects an object with an Uint8Array tag');
+  const tagged = new Uint8Array([1, 255]);
+  // typed arrays of old Firefox are not extensible
+  if (Object.isExtensible(tagged)) {
+    Object.defineProperty(tagged, Symbol.toStringTag, { get() { return assert.avoid(); } });
+    assert.same(toBase64.call(tagged), 'Af8=', 'ignores an own @@toStringTag');
+  }
+  withForeignRealm(foreign => {
+    assert.same(toBase64.call(new foreign.Uint8Array([1, 255])), 'Af8=', 'accepts an Uint8Array from another realm');
+  });
 
   // Test262
   // Copyright 2024 Kevin Gibbons. All rights reserved.

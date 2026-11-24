@@ -1,3 +1,4 @@
+import { withForeignRealm } from '../helpers/helpers.js';
 import { TYPED_ARRAYS_WITH_BIG_INT } from '../helpers/constants.js';
 
 QUnit.test('%TypedArrayPrototype%.toReversed', assert => {
@@ -19,4 +20,10 @@ QUnit.test('%TypedArrayPrototype%.toReversed', assert => {
     assert.throws(() => toReversed.call(undefined), TypeError, "isn't generic #2");
     assert.throws(() => toReversed.call([$(1), $(2)]), TypeError, "isn't generic #3");
   }
+
+  withForeignRealm(foreign => {
+    const result = Uint16Array.prototype.toReversed.call(new foreign.Uint16Array([3, 1, 2]));
+    assert.true(result instanceof Uint16Array, 'creates an array of the current realm from an array of another one');
+    assert.arrayEqual(result, [2, 1, 3], 'works with a typed array from another realm');
+  });
 });
