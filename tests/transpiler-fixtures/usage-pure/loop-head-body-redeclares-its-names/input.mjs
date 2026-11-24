@@ -1,6 +1,5 @@
-// A loop head or catch pattern whose body block declares a name the pattern binds or reads stays
-// where it is: moved into that block it would redeclare the name, or read the body's binding in
-// place of the outer one. A shadow in a nested block leaves the top of the body free.
+// A separate body block keeps its lexical names out of head defaults and computed keys.
+// Shadowed bindings may stay native while independently observed methods receive their polyfills.
 for (const { at, flat } of list) { const flat = 1; use(at, flat); }
 for (const { w: [{ findLast }] } of list) { let findLast = 2; use(findLast); }
 for (const { [key]: m, includes } of list) { let key = 3; use(m, includes); }

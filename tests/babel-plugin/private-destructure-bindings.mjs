@@ -77,6 +77,28 @@ r = [Object.keys(N).sort().join(','), N.at.call([4, 9], -1), N.keys.call([4, 9])
     ['at,end,keys,q', 9, 0], ['q', 'pick', 'end'],
   ]);
 }
+// The dynamic key reads the realm's Array.of; the explicit from is polyfilled.
+for (const kind of ['let', 'var']) cases.push([
+  `adjacent/${ kind }`,
+  `function key() { effects.push('key'); return 'of'; }
+namespace N { export ${ kind } before, { Array: { [key()]: a, from: b } } = JSON.parse('true') && { Array },
+  ready = [typeof N.a, typeof N.b], { at: tail } = [2]; }
+r = [Object.keys(N), N.ready, N.b([3]), N.tail.call([2], 0)];`,
+  [['a', 'b', 'ready', 'tail'], ['function', 'function'], [3], 2], ['key'],
+  [['a', 'b', 'ready', 'tail'], ['undefined', 'function'], [3], 2],
+]);
+cases.push([
+  'redeclared-var',
+  `function key() { effects.push('key'); return 'of'; }
+namespace N {
+  export var { Array: { [key()]: a, from: b } } = JSON.parse('true') && { Array };
+  effects.push('middle');
+  export var { Array: { [key()]: aa, from: b } } = JSON.parse('true') && { Array }, ready = [typeof N.aa, typeof N.b];
+}
+r = [Object.keys(N), N.b([3]), N.ready];`,
+  [['a', 'b', 'aa', 'ready'], [3], ['function', 'function']], ['key', 'middle', 'key'],
+  [['a', 'b', 'aa', 'ready'], [3], ['undefined', 'function']],
+]);
 for (const flag of [false, true]) cases.push([
   `guarded/${ flag }`,
   `const flag = JSON.parse('${ flag }'); const user = { entries: () => 31 };
@@ -126,7 +148,7 @@ r = [Object.keys(Outer).join(','), Object.keys(Outer.Inner).join(','), Outer.Inn
 ]);
 
 try {
-  for (const [name, body, result, effects] of cases) {
+  for (const [name, body, result, effects, stripped = result] of cases) {
     const source = `export let r; export const effects = []; ${ body }`;
     const outputs = [['native', source]];
     try {
@@ -153,7 +175,7 @@ try {
       const file = path.join(DIR, `case-${ count++ }.mjs`);
       await fs.outputFile(file, code);
       for (const strip of host === 'native' ? [false] : [false, true]) check(`${ name }/${ host }/${ strip }`,
-        await runInWorker(file, { strip }), `OK|${ JSON.stringify(result) }|${ JSON.stringify(effects) }`);
+        await runInWorker(file, { strip }), `OK|${ JSON.stringify(strip ? stripped : result) }|${ JSON.stringify(effects) }`);
     }
   }
   for (const kind of ['const', 'let', 'var']) {

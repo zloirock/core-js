@@ -19,8 +19,7 @@ import "core-js/modules/es.set.symmetric-difference";
 import "core-js/modules/es.set.union";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-// usage-global: a for-of / for-in head reads the bound global before the per-iteration write, so
-// the side-effect polyfill IS still injected (else IE11 ReferenceError); the identifier stays a bare
-// global (global mode never rewrites it to an import binding), so there is no const-write hazard
+// A nonempty assignment head writes the global on each iteration. In a module, a missing
+// binding throws at the write. An empty loop never assigns. Global mode emits side-effect imports for both targets.
 for (Map of [1]) {}
 for (Set in {}) {}

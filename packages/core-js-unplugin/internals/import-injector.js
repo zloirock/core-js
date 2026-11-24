@@ -16,6 +16,7 @@ import {
   programPrologueEndIndex,
   prologueEndIndex,
   isDirectiveStatement,
+  isGeneratedMemoDeclarator,
   markGeneratedMemoDeclarator,
   walkAstChildren,
   walkAstNodes,
@@ -205,7 +206,7 @@ function dropOrphanedMemoDeclarations(program, census,
   // Remove eligible declarators; the caller owns the enclosing statement or for-head slot.
   function pruneDeclaration(declaration) {
     const kept = declaration.declarations.filter(item => !canDropUnusedMemo(item.id, item.init, {
-      owned: refCounts.has(item.id?.name) && (item.init || initlessRefs?.has(item.id?.name)),
+      owned: refCounts.has(item.id?.name) && (item.init || initlessRefs?.has(item.id?.name) || isGeneratedMemoDeclarator(item)),
       hasUses: !dead.has(item.id?.name),
       removable: true,
     }));

@@ -1727,16 +1727,16 @@ for (const assignment of [false, true]) runBoth(`loop/outside read assignment=${
     check(lbl, !!plan, assignment);
   });
 
-// the moved head lands at the top of the body block: a lexical name that block declares and the
-// pattern binds or reads keeps the head where it is; a nested block's names do not count
-for (const [source, relocates] of [
-  ['for (const { at } of list) { use(at); }', true],
-  ['for (const { at, flat } of list) { const flat = 1; use(at, flat); }', false],
-  ['for (const { at } of list) { class at {} use(at); }', false],
-  ['for (const { at } of list) { function at() {} use(at); }', false],
-  ['for (const { [key]: m, at } of list) { let key = 1; use(m, at); }', false],
-  ['for (const { at = fallback } of list) { let fallback = 1; use(at); }', false],
-  ['for (const { at } of list) { { let at = 1; use(at); } use(at); }', true],
+// A moved pattern belongs outside the original body when a body lexical shadows a head
+// binding or a read. A wholly shadowed method can stay in the head.
+for (const [source, separateBody] of [
+  ['for (const { at } of list) { use(at); }', false],
+  ['for (const { at, flat } of list) { const flat = 1; use(at, flat); }', true],
+  ['for (const { at } of list) { class at {} use(at); }', null],
+  ['for (const { at } of list) { function at() {} use(at); }', null],
+  ['for (const { [key]: m, at } of list) { let key = 1; use(m, at); }', true],
+  ['for (const { at = fallback } of list) { let fallback = 1; use(at); }', true],
+  ['for (const { at } of list) { { let at = 1; use(at); } use(at); }', false],
 ]) runBoth(`loop/a body lexical beside the moved head ${ source }`, source, (adapter, prog, lbl) => {
   const loop = adapter.pickPath(prog, 'ForOfStatement');
   const plan = planCatchClauseExtraction({
@@ -1753,7 +1753,7 @@ for (const [source, relocates] of [
     resolvePure: catchResolvePure,
     walkNode: (root, visit) => walkAstNodes({ root, visit }),
   });
-  check(lbl, !!plan, relocates);
+  checkDeep(lbl, plan, separateBody === null ? null : { unobservable: [], separateBody });
 });
 
 function catchResolvePure(meta) {
@@ -1785,8 +1785,8 @@ function planCatch(adapter, prog) {
   });
 }
 
-runBoth('catch/a default reading a body lexical stays', 'try { f(); } catch ({ at = fallback }) { let fallback = 1; use(at); }', (adapter, prog, lbl) => {
-  check(lbl, planCatch(adapter, prog), null);
+runBoth('catch/a default reads outside the original body', 'try { f(); } catch ({ at = fallback }) { let fallback = 1; use(at); }', (adapter, prog, lbl) => {
+  checkDeep(lbl, planCatch(adapter, prog), { unobservable: [], separateBody: true });
 });
 
 runBoth('catch/a read resolvable prop relocates', 'try { f(); } catch ({ at }) { use(at); }', (adapter, prog, lbl) => {

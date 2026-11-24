@@ -2651,6 +2651,8 @@ const CATCH_PROP_CASES = [
   ['body reads the binding', 'try { r(); } catch ({ at }) { use(at); }', 'at', true],
   ['body never reads it', 'try { r(); } catch ({ at }) { use(other); }', 'at', false],
   ['machinery sibling does not make it observable', 'try { r(); } catch ({ [Symbol.iterator]: it, at }) { use(it); }', 'at', false],
+  ['sibling default observes the binding', 'try { r(); } catch ({ at, x = see(at) }) {}', 'at', true],
+  ['sibling key observes the binding', 'try { r(); } catch ({ at, [use(at)]: x }) {}', 'at', true],
   ['rest sibling makes it observable', 'try { r(); } catch ({ at, ...rest }) { use(rest); }', 'at', true],
   ['own default makes it observable', 'try { r(); } catch ({ at = 1 }) { use(other); }', 'at', true],
   ['a member tail is not a read', 'try { r(); } catch ({ at }) { use(host.at); }', 'at', false],

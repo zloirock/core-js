@@ -3,12 +3,8 @@ import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _Object$assign from "@core-js/pure/actual/object/assign";
 import _Reflect$apply from "@core-js/pure/actual/reflect/apply";
-// A for-x head has no statement slot: the declaration twin leaves an effectful receiver standing
-// where it is written and binds the leaf beside it, while the head's only route is the mirror, which
-// REPLACES the element. Refusing every effect there lost the polyfill on each invocation spelling.
-// The element rides as the sequence PREFIX of the literal that takes its place, so it runs as often
-// and as early as the source runs it and keeps its throw - only the value the mirror replaces is
-// dropped. A read inside that prefix still owes its own substitution.
+// The element producer runs at its source position, including its effects and throws.
+// A retained pattern with rest reads its properties when the loop binds the element.
 const log = [];
 function make(seen) {
   _pushMaybeArray(log).call(log, seen);
@@ -55,21 +51,25 @@ for (const {
 })), {
   from: _Array$from
 })]) _pushMaybeArray(log).call(log, typeof from);
-// NEGATIVE: a slot the literal cannot spell needs the receiver's live value, and the head has
-// nowhere to memo it - so a partial pattern and a rest both stay native over the effect
+// The extra property is read from the returned receiver when its pattern slot is reached.
+// A rest copies the remaining own properties of that same receiver.
 for (const {
   from,
   absent
-} of [(make(6), {
-  from: _Array$from,
-  absent: Array.absent
-})]) _pushMaybeArray(log).call(log, typeof from, typeof absent);
-for (const _ref of [make(7)]) {
+} of [(_ref => {
+  return {
+    from: _Array$from,
+    get absent() {
+      return _ref.absent;
+    }
+  };
+})(make(6))]) _pushMaybeArray(log).call(log, typeof from, typeof absent);
+for (const _ref2 of [make(7)]) {
   const from = _Array$from;
   const {
     from: _unused,
     ...rest
-  } = _ref;
+  } = _ref2;
   (_pushMaybeArray(log) || 0).call(log, typeof from, 'from' in rest);
 }
 export { log };

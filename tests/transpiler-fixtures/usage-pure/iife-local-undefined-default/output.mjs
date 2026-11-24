@@ -8,9 +8,9 @@ export function empty() {
   }
   return (({
     from
-  } = Array) => from([4]))({
+  } = {
     from: _Array$from
-  });
+  }) => from([4]))(undefined);
 }
 export function absent(log) {
   {
@@ -18,9 +18,9 @@ export function absent(log) {
   }
   return (({
     from
-  } = Array) => from([4]))({
+  } = {
     from: _Array$from
-  });
+  }) => from([4]))(undefined);
 }
 export function written(value) {
   {

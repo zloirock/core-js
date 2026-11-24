@@ -1521,12 +1521,12 @@ QUnit.test('destructuring: nested instance method in a for-init declarator polyf
 // buried in the receiver key stayed native and threw on an engine without it
 QUnit.test('destructuring: for-header receiver effect keeps its own polyfill', assert => {
   const arr = [3, 1, 2];
-  let calls = 0;
+  const calls = [];
   let bound;
   let once = true;
   // eslint-disable-next-line @stylistic/no-extra-parens -- the parenthesized sequence hop key is the form under test
-  for (const { any: a } = globalThis[(arr.at(0), calls++, 'Promise')]; once; once = false) bound = a;
-  assert.strictEqual(calls, 1);
+  for (const { any: a } = globalThis[(calls.push(arr.at(0)), 'Promise')]; once; once = false) bound = a;
+  assert.deepEqual(calls, [3]);
   assert.strictEqual(typeof bound, 'function');
 });
 
@@ -8964,7 +8964,8 @@ QUnit.test('destructuring: a relocated nested loop retains its selected static',
     // eslint-disable-next-line no-unreachable-loop -- exercise one loop-head binding
     for (const { w: [{ is }] } of [{ w: [flag ? Object : user] }]) return is;
   }
-  read(true);
+  assert.same(read(true)(-0, 0), false);
+  assert.same(read(true)(NaN, NaN), true);
   assert.same(read(false, { is() { return 'custom'; } })(1, 1), 'custom');
 });
 

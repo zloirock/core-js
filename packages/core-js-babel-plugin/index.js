@@ -27,6 +27,7 @@ import {
   memberKeyNamesReducer,
   nestedTSRuntimeDeclarationsReducer,
   patternOrderReducer,
+  rememberNamespacePatterns,
   mutatedGlobalSlotNames,
   isTaggedTemplateTag,
   peelNestedSequenceExpressions,
@@ -90,6 +91,7 @@ import {
   callExpression,
   hostSlot,
   hostSlotNode,
+  restoreNamespacePatternExports,
   nullFirstGuardTest,
   renderBoundRawBranch,
   renderCapturedReceiver,
@@ -2220,6 +2222,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         if (!isPure) return visitors;
         return {
           ...visitors,
+          TSModuleBlock: rememberNamespacePatterns,
           CatchClause: path => destructureEmit.extractCatchClause(path),
           ForOfStatement: path => destructureEmit.extractLoopLeft(path),
           ForInStatement: path => destructureEmit.extractLoopLeft(path),
@@ -2284,6 +2287,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         destructureEmit.pruneEmptiedHostDeclarators();
         destructureEmit.prepareSplitLiftedPrefixes();
         destructureEmit.splitFlatMultiDecls();
+        if (restoreNamespacePatternExports(path.node, hostSlot, estreeToBabel)) path.scope.crawl();
         destructureEmit.flushForInitCarries();
         // the sentinel `var`s a discarded-element render owes, asked of the finished tree
         destructureEmit.flushDiscardedElementSentinels();
@@ -2537,6 +2541,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         destructureEmit.pruneEmptiedHostDeclarators();
         destructureEmit.prepareSplitLiftedPrefixes();
         destructureEmit.splitFlatMultiDecls();
+        if (restoreNamespacePatternExports(path.node, hostSlot, estreeToBabel)) path.scope.crawl();
         destructureEmit.flushForInitCarries();
         // the sentinel `var`s a discarded-element render owes, asked of the finished tree
         destructureEmit.flushDiscardedElementSentinels();

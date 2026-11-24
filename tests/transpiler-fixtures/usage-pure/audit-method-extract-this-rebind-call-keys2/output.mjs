@@ -1,6 +1,6 @@
 import _at from "@core-js/pure/actual/instance/at";
-// an identity-returning callee result held = an untracked alias; the PROTO slot of
-// setPrototypeOf makes the receiver inherit the methods
+// Object.freeze returns the object with its own grab method. The extracted method
+// reads keys2 from the receiver supplied to call.
 const frozen = {
   keys2: ['k'],
   grab() {

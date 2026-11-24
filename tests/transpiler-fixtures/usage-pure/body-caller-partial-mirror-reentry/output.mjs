@@ -22,13 +22,18 @@ function read({
   return [typeof fn, z, w];
 }
 function outer() {
-  var _ref;
-  return read((_ref = built(), {
-    a: {
-      atanh: _Math$atanh
-    },
-    z: _ref.z,
-    w: _ref.w
-  }));
+  return read((_ref => {
+    return {
+      a: {
+        atanh: _Math$atanh
+      },
+      get z() {
+        return _ref.z;
+      },
+      get w() {
+        return _ref.w;
+      }
+    };
+  })(built()));
 }
 export const result = [outer(), inner];

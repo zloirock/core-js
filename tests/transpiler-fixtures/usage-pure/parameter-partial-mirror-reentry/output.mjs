@@ -18,16 +18,19 @@ function read({
   },
   z,
   w
-} = (() => {
-  var _ref;
-  return _ref = built(), {
+} = (_ref => {
+  return {
     a: {
       atanh: _Math$atanh
     },
-    z: _ref.z,
-    w: _ref.w
+    get z() {
+      return _ref.z;
+    },
+    get w() {
+      return _ref.w;
+    }
   };
-})()) {
+})(built())) {
   return [typeof fn, z, w];
 }
 export const result = [read(), inner];

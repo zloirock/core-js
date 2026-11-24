@@ -101,6 +101,21 @@ QUnit.test('a computed namespace capture exports only its source names', assert 
   assert.deepEqual(computedKeys, ['key']);
 });
 
+const publicationOrder: string[] = [];
+let publishedFrom: typeof Array.from;
+namespace OrderedPublic { export const ready = true; }
+Object.defineProperties(OrderedPublic, {
+  a: { set() { publicationOrder.push('a'); } },
+  b: { set(value) { publicationOrder.push('b'); publishedFrom = value; } },
+});
+namespace OrderedPublic {
+  export const { Array: { [(publicationOrder.push('key'), 'of')]: a, from: b } } = JSON.parse('true') && { Array };
+}
+QUnit.test('a computed namespace export publishes its bindings to the original setters in order', assert => {
+  assert.deepEqual(publicationOrder, ['key', 'a', 'b']);
+  assert.deepEqual(publishedFrom([8]), [8]);
+});
+
 const privateCaptureEffects: string[] = [];
 function privateCaptureArray(): number[] {
   privateCaptureEffects.push('array');

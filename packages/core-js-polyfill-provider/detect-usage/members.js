@@ -746,9 +746,8 @@ export function planGuardedDestructureNarrow({
     if (statement) hostInStatement = true;
   }
   const isDeclarator = hostNode?.type === 'VariableDeclarator' && !!hostNode.init;
-  const isSoleAssignment = hostNode?.type === 'AssignmentExpression' && hostNode.operator === '='
-    && (nested || hostNode.left === patternNode);
-  if (!isDeclarator && !isSoleAssignment) return null;
+  if (!isDeclarator && !(hostNode?.type === 'AssignmentExpression' && hostNode.operator === '='
+    && (nested || hostNode.left === patternNode))) return null;
   const captureCandidate = nested && binding.type === 'Identifier'
     ? planNestedKeyedPatternCapture({
       pattern: isDeclarator ? hostNode.id : hostNode.left,
@@ -829,7 +828,7 @@ export function planGuardedDestructureNarrow({
     if (item.defaultValue) item.plan.destructureDefault = { value: item.defaultValue, name: item.name };
   }
   // Each property read, default or write can rebind the source before the next read or the result.
-  if (!nested && (split || detach || isSoleAssignment && !hostInStatement)
+  if (!nested && (split || detach || !isDeclarator && !hostInStatement)
     && !(adapter && path && isReusableReceiver(receiverNode, {
       interveningEffects: true, ctx: { ...ctx, path: path.parentPath.parentPath },
     }))) {

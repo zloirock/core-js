@@ -4,8 +4,12 @@ import _keys from "@core-js/pure/actual/instance/keys";
 declare const eff: () => any;
 declare const pick: () => any;
 export namespace N {
-  export const q = eff();
-  const _ref = pick();
-  export const at = _at(_ref);
-  export const keys = _keys(_ref);
+  let _ref;
+  export const q = eff(),
+    at = (_ref = pick(), _at(_ref)),
+    {
+      keys: keys
+    } = {
+      keys: _keys(_ref)
+    };
 }

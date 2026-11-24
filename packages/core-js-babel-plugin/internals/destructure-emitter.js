@@ -4926,10 +4926,12 @@ export default function createDestructureEmitter({
     const rendered = renderDestructureHeadCapture(param, { binding: ref, receiver: t.cloneNode(ref), embed: hostSlot });
     const relocated = estreeToBabel(rendered.statement);
     catchBornDeclarations.add(relocated);
+    const originalBody = plan.separateBody ? path.node.body : null;
+    if (originalBody) path.get('body').replaceWith(t.blockStatement([originalBody]));
     path.get('body').unshiftContainer('body', [relocated]);
     path.node.param = estreeToBabel(rendered.head);
     path.scope.registerBinding('let', path.get('param'), path);
-    noteRelocation(path, { slotOwner: path.node, field: 'param', pattern: param, statement: relocated });
+    noteRelocation(path, { slotOwner: path.node, field: 'param', pattern: param, statement: relocated, body: originalBody });
   }
 
   // Relocate a loop-head pattern when the shared catch/head plan needs a body extraction slot.
@@ -4958,12 +4960,12 @@ export default function createDestructureEmitter({
     });
     const relocated = estreeToBabel(rendered.statement);
     if (!assignment && left.node.kind !== 'const') catchBornDeclarations.add(relocated);
-    const bodyless = path.get('body').isBlockStatement() ? null : path.node.body;
-    if (bodyless) {
-      path.get('body').replaceWith(t.inherits(t.blockStatement([bodyless]), bodyless));
+    const originalBody = plan.separateBody || !path.get('body').isBlockStatement() ? path.node.body : null;
+    if (originalBody) {
+      path.get('body').replaceWith(t.inherits(t.blockStatement([originalBody]), originalBody));
       // replaceWith moves the source comments to the block. Keep their identities on the
       // original statement too, so idle relocation can unwrap it without losing them.
-      t.inheritsComments(bodyless, path.node.body);
+      t.inheritsComments(originalBody, path.node.body);
     }
     path.get('body').unshiftContainer('body', [relocated]);
     const pattern = declarator.id;
@@ -4977,7 +4979,7 @@ export default function createDestructureEmitter({
       field: assignment ? 'left' : 'id',
       pattern,
       statement: relocated,
-      body: bodyless,
+      body: originalBody,
     });
     // the receiver canon reads the element back through this name; registering it is what tells
     // the canon the declaration below is OURS and not a source one wearing the same shape

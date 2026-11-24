@@ -9,7 +9,11 @@ export namespace N {
     Array
   };
   export const {
-    [(effect(), 'of')]: a
-  } = _ref;
-  export const b = _ref === Array ? _Array$from : _ref.from;
+      [(effect(), 'of')]: a
+    } = _ref,
+    {
+      b: b
+    } = {
+      b: _ref === Array ? _Array$from : _ref.from
+    };
 }

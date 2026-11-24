@@ -1,18 +1,16 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _Array$of from "@core-js/pure/actual/array/of";
+import _globalThis from "@core-js/pure/actual/global-this";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
-// a fallback-logical synth-swap receiver (`LEFT || Set`) collapses to the synth literal: LEFT's resolved
-// TAIL is replaced and the dead RIGHT operand dropped. the WHOLE left operand is skip-marked - a tail-only
-// skip leaves a sequence prefix's DROPPED globals (`(globalThis.marker, globalThis.Array)`) visible to
-// leak a dead `_globalThis` import; only the harvested SE is re-exposed so its own globals still polyfill.
-// covers a PURE prefix (dropped whole) and a polyfillable-SE prefix (kept ahead of the literal)
+// The marker may be a getter. Keep its read and the polyfilled call in the other prefix
+// before substituting the selected Array method. The right fallback is unreachable.
 const log = [];
 function pureLeftPrefix({
   of
-} = {
+} = (_globalThis.marker, {
   of: _Array$of
-}) {
+})) {
   return of;
 }
 function seLeftPrefix({

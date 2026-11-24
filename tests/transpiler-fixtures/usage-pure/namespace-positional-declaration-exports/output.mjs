@@ -6,8 +6,12 @@ declare const mixed: [number, {
 }];
 export namespace Outer {
   const [_ref, _ref2] = rows;
-  export const first = _atMaybeArray(_ref);
-  export const second = _atMaybeArray(_ref2);
+  export const first = _atMaybeArray(_ref),
+    {
+      second: second
+    } = {
+      second: _atMaybeArray(_ref2)
+    };
   export namespace Inner {
     export const [index, {
       at: value

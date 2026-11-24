@@ -11,12 +11,8 @@ import "core-js/modules/es.array.of";
 import "core-js/modules/es.array.push";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-// A for-x head has no statement slot: the declaration twin leaves an effectful receiver standing
-// where it is written and binds the leaf beside it, while the head's only route is the mirror, which
-// REPLACES the element. Refusing every effect there lost the polyfill on each invocation spelling.
-// The element rides as the sequence PREFIX of the literal that takes its place, so it runs as often
-// and as early as the source runs it and keeps its throw - only the value the mirror replaces is
-// dropped. A read inside that prefix still owes its own substitution.
+// The element producer runs at its source position, including its effects and throws.
+// A retained pattern with rest reads its properties when the loop binds the element.
 const log = [];
 function make(seen) {
   log.push(seen);

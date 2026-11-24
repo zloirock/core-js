@@ -4,13 +4,14 @@ import "core-js/modules/es.promise.catch";
 import "core-js/modules/es.promise.finally";
 import "core-js/modules/es.promise.resolve";
 import "core-js/modules/es.array.at";
+import "core-js/modules/es.array.includes";
 // Method arity and parameter types survive the receiver capture.
 export class Read {
-  declare last?: number;
+  declare last?: boolean;
   set value({
-    at
+    includes
   }: number[]) {
-    this.last = at.call([3, 5], -1);
+    this.last = includes.call([3, 5], 5);
   }
   async read({
     at

@@ -175,4 +175,13 @@ for (const [source, expected] of [['globalThis', 'dead'], ['globalThis.globalThi
   });
 }
 
+for (const [setup, expected] of [
+  ['const absent = void side(); const value = absent;', 'born'],
+  ['const value = void missing;', 'born'],
+  ['const undefined = Map; const value = undefined;', 'open'],
+]) runBoth('slot delivering undefined', setup, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'value');
+  check(label, pairedDefaultArm(path.node.init, { ...context(parser), path, scope: path.scope }), expected);
+});
+
 finish();

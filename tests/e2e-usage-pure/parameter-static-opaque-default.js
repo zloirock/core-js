@@ -73,9 +73,12 @@ QUnit.test('parameter static: member arguments and local method aliases', assert
 
 QUnit.test('parameter static: nested agreeing selections preserve the selected argument', assert => {
   const effects = [];
-  const pick = true;
   function read({ held: { of } }) { return of; }
-  // the slot of each arm takes the static, so the read is served whichever arm the selection runs
-  read(pick ? { held: (effects.push('yes'), Array) } : { held: (effects.push('no'), Array) });
-  assert.deepEqual(effects, ['yes']);
+  function pick(flag) {
+    return read(flag ? { held: (effects.push('yes'), Array) } : { held: (effects.push('no'), Array) });
+  }
+  // Both branches read the native property from the selected literal slot.
+  assert.same(pick(true), nativeOf);
+  assert.same(pick(false), nativeOf);
+  assert.deepEqual(effects, ['yes', 'no']);
 });

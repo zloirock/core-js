@@ -9510,7 +9510,7 @@ export function positionalElementPath(arrayPath, index, staticIsMutated = null) 
 // argument with replacesArgument=false; replacing that slot must still pass the call-site gate.
 export function findIifeArgPath(fnParentPath, paramNode, staticIsMutated = null, replacesArgument = true) {
   const site = findIifeCallSite(fnParentPath, paramNode, { replacesArgument });
-  if (!site) return null;
+  if (!site || paramNode.type === 'AssignmentPattern' && !iifeArgumentOverridesDefault(site, staticIsMutated)) return null;
   const coords = resolveCallArgumentCoords(site.callPath.node.arguments ?? [], site.paramIndex, staticIsMutated);
   return coords ? callArgumentPathAt(site.callPath.get('arguments'), coords) : null;
 }
@@ -9818,11 +9818,21 @@ export function arrayLiteralIterableElements(node) {
 // ... the elements a for-of LOOP iterates, or null: the node-level half every reader of the head
 // shares - the path readers above, and the census, which visits the loop node and has no path.
 // a HOLE has no element to read; for-await awaits what the literal holds, which is not the node written
-export function forOfIterableElements(loopNode, staticIsMutated = null) {
+export function forOfIterableElements(loopNode, staticIsMutated = null, iterable = loopNode?.right) {
   if (staticIsMutated?.('Array.prototype', 'Symbol.iterator')) return null;
   if (loopNode?.type !== 'ForOfStatement' || loopNode.await) return null;
-  const elements = arrayLiteralIterableElements(loopNode.right);
+  const elements = arrayLiteralIterableElements(iterable);
   return elements?.length && elements.every(Boolean) ? elements : null;
+}
+
+// A lexical head shadows outer bindings while the iterable is evaluated, including
+// inside closures created by the RHS. Moving those bindings into the body changes lookup.
+export function loopRhsObservesHead(loop) {
+  const left = loop?.left;
+  if (left?.type !== 'VariableDeclaration' || left.kind === 'var') return false;
+  const names = new Set(['eval']);
+  walkPatternIdentifiers(left.declarations[0].id, id => names.add(id.name));
+  return identifierReferencedInSubtree(loop.right, names);
 }
 
 // the nearest for-x LOOP above a read at `path` whose head binds `name` - declares it or assigns it, as a
@@ -12839,6 +12849,11 @@ function relocatedInitNamesHost(init, hostName, body) {
       && item.init?.type === 'Identifier' && item.init.name === hostName));
 }
 
+function blockShadowsName(body, name, except) {
+  return body?.type === 'BlockStatement' && body.body.some(statement => statement !== except
+    && stmtRebindNames(statement, []).includes(name));
+}
+
 // is a catch-hosted prop's `_ref`-bound rewrite OBSERVABLE? it costs an import and a dispatcher
 // call, so it is worth emitting only when something can see the binding: the catch BODY reads the
 // name, the prop itself reads through the receiver (`objectPatternPropNeedsReceiverRewrite` -
@@ -12847,10 +12862,12 @@ function relocatedInitNamesHost(init, hostName, body) {
 // the emitter's own full-subtree walker with parents (babel `traverseFast` has no parent argument,
 // so the babel side passes a path traversal) - the same injection the subsumption and class-walk
 // canons take
-export function catchPropRewriteObservable({ propNode, patternNode, bodyNode, localName, walkNode }) {
+export function catchPropRewriteObservable({ propNode, patternNode, bodyNode, localName, walkNode, relocatedDeclaration = null }) {
   if (objectPatternPropNeedsReceiverRewrite(propNode)) return true;
   if (patternNode?.properties?.some(isRestProperty)) return true;
   if (!localName || !bodyNode) return false;
+  if (paramPatternReadsValue(patternNode, localName)) return true;
+  if (blockShadowsName(bodyNode, localName, relocatedDeclaration)) return false;
   let referenced = false;
   walkNode(bodyNode, (node, parent) => {
     if (referenced || node?.type !== 'Identifier' || node.name !== localName) return;
@@ -12867,11 +12884,15 @@ export function catchPropRewriteObservable({ propNode, patternNode, bodyNode, lo
 // walks ONE statement subtree with parents; that injection is all the emitters differ by
 export function relocatedCatchPropUnobservable({ declaratorPath, propNode, patternNode, localName, walkNode }) {
   const relocated = relocatedHostPattern(declaratorPath);
-  if (!relocated) return false;
+  if (!relocated || declaratorPath.parentPath?.node?.kind === 'var') return false;
   return !catchPropRewriteObservable({
-    propNode, patternNode, bodyNode: relocated.body, localName,
+    propNode, patternNode, bodyNode: relocated.body, localName, relocatedDeclaration: relocated.skip,
     walkNode: (root, visit) => {
-      for (const stmt of root.body ?? []) if (stmt !== relocated.skip) walkNode(stmt, visit);
+      for (const stmt of root.body ?? []) {
+        if (stmt === relocated.skip) {
+          for (const sibling of stmt.declarations) if (sibling !== declaratorPath.node) walkNode(sibling, visit);
+        } else if (!blockShadowsName(stmt, localName)) walkNode(stmt, visit);
+      }
     },
   });
 }
@@ -13639,7 +13660,7 @@ function bodyHasParamReference(node, paramNames) {
 // walk a parameter pattern for a value-position read of `name`: AssignmentPattern defaults
 // and computed keys. binding (declaration) positions recurse for nested reads but never
 // self-match the bindings they introduce
-function paramPatternReadsValue(node, name) {
+export function paramPatternReadsValue(node, name) {
   while (true) {
     if (!node || typeof node.type !== 'string') return false;
     switch (node.type) {
@@ -16619,6 +16640,76 @@ export function patternBindsOnlySentinels(pattern, isSentinel, ctx = null) {
 // namespace body stays a declaration there - an unwrap into a plain declaration plus a list declines
 export function hostsExportList(parentNode) {
   return parentNode?.type === 'Program';
+}
+
+// Registrations belong to the current AST and are consumed by its emitter.
+const namespacePatternGroups = new WeakMap();
+
+// Count syntax edges, including defaults and rest. Namespace lowerers can publish
+// bindings breadth first even though the initializer reads them left to right.
+export function namespaceBindingDepths(pattern, visit, depth = 0) {
+  if (!pattern) return;
+  switch (pattern.type) {
+    case 'Identifier': visit(pattern, depth); break;
+    case 'ObjectPattern':
+      for (const prop of pattern.properties) namespaceBindingDepths(prop.value ?? prop.argument, visit, depth + 2);
+      break;
+    case 'ArrayPattern':
+      for (const el of pattern.elements) namespaceBindingDepths(el, visit, depth + 1);
+      break;
+    case 'AssignmentPattern': namespaceBindingDepths(pattern.left, visit, depth + 1); break;
+    case 'RestElement': namespaceBindingDepths(pattern.argument, visit, depth + 1); break;
+  }
+}
+
+// Record the original declaration while its patterns and sibling initializers are intact.
+export function rememberNamespacePatterns(path) {
+  const block = path.node;
+  const program = rootProgramOf(path);
+  let blocks = namespacePatternGroups.get(program);
+  if (blocks?.has(block)) return;
+  const owners = new Map();
+  let sawPattern = false;
+  for (const stmt of block.body) {
+    const decl = stmt.type === 'ExportNamedDeclaration' && stmt.declaration;
+    if (decl?.type !== 'VariableDeclaration' || decl.kind === 'using' || decl.kind === 'await using') continue;
+    const hasPattern = decl.declarations.some(item => isDestructurePattern(item.id));
+    if (!hasPattern && decl.kind !== 'var') continue;
+    sawPattern ||= hasPattern;
+    const group = hasPattern ? { kind: decl.kind, depths: new Map() } : null;
+    for (const { id } of decl.declarations) {
+      let hasBinding = false;
+      namespaceBindingDepths(id, (binding, depth) => {
+        hasBinding = true;
+        const { name } = binding;
+        group?.depths.set(name, depth);
+        // var can redeclare a name in another statement. Its source occurrence
+        // identifies the group even when the host cloned the binding.
+        if (decl.kind === 'var') {
+          owners.set(binding, group);
+          const position = nodePositionKey(binding);
+          if (position !== null) owners.set(position, group);
+        }
+        if (!owners.has(name)) owners.set(name, group);
+        else if (owners.get(name) !== group) owners.set(name, null);
+      });
+      if (group && !hasBinding) {
+        owners.set(id, group);
+        const position = nodePositionKey(id);
+        if (position !== null) owners.set(position, group);
+      }
+    }
+  }
+  if (!sawPattern) return;
+  if (!blocks) namespacePatternGroups.set(program, blocks = new Map());
+  blocks.set(block, owners);
+}
+
+// Drain each namespace block once after all declaration splits for this traversal.
+export function takeNamespacePatterns(program) {
+  const blocks = namespacePatternGroups.get(program);
+  namespacePatternGroups.delete(program);
+  return blocks ?? [];
 }
 
 // Local captures and a separate list of public names require a module export host.

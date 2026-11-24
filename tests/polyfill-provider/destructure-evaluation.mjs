@@ -417,6 +417,10 @@ for (const [initial, written] of [['[4, 5]', '"xy"'], ['"xy"', '[4, 5]']]) {
 // A refused relocation must still leave that source proof available to later consumers.
 for (const [source, accepted, assignment, typed] of [
   ['for (const { at } of rows) use(at);', true, false, 'element'],
+  ['for (const { at: rows } of rows) use(rows);', false, false, 'element'],
+  ['for (let { at: rows } of (capture(() => rows), [[1]])) use(rows);', false, false, 'element'],
+  ['for (var { at: rows } of rows) use(rows);', true, false, 'element'],
+  ['for (const { at, x } of rows) { let x; use(at); }', true, false, 'element'],
   ['for (let { at } of rows) { use(at); }', true, false, 'element'],
   ['for (var [{ at }] of rows) use(at);', true, false, 'element'],
   ['let at; for ({ at } of rows) {} use(at);', true, true, 'element'],

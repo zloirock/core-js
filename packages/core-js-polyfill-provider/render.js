@@ -22,6 +22,10 @@ import {
   subtreeContainsNode,
   noteRenderRetiredWrites,
   unwrapRuntimeExpr,
+  namespaceBindingDepths,
+  nodePositionKey,
+  takeNamespacePatterns,
+  walkPatternIdentifiers,
 } from './helpers/ast-patterns.js';
 import { observablePrefixElements, observablePrefixOperand } from './detect-usage/resolve.js';
 import { staticMethodType, symbolStaticMeta } from './detect-usage/globals.js';
@@ -1596,6 +1600,126 @@ export function exportDeclaration(statement, exported) {
   return exported
     ? { type: 'ExportNamedDeclaration', declaration: statement, specifiers: [], source: null, attributes: [] }
     : statement;
+}
+
+// Keep the reads in lexical order in one export. An own data slot reinstates
+// pattern levels removed by a split, so the lowerer still sees the source
+// binding order. No source key, iterator, getter or default is evaluated twice.
+function renderNamespacePatternGroup(statements, group, owners, embed, convert) {
+  const { kind, depths } = group;
+  const temps = [];
+  const items = [];
+  let effects = [];
+  for (const statement of statements) {
+    if (statement.type === 'ExpressionStatement') {
+      effects.push(embed(statement.expression));
+      continue;
+    }
+    const exported = statement.type === 'ExportNamedDeclaration';
+    for (const item of (exported ? statement.declaration : statement).declarations) {
+      let gap;
+      if (exported) namespaceBindingDepths(item.id, ({ name }, depth) => {
+        if (depths.has(name)) gap = depths.get(name) - depth;
+      });
+      if (gap !== undefined || namespaceEmptyOwner(owners, item.id) === group) {
+        if (!item.init && effects.length) {
+          items.push({ item: { id: objectPattern([]) }, init: sequenceExpression([...effects, objectExpression([])]) });
+          effects = [];
+        }
+        if (item.init) effects.push(embed(item.init));
+        items.push({ item, gap, init: effects.length > 1 ? sequenceExpression(effects) : effects[0] });
+        effects = [];
+      } else {
+        walkPatternIdentifiers(item.id, id => temps.push(markGeneratedMemoDeclarator(variableDeclarator(identifier(id.name)))));
+        if (item.init) effects.push(assignmentExpression('=', embed(item.id), embed(item.init)));
+      }
+    }
+  }
+  // When scalar reads are already in publication order, only the final one
+  // needs a pattern to keep the whole export deferred on Babel.
+  const bindings = items.filter(({ gap }) => gap !== undefined);
+  const ordered = bindings.every(({ item, gap }, index) => item.id.type === 'Identifier'
+    && (!index || bindings[index - 1].gap <= gap));
+  const minimum = bindings.reduce((min, { gap }) => Math.min(min, gap), Infinity);
+  const extra = bindings.some(({ gap }) => gap === minimum + 1) ? 2 : 0;
+  const declarations = items.map(({ item, init, gap }, index) => {
+    let id = embed(item.id);
+    const padding = kind !== 'const' || gap === undefined ? 0 : ordered
+      ? bindings.length === items.length && index === items.length - 1 ? 2 : 0 : gap - minimum + extra;
+    for (let left = padding; left > 0;) {
+      const odd = left % 2 === 1;
+      // NamedEvaluation must still use the original name for an anonymous initializer.
+      const key = left === padding ? item.id.name : null;
+      const computed = key === '__proto__';
+      function slot() { return computed ? literal(key) : identifier(key || 'value'); }
+      if (odd) {
+        // A scalar may really be undefined; its inert default preserves that value.
+        id = assignmentPattern(id, voidZero());
+      }
+      const binding = objectProperty(slot(), id, { computed });
+      binding.shorthand = !!key && !computed;
+      id = objectPattern([binding]);
+      init = objectExpression([objectProperty(slot(), init, { computed })]);
+      left -= odd ? 3 : 2;
+    }
+    return variableDeclarator(id, init);
+  });
+  if (effects.length) declarations.push(variableDeclarator(objectPattern([]),
+    sequenceExpression([...effects, objectExpression([])])));
+  const output = exportDeclaration(variableDeclaration(kind, declarations), true);
+  return [...temps.length ? [convert(variableDeclaration('let', temps))] : [], convert(output)];
+}
+
+function namespaceEmptyOwner(owners, id) {
+  return id.type === 'Identifier' ? null : owners.get(id) ?? owners.get(nodePositionKey(id));
+}
+
+// Babel and tsc publish namespace properties at different points in a destructuring.
+// Group each original declaration separately and leave its publication order to the lowerer.
+export function restoreNamespacePatternExports(program, embed = node => node, convert = node => node) {
+  let changed = false;
+  for (const [block, owners] of takeNamespacePatterns(program)) {
+    const { body } = block;
+    const ranges = new Map();
+    for (const [index, statement] of body.entries()) {
+      const exported = statement.type === 'ExportNamedDeclaration';
+      const declarations = (exported ? statement.declaration : statement)?.declarations;
+      if (!declarations) continue;
+      function include(owner) {
+        if (!owner) return;
+        const range = ranges.get(owner);
+        if (range) range.end = index;
+        else ranges.set(owner, { start: index, end: index });
+      }
+      for (const { id } of declarations) {
+        include(namespaceEmptyOwner(owners, id));
+        if (exported) walkPatternIdentifiers(id, binding => include(
+          owners.get(binding.name) ?? owners.get(binding) ?? owners.get(nodePositionKey(binding)),
+        ));
+      }
+    }
+    const output = [];
+    let cursor = 0;
+    for (const [group, { start, end }] of ranges) {
+      if (start === end && body[start].type === 'ExportNamedDeclaration') {
+        const { declarations } = body[start].declaration;
+        if (declarations.length === 1 && declarations[0].id.type === 'Identifier') continue;
+        let same = true;
+        for (const item of declarations) namespaceBindingDepths(item.id, ({ name }, depth) => {
+          if (group.depths.get(name) !== depth) same = false;
+        });
+        if (same) continue;
+      }
+      output.push(body.slice(cursor, start), renderNamespacePatternGroup(body.slice(start, end + 1), group, owners, embed, convert));
+      cursor = end + 1;
+    }
+    if (cursor) {
+      output.push(body.slice(cursor));
+      block.body = output.flat();
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 // Ordered declaration slots, also usable directly in a for-init head. Existing native

@@ -11,8 +11,12 @@ function read([{
 function ownFrom(value) {
   return value;
 }
-read([Array])([1]);
-read([Array])([2]);
+read([{
+  from: _Array$from
+}])([1]);
+read([{
+  from: _Array$from
+}])([2]);
 read([])([3]);
 read([undefined])([4]);
 read([{

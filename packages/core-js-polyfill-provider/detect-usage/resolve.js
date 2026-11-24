@@ -3694,7 +3694,8 @@ export function callYieldedLiteral(hop, { allowUninitializedCallee = false } = {
   const returned = inlineCallReturnExpression(callHop, { rejectConditional, allowUninitializedCallee });
   const literal = returned && unwrapExpressionChain(returned.node);
   return literal && !(invocationNode(literal) && hop.ctx.adapter.method === 'usage-pure')
-    ? { literal, scope: returned.ctx.scope, seen: returned.seen, paramArgs: null } : null;
+    ? { literal, scope: returned.ctx.scope, seen: returned.seen, paramArgs: null,
+      fresh: returned.fromBody && unwrapRuntimeExpr(returned.node) === literal } : null;
 }
 
 // what a slot of that literal holds for a reader (`paramArgs` from `pairedYieldedContainer`): the call's
@@ -4004,7 +4005,7 @@ export function inlineCallReturnExpression(hop, {
     if (paramNames && (identifierReferencedInSubtree(node, paramNames) || identifierReferencedInSubtree(node, 'arguments'))) continue;
     returnSink.push({ ...resolved, node });
   }
-  if (!callee.params?.length) return body ? { ...resolved, node: body } : null;
+  if (!callee.params?.length) return body ? { ...resolved, node: body, fromBody: true } : null;
   // identity passthrough (`(x) => x` applied to one arg): the body IS the param, so the receiver is
   // the ARG - recovers a call/IIFE-rooted receiver (`((x)=>x)(globalThis).Symbol`, and the nested
   // `g(f()).Symbol` since the arg `f()` is itself resolved by the caller). an SE-bearing arg is
@@ -4096,7 +4097,7 @@ export function inlineCallReturnExpression(hop, {
   // ... asked of the NAMES the list binds, a destructuring slot's leaves included: a slot whose
   // bindings the walk cannot enumerate leaves the body unreadable and proves nothing
   return !body || !names || [...names].some(name => identifierReferencedInSubtree(body, name))
-    ? null : { ...resolved, node: body };
+    ? null : { ...resolved, node: body, fromBody: true };
 }
 
 export function isCallShape(node) {

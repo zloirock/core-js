@@ -18,6 +18,7 @@ import {
   memberKeyNamesReducer,
   nestedTSRuntimeDeclarationsReducer,
   patternOrderReducer,
+  rememberNamespacePatterns,
   methodReadsUsageCensus,
   withTraversalCaches,
   runsWithoutOwnVarSlot,
@@ -87,7 +88,7 @@ import createAstDestructureEmitter from './destructure.js';
 import createAstUsagePureCallback from './usage-pure.js';
 import { markSubtreeSkipped } from './nav-spine.js';
 import { stampReplacementSpan } from './emit-shared.js';
-import { cloneNode, literal, sequenceExpression } from '@core-js/polyfill-provider/render';
+import { cloneNode, literal, restoreNamespacePatternExports, sequenceExpression } from '@core-js/polyfill-provider/render';
 import {
   closestVisibleNativeBinding,
   withoutPhantomDeclarationViolations,
@@ -1493,6 +1494,7 @@ export default function createPlugin(options) {
         };
         // everything the walk fires below the root - what `claimLive` fires ahead of it, too
         const walkVisitors = mergeVisitors(rejectDetachedPaths({
+          TSModuleBlock: rememberNamespacePatterns,
           CatchClause(path) { destructureEmit.extractCatchClause(path); },
           ForOfStatement(path) { destructureEmit.extractLoopLeft(path); },
           ForInStatement(path) { destructureEmit.extractLoopLeft(path); },
@@ -1508,6 +1510,7 @@ export default function createPlugin(options) {
           },
         }), { pathsKeepParent: true, stableParameterProperties: true });
         destructureEmit.drain();
+        restoreNamespacePatternExports(ast);
         // the partly dead user selections still standing fold to what they yield - an operand, kept a
         // value in its slot (`foldedOperandNeedsValue`), or the value a decided test answers: a claim owns
         // the selection it reads and has already dropped what never runs where it took the rest. one walk,

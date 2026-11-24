@@ -23797,11 +23797,23 @@ function * generatePrivateNamespaceCaptures() {
       return [Object.keys(N).join(','), N.entries({ a: 2 })];`],
     ['default', `function select() { log.push('select'); return ${ flag ? '{ k: { of: x => x + 7 } }' : '{}' }; }
       namespace N { export const { k: { of, [(log.push('key'), 'unknown')]: value } = Array } = select(); }
-      return [Object.keys(N).sort().join(','), N.of(3), typeof N.value];`],
+      return [Object.keys(N).join(','), N.of(3), typeof N.value];`],
     ['array', `function pick() { log.push('pick'); return ${ flag ? '[4, 9]' : '"xy"' }; }
       namespace N { export const before = log.push('before'), [{ at }] = [pick()], after = log.push('after'); }
-      return [Object.keys(N).sort().join(','), N.at.call(${ flag ? '[4, 9]' : '"xy"' }, -1)];`],
+      return [Object.keys(N).join(','), N.at.call(${ flag ? '[4, 9]' : '"xy"' }, -1)];`],
   ]) yield { ...snippet(`private-namespace-capture/${ shape }/${ flag }`, `(() => { ${ body } })()`), ts: true, strip: true };
+  for (const [name, code] of [
+    ['computed-sibling', `namespace N { export const { Array: { [(log.push('key'), 'of')]: a, from: b } } =
+        JSON.parse('true') && { Array }, ready = typeof N.a, { at: tail } = [2]; }
+      return [Object.keys(N), N.b([4]), N.ready, N.tail.call([3], 0)];`],
+    ['trailing-empty', `namespace N { export const live = 1; } Object.defineProperty(N, 'b', { set() { log.push('set'); } });
+      namespace N { export const lead = 11, { Array: { [(log.push('key'), 'of')]: a, from: b } } =
+        JSON.parse('true') && { Array }, {} = (log.push('end:' + typeof N.a), {}); }
+      return Object.keys(N);`],
+    ['array-siblings', `namespace N { export const lead = 11, [{ at: a }, { at: b }] =
+        [[3], [4]] as [number[], number[]], end = typeof N.b; }
+      return [Object.keys(N), N.end, N.a.call([3], 0), N.b.call([4], 0)];`],
+  ]) yield { ...snippet(`private-namespace-capture/${ name }`, `(() => { ${ code } })()`), ts: true, strip: true };
   // Babel's TS lowering accepts only const namespace exports. The mutable variants
   // run through SWC in private-destructure-bindings.mjs, with the same runtime checks.
   yield {
@@ -23809,7 +23821,7 @@ function * generatePrivateNamespaceCaptures() {
       namespace N { export const before = log.push('before'),
         { Set: { [(log.push('key'), Symbol.iterator)]: method } } = globalThis as any,
         { WeakMap: { [(log.push('default-key'), Symbol.iterator)]: fallback = null } } = globalThis as any; }
-      return [Object.keys(N).sort().join(','), typeof N.method, N.fallback];
+      return [Object.keys(N).join(','), typeof N.method, N.fallback];
     })()`), ts: true, strip: true,
   };
   yield { ...snippet('private-namespace-after-dispatch', `(() => {
@@ -23817,7 +23829,7 @@ function * generatePrivateNamespaceCaptures() {
       array: [41], get realm() { log.push(typeof first); return globalThis; },
       get tail() { log.push(typeof Value); return 3; },
     }; }
-    return [Object.keys(N).sort().join(','), N.first.call([41], -1), typeof N.Value, N.tail];
+    return [Object.keys(N).join(','), N.first.call([41], -1), typeof N.Value, N.tail];
   })()`), ts: true, strip: true };
   for (const kind of ['const', 'let', 'var']) for (const rig of [false, true]) yield {
     ...snippet(`partial-assignment-probe/${ kind }/${ rig }`, `(() => {
@@ -27159,6 +27171,39 @@ function * generateObjectPatternOrder() {
   })()`), strip: true };
 }
 
+function * generatePatternScopeReads() {
+  for (const kind of ['let', 'const']) {
+    yield { ...snippet(`pattern-scope/loop-tdz/${ kind }`, `(() => {
+      const rows = [[3]];
+      try { for (${ kind } { at: rows } of rows) log.push(typeof rows); }
+      catch (error) { return error.name; }
+    })()`), strip: true };
+    yield { ...snippet(`pattern-scope/loop-sibling/${ kind }`, `(() => {
+      for (${ kind } { at, n = 7 } of [[3]]) {
+        const n = 19;
+        return [at.call([5], 0), n];
+      }
+    })()`), strip: true };
+  }
+  yield { ...snippet('pattern-scope/catch-default', `(() => {
+    const outside = 8;
+    try { throw [1]; } catch ({ at, x = (log.push(typeof at), outside) }) {
+      const outside = 11;
+      return [at.call([2], 0), x, outside];
+    }
+  })()`), strip: true };
+  yield { ...snippet('pattern-scope/undefined-argument', `(() => {
+    var undefined;
+    return (({ of } = (log.push('default'), Array)) => of(7)[0])(undefined);
+  })()`), strip: true };
+  for (const stop of [false, true]) yield { ...snippet(`pattern-scope/factory/${ stop }`, `(() => {
+    function build() { return { math: Math, get last() { log.push("get"); return 9; } }; }
+    function prior() { log.push("default"); if (${ stop }) throw RangeError(); }
+    try { for (const { first = prior(), math: { atanh }, last } of [build(), build()]) return [atanh(0), last]; }
+    catch (error) { return error.name; }
+  })()`), strip: true };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -29002,4 +29047,5 @@ export function * generate() {
   yield * generateTypeDeclarationScopes();
   yield * generateArrayPatternReads();
   yield * generateObjectPatternOrder();
+  yield * generatePatternScopeReads();
 }

@@ -42,7 +42,8 @@ import {
   isChainAssignment,
   isDestructurePattern,
   isEffectfulKeyHop,
-  identifierReferencedInSubtree,
+  loopRhsObservesHead,
+  paramPatternReadsValue,
   isPropertyNode,
   isPristineProxyGlobal,
   isTopLevelThisContext,
@@ -147,7 +148,6 @@ import {
   discardedInitProbePlan,
   decidedRunningPart,
   directClaimProbeEffects,
-  discardRescueNodes,
   computedKeyWellKnownSymbolName,
   consumableHopSlotName,
   globalProxyMemberName,
@@ -3939,8 +3939,30 @@ export function planLoopHeadExtraction(path, {
     paramNode: declarator.id, bodyNode: path.node.body, scope: path.scope, adapter, path,
     resolvePure, walkNode, objectHint: toHint?.(elementType) ?? null,
     iterableNode: path.node.right, mirrorHosts: !!forOfHeadIterableElements(host, adapter.isMutatedStatic), assignment,
+    bindingsEscape: assignment || left.node.kind === 'var',
   });
-  return plan ? { ...plan, left, declarator, assignment, elementType } : null;
+  return plan && !loopRhsObservesHead(path.node) ? { ...plan, left, declarator, assignment, elementType } : null;
+}
+
+// The head runs outside the original body. Keep that block as a child if moving its
+// declarations beside the head would change a binding or a direct eval lookup.
+function scopedHeadPlan(pattern, body, unobservable, bindingsEscape) {
+  const names = new Set();
+  for (let statement of body?.type === 'BlockStatement' ? body.body : []) {
+    while (statement?.type === 'LabeledStatement') statement = statement.body;
+    for (const name of stmtRebindNames(statement, [])) names.add(name);
+  }
+  if (!names.size) return { unobservable, separateBody: false };
+  let collision = false;
+  let allShadowed = true;
+  walkPatternIdentifiers(pattern, id => {
+    if (names.has(id.name)) collision = true;
+    else allShadowed = false;
+  });
+  names.add('eval');
+  const readsBodyName = paramPatternReadsValue(pattern, names);
+  if (collision && allShadowed && !bindingsEscape && !readsBodyName) return null;
+  return { unobservable, separateBody: collision || readsBodyName };
 }
 
 // Decide whether a catch or loop pattern needs a declaration inside its body. A computed
@@ -3948,7 +3970,7 @@ export function planLoopHeadExtraction(path, {
 // Claims already served by a receiver mirror stay with it. Returned unobservable props
 // keep their native reads instead of receiving a dead dispatcher; assignments keep all writes.
 // Array patterns ask about claims at iterated positions rather than named properties.
-// Body binding conflicts and opaque catch rest decline relocation.
+// An inner block preserves shadowing. Opaque catch rest declines relocation.
 export function planCatchClauseExtraction({
   paramNode,
   bodyNode,
@@ -3961,20 +3983,8 @@ export function planCatchClauseExtraction({
   iterableNode = null,
   mirrorHosts = false,
   assignment = false,
+  bindingsEscape = assignment,
 }) {
-  // The relocated pattern lands at the top of the body block, among that block's own lexical
-  // names: one the pattern binds or reads there would redeclare it or resolve to it instead.
-  // A labelled function declaration is lexical to the block too.
-  const bodyNames = new Set();
-  for (let stmt of bodyNode?.type === 'BlockStatement' ? bodyNode.body : []) {
-    while (stmt?.type === 'LabeledStatement') stmt = stmt.body;
-    for (const name of stmtRebindNames(stmt, [])) bodyNames.add(name);
-  }
-  if (bodyNames.size) {
-    let binds = false;
-    walkPatternIdentifiers(paramNode, id => { binds ||= bodyNames.has(id.name); });
-    if (binds || identifierReferencedInSubtree(paramNode, bodyNames)) return null;
-  }
   // an ARRAY param relocates for a claim under any of its elements: they bind by ITERATION, so the
   // per-prop questions below (which key is resolvable, which rewrite is observable) have no subject
   // here - what the relocation buys is a DECLARATION HOST, and the element rename takes it from
@@ -3984,10 +3994,9 @@ export function planCatchClauseExtraction({
     ? arrayLiteralIterableElements(iterableNode)?.filter(Boolean) ?? [] : [];
   if (paramNode?.type === 'ArrayPattern') {
     // ... unless every claim below is the receiver mirror's, like the object pattern's below
-    if (mirrorHosts) return nestedClaimBeyondMirror(paramNode, elementNodes, { scope, adapter, path, resolvePure })
-      ? { unobservable: [] } : null;
-    return (paramNode.elements ?? []).some(element => patternHoldsClaim(element, resolvePure, true, { scope, adapter, path }))
-      ? { unobservable: [] } : null;
+    const claim = mirrorHosts ? nestedClaimBeyondMirror(paramNode, elementNodes, { scope, adapter, path, resolvePure })
+      : (paramNode.elements ?? []).some(element => patternHoldsClaim(element, resolvePure, true, { scope, adapter, path }));
+    return claim ? scopedHeadPlan(paramNode, bodyNode, [], bindingsEscape) : null;
   }
   if (paramNode?.type !== 'ObjectPattern' || !paramNode.properties?.length) return null;
   // An opaque catch receiver with rest has no static proof; relocating buys no safe read.
@@ -4041,8 +4050,8 @@ export function planCatchClauseExtraction({
     && !levelPassthroughOutruns({
       node: paramNode, pattern: paramNode, literalServes: prop => resolvableProps.includes(prop), ctx: { scope, adapter, path },
     })) return null;
-  // Assignment targets can be read outside the loop, beyond the body this plan sees.
-  const unobservable = assignment ? [] : resolvableProps.filter(prop => !catchPropRewriteObservable({
+  // Existing targets and var declarations remain observable after the loop.
+  const unobservable = bindingsEscape ? [] : resolvableProps.filter(prop => !catchPropRewriteObservable({
     propNode: prop,
     patternNode: paramNode,
     bodyNode,
@@ -4050,7 +4059,7 @@ export function planCatchClauseExtraction({
     walkNode,
   }));
   if (!hasMachinery && !nestedClaim && !nestedBeyondMirror && unobservable.length === resolvableProps.length) return null;
-  return { unobservable };
+  return scopedHeadPlan(paramNode, bodyNode, unobservable, bindingsEscape);
 }
 
 // can the mirror's literal carry EVERY key this pattern binds? the render spells one property per
@@ -4441,7 +4450,7 @@ export function renderSynthReplacement(entries, {
   // its left; the dead right must neither run nor gain imports during re-traversal.
   const effects = rescueSe && !dropRescueReceiver ? [source]
     : entries.some(entry => slotFor(entry)?.instance) && receiver.type !== 'LogicalExpression' ? []
-    : discardRescueNodes({ node: source, ...aliasCtx });
+    : discardRescueNodesWithReads({ node: source, ...aliasCtx });
   return effects.length ? sequenceExpression([...effects.map(node => embed(cloneHost(node))), embed(value)]) : embed(value);
 }
 

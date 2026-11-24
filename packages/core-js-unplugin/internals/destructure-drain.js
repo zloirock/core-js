@@ -2271,10 +2271,12 @@ export default function createDestructureDrains(ctx) {
     const { head, statement: relocated } = renderDestructureHeadCapture(param, {
       binding: identifier(refName), receiver: identifier(refName),
     });
+    const originalBody = plan.separateBody ? path.node.body : null;
     path.get('param').replaceWith(head);
+    if (originalBody) path.get('body').replaceWith(stampReplacementSpan({ type: 'BlockStatement', body: [originalBody] }, originalBody));
     path.get('body').unshiftContainer('body', [relocated]);
     path.scope.crawl();
-    noteRelocation(path, { slotOwner: path.node, field: 'param', pattern: param, statement: relocated });
+    noteRelocation(path, { slotOwner: path.node, field: 'param', pattern: param, statement: relocated, body: originalBody });
   }
 
   // Relocate a loop-head pattern when the shared catch/head plan needs a body extraction slot.
@@ -2306,11 +2308,13 @@ export default function createDestructureDrains(ctx) {
     const { head, statement: relocated } = renderDestructureHeadCapture(declarator.id, {
       binding: identifier(refName), receiver: slot, kind: left.kind, assignment,
     });
-    const bodyless = body.type === 'BlockStatement' ? null : body;
+    const originalBody = plan.separateBody || body.type !== 'BlockStatement' ? body : null;
     // The printer starts a new comment cursor at the block. The original body's
     // offset keeps it past the loop head that has already printed.
-    if (bodyless) path.get('body').replaceWith(stampReplacementSpan({ type: 'BlockStatement', body: [relocated, bodyless] }, bodyless));
-    else path.get('body').unshiftContainer('body', [relocated]);
+    if (originalBody) {
+      const block = { type: 'BlockStatement', body: [relocated, originalBody] };
+      path.get('body').replaceWith(stampReplacementSpan(block, originalBody));
+    } else path.get('body').unshiftContainer('body', [relocated]);
     const pattern = declarator.id;
     if (assignment) leftPath.replaceWith(head);
     else declarator.id = head;
@@ -2333,7 +2337,7 @@ export default function createDestructureDrains(ctx) {
       field: assignment ? 'left' : 'id',
       pattern,
       statement: relocated,
-      body: bodyless,
+      body: originalBody,
     });
   }
 

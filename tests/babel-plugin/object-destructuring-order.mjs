@@ -12,11 +12,11 @@ const requireBabel = process.env.BABEL_REQUIRE_FROM
   ? createRequire(pathToFileURL(`${ path.resolve(process.env.BABEL_REQUIRE_FROM) }/`).href) : createRequire(import.meta.url);
 const { transformAsync } = requireBabel('@babel/core');
 const { check, finish } = createChecker('object-destructuring-order');
-async function outputs(source, method, script = false) {
+async function outputs(source, method, script = false, typescript = false) {
   const options = { method, version: '4.0', targets: { ie: 11 } };
-  const filename = script ? 'input.cjs' : 'input.mjs';
+  const filename = typescript ? 'input.ts' : script ? 'input.cjs' : 'input.mjs';
   const babel = await transformAsync(source, { configFile: false, babelrc: false, filename,
-    sourceType: script ? 'script' : 'module', plugins: [[babelPlugin, options]] });
+    sourceType: script ? 'script' : 'module', parserOpts: { plugins: typescript ? ['typescript'] : [] }, plugins: [[babelPlugin, options]] });
   const plugin = createUnplugin(options);
   const first = plugin.transform(source, filename)?.code ?? source;
   return [['native', source], ['babel', babel.code], ['unplugin', first], ['second-pass', plugin.transform(first, filename, 'post')?.code ?? first]];
@@ -123,6 +123,63 @@ const cases = [
   '[read(false), read(true)]', [9, 3], '', ['held', 'held'], 'delete Object.groupBy; delete Map.groupBy;', 'usage-global'],
   ['inherited default', 'const base = { group: Object }; const { group: { groupBy } = Map } = { __proto__: base }; return groupBy([9], String)[9];',
     'read()', [9], '', [], 'delete Map.groupBy; delete Object.groupBy;', 'usage-global'],
+  ['loop head RHS in TDZ', 'const rows = [[1]]; try { for (const { at: rows } of rows) return typeof rows; } catch (e) { return e.name; }',
+    'read()', 'ReferenceError'],
+  ['loop head RHS closure retains TDZ', 'const rows = [3]; let get; for (const { at: rows } of (get = () => rows, [[1]])) { '
+    + 'try { return [typeof rows, get()]; } catch (e) { return [typeof rows, e.name]; } }',
+  'read()', ['function', 'ReferenceError'], '', [], 'delete Array.prototype.at;'],
+  ['loop body shadows head binding', 'for (const { at, x = 8 } of [[1]]) { const x = 99; return [at.call([5], 0), x]; }',
+    'read()', [5, 99], '', [], 'delete Array.prototype.at;'],
+  ['var head binding remains observable after the body', 'for (var { at } of [[1]]) { const at = 2; effects.push(at); } return at.call([9], 0);',
+    'read()', 9, '', [2], 'delete Array.prototype.at;'],
+  ['catch body shadows outer default', 'const x = 8; try { throw [1]; } catch ({ at, value = x }) { const x = 99; return [at.call([5], 0), value, x]; }',
+    'read()', [5, 8, 99], '', [], 'delete Array.prototype.at;'],
+  ['catch direct eval in default', 'const x = 8; try { throw []; } catch ({ at, value = eval("x") }) { const x = 99; return [typeof at, value, x]; }',
+    'read()', ['function', 8, 99], '', [], 'delete Array.prototype.at;'],
+  ['catch sibling default observes method', 'try { throw [1]; } catch ({ at, missing = (effects.push(typeof at), 3) }) { return missing; }',
+    'read()', 3, '', ['function'], 'delete Array.prototype.at;'],
+  ['later catch declarator observes method', 'try { throw [1]; } catch (arr) { let { at } = arr, seen = typeof at; return seen; }',
+    'read()', 'function', '', [], 'delete Array.prototype.at;'],
+  ['inner instance read follows an earlier default', 'function consume({ before = changeMethod(), row: { at } } = { row: [1] }) { '
+    + 'return at.call([2], 0); } return consume();', 'read()', 13,
+  'globalThis.changeMethod = () => { effects.push("before"); Array.prototype.at = () => 13; };', ['before'], 'delete Array.prototype.at;'],
+  ['factory parameter getter observes prior binding', 'function build(probe) { return { math: Math, get observed() { effects.push("get"); return probe(); } }; } '
+    + 'function run(probe = () => typeof atanh, { math: { atanh }, observed } = build(probe)) { return observed; } return run();',
+  'read()', 'function', '', ['get'], 'delete Math.atanh;'],
+  ['factory loop reads only reached element', 'function build() { return { math: Math, get z() { effects.push("get"); return 3; } }; } '
+    + 'for (const { x = effects.push("default"), math: { atanh }, z } of [build(), build()]) { return [atanh(0), z]; }',
+  'read()', [0, 3], '', ['default', 'get'], 'delete Math.atanh;'],
+  ['selected parameter preserves external prefix', 'function run({ of } = (globalThis.marker, globalThis.Array) || Set) { return of(7)[0]; } return run();',
+    'read()', 7, 'Object.defineProperty(globalThis, "marker", { get() { effects.push("marker"); } });', ['marker'], 'delete Array.of;'],
+  ['local undefined triggers original default', '{ var undefined; } return (({ of } = (effects.push("default"), Array)) => of(7)[0])(undefined);',
+    'read()', 7, '', ['default'], 'delete Array.of;'],
+  ...['usage-pure', 'usage-global'].map(method => [`void argument selects default ${ method }`, 'function note() { effects.push("arg"); } '
+    + 'const groups = (({ groupBy } = Object) => groupBy([1, 2], n => n))(flag ? Map : void note()); '
+    + 'return flag ? groups.size : groups[1];', '[read(false), read(true)]', [[1], 2], '', ['arg'], 'delete Object.groupBy; delete Map.groupBy;', method]),
+  ['paired slot and default both supply statics', 'const slot = flag ? Object : undefined; const [{ groupBy } = Map] = [slot]; '
+    + 'const groups = groupBy([1], n => n); return flag ? groups[1] : groups.get(1);',
+  '[read(false), read(true)]', [[1], [1]], '', [], 'delete Map.groupBy; delete Object.groupBy;', 'usage-global'],
+  ['strict for-of writes only on reached iterations', 'function assign(rows) { let n = 0; for (Iterator of rows) n++; return n; } '
+    + 'return [assign([]), assign([4])];', 'read()', [0, 1], '', [], 'delete globalThis.Iterator;', 'usage-global'],
+  ['dynamic projection keeps its own receiver', 'function key() { effects.push("key"); return "C"; } const registry = { C: { groupBy() { return 11; } } }; '
+    + 'const { [key()]: { groupBy } } = registry; return groupBy();', 'read()', 11, '', ['key'], 'delete Map.groupBy;', 'usage-global'],
+  ['factory slot with local constructor alias', 'function registry() { const Collection = Map; return { Collection }; } '
+    + 'const { Collection: { groupBy } } = registry(); return groupBy([3], String).get("3");',
+  'read()', [3], '', [], 'delete Map.groupBy;', 'usage-global'],
+  ['body pattern follows parameter slot', 'return (function (incoming) { const { k: { values } } = incoming; return values({ x: 17 }); })({ k: Object });',
+    'read()', [17], '', [], 'delete Object.values;', 'usage-global'],
+  ['argument instance and static default', 'function run([{ entries }] = [Object]) { return entries; } '
+    + 'return [run([[1, 2]]).call([2]).next().value, run()({ k: 7 })];',
+  'read()', [[0, 2], [['k', 7]]], '', [], 'delete Array.prototype.entries; delete Object.entries;', 'usage-global'],
+  ['array constructor in supplied parameter slot', 'function run([{ from } = Array]) { return from; } '
+    + 'return [run([Array])([1]), run([])([2]), run([undefined])([3]), run([{ from: () => 4 }])()];',
+  'read()', [[1], [2], [3], 4], '', [], 'delete Array.from;'],
+  ...[['free name after receiver', 'function run({ at }, { value }) { return at.call([2], 0); } return run([1], settings);'],
+    ['free name in a later object argument', 'function run({ at }, other) { return at.call([2], 0); } return run([1], { row: settings });'],
+    ['effectful sibling of default receiver', 'function run({ row: { at } } = { row: [1], ignored: settings }, { value }) { return at.call([2], 0); } '
+      + 'return run(undefined, {});']].map(([name, body]) => [name, body, 'read()', 7,
+    'Object.defineProperty(globalThis, "settings", { get() { effects.push("settings"); Array.prototype.at = function () { effects.push("at"); return 7; }; return {}; } });',
+    ['settings', 'at'], 'delete Array.prototype.at;']),
 ];
 
 const base = path.join(import.meta.dirname, '../transpiler-differential/tmp');
@@ -146,6 +203,33 @@ try {
         check(`${ name }/${ host }/${ removed }`, await runInWorker(driver, { strip: false }),
           `OK|${ JSON.stringify(expected) }|${ JSON.stringify(effects) }`);
       }
+    }
+  }
+  // Babel publishes an exported namespace pattern after its last binding, including
+  // when a getter observes the namespace object during destructuring.
+  const ns = scenarioSource(`export const effects: string[] = [];
+    namespace N {
+      export const lead = 17, { array: { at: first }, realm: { WeakSet: Value }, tail } = {
+        array: [41],
+        get realm() { effects.push(typeof N.lead, typeof first, typeof N.first); return globalThis; },
+        get tail() { effects.push(typeof Value, typeof N.Value); return 3; },
+      }, end = typeof N.first, {} = (effects.push('empty:' + typeof N.tail), {});
+    }
+    export const r = [typeof N.first, typeof N.Value, N.tail, N.end, Object.keys(N)];`);
+  const lower = requireBabel('@babel/plugin-transform-typescript').default;
+  for (const [host, source] of await outputs(ns, 'usage-pure', false, true)) {
+    const result = await transformAsync(source, { filename: 'namespace.ts', configFile: false, babelrc: false, plugins: [lower] });
+    const file = path.join(directory, `namespace-${ host }.mjs`);
+    await fs.writeFile(file, result.code);
+    check(`namespace publication/${ host }`, await runInWorker(file, { strip: false }),
+      'OK|["function","function",3,"undefined",["lead","end","tail","first","Value"]]|["undefined","function","undefined","function","undefined","empty:undefined"]');
+    if (host !== 'native') {
+      const driver = path.join(directory, `namespace-stripped-${ host }.mjs`);
+      await fs.writeFile(driver, `delete Array.prototype.at; delete globalThis.WeakSet;
+        const ns = await import(${ JSON.stringify(pathToFileURL(file).href) });
+        export const r = ns.r; export const effects = ns.effects;`);
+      check(`namespace stripped/${ host }`, await runInWorker(driver, { strip: false }),
+        'OK|["function","function",3,"undefined",["lead","end","tail","first","Value"]]|["undefined","function","undefined","function","undefined","empty:undefined"]');
     }
   }
 } finally {
