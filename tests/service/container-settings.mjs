@@ -42,6 +42,11 @@ throws(() => settingsFrom({ ...cache, CORE_JS_IMAGE_DIGEST: `sha256:../${ digest
   /CORE_JS_IMAGE_DIGEST/, 'container-settings-3 #3');
 throws(() => settingsFrom({ ...cache, CORE_JS_CACHE_DIR: '', CORE_JS_IMAGE_DIGEST: `sha256:${ digest }` }),
   /CORE_JS_CACHE_DIR/, 'container-settings-3 #4');
+deepStrictEqual(settingsFrom(cache, `sha256:${ digest }`).cacheDirectory,
+  join(cache.CORE_JS_CACHE_DIR, digest), 'container-settings-3 #6');
+deepStrictEqual(settingsFrom({ ...cache, CORE_JS_IMAGE_DIGEST: `sha256:${ digest }` },
+  `sha256:${ 'b'.repeat(64) }`).cacheDirectory, join(cache.CORE_JS_CACHE_DIR, digest), 'container-settings-3 #7');
+throws(() => settingsFrom(cache, `sha256:../${ digest }`), /CORE_JS_IMAGE_DIGEST/, 'container-settings-3 #8');
 
 const versioned = { CORE_JS_RELEASES_DIR: 'deploy/releases' };
 deepStrictEqual(settingsFrom(versioned), {

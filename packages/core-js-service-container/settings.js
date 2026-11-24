@@ -2,12 +2,11 @@ import { join } from 'node:path';
 
 const POSITIVE_DECIMAL = /^[1-9]\d*$/;
 
-export function settingsFrom(env) {
+export function settingsFrom(env, builtCacheKey) {
   const manifestPath = env.CORE_JS_MANIFEST_PATH;
   const releasesDir = env.CORE_JS_RELEASES_DIR;
   const retention = env.CORE_JS_RELEASE_RETENTION_SECONDS;
   const cacheRoot = env.CORE_JS_CACHE_DIR;
-  const imageDigest = env.CORE_JS_IMAGE_DIGEST;
   const host = env.HOST === undefined ? '0.0.0.0' : env.HOST;
   const portValue = env.PORT === undefined ? '3000' : env.PORT;
 
@@ -38,10 +37,11 @@ export function settingsFrom(env) {
     if (typeof cacheRoot !== 'string' || !cacheRoot) {
       throw new TypeError('CORE_JS_CACHE_DIR must be a nonempty string');
     }
-    if (typeof imageDigest !== 'string' || !/^sha256:[\da-f]{64}$/.test(imageDigest)) {
-      throw new TypeError('CORE_JS_IMAGE_DIGEST must be a sha256 digest when CORE_JS_CACHE_DIR is set');
+    const cacheKey = env.CORE_JS_IMAGE_DIGEST === undefined ? builtCacheKey : env.CORE_JS_IMAGE_DIGEST;
+    if (typeof cacheKey !== 'string' || !/^sha256:[\da-f]{64}$/.test(cacheKey)) {
+      throw new TypeError('CORE_JS_CACHE_DIR requires a built cache key or a valid CORE_JS_IMAGE_DIGEST');
     }
-    cacheDirectory = join(cacheRoot, imageDigest.slice('sha256:'.length));
+    cacheDirectory = join(cacheRoot, cacheKey.slice('sha256:'.length));
   }
 
   return { ...releases ? { releases } : { manifestPath }, cacheDirectory, host, port: Number(portValue) };

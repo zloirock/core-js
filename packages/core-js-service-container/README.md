@@ -22,13 +22,11 @@ Run these commands from the repository root. The image is built from the current
 
 ```sh
 docker build -f packages/core-js-service-container/Dockerfile -t core-js-service .
-image_id=$(docker image inspect --format '{{.Id}}' core-js-service)
 docker run --rm --name core-js-service -p 127.0.0.1:3000:3000 \
   --mount "type=bind,source=$PWD/app-modules.json,target=/config/modules.json,readonly" \
   --mount type=volume,source=core-js-service-cache,target=/var/cache/core-js \
   -e CORE_JS_MANIFEST_PATH=/config/modules.json \
-  -e CORE_JS_CACHE_DIR=/var/cache/core-js \
-  -e CORE_JS_IMAGE_DIGEST="$image_id" "$image_id"
+  -e CORE_JS_CACHE_DIR=/var/cache/core-js core-js-service
 ```
 
 This example makes the service available to a proxy running on the same host. If your proxy runs in a different container or on another host, connect it to the service over your deployment network instead; do not use `127.0.0.1` as the proxy's upstream address unless both processes share a network namespace. The container listens on `0.0.0.0:3000` by default. Set `HOST` or `PORT` if your deployment needs a different listener, and update the port mapping and proxy address accordingly.
@@ -37,11 +35,16 @@ The root-level `app-modules.json` is excluded from the Docker build context. You
 manifest with your application outside the monorepo and use its absolute path as the mount source.
 
 The named volume keeps bundles across container replacements. Reuse the volume for the same
-application. `CORE_JS_CACHE_DIR` points to its mount and requires `CORE_JS_IMAGE_DIGEST`, the local
-image ID shown above or the platform-specific image digest from your registry. Each image gets a
-separate directory in the volume because builds of the image can differ under the same core-js version.
-Directories for previous images remain available for rollbacks. The `node` user (UID `1000`) needs
-write access if you mount your own directory.
+application and set `CORE_JS_CACHE_DIR` to its mount. The image includes a cache key computed at build
+time from the packaged service, its dependencies, and the Node runtime. Changes to those inputs
+use a separate directory even when the core-js version stays the same. The `node` user (UID `1000`)
+needs write access if you mount your own directory.
+
+An existing deployment can reuse its current cache directory by keeping the explicit
+`CORE_JS_IMAGE_DIGEST` for the same image (`sha256:` and 64 lowercase hexadecimal digits).
+When deploying a new image, update the override to the new image's digest or remove it to use
+the built-in key. For disk caching when running the package directly from a checkout, supply
+an explicit digest because the checkout has no built-in key.
 
 On restart with the same image and module set, the service loads complete bundles from the cache
 and builds any that are missing, incomplete, or damaged. The baseline becomes ready as soon as it is
@@ -184,7 +187,6 @@ for every release whose URL still needs to work, including releases in their ret
 Wait for each release to report `baselineReady: true`.
 
 With disk caching enabled, each release has its own cache under
-`<cache-directory>/<image-digest>/releases/<release>` (the digest directory omits the
-`sha256:` prefix). Before removing a retired release's cache, wait until the release has
-expired on all containers using it and any warm-up in progress has finished or the container
-running it has stopped.
+`<cache-directory>/<cache-key>/releases/<release>`. Before removing a retired release's cache,
+wait until the release has expired on all containers using it and any warm-up in progress has
+finished or the container running it has stopped.

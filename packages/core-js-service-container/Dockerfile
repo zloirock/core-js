@@ -27,7 +27,10 @@ COPY --from=dependencies /app/packages/core-js-service/internals/ui/*.js ./packa
 COPY --from=dependencies /app/packages/core-js-service-container/*.js /app/packages/core-js-service-container/package.json ./packages/core-js-service-container/
 COPY LICENSE ./LICENSE
 COPY LICENSE ./packages/core-js-service-container/LICENSE
-RUN install -d -o node -g node /var/cache/core-js
+RUN bash -o pipefail -c 'tar --sort=name --mtime=@0 --owner=0 --group=0 -cf - -C / app usr/local/bin/node usr/lib \
+    | sha256sum | cut -d " " -f 1 > /tmp/core-js-cache-key' \
+ && mv /tmp/core-js-cache-key ./packages/core-js-service-container/cache-key \
+ && install -d -o node -g node /var/cache/core-js
 USER node
 EXPOSE 3000
 CMD ["node", "packages/core-js-service-container/index.js"]

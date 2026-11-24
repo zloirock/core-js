@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fastify from 'fastify';
 import { fileURLToPath } from 'node:url';
-import { realpath } from 'node:fs/promises';
+import { readFile, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import createService from '@core-js/service';
 import { loadManifest } from './manifest.js';
@@ -14,10 +14,21 @@ function logIncident(code, detail) {
   process.stderr.write(`service container ${ code }: ${ detail }\n`);
 }
 
+async function loadCacheKey() {
+  try {
+    const key = await readFile(new URL('./cache-key', import.meta.url), 'utf8');
+    return `sha256:${ key.trim() }`;
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+}
+
 // This entry is also imported by the process fixture to exercise the same listener and signal wiring.
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- The executable shares its startup wiring with a child-process fixture.
 export async function startContainer({ createService: serviceFactory = createService } = {}) {
-  const { manifestPath, releases, cacheDirectory, host, port } = settingsFrom(process.env);
+  const { env } = process;
+  const cacheKey = env.CORE_JS_CACHE_DIR && env.CORE_JS_IMAGE_DIGEST === undefined ? await loadCacheKey() : undefined;
+  const { manifestPath, releases, cacheDirectory, host, port } = settingsFrom(env, cacheKey);
   const app = fastify({ logger: false });
   function lifecycleFor(path, release) {
     const versioned = release !== undefined;

@@ -17,8 +17,9 @@ does: a summary of the code is already in the code.
   container starts. Coercing or accepting a malformed port could bind an unintended address, while
   an absent manifest cannot define the bundle scope
 - **container-settings-3** - disk caching is optional. When enabled, the cache path is scoped to
-  the image digest, since images built from different checkouts can declare the same package
-  versions. Accept only a SHA-256 digest so it cannot escape the configured cache root
+  a SHA-256 key built into the image from its runtime files. Images with different build inputs
+  can declare the same package versions and must not read each other's bundles. Validate an
+  explicit digest override as well as the built-in key so neither can escape the cache root
 
 ## Standalone container manifest
 
@@ -69,7 +70,8 @@ does: a summary of the code is already in the code.
   Importing it with a missing argv path must stay passive rather than fail during import. An
   interrupted script would break a page during a routine container replacement
 - **container-cache-1** - a replacement container with the same image, module set and volume serves
-  the cached bundles without rebuilding them. A partial cache rebuilds only incomplete bundles
+  the cached bundles without rebuilding them. A partial cache rebuilds only incomplete bundles.
+  Keep versioned bundles under their release directories so retiring one cannot remove another
 
 ## Standalone container releases
 

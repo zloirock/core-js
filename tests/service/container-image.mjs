@@ -1,4 +1,4 @@
-import { deepStrictEqual, ok, strictEqual } from 'node:assert/strict';
+import { deepStrictEqual, match, notStrictEqual, ok, strictEqual } from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rename, writeFile, rm } from 'node:fs/promises';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -8,6 +8,7 @@ import { runInNewContext } from 'node:vm';
 if (process.env.RUN_SERVICE_DOCKER_TEST === '1') {
   const directory = await mkdtemp(join(tmpdir(), 'core-js-container-image-'));
   const image = `core-js-service-smoke-${ process.pid }`;
+  const changedImage = `${ image }-changed`;
   const volume = `${ image }-cache`;
   const cacheRoot = '/var/cache/core-js';
   const manifestPath = join(directory, 'manifest.json');
@@ -19,7 +20,7 @@ if (process.env.RUN_SERVICE_DOCKER_TEST === '1') {
     const [manifest] = example.split('\n```', 1);
     await writeFile(manifestPath, manifest);
     await $`docker build -f packages/core-js-service-container/Dockerfile -t ${ image } .`;
-    await $`docker run --rm --entrypoint node ${ image } -e ${ `
+    const generated = await $`docker run --rm --entrypoint node ${ image } -e ${ `
       const fs = require('node:fs');
       const path = require('node:path');
       const root = '/app';
@@ -38,11 +39,24 @@ if (process.env.RUN_SERVICE_DOCKER_TEST === '1') {
         'packages/core-js/modules/es.array.from.js', 'packages/core-js-compat/data.json']) {
         if (!fs.existsSync(path.join(root, name))) throw Error('Missing image file: ' + name);
       }
+      console.log(fs.readFileSync(path.join(root, 'packages/core-js-service-container/cache-key'), 'utf8'));
     ` }`;
 
-    const inspected = await $`docker image inspect --format '{{.Id}}' ${ image }`;
-    const imageDigest = inspected.stdout.trim();
-    const cacheDirectory = `${ cacheRoot }/${ imageDigest.slice('sha256:'.length) }`;
+    const cacheKey = generated.stdout.trim();
+    match(cacheKey, /^[\da-f]{64}$/, 'container-settings-3 #5');
+    const cacheDirectory = `${ cacheRoot }/${ cacheKey }`;
+
+    const dockerfile = await readFile('packages/core-js-service-container/Dockerfile', 'utf8');
+    const modulesCopy = 'COPY --from=dependencies /app/packages/core-js/modules ./packages/core-js/modules\n';
+    const changedDockerfile = dockerfile.replace(modulesCopy,
+      `${ modulesCopy }RUN echo >> ./packages/core-js/modules/es.array.from.js\n`);
+    notStrictEqual(changedDockerfile, dockerfile, 'container-settings-3 #9: change a packaged polyfill');
+    await $({ input: changedDockerfile })`docker build -f - -t ${ changedImage } .`;
+    const keyPath = '/app/packages/core-js-service-container/cache-key';
+    const changedArtifact = await $`docker run --rm --entrypoint cat ${ changedImage } ${ keyPath }`;
+    const changedKey = changedArtifact.stdout.trim();
+    match(changedKey, /^[\da-f]{64}$/, 'container-settings-3 #10');
+    notStrictEqual(changedKey, cacheKey, 'container-settings-3 #11: a changed polyfill rotates the key');
 
     function get(port, path, headers = {}) {
       return new Promise((resolve, reject) => {
@@ -83,8 +97,7 @@ if (process.env.RUN_SERVICE_DOCKER_TEST === '1') {
     } = {}) {
       const started = await $`docker run -d --rm -p 127.0.0.1::3000 \
         -e ${ `${ setting }=${ mount }` } -e ${ `CORE_JS_CACHE_DIR=${ cacheRoot }` } \
-        -e ${ `CORE_JS_IMAGE_DIGEST=${ imageDigest }` } -v ${ `${ source }:${ mount }:ro` } \
-        -v ${ `${ volume }:${ cacheRoot }` } ${ imageDigest }`;
+        -v ${ `${ source }:${ mount }:ro` } -v ${ `${ volume }:${ cacheRoot }` } ${ image }`;
       container = started.stdout.trim();
       const published = await $`docker port ${ container } 3000/tcp`;
       return waitForWarm(Number(published.stdout.trim().split(':').at(-1)), status);
@@ -169,13 +182,15 @@ if (process.env.RUN_SERVICE_DOCKER_TEST === '1') {
       ...headers, 'if-none-match': first.headers.etag,
     });
     strictEqual(previous.status, 304, 'container-releases-4 #12');
+    const releaseFiles = Object.keys(await cachedFiles());
+    ok(releaseFiles.some(file => file.startsWith('releases/release-1/') && file.endsWith('.js')), 'container-cache-1 #8');
   } finally {
     try {
       if (container) await $`docker stop ${ container }`.nothrow();
     } finally {
       try {
         await $`docker volume rm ${ volume }`.nothrow();
-        await $`docker image rm ${ image }`.nothrow();
+        await $`docker image rm ${ image } ${ changedImage }`.nothrow();
       } finally {
         await rm(directory, { recursive: true, force: true });
       }
