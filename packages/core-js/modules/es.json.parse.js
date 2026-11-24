@@ -21,6 +21,7 @@ var NATIVE_SYMBOL = require('../internals/symbol-constructor-detection');
 var JSON = globalThis.JSON;
 var Reflect = globalThis.Reflect;
 var Number = globalThis.Number;
+var $String = String;
 var SyntaxError = globalThis.SyntaxError;
 var nativeParse = JSON && JSON.parse;
 var reflectDefineProperty = Reflect && Reflect.defineProperty;
@@ -35,6 +36,7 @@ var indexOf = uncurryThis(''.indexOf);
 var slice = uncurryThis(''.slice);
 var exec = uncurryThis(/./.exec);
 var push = uncurryThis([].push);
+var replace = uncurryThis(''.replace);
 
 var IS_DIGIT = /^\d$/;
 var IS_NON_ZERO_DIGIT = /^[1-9]$/;
@@ -71,7 +73,9 @@ var internalize = function (holder, name, reviver, node) {
       elementRecordsLen = nodes.length;
       len = lengthOfArrayLike(val);
       for (i = 0; i < len; i++) {
-        internalizeProperty(val, i, internalize(val, '' + i, reviver, i < elementRecordsLen ? nodes[i] : undefined), unmodified);
+        // Rhino needs a flat string for descriptor operations in the reviver.
+        P = $String(i);
+        internalizeProperty(val, P, internalize(val, P, reviver, i < elementRecordsLen ? nodes[i] : undefined), unmodified);
       }
     } else {
       keys = getBuiltIn('Object', 'keys')(val);
@@ -249,6 +253,25 @@ var PROPER_BASE_PARSE = !fails(function () {
   nativeParse('01');
 });
 
+// native parsers of Hermes and ChakraCore accept some malformed numbers, like `1.`, `-01` or `- 1`
+var STRICT_NUMBERS = fails(function () {
+  nativeParse('1.');
+}) && fails(function () {
+  nativeParse('- 1');
+});
+
+var STRINGS = /"[^"\\]*(?:\\[\S\s][^"\\]*)*"?/g;
+// the left boundary keeps a failed match from being retried at every digit of a long number
+var VALID_NUMBERS = /(^|[\s,:[])-?(?:0|[1-9]\d*)(?:\.\d+)?(?:e[+-]?\d+)?(?=[\s,\]}]|$)/gi;
+var NUMBER_PART = /[\d+\-.]/;
+
+// a text without strings and well-formed numbers has no characters of numbers left
+var hasMalformedNumber = function (source) {
+  try {
+    return exec(NUMBER_PART, replace(replace(source, STRINGS, ''), VALID_NUMBERS, '$1'));
+  } catch (error) { return true; } // a regular expression can overflow the stack on a huge string
+};
+
 // V8 ~ Chrome 128-155, NodeJS 23.0-24.22.0 and 25.0-26.12.0 can take the name of an escaped key
 // from an earlier object with the same preceding keys, https://issues.chromium.org/issues/521080746
 var SAFE_ESCAPED_KEYS = !fails(function () {
@@ -300,13 +323,13 @@ var normalizeKeys = function (source) {
 // `JSON.parse` method
 // https://tc39.es/ecma262/#sec-json.parse
 // https://github.com/tc39/proposal-json-parse-with-source
-$({ target: 'JSON', stat: true, forced: NO_SOURCE_SUPPORT || !PROPER_BASE_PARSE || !SAFE_ESCAPED_KEYS }, {
+$({ target: 'JSON', stat: true, forced: NO_SOURCE_SUPPORT || !PROPER_BASE_PARSE || !STRICT_NUMBERS || !SAFE_ESCAPED_KEYS }, {
   parse: function parse(text, reviver) {
     // Native concatenation uses the string hint and rejects symbols. Shimmed symbols need our ToString.
     if (typeof text != 'string') text = NATIVE_SYMBOL ? concat('', text) : toString(text);
     if (PROPER_BASE_PARSE && (!NO_SOURCE_SUPPORT || !isCallable(reviver))) {
       var source = SAFE_ESCAPED_KEYS ? text : normalizeKeys(text);
-      if (source !== undefined) return nativeParse(source, reviver);
+      if (source !== undefined && (STRICT_NUMBERS || !hasMalformedNumber(source))) return nativeParse(source, reviver);
     }
     return $parse(text, reviver);
   }

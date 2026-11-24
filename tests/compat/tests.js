@@ -1100,10 +1100,15 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     if (source !== unsafeInt || 1 / JSON.parse('-0 \t') !== -Infinity) return false;
     // V8 ~ Chrome 128-155, https://issues.chromium.org/issues/521080746
     if (!JSON.parse('{"`":0,"\\t":{"`":0,"\\\\":0}}')['\t']) return false;
-    try {
-      JSON.parse('01');
-    } catch (error) { return true; }
-    return false;
+    // IE accepts `01`, Hermes - `1.`, ChakraCore - `- 1`
+    var malformedNumbers = ['01', '1.', '- 1'];
+    for (var i = 0; i < malformedNumbers.length; i++) {
+      try {
+        JSON.parse(malformedNumbers[i]);
+        return false;
+      } catch (error) { /* expected */ }
+    }
+    return true;
   },
   'es.json.raw-json': NATIVE_RAW_JSON,
   'es.json.stringify': [NATIVE_RAW_JSON, SYMBOLS_SUPPORT, function () {

@@ -140,6 +140,8 @@
 - `JSON`
   - Added a workaround for [V8 returning incorrect property names from `JSON.parse` when keys contain escapes](https://issues.chromium.org/issues/521080746), also reported in [NodeJS #66916](https://github.com/nodejs/node/issues/66916). The workaround keeps native parsing when all property names can be written literally, preserving escapes in string values
   - Fixed the `JSON.parse` polyfill changing property order of parsed objects in old WebKit when a duplicate key or a reviver updates a value
+  - Fixed `JSON.parse` and `JSON.rawJSON` accepting malformed numbers in Hermes and ChakraCore
+  - Fixed array index keys passed to `JSON.parse` revivers in Rhino
   - Fixed order of `JSON.parse` dependencies loading, a regression since 3.47.0
   - Restored native `JSON.parse` delegation without a callable reviver in engines without native symbols, while preserving symbol conversion and detecting native parsing of numbers with leading zeros in IE
   - Fixed `JSON.parse` polyfill accepting malformed object keys after commas, mishandling rejected reviver property updates, and exposing `context.source` after a zero changes sign

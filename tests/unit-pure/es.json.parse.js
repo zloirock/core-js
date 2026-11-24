@@ -1,7 +1,7 @@
 // Some tests adopted from Test262 project and governed by the BSD license.
 // Copyright (c) 2012 Ecma International. All rights reserved.
 /* eslint-disable es/no-proxy, unicorn/escape-case -- testing */
-import { DESCRIPTORS, FREEZING, GLOBAL, REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR, REDEFINABLE_PROTO } from '../helpers/constants.js';
+import { DESCRIPTORS, FREEZING, GLOBAL, REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR, REDEFINABLE_PROTO, RHINO } from '../helpers/constants.js';
 import parse from 'core-js-pure/es/json/parse';
 import defineProperty from 'core-js-pure/es/object/define-property';
 import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';
@@ -137,10 +137,15 @@ QUnit.test('JSON.parse', assert => {
     assert.throws(() => parse('{"a":01}', reviver), SyntaxError, `leading-zero-object ${ note }`);
     assert.same(parse('0.1', reviver), 0.1, `leading-zero-fraction ${ note }`);
 
+    assert.throws(() => parse('- 1', reviver), SyntaxError, `whitespace after minus ${ note }`);
     assert.throws(() => parse('1.', reviver), SyntaxError, `number-fraction-no-digits-1 ${ note }`);
     assert.throws(() => parse('-0.', reviver), SyntaxError, `number-fraction-no-digits-2 ${ note }`);
     assert.throws(() => parse('1.e5', reviver), SyntaxError, `number-fraction-no-digits-3 ${ note }`);
     assert.throws(() => parse('[1.,2]', reviver), SyntaxError, `number-fraction-no-digits-4 ${ note }`);
+    assert.throws(() => parse('{"a":[-01]}', reviver), SyntaxError, `nested-malformed-number-1 ${ note }`);
+    assert.throws(() => parse('[{"a":- 1}]', reviver), SyntaxError, `nested-malformed-number-2 ${ note }`);
+    assert.deepEqual(parse('["1.","- 1","-01",".5e"]', reviver), ['1.', '- 1', '-01', '.5e'], `number-like-strings ${ note }`);
+    assert.deepEqual(parse('{"1.":[-0.5e+1,10 ,2E-1],"- 1":{"-01":0}\n}', reviver), { '1.': [-5, 10, 0.2], '- 1': { '-01': 0 } }, `numbers-at-delimiters ${ note }`);
 
     assert.throws(() => parse('{"a":1,}', reviver), SyntaxError, `trailing-object-comma ${ note }`);
     assert.throws(() => parse('{"a":1,}x":2}', reviver), SyntaxError, `brace-instead-of-key-quote ${ note }`);
@@ -239,6 +244,7 @@ QUnit.test('JSON.parse', assert => {
 
   if (DESCRIPTORS) {
     const arr2 = parse('[1, 2]', function (key, value) {
+      if (key !== '') assert.same(getOwnPropertyDescriptor(this, key)?.value, value, `descriptor for reviver index ${ key }`);
       if (key === '0') defineProperty(this, '1', { configurable: false });
       if (key === '1') return 22;
       return value;
@@ -314,6 +320,17 @@ QUnit.test('JSON.parse', assert => {
       assert.same(getOwnPropertyDescriptor(result, 'length').writable, false, `array length stays non-writable ${ length }`);
       assert.arrayEqual(calls, ['0', '1', ''], `non-writable length reviver order ${ length }`);
     }
+  }
+
+  // Rhino's Reflect.deleteProperty does not delete array indices, https://github.com/mozilla/rhino/issues/2599
+  if (!RHINO) for (const replacement of [[1], { 0: 1 }]) {
+    if (DESCRIPTORS) defineProperty(replacement, '1', { value: 2, enumerable: true });
+    const result = parse('{"before":0,"target":0}', function (key, value) {
+      if (key === 'before') this.target = replacement;
+      return key === '0' || key === '1' ? undefined : value;
+    });
+    assert.false(hasOwn(result.target, '0'), 'delete index of replacement holder');
+    if (DESCRIPTORS) assert.same(result.target[1], 2, 'preserve non-configurable index of replacement holder');
   }
 
   if (typeof Proxy == 'function') {
