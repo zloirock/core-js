@@ -97,14 +97,22 @@ const dataWithoutIgnored = { ...data };
 
 for (const ignore of ignored) delete dataWithoutIgnored[ignore];
 
+// A Pages matrix job can check out a different commit from the one that triggered the workflow.
+const repository = process.env.GITHUB_REPOSITORY;
+const commit = repository && (await $({ quiet: true, nothrow: true })`git rev-parse --verify HEAD`).stdout.trim();
+const compatSource = commit ? `https://github.com/${ repository }/blob/${ commit }` : null;
+
 await Promise.all([
   write('data', dataWithoutIgnored),
   write('modules', modules),
   write('external', external),
   // version for compat data tests
-  fs.writeFile('tests/compat/compat-data.js', `;(typeof global != 'undefined' ? global : Function('return this')()).data = ${
-    JSON.stringify(data, null, '  ')
-  }`),
+  fs.writeFile('tests/compat/compat-data.js', [
+    ';(function (global, data, compatSource) {',
+    '  global.data = data;',
+    '  global.compatSource = compatSource;',
+    `})(typeof global != 'undefined' ? global : Function('return this')(), ${ JSON.stringify(data, null, '  ') }, ${ JSON.stringify(compatSource) });`,
+  ].join('\n')),
 ]);
 
 echo(chalk.green('compat data rebuilt'));

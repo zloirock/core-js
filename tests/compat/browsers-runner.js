@@ -8,6 +8,7 @@ function createElement(name, props) {
 var table = document.getElementById('table');
 var tests = window.tests;
 var data = window.data;
+var testsSource = window.compatSource || 'https://github.com/zloirock/core-js/blob/master';
 
 var environments = [
   'android',
@@ -64,7 +65,7 @@ for (var moduleName in tests) {
   });
 
   rowHeader.appendChild(createElement('a', {
-    href: "https://github.com/zloirock/core-js/blob/master/tests/compat/tests.js#:~:text='" + moduleName.replace(/-/g, '%2D') + "'",
+    href: testsSource + "/tests/compat/tests.js#:~:text='" + moduleName.replace(/-/g, '%2D') + "'",
     target: '_blank',
     innerHTML: moduleName
   }));
