@@ -304,6 +304,16 @@ QUnit.module('structuredClone', () => {
             assert.same(orig.byteOffset, clone.byteOffset);
             assert.arrayEqual(new Int8Array(orig.buffer), new Int8Array(clone.buffer));
           });
+
+          // in Firefox 15 only a fully polyfilled `DataView` exposes getters for shadowed fields
+          // https://bugzilla.mozilla.org/show_bug.cgi?id=734215
+          if (FIREFOX_VERSION === 15 && !fromSource('Object.getOwnPropertyDescriptor(DataView.prototype, "byteOffset").get')) {
+            for (const key of ['buffer', 'byteOffset', 'byteLength']) {
+              const shadowed = new DataView(array.buffer, 1, 2);
+              defineProperty(shadowed, key, { get: () => assert.avoid(key) });
+              assert.throws(() => structuredClone(shadowed), error => error.name === 'DataCloneError', key);
+            }
+          }
         });
       }
     }
@@ -429,6 +439,27 @@ QUnit.module('structuredClone', () => {
         copy = structuredClone(buffer);
         assert.arrayEqual(bufferToArray(copy), array, 'non-resizable-ab-1');
         assert.false(copy.resizable, 'non-resizable-ab-1');
+
+        for (const key of ['constructor', 'slice', 'byteLength', 'resizable', 'maxByteLength']) {
+          defineProperty(buffer, key, { get() { throw new Error(key); } });
+        }
+        copy = structuredClone(buffer);
+        assert.false(copy.resizable, 'shadowed properties do not make a fixed buffer resizable');
+        assert.arrayEqual(bufferToArray(copy), array, 'copies fixed buffer bytes with shadowed properties');
+
+        const length = 0x100003;
+        // eslint-disable-next-line es/no-resizable-and-growable-arraybuffers -- safe
+        const large = new ArrayBuffer(length, { maxByteLength: length + 1 });
+        const bytes = new Uint8Array(large);
+        const tail = [0x80, 0xFF, 0x7F, 1];
+        bytes.set(tail, length - tail.length);
+        for (const key of ['byteLength', 'resizable', 'maxByteLength']) {
+          defineProperty(large, key, { get() { throw new Error(key); } });
+        }
+        const largeCopy = structuredClone(large);
+        bytes[length - 1] = 0;
+        assert.same(largeCopy.maxByteLength, length + 1, 'preserves the maximum length');
+        assert.arrayEqual(new Uint8Array(largeCopy, length - tail.length), tail, 'copies the tail of a large buffer into independent storage');
 
         // eslint-disable-next-line es/no-resizable-and-growable-arraybuffers -- safe
         buffer = new ArrayBuffer(8, { maxByteLength: 16 });

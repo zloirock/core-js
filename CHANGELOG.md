@@ -43,6 +43,9 @@
   - Fixed `structuredClone` with getters that modify the source: `Map` / `Set` entries are snapshotted before recursive cloning, and deleted own properties of objects and arrays are skipped
   - Fixed `structuredClone` cloning `URL` and `URLSearchParams` as empty objects instead of throwing a `DataCloneError`: polyfilled instances and native ones in NodeJS <= 20 and Deno <= 2.8
   - Fixed the `structuredClone` polyfill cloning `RawJSON` objects as ordinary objects instead of throwing a `DataCloneError`
+  - Sped up cloning large resizable `ArrayBuffer`s in the `structuredClone` polyfill by copying their bytes in bulk
+  - Fixed `structuredClone` reading shadowed properties of buffers and views, such as `byteLength` and `byteOffset`
+  - Fixed `structuredClone` with `ArrayBuffer`, `DataView` and `Uint8Array` polyfills loaded after it. The `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfills now also use `Uint8Array.prototype.set` when it is installed later
   - The `structuredClone` polyfill now preserves length tracking for views of resizable `ArrayBuffer`s and growable `SharedArrayBuffer`s when the engine can clone them with that mode intact. The fallback creates fixed-length views
   - The `structuredClone` polyfill now throws a `DataCloneError` when cloning an out-of-bounds view of a resizable `ArrayBuffer`
   - Fixed `structuredClone` replacing buffer and view cloning errors with unrelated `DataCloneError` exceptions, and accepting detached views when their buffers had already been cloned

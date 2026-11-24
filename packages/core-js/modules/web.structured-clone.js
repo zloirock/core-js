@@ -3,8 +3,11 @@ var IS_PURE = require('../internals/is-pure');
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
 var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
+var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this-clause');
 var uncurryThisAccessor = require('../internals/function-uncurry-this-accessor');
+var getPrototypeOf = require('../internals/object-get-prototype-of');
 var fails = require('../internals/fails');
 var uid = require('../internals/uid');
 var isCallable = require('../internals/is-callable');
@@ -30,6 +33,7 @@ var mapIterate = require('../internals/map-iterate');
 var setIterate = require('../internals/set-iterate');
 var detachTransferable = require('../internals/detach-transferable');
 var isDetached = require('../internals/array-buffer-is-detached');
+var copyBytes = require('../internals/array-buffer-copy-bytes');
 var ENVIRONMENT = require('../internals/environment');
 var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
@@ -52,9 +56,6 @@ var setHas = SetHelpers.has;
 var setRemove = SetHelpers.remove;
 var objectKeys = getBuiltIn('Object', 'keys');
 var push = uncurryThis([].push);
-var arrayBufferTransfer = globalThis.ArrayBuffer && uncurryThis(globalThis.ArrayBuffer.prototype.transfer);
-var arrayBufferResize = globalThis.ArrayBuffer && uncurryThis(globalThis.ArrayBuffer.prototype.resize);
-var dataViewByteLength = globalThis.DataView && uncurryThisAccessor(globalThis.DataView.prototype, 'byteLength', 'get');
 var thisBooleanValue = uncurryThis(true.valueOf);
 var thisNumberValue = uncurryThis(1.1.valueOf);
 var thisStringValue = uncurryThis(''.valueOf);
@@ -177,19 +178,28 @@ var createDataTransfer = function () {
   return dataTransfer && dataTransfer.items && dataTransfer.files ? dataTransfer : null;
 };
 
+// look up getters at call time, including those inherited from `%TypedArray%.prototype`
+var getBufferGetter = function (prototype, key) {
+  while (prototype && !hasOwn(prototype, key)) prototype = getPrototypeOf(prototype);
+  return prototype && uncurryThisAccessor(prototype, key, 'get');
+};
+
+var getBufferOption = function (prototype, key, buffer) {
+  var get = getBufferGetter(prototype, key);
+  return get ? get(buffer) : prototype && prototype[key];
+};
+
 var cloneBuffer = function (value, map, $type) {
   if (mapHas(map, value)) return mapGet(map, value);
 
   var type = $type || classof(value);
-  var clone, length, options, source, target, i;
+  var clone;
 
   if (type === 'SharedArrayBuffer') {
     if (nativeRestrictedStructuredClone) clone = nativeRestrictedStructuredClone(value);
     // SharedArrayBuffer should use shared memory, we can't polyfill it, so return the original
     if (!clone || classof(clone) !== 'SharedArrayBuffer') clone = value;
   } else {
-    var DataView = globalThis.DataView;
-
     // detached buffers throw in `DataView` and `.slice`, but not in every engine
     if (isDetached(value)) {
       var buffers = mapGet(map, TRANSFER_BUFFERS);
@@ -197,20 +207,36 @@ var cloneBuffer = function (value, map, $type) {
       if (buffers && setHas(buffers, value)) return null;
       throw new DOMException('ArrayBuffer is detached', DATA_CLONE_ERROR);
     }
-    // `ArrayBuffer#slice` is not available in IE10
-    // `ArrayBuffer#slice` and `DataView` are not available in old FF
-    if (!DataView && !isCallable(value.slice)) throwUnpolyfillable('ArrayBuffer');
-    if (isCallable(value.slice) && !value.resizable) {
-      clone = value.slice(0);
+    var ArrayBuffer = globalThis.ArrayBuffer;
+    if (!ArrayBuffer) throwUnpolyfillable(type);
+    var prototype = ArrayBuffer.prototype;
+    var resizable = getBufferOption(prototype, 'resizable', value);
+    var slice = !resizable && prototype.slice;
+    // native `slice` reads the source constructor and can allocate in another realm
+    if (isCallable(slice) && !hasOwn(value, 'constructor') && getPrototypeOf(value) === prototype) {
+      clone = call(slice, value, 0);
     } else {
-      length = value.byteLength;
-      options = 'maxByteLength' in value ? { maxByteLength: value.maxByteLength } : undefined;
-      // eslint-disable-next-line es/no-resizable-and-growable-arraybuffers -- safe
+      // use `DataView` in IE10, where `ArrayBuffer#slice` is missing (FF<12 has neither)
+      var DataView = !resizable && globalThis.DataView;
+      if (!resizable && !DataView) throwUnpolyfillable(type);
+      var getByteLength = getBufferGetter(prototype, 'byteLength');
+      // in IE10-11, `byteLength` is a non-configurable own data property
+      var length = getByteLength ? getByteLength(value) : value.byteLength;
+      var options = resizable ? { maxByteLength: getBufferOption(prototype, 'maxByteLength', value) } : undefined;
       clone = new ArrayBuffer(length, options);
-      source = new DataView(value);
-      target = new DataView(clone);
-      for (i = 0; i < length; i++) {
-        target.setUint8(i, source.getUint8(i));
+      if (resizable) {
+        // older V8 limits resizable buffers to the maximum typed array length even when fixed buffers can be larger
+        // https://github.com/nodejs/node/blob/v20.0.0/deps/v8/src/builtins/builtins-arraybuffer.cc#L72-L84
+        copyBytes(value, clone, length);
+      } else {
+        var source = new DataView(value);
+        var target = new DataView(clone);
+        // in NodeJS 0.11.0-0.11.3 the `DataView` polyfill copies these methods from an instance to the prototype
+        var getUint8 = DataView.prototype.getUint8;
+        var setUint8 = DataView.prototype.setUint8;
+        for (var i = 0; i < length; i++) {
+          call(setUint8, target, i, call(getUint8, source, i));
+        }
       }
     }
   }
@@ -225,39 +251,53 @@ var cloneView = function (value, type, map) {
   // in some old engines like Safari 9, typeof C is 'object'
   // on Uint8ClampedArray or some other constructors
   if (!isObject(C)) throwUnpolyfillable(type);
-  var buffer = value.buffer;
+  var prototype = C.prototype;
+  var isDataView = type === 'DataView';
+  var getViewProperty = function (key) {
+    var get = getBufferGetter(prototype, key);
+    if (get) return get(value);
+    // in FF15 native `DataView` descriptor lookup throws even after the polyfill loads (fixed in FF16)
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=734215
+    if (isDataView && hasOwn(value, key) && prototype && key in prototype) throwUnpolyfillable(type);
+    // these are own properties on `DataView` instances in IE10 and on typed arrays in IE10-11
+    return value[key];
+  };
+  var buffer = getViewProperty('buffer');
   // Old WebKit can return null for the buffer of a detached view.
   // Validate the view even if its buffer has already been cloned.
   if (!buffer || isDetached(buffer)) throw new DOMException('ArrayBuffer is detached', DATA_CLONE_ERROR);
-  var isDataView = type === 'DataView';
-  var isGrowable = buffer.growable;
+  var bufferType = classof(buffer);
+  var isShared = bufferType === 'SharedArrayBuffer';
+  var resizable = getBufferOption(getBuiltIn(bufferType, 'prototype'), isShared ? 'growable' : 'resizable', buffer);
+  var size = isDataView ? 'byteLength' : 'length';
   var offset, length, cloned, clonedBuffer, byteLength, shared, sharedClone;
 
-  if (nativeRestrictedStructuredClone && (buffer.resizable || isGrowable)) {
+  if (nativeRestrictedStructuredClone && resizable) {
     // native cloning validates the view and preserves its length-tracking mode
     cloned = nativeRestrictedStructuredClone(value);
-    // older WebKit clones shared buffers as non-shared buffers
-    sharedClone = isGrowable && cloned.buffer.growable;
+    clonedBuffer = cloned.buffer;
+    // older WebKit clones a growable `SharedArrayBuffer` as a resizable `ArrayBuffer` with separate storage
+    // https://bugs.webkit.org/show_bug.cgi?id=312016
+    sharedClone = isShared && clonedBuffer.growable;
     if (sharedClone) {
       shared = mapGet(map, SHARED_OBJECTS);
       if (!shared) mapSet(map, SHARED_OBJECTS, shared = []);
       push(shared, value);
       push(shared, buffer);
     }
-    if ((!isGrowable || sharedClone) && !mapHas(map, buffer)) {
-      mapSet(map, buffer, cloned.buffer);
+    if ((!isShared || sharedClone) && !mapHas(map, buffer)) {
+      mapSet(map, buffer, clonedBuffer);
       return cloned;
     }
     if (sharedClone) return cloned;
     offset = cloned.byteOffset;
-    length = isDataView ? cloned.byteLength : cloned.length;
-    clonedBuffer = cloned.buffer;
+    length = cloned[size];
     // probe a temporary copy, never the source or the buffer shared by cloned views
     // nonempty fixed views become out of bounds; empty tracking views grow by one element
     // a copy that cannot be resized hides the mode, like without native cloning the view becomes fixed-length
     byteLength = offset + (length ? 0 : C.BYTES_PER_ELEMENT || 1);
     if (clonedBuffer.resizable && byteLength <= clonedBuffer.maxByteLength) {
-      arrayBufferResize(clonedBuffer, byteLength);
+      call(getBuiltInPrototypeMethod('ArrayBuffer', 'resize'), clonedBuffer, byteLength);
       if (!fails(function () {
         // polyfilled typed array methods may accept out-of-bounds views
         if (!isDataView) nativeRestrictedStructuredClone(cloned);
@@ -267,14 +307,14 @@ var cloneView = function (value, type, map) {
   } else {
     // like native cloning, reject out-of-bounds views: the probe above relies on it when pure core-js uses this polyfill
     // out-of-bounds data views throw on native accessors, out-of-bounds typed arrays - on copying
-    if (buffer.resizable && fails(function () {
-      if (isDataView) dataViewByteLength(value);
+    if (!isShared && resizable && fails(function () {
+      if (isDataView) getViewProperty('byteLength');
       // eslint-disable-next-line no-new -- thrower
       else new C(value);
     })) throw new DOMException(type + ' is out of bounds', DATA_CLONE_ERROR);
     // without native cloning, length-tracking views are cloned as fixed-length views
-    offset = value.byteOffset;
-    length = isDataView ? value.byteLength : value.length;
+    offset = getViewProperty('byteOffset');
+    length = getViewProperty(size);
   }
 
   return new C(cloneBuffer(buffer, map), offset, length);
@@ -607,7 +647,7 @@ var prepareTransfer = function (rawTransfer, map) {
     }
 
     if (type === 'ArrayBuffer') {
-      if (!detachTransferable && !arrayBufferTransfer) throwUnpolyfillable(type, TRANSFERRING);
+      if (!detachTransferable && !isCallable(getBuiltInPrototypeMethod('ArrayBuffer', 'transfer'))) throwUnpolyfillable(type, TRANSFERRING);
       setAdd(buffers, value);
       // Keep attached host buffers in mixed-list validation, e.g. Node's untransferable buffer pool.
       if (PROPER_TRANSFER_VALIDATION && length > 1 && !isDetached(value)) push(nativeTransfer, value);
@@ -702,10 +742,10 @@ var detachBuffer = function (buffer) {
   if (isDetached(buffer)) throw new DOMException('ArrayBuffer is detached', DATA_CLONE_ERROR);
   if (detachTransferable) {
     detachTransferable(buffer);
-  } else if (arrayBufferTransfer) {
-    arrayBufferTransfer(buffer);
   } else {
-    throwUnpolyfillable('ArrayBuffer', TRANSFERRING);
+    var transfer = getBuiltInPrototypeMethod('ArrayBuffer', 'transfer');
+    if (!isCallable(transfer)) throwUnpolyfillable('ArrayBuffer', TRANSFERRING);
+    call(transfer, buffer);
   }
   if (!isDetached(buffer)) throw new DOMException('ArrayBuffer is not detachable', DATA_CLONE_ERROR);
 };
