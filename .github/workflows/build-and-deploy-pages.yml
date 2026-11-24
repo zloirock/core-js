@@ -166,6 +166,11 @@ jobs:
         uses: actions/deploy-pages@v5
         with:
           artifact_name: github-pages-${{ github.run_attempt }}
+      # A finalized upload can take time to appear in the artifact list.
+      # See https://github.com/actions/deploy-pages/issues/451.
+      - name: Wait before retrying the Pages deployment
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 15
       - name: Deploy to GitHub Pages (retry)
         id: deployment-retry
         if: steps.current.outputs.publish == 'true' && steps.deployment.outcome == 'failure'
