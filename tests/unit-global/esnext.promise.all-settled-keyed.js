@@ -1,3 +1,5 @@
+import { nullProto } from '../helpers/helpers.js';
+
 QUnit.test('Promise.allSettledKeyed', assert => {
   assert.isFunction(Promise.allSettledKeyed);
   assert.arity(Promise.allSettledKeyed, 1);
@@ -12,11 +14,11 @@ QUnit.test('Promise.allSettledKeyed, resolved', assert => {
     b: Promise.resolve(2),
     c: Promise.resolve(3),
   }).then(it => {
-    assert.deepEqual(it, {
+    assert.deepEqual(it, nullProto({
       a: { value: 1, status: 'fulfilled' },
       b: { value: 2, status: 'fulfilled' },
       c: { value: 3, status: 'fulfilled' },
-    }, 'resolved with a correct value');
+    }), 'resolved with a correct value');
   });
 });
 
@@ -26,11 +28,11 @@ QUnit.test('Promise.allSettledKeyed, resolved with primitives', assert => {
     b: Promise.resolve(2),
     c: 3,
   }).then(it => {
-    assert.deepEqual(it, {
+    assert.deepEqual(it, nullProto({
       a: { value: 1, status: 'fulfilled' },
       b: { value: 2, status: 'fulfilled' },
       c: { value: 3, status: 'fulfilled' },
-    }, 'resolved with a correct value');
+    }), 'resolved with a correct value');
   });
 });
 
@@ -40,11 +42,11 @@ QUnit.test('Promise.allSettledKeyed, resolved with rejection', assert => {
     b: Promise.reject(2),
     c: Promise.resolve(3),
   }).then(it => {
-    assert.deepEqual(it, {
+    assert.deepEqual(it, nullProto({
       a: { value: 1, status: 'fulfilled' },
       b: { reason: 2, status: 'rejected' },
       c: { value: 3, status: 'fulfilled' },
-    }, 'resolved with a correct value');
+    }), 'resolved with a correct value');
   });
 });
 
@@ -85,11 +87,11 @@ QUnit.test('Promise.allSettledKeyed, mixed synchronous and asynchronous callback
     },
   };
   return Promise.allSettledKeyed.call(CustomPromise, { a: 1, b: 2, c: 3 }).then(result => {
-    assert.deepEqual(result, {
+    assert.deepEqual(result, nullProto({
       a: { status: 'fulfilled', value: 1 },
       b: { status: 'fulfilled', value: 2 },
       c: { status: 'fulfilled', value: 3 },
-    }, 'preserves all entries');
+    }), 'preserves all entries');
     assert.deepEqual(Object.keys(result), ['a', 'b', 'c'], 'key order');
   });
 });
@@ -104,7 +106,7 @@ QUnit.test('Promise.allSettledKeyed, rejected', assert => {
 
 QUnit.test('Promise.allSettledKeyed, resolved with empty object', assert => {
   return Promise.allSettledKeyed({}).then(it => {
-    assert.deepEqual(it, {}, 'resolved with a correct value');
+    assert.deepEqual(it, nullProto({}), 'resolved with a correct value');
   });
 });
 
@@ -113,7 +115,7 @@ QUnit.test('Promise.allSettledKeyed, resolved with hidden attributes', assert =>
   obj.visible = Promise.resolve(42);
   Object.defineProperty(obj, 'invisible', { value: Promise.resolve(99), enumerable: false });
   return Promise.allSettledKeyed(obj).then(it => {
-    assert.deepEqual(it, { visible: { status: 'fulfilled', value: 42 } }, 'ignores prototype/invisible');
+    assert.deepEqual(it, nullProto({ visible: { status: 'fulfilled', value: 42 } }), 'ignores prototype/invisible');
   });
 });
 
@@ -132,11 +134,11 @@ QUnit.test('Promise.allSettledKeyed, resolved with timeouts', assert => {
     b: new Promise(resolve => setTimeout(() => resolve(2), 10)),
     c: Promise.resolve(3),
   }).then(it => {
-    assert.deepEqual(it, {
+    assert.deepEqual(it, nullProto({
       a: { value: 1, status: 'fulfilled' },
       b: { value: 2, status: 'fulfilled' },
       c: { value: 3, status: 'fulfilled' },
-    }, 'keeps correct mapping, even with delays');
+    }), 'keeps correct mapping, even with delays');
   });
 });
 

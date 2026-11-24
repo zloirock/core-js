@@ -1,3 +1,5 @@
+import { nullProto } from '../helpers/helpers.js';
+
 QUnit.test('Promise.allKeyed', assert => {
   assert.isFunction(Promise.allKeyed);
   assert.arity(Promise.allKeyed, 1);
@@ -12,11 +14,11 @@ QUnit.test('Promise.allKeyed, resolved with primitives', assert => {
     b: Promise.resolve(2),
     c: 3,
   }).then(it => {
-    assert.deepEqual(it, {
+    assert.deepEqual(it, nullProto({
       a: 1,
       b: 2,
       c: 3,
-    }, 'resolved with a correct value');
+    }), 'resolved with a correct value');
   });
 });
 
@@ -26,11 +28,11 @@ QUnit.test('Promise.allKeyed, resolved', assert => {
     b: Promise.resolve(2),
     c: Promise.resolve(3),
   }).then(it => {
-    assert.deepEqual(it, {
+    assert.deepEqual(it, nullProto({
       a: 1,
       b: 2,
       c: 3,
-    }, 'resolved with a correct value');
+    }), 'resolved with a correct value');
   });
 });
 
@@ -66,7 +68,7 @@ QUnit.test('Promise.allKeyed, mixed synchronous and asynchronous callbacks', ass
     },
   };
   return Promise.allKeyed.call(CustomPromise, { a: 1, b: 2, c: 3 }).then(result => {
-    assert.deepEqual(result, { a: 1, b: 2, c: 3 }, 'preserves all entries');
+    assert.deepEqual(result, nullProto({ a: 1, b: 2, c: 3 }), 'preserves all entries');
     assert.deepEqual(Object.keys(result), ['a', 'b', 'c'], 'key order');
   });
 });
@@ -85,7 +87,7 @@ QUnit.test('Promise.allKeyed, resolved with rejection', assert => {
 
 QUnit.test('Promise.allKeyed, resolved with empty object', assert => {
   return Promise.allKeyed({}).then(it => {
-    assert.deepEqual(it, {}, 'resolved with a correct value');
+    assert.deepEqual(it, nullProto({}), 'resolved with a correct value');
   });
 });
 
@@ -94,7 +96,7 @@ QUnit.test('Promise.allKeyed, resolved with hidden attributes', assert => {
   obj.visible = Promise.resolve(42);
   Object.defineProperty(obj, 'invisible', { value: Promise.resolve(99), enumerable: false });
   return Promise.allKeyed(obj).then(it => {
-    assert.deepEqual(it, { visible: 42 }, 'ignores prototype/invisible');
+    assert.deepEqual(it, nullProto({ visible: 42 }), 'ignores prototype/invisible');
   });
 });
 
@@ -113,11 +115,11 @@ QUnit.test('Promise.allKeyed, resolved with timeouts', assert => {
     b: new Promise(resolve => setTimeout(() => resolve(2), 10)),
     c: Promise.resolve(3),
   }).then(it => {
-    assert.deepEqual(it, {
+    assert.deepEqual(it, nullProto({
       a: 1,
       b: 2,
       c: 3,
-    }, 'keeps correct mapping, even with delays');
+    }), 'keeps correct mapping, even with delays');
   });
 });
 
