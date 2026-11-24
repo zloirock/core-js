@@ -12,6 +12,7 @@ var append = uncurryThis(URLSearchParamsPrototype.append);
 var $delete = uncurryThis(URLSearchParamsPrototype['delete']);
 var forEach = uncurryThis(URLSearchParamsPrototype.forEach);
 var has = uncurryThis(URLSearchParamsPrototype.has);
+var set = uncurryThis(URLSearchParamsPrototype.set);
 var push = uncurryThis([].push);
 var params = new $URLSearchParams('a=1&a=2&b=3');
 
@@ -32,44 +33,45 @@ if (params + '' !== 'a=2') {
     value = toUSVString(value);
     var entries = [];
     var firstIndexes = create(null);
+    var start;
+    var matched = false;
     forEach(this, function (v, k) {
+      if (k === key) {
+        if (start === undefined) start = entries.length;
+        if (v === value) {
+          matched = true;
+          return;
+        }
+      }
       if (!hasOwn(firstIndexes, k)) firstIndexes[k] = entries.length;
       push(entries, { key: k, value: v });
     });
-    var entriesLength = entries.length;
-    var start = firstIndexes[key];
-    var index = start;
-    var matched = false;
-    var retained = false;
-    var entry;
-    while (index < entriesLength) {
-      entry = entries[index++];
-      if (entry.key === key) {
-        if (entry.value === value) matched = true;
-        else retained = true;
-      }
-    }
-    if (!retained) return $delete(this, key);
+    if (!hasOwn(firstIndexes, key)) return $delete(this, key);
     if (!matched) {
       // Even without a match, deleting must run the URL update steps.
       while (hasOwn(firstIndexes, key)) key += '\0';
       return $delete(this, key);
     }
     // Keep the prefix, extending the tail back over keys shared with it.
-    index = entriesLength;
+    var entriesLength = entries.length;
+    var index = entriesLength;
+    var entry;
     while (index > start) {
       entry = entries[--index];
       if (firstIndexes[entry.key] < start) start = firstIndexes[entry.key];
     }
-    index = start;
+    // Keep the first surviving entry in place so a bound URL never loses its query.
+    entry = entries[start];
+    set(this, entry.key, entry.value);
+    index = start + 1;
     while (index < entriesLength) {
       entry = entries[index];
       if (firstIndexes[entry.key] === index++) $delete(this, entry.key);
     }
-    index = start;
+    index = start + 1;
     while (index < entriesLength) {
       entry = entries[index++];
-      if (!(entry.key === key && entry.value === value)) append(this, entry.key, entry.value);
+      append(this, entry.key, entry.value);
     }
   }, { enumerable: true, unsafe: true });
 }

@@ -46,6 +46,11 @@ const NODE_DELETE_BOUND = NODE_NATIVE && NODE_VERSION < 1900;
 // Node 24.16+ (24.x) and 26.1+ capture the list length before converting value; also fails in 27 alpha.
 // Regression introduced by https://github.com/nodejs/node/pull/62266
 const NODE_DELETE_VALUE = !DENO_VERSION && (NODE_VERSION >= 2416 && NODE_VERSION < 2500 || NODE_VERSION >= 2601);
+// Native Node 20.12+ (20.x), 21.7+ (21.x), 22 and 23 drop trailing spaces of an opaque path on any update of bound parameters
+// of a URL without a fragment, even when the query remains: it is removed at once, which strips them, and written back lazily.
+// Regression introduced by https://github.com/nodejs/node/pull/51520
+// Not observable from 24.0, where opaque paths cannot end in unescaped spaces: https://github.com/whatwg/url/pull/844
+const NODE_OPAQUE_PATH_SPACES = NODE_NATIVE && NODE_VERSION >= 2012 && NODE_VERSION < 2400;
 
 // Native Node validates pair lengths too early.
 // https://github.com/nodejs/node/pull/47190
@@ -979,6 +984,19 @@ if (DESCRIPTORS) QUnit.test('URLSearchParams#delete with value updates the URL',
     assert.same(url.search, expected ? `?${ expected }` : '', query);
     assert.same(String(params), expected, 'parameters match the updated URL');
     assert.same(url.searchParams, params, 'preserves the searchParams object');
+  }
+});
+
+QUnit[NODE_OPAQUE_PATH_SPACES ? 'skip' : 'test']('URLSearchParams#delete with value preserves an opaque path', assert => {
+  for (const [query, expected] of [
+    ['a=remove&a=keep', 'a=keep'],
+    ['a=remove&b=1&a=keep&b=2', 'b=1&a=keep&b=2'],
+    ['b=1&a=remove&a=keep&b=2', 'b=1&a=keep&b=2'],
+  ]) {
+    const url = new URL(`data:space    ?${ query }`);
+    const { pathname } = url;
+    url.searchParams.delete('a', 'remove');
+    assert.same(String(url), `data:${ pathname }?${ expected }`, query);
   }
 });
 

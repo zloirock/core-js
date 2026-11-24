@@ -34,6 +34,7 @@
   - Fixed record key enumeration in the `URLSearchParams` polyfill, including symbol keys and properties changed during conversion
   - Fixed argument conversion order in the `URLSearchParams.prototype.delete` and `URLSearchParams.prototype.has` patches
   - Avoided rebuilding unaffected parameters and redundant native `delete` calls in the `URLSearchParams.prototype.delete(name, value)` patch for old engines
+  - Fixed the `URLSearchParams.prototype.delete(name, value)` patch losing trailing spaces in opaque URL paths when query parameters remain. [A similar native bug in NodeJS 20.12-20.20, 21.7, 22 and 23](https://github.com/nodejs/node/pull/51520) is not fixed to avoid forcing the polyfill in quite fresh versions
   - Made duplicate removal in the `URLSearchParams` polyfill's `delete` and `set` methods linear
   - Fixed `URLSearchParams` polyfill iterators ignoring new entries after returning `done: true`
   - Fixed the size of URL-bound `URLSearchParams` in engines without property descriptor support
