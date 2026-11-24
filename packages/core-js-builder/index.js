@@ -54,7 +54,9 @@ module.exports = async function ({
           process: false,
           setImmediate: false,
         },
-        entry: list.map(it => require.resolve(`core-js/modules/${ it }`)),
+        // webpack treats `!` in an entry request as a loader separator.
+        resolve: { alias: { 'core-js': dirname(require.resolve('core-js/package.json')) } },
+        entry: list.map(it => `core-js/modules/${ it }.js`),
         output: { filename: assetName, hashFunction: 'md5' },
         plugins: [compiler => compiler.hooks.shouldEmit.tap('core-js-builder', () => false)],
       });
