@@ -152,10 +152,10 @@ export function createExpressionDispatch({
     // `__proto__:` channels carry for those values. an argument that MAY be an object installs a
     // prototype the resolver does not follow, so the call stays unmodelled and keeps typeless dispatch
     // the inert verdict below models the NATIVE `Object.create`; a user-replaced static may return
-    // anything, so a mutated slot keeps the call unmodelled (the mutated-static invariant)
+    // anything. A captured pure import remains the same function across later global writes.
     const calleePair = resolveStaticCalleePair({ node: callee.node, ctx: { scope: callee.scope, path: callee } }, { method: 'create' });
     if (calleePair?.constructor === 'Object'
-      && !isMutatedStatic('Object', 'create', { node: callee.node, path: callee })
+      && (calleePair.imported || !isMutatedStatic('Object', 'create', { node: callee.node, path: callee }))
       && !prototypeValueMayDispatch(path.node.arguments?.[0], !!getScopeBinding({ scope: path.scope, name: 'undefined', path }))) {
       return new $Object('Object');
     }
@@ -429,7 +429,8 @@ export function createExpressionDispatch({
     if (path.node?.type !== 'CallExpression' && path.node?.type !== 'OptionalCallExpression') return null;
     const callee = path.get('callee');
     const pair = resolveStaticCalleePair({ node: callee.node, ctx: { scope: callee.scope, path: callee } }, { method });
-    if (pair?.constructor !== 'Object' || isMutatedStatic('Object', method, { node: callee.node, path: callee })) return null;
+    if (pair?.constructor !== 'Object'
+      || !pair.imported && isMutatedStatic('Object', method, { node: callee.node, path: callee })) return null;
     const args = path.get('arguments') ?? [];
     if (method === 'create') return args[0] ?? null;
     const target = args[0]?.node ? resolveNodeType(args[0]) : null;

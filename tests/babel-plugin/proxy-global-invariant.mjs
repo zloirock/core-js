@@ -96,7 +96,7 @@ function references(source) {
   traverse(ast, {
     ReferencedIdentifier(p) {
       if ((p.node.name === 'globalThis' || p.node.name === 'self')
-        && !p.scope.getBinding(p.node.name) && !p.findParent(parent => parent.isTSType() || parent.isFlow())) {
+        && !p.scope.getBinding(p.node.name) && !p.findParent(parent => parent.isTSType() || parent.isFlow() && !parent.isTypeCastExpression())) {
         found.push(p.node.name);
       }
     },
@@ -107,6 +107,7 @@ function references(source) {
 checkDeep('positive: every unbound runtime read is visible', references('consume(globalThis, self);'), ['globalThis', 'self']);
 checkDeep('negative: locals, member names and strings', references('function f(globalThis, self) { return globalThis.self + self; } const x = "self";'), []);
 checkDeep('negative: erased TS type query', references('type T = typeof globalThis;'), []);
+checkDeep('Flow cast keeps its runtime operand', references('consume((globalThis: typeof self));'), ['globalThis']);
 checkDeep('unbacked environment names', references('consume(window, global);'), []);
 
 let checked = 0;

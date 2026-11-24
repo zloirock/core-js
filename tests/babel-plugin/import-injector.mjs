@@ -11,13 +11,14 @@ import { runInNewContext } from 'node:vm';
 import ImportInjector from '../../packages/core-js-babel-plugin/internals/import-injector.js';
 import estreeToBabel from '../../packages/core-js-babel-plugin/internals/estree-to-babel.js';
 import { hostSlot, renderMemoActivation } from '../../packages/core-js-polyfill-provider/render.js';
+import { withTemporaryProperty } from '../helpers/restore-property.cjs';
 import { createChecker, findNode } from '../polyfill-provider/harness.mjs';
 
 const { BABEL_REQUIRE_FROM } = process.env;
 const requireBabel = BABEL_REQUIRE_FROM
   ? createRequire(pathToFileURL(`${ path.resolve(BABEL_REQUIRE_FROM) }/`).href)
   : createRequire(import.meta.url);
-const { transformAsync } = requireBabel('@babel/core');
+const { transformAsync, transformSync } = requireBabel('@babel/core');
 const t = requireBabel('@babel/types');
 
 const { check, checkDeep, checkTruthy, finish } = createChecker('import-injector');
@@ -77,6 +78,26 @@ function ordering(lines) {
     varLine.includes('_ref'));
   checkTruthy('reorderRefsAfterImports/sibling _helperVar survives the migration',
     varLine.includes('_helperVar'));
+}
+
+// Membership in a growing list of memo declarators must not be scanned once per
+// declarator, even when an initialized sibling forces the shared declaration to split.
+for (const count of [32, 64]) for (const split of [false, true]) {
+  const source = Array.from({ length: count }, (_, i) => `const x${ i } = getItems().includes('y');`).join('\n');
+  const { includes } = Array.prototype;
+  let comparisons = 0;
+  const { ast } = withTemporaryProperty(Array.prototype, 'includes', function (value, ...rest) {
+    if (value?.type === 'VariableDeclarator' && this[0]?.id?.name === '_ref' && this.length === count) comparisons += this.length;
+    return includes.call(this, value, ...rest);
+  // eslint-disable-next-line node/no-sync -- restore Array.prototype before another test runs
+  }, () => transformSync(source, {
+    configFile: false, babelrc: false, ast: true,
+    plugins: [...split ? [makeSiblingScopePush(['_helperVar'], { _helperVar: 42 })] : [],
+      ['@core-js', { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+  }));
+  const declarations = ast.program.body.filter(node => node.type === 'VariableDeclaration').flatMap(node => node.declarations);
+  check(`memo group/${ count }/split ${ split }/all memos`, declarations.filter(node => /^_ref\d*$/u.test(node.id.name)).length, count);
+  check(`memo group/${ count }/split ${ split }/membership work`, comparisons <= count, true);
 }
 
 // MULTIPLE foreign helpers merged into the shared node: every declarator stays initless and

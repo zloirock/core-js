@@ -8,4 +8,5 @@ function one() { return [1, 2, 3].at(0); }
 function two() { return [4, 5, 6].includes(5); }
 function three() { return [7, 8, 9].findLast(x => x > 7); }
 function four() { return [10, 11, 12].flat(); }
-one(); two(); three(); four();
+function five() { return [13].at(-1); }
+one(); two(); three(); four(); five();

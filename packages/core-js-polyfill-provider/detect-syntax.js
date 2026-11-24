@@ -39,9 +39,9 @@ const OBJECT_SPREAD_ENTRIES = [
 const ASYNC_ENTRIES = ['promise/constructor', 'promise/resolve'];
 // the async-iterator helper additionally rejects, and reads the async-iteration well-known symbol
 const ASYNC_ITERATION_ENTRIES = [...ASYNC_ENTRIES, 'promise/reject', 'symbol/async-iterator'];
-// an instance private field / accessor / brand check is lowered to a `WeakMap` per field ...
+// A private field or an auto-accessor needs per-instance storage.
 const PRIVATE_FIELD_ENTRIES = ['weak-map/constructor'];
-// ... and an instance private METHOD to one `WeakSet` per class, the brand it checks against
+// Private methods and accessors use one brand per class.
 const PRIVATE_METHOD_ENTRIES = ['weak-set/constructor'];
 // the named-capture-group lowering rebuilds the RegExp around a groups object held in a `WeakMap`
 // and re-dispatches `Symbol.replace`, so the regexp family under it comes along - `exec` because the
@@ -84,13 +84,22 @@ export const SYNTAX_DOWNGRADE_ENTRIES = {
   DECORATOR_RUNTIME_ENTRIES,
 };
 
-// a regexp literal whose pattern names a group, or back-references one
-const NAMED_CAPTURE_GROUP_RE = /\(\?<[^\W\d]|\\k</;
-
-// the pattern of a regexp literal in either dialect - babel keeps it on the node, estree in a
-// `regex` bag beside the (possibly unrepresentable) value
-function regexpPattern(node) {
-  return node.pattern ?? node.regex?.pattern ?? null;
+// The parser has already validated the pattern, including every backreference. Only a
+// group header outside a character class requests the named-capture lowering.
+function hasNamedGroup(node) {
+  const { pattern, flags } = node.regex ?? node;
+  if (!pattern?.includes('(?<')) return false;
+  const nestedClasses = flags?.includes('v');
+  let depth = 0;
+  for (let i = 0; i < pattern.length; i++) {
+    const c = pattern[i];
+    if (c === '\\\\') i++;
+    else if (c === '[' && (!depth || nestedClasses)) depth++;
+    else if (depth && c === ']') depth--;
+    else if (!depth && c === '(' && pattern.startsWith('?<', i + 1)
+      && pattern[i + 3] !== '=' && pattern[i + 3] !== '!') return true;
+  }
+  return false;
 }
 
 // the rules themselves, over RAW AST nodes - no framework-specific APIs, so a binding hands in
@@ -171,8 +180,7 @@ export function createSyntaxRules({ injectModulesForModeEntry, injectModulesForE
     },
     onRegExpLiteral(node) {
       if (isDisabled(node)) return;
-      const pattern = regexpPattern(node);
-      if (pattern && NAMED_CAPTURE_GROUP_RE.test(pattern)) injectAll(NAMED_GROUP_ENTRIES);
+      if (hasNamedGroup(node)) injectAll(NAMED_GROUP_ENTRIES);
     },
     onClassMember(node) {
       if (isDisabled(node)) return;
@@ -181,11 +189,10 @@ export function createSyntaxRules({ injectModulesForModeEntry, injectModulesForE
       // a STATIC private member is lowered with `Object.defineProperty` alone and owes nothing -
       // the arm exists to keep the instance sets off it
       if (!isPrivateMemberNode(node) || node.static) return;
-      // a private METHOD is one brand per class, checked with a `WeakSet`; a private FIELD and a
-      // private ACCESSOR are one `WeakMap` per member, holding its value. `kind` separates the two
-      // in both dialects - a getter-setter pair is a member with storage, not a brand
-      injectAll(isMethodShapeMember(node.type) && node.kind === 'method'
-        ? PRIVATE_METHOD_ENTRIES : PRIVATE_FIELD_ENTRIES);
+      // Explicit accessors use the method brand. An auto-accessor also stores its value.
+      const auto = node.type === 'ClassAccessorProperty' || node.type === 'AccessorProperty';
+      injectAll(isMethodShapeMember(node.type) ? PRIVATE_METHOD_ENTRIES : PRIVATE_FIELD_ENTRIES);
+      if (auto) injectAll(PRIVATE_METHOD_ENTRIES);
     },
     onVariableDeclaration(node) {
       if (isDisabled(node)) return;

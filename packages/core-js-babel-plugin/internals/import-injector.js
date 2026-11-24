@@ -932,20 +932,22 @@ export default class ImportInjector extends ImportInjectorState {
     const pulledDeclarators = [];
     const droppedNodes = new Set();
     const splitNodes = new Set();
+    function owned(d) {
+      return !d.init && d.id.type === 'Identifier' && refsSet.has(d.id.name);
+    }
     for (const stmt of body) {
       if (stmt.type !== 'VariableDeclaration' || stmt.kind !== 'var') continue;
-      const allInitless = stmt.declarations.every(d => !d.init && d.id.type === 'Identifier');
-      // pull our refs; when the whole node is initless also pull the foreign siblings (inert hoist)
-      const pulled = stmt.declarations.filter(d => !d.init && d.id.type === 'Identifier'
-        && (allInitless || refsSet.has(d.id.name)));
-      if (pulled.every(d => !refsSet.has(d.id.name))) continue; // sibling-only initless var migrates separately
-      pulledDeclarators.push(...pulled);
-      const remaining = stmt.declarations.filter(d => !pulled.includes(d));
-      if (remaining.length) {
-        stmt.declarations = remaining;
-        splitNodes.add(stmt);
-      } else {
+      if (!stmt.declarations.some(owned)) continue;
+      if (stmt.declarations.every(d => !d.init && d.id.type === 'Identifier')) {
+        for (const d of stmt.declarations) pulledDeclarators.push(d);
         droppedNodes.add(stmt);
+      } else {
+        stmt.declarations = stmt.declarations.filter(d => {
+          if (!owned(d)) return true;
+          pulledDeclarators.push(d);
+          return false;
+        });
+        splitNodes.add(stmt);
       }
     }
     if (!pulledDeclarators.length) return;

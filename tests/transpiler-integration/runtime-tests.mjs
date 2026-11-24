@@ -34,6 +34,11 @@ for (const [ext, exportResults] of [
   await rejects(verifyInNode(exportResults('{ clamp: 3, cooked: "hello" }'), 'wrong value', ext), { actual: 'ERR|AssertionError' });
   await rejects(verifyInNode('throw new SyntaxError();', 'bundle throw', ext), { actual: 'ERR|SyntaxError' });
   await rejects(verifyInNode(exportResults('{ clamp: _ref, cooked: "hello" }'), 'undeclared temp', ext), /undeclared plugin temps _ref/u);
+  const deadRead = 'function f() { var _ref; } if (false) consume(_ref);';
+  await rejects(verifyInNode(deadRead + exportResults('{ clamp: 4, cooked: "hello" }'), 'sibling scope', ext),
+    /undeclared plugin temps _ref/u);
+  await verifyInNode(`function f() { if (false) consume(_ref); var _ref; }${ exportResults('{ clamp: 4, cooked: "hello" }') }`,
+    'hoisted local', ext);
   for (const receiver of ['["before", "sib"]', 'values']) {
     const results = exportResults(`{ patched: "patched", control: 4, injected: ${ receiver }.at(-1) }`);
     const raw = `const values = ["before", "sib"];${ results }`;
@@ -49,7 +54,7 @@ for (const [ext, exportResults] of [
     await rejects(verify(exportResults(result), 'boxed result', ext), { actual: 'ERR|AssertionError' });
     checks++;
   }
-  checks += 9;
+  checks += 11;
 }
 let temporary;
 await rejects(withTmpDir(async dir => {

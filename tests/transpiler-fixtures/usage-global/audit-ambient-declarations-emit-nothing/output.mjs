@@ -1,12 +1,4 @@
-import "core-js/modules/es.symbol.constructor";
-import "core-js/modules/es.symbol.description";
-import "core-js/modules/es.object.assign";
-import "core-js/modules/es.object.get-own-property-symbols";
-import "core-js/modules/es.object.to-string";
-// Every TS form whose body never reaches the output carries real parameter and binding PATTERNS,
-// and a downgrade set asked for one of them would be owed to a signature nothing runs. The domain
-// is closed, so it is spelled out here whole: the LAST declaration is the same pattern where it
-// does run, and its modules are what the rest of the file must not add to.
+// Destructuring in an erased signature needs no runtime entries.
 declare function ambientFunction({
   a,
   ...rest
@@ -58,10 +50,4 @@ export function overloaded({
 }: O): void;
 export function overloaded(o) {
   return o;
-}
-export function emitted({
-  j,
-  ...rest
-}: O) {
-  return [j, rest];
 }

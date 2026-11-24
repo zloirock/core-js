@@ -211,25 +211,36 @@ const SAFE_REUSE_CASES = [
   {
     name: 'ParenthesizedExpression(Identifier) peeled',
     code: 'const arr = []; (arr)?.includes(1);',
-    plugins: ['typescript', ['parenthesizedExpression']],
+    plugins: ['typescript'],
+    parens: 1,
     headType: 'Identifier',
     headName: 'arr',
   },
   {
     name: 'nested ParenthesizedExpression peeled',
     code: 'const arr = []; ((arr))?.includes(1);',
-    plugins: ['typescript', ['parenthesizedExpression']],
+    plugins: ['typescript'],
+    parens: 2,
     headType: 'Identifier',
     headName: 'arr',
   },
 ];
 
-for (const { name, code, plugins, headType, headName } of SAFE_REUSE_CASES) {
-  const { helpers, program } = setup(code, plugins);
+for (const { name, code, plugins, headType, headName, parens = 0 } of SAFE_REUSE_CASES) {
+  const { helpers, program } = setup(code, plugins, { createParenthesizedExpressions: !!parens });
+  let receiver = pickPath(program, 'OptionalMemberExpression').node.object;
+  let depth = 0;
+  while (receiver.type === 'ParenthesizedExpression') {
+    receiver = receiver.expression;
+    depth++;
+  }
+  check(`isReusableReceiver/${ name }: source parentheses`, depth, parens);
   const exprStmt = runOptional(helpers, program, '_includes');
   const { test, type } = exprStmt.expression;
-  let ok = type === 'ConditionalExpression' && test.left.type === headType;
-  if (headName) ok &&= test.left.name === headName;
+  let head = test?.left.type === 'NullLiteral' ? test.right : test?.left;
+  while (head?.type === 'ParenthesizedExpression') head = head.expression;
+  let ok = type === 'ConditionalExpression' && head?.type === headType;
+  if (headName) ok &&= head.name === headName;
   checkTruthy(`isReusableReceiver/${ name }`, ok);
   check(`isReusableReceiver/${ name }: no generated var`,
     program.node.body.some(stmt => stmt.type === 'VariableDeclaration' && stmt.kind === 'var'), false);
@@ -1037,12 +1048,14 @@ for (const [name, code, receiverType] of [
 // guard's own memoize already ran the receiver SE - the body must carry ONLY the key SE (empty
 // here), never re-emitting the receiver SE
 {
-  const { helpers, program } = setup('getArr()?.includes(1);');
-  const se = [t.callExpression(t.identifier('recvSE'), [])];
+  const { helpers, program } = setup('(recvSE(), getArr())?.includes(1);');
+  const receiver = pickPath(program, 'OptionalMemberExpression').node.object;
+  const se = [receiver.expressions[0]];
   const exprStmt = runOptional(helpers, program, '_includes', { sideEffects: se, receiverEffectCount: 1 });
   // receiver SE (index < receiverEffectCount) is dropped from the body - it lives in the guard memo
   checkTruthy('hoistReceiverSE/optional guard drops already-run receiver SE from body',
     exprStmt.expression.type === 'ConditionalExpression'
+    && containsCallee(exprStmt.expression.test, 'recvSE')
     && !containsCallee(exprStmt.expression.alternate, 'recvSE')
     && exprStmt.expression.alternate.type !== 'SequenceExpression');
 }
@@ -2058,6 +2071,8 @@ for (const [label, before, calls, guards] of [
     ast: true, configFile: false, babelrc: false, filename: 'decided-conditional-alias.mjs',
     plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
   });
+  checkTruthy(`conditional var alias/${ label }: pure Promise.try`,
+    ast.program.body.some(node => node.type === 'ImportDeclaration' && node.source.value.endsWith('/promise/try')));
   let identityGuards = 0;
   t.traverseFast(ast, node => {
     if (node.type === 'ConditionalExpression' && node.test.type === 'BinaryExpression'

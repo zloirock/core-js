@@ -50,7 +50,6 @@ import { isAmbientFunctionNode } from './name-resolution.js';
 import {
   classConstructorFunction,
   cleanDestructureAliasWrites,
-  callPairing,
   pathOfNode,
   forOfHeadElements,
   getCallSiteTypeArgs,
@@ -60,6 +59,8 @@ import {
   isGuardedAliasingWrite,
   peelTSParenthesized,
   positionalPathAt,
+  bindingDeclaratorNode,
+  reachingReassignmentValueNode,
   prologueEndIndex,
   unwrapExpressionChain,
   unwrapRuntimeExpr,
@@ -101,7 +102,8 @@ export function createCallResolution({
   resolveKnownInstanceMember,
   KNOWN_INSTANCE_METHOD_RETURN_TYPES,
   staticPairFromPolyfillEntry,
-  instanceDispatcherKey,
+  pairedInstanceDispatcher,
+  collectBindingReferences,
   lookupNested,
   KNOWN_STATIC_METHOD_RETURN_TYPES,
   swapAliasToTSTypeQueryWithSubst,
@@ -140,20 +142,26 @@ export function createCallResolution({
   // A pure instance dispatcher returns the method, which the emitted call invokes
   // through call/apply with the same identifier receiver. A borrowed method selected
   // from another receiver proves no return type. Use the original member return registry.
-  // Argument-dependent refinements stay opaque here; receiver inheritance is retained.
+  // Capturing the selected receiver in an assignment preserves its element type.
   function dispatchedInstanceReturn(callee) {
-    const key = resolveMemberPropertyName(callee);
-    if (key !== 'call' && key !== 'apply') return null;
-    const pairing = callPairing(callee.parentPath?.node, null, { staticIsMutated: isMutatedStatic });
-    const dispatch = pairing?.callee;
-    if (dispatch?.type !== 'CallExpression' || dispatch.callee.type !== 'Identifier' || !pairing.thisArg) return null;
-    const selected = unwrapExpressionChain(dispatch.arguments[0]);
-    const invoked = unwrapExpressionChain(pairing.thisArg);
-    if (dispatch.arguments.length !== 1 || selected?.type !== 'Identifier' || invoked?.type !== 'Identifier'
-      || selected.name !== invoked.name) return null;
-    const method = instanceDispatcherKey(pathOfNode(callee, dispatch.callee));
-    if (!method) return null;
-    const receiver = pathOfNode(callee.parentPath, pairing.thisArg);
+    const dispatch = pairedInstanceDispatcher(callee);
+    if (!dispatch) return null;
+    const { pairing, capture, selected, invoked, method } = dispatch;
+    let receiver = pathOfNode(callee.parentPath, capture?.right ?? pairing.thisArg);
+    if (!receiver) return null;
+    if (!capture) {
+      const binding = getScopeBinding({ scope: receiver.scope, name: invoked.name, path: receiver });
+      const decl = bindingDeclaratorNode(binding);
+      // A stored receiver used only by this dispatch keeps the type of the reaching write.
+      // Other uses can expose it or replace its elements before the call.
+      if (decl && !decl.init && binding.constantViolations?.length === 1
+        && collectBindingReferences(binding, receiver)?.every(ref => ref.node === selected || ref.node === invoked
+          || ref.parentPath?.node.type === 'AssignmentExpression'
+            && ref.parentPath.node.operator === '=' && ref.parentPath.node.left === ref.node)) {
+        const source = reachingReassignmentValueNode({ binding, usagePath: receiver });
+        receiver = pathOfNode(receiver, source) ?? receiver;
+      }
+    }
     return resolveKnownInstanceMember(callee, KNOWN_INSTANCE_METHOD_RETURN_TYPES, callee.parentPath, receiver, method, pairing);
   }
 

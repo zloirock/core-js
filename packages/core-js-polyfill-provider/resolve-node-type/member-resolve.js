@@ -117,6 +117,7 @@ export function createMemberResolve({
   isGetterFreshLiteral,
   pathSlotWritten,
   instanceDispatcherKey,
+  pairedInstanceDispatcher,
   isWrittenContainerSlot,
   isMutatedStatic,
   spellsMemberKey,
@@ -1089,9 +1090,12 @@ export function createMemberResolve({
       if (closure && memberNode?.type === 'VariableDeclarator' && memberNode.init === ref.node
         && t.isIdentifier(memberNode.id)) continue;
       if (!isMemberRead) {
-        if (memberNode?.type === 'CallExpression' && memberNode.arguments.length === 1
-          && memberNode.arguments[0] === receiver.node && member.node === memberNode
-          && !arrayMethodMayRetype(instanceDispatcherKey(member.get('callee')))) continue;
+        if (memberNode?.type === 'CallExpression' && memberNode.arguments[0] === receiver.node && member.node === memberNode) {
+          const callee = member.get('callee');
+          const method = callee.node.type === 'Identifier' && memberNode.arguments.length === 1
+            ? instanceDispatcherKey(callee) : pairedInstanceDispatcher(callee)?.method;
+          if (!arrayMethodMayRetype(method)) continue;
+        }
         if (!dispatchOnly || !elementWrites) return true;
         if (!iteratesValues(receiver)) return true;
         (iterations ??= []).push(receiver);

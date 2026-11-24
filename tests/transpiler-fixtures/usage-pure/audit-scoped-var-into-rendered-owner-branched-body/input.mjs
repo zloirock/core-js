@@ -1,10 +1,10 @@
-// Locals and generated memos stay inside the retained body, with every inner polyfill applied.
-// Conditional realm-or-null returns stay guarded; unrelated local declarations allow proving
-// a definite returned realm and injecting the static beyond it.
+// The calls inside the branch keep their own temporaries. The call after the optional
+// chain uses a separate module-level temporary, including when window is absent.
 export const branchedBody = (() => {
   if (globalThis) {
-    const inner = 'ab'.padStart(3, '-');
+    const inner = ['ab'].at(0).padStart(3, '-');
     return inner.length ? globalThis : null;
   }
   return null;
 })()?.window?.JSON.parse('1');
+export const outer = [branchedBody].at(0);

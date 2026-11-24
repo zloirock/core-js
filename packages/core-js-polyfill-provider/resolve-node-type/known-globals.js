@@ -68,6 +68,7 @@ export function createKnownGlobals({
   babelNodeType,
   isMemberLike,
   instanceSlotWritten,
+  arrayElementsMayBeRetyped,
   isMutatedStatic = () => false,
   isNullableOrNever,
   resolveMemberPropertyName,
@@ -234,6 +235,10 @@ export function createKnownGlobals({
     const key = objectType.primitive ? (PRIMITIVE_WRAPPERS[objectType.type] || null) : objectType.constructor;
     if (!key) return null;
     const hint = lookupNested(table, key, name);
+    // An emitted dispatcher borrows its return type from the original method.
+    // A stored array may have received different elements before that invocation.
+    if (pairing && key === 'Array' && (hint === 'inherit' || hint?.type === 'inherit')
+      && arrayElementsMayBeRetyped(object, callPath, { followed: pairing.thisArg })) return null;
     if (!hint || instanceSlotWritten?.(object, name) || isMutatedStatic(`${ key }.prototype`, name, { node: path.node, path })) return null;
     if (key === 'String' && hasOwn(STRING_PROTOCOLS, name)
       && (pairing ? pairing.argsUnknown || pairing.args.length : callPath?.node.arguments?.length)) {

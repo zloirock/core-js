@@ -567,7 +567,7 @@ const cases = [
     } = getWin()?.Promise;
     r = typeof resolve;
   `,
-    'function', [], 'ERR|TypeError',
+    'function', [], 'TypeError',
   ],
   [
     'stored-root', `
@@ -582,7 +582,7 @@ const cases = [
     } = (held = globalThis.window)?.Promise;
     r = typeof resolve;
   `,
-    'function', [], 'ERR|TypeError',
+    'function', [], 'TypeError',
   ],
   [
     'prefix-at', `
@@ -597,7 +597,7 @@ const cases = [
     } = (list.at(0), globalThis.window)?.Promise;
     r = typeof resolve;
   `,
-    'function', [], 'ERR|TypeError',
+    'function', [], 'TypeError',
   ],
   [
     'prefix-has-own', `
@@ -612,7 +612,7 @@ const cases = [
     } = (Object.hasOwn(list, 0), globalThis.window)?.Promise;
     r = typeof resolve;
   `,
-    'function', [], 'ERR|TypeError',
+    'function', [], 'TypeError',
   ],
   [
     'prefix-alias', `
@@ -628,7 +628,7 @@ const cases = [
     } = (list.flat(), eff("p"), w).Promise;
     r = typeof resolve;
   `,
-    'function', ['p'], 'ERR|TypeError',
+    'function', ['p'], 'TypeError',
   ],
   [
     'assignment-nested', `
@@ -645,7 +645,7 @@ const cases = [
     } = (globalThis.window?.self).Promise);
     r = name;
   `,
-    'resolve', [], 'ERR|TypeError',
+    'resolve', [], 'TypeError',
   ],
   [
     'fallback-prefix', `
@@ -659,7 +659,7 @@ const cases = [
     } = ((eff("p"), globalThis.window)?.self).Promise ?? {};
     r = typeof resolve;
   `,
-    'function', ['p'], 'ERR|TypeError',
+    'function', ['p'], 'TypeError',
   ],
   [
     'quiet-tail', `
@@ -952,7 +952,7 @@ const cases = [
     })?.Promise;
     r = typeof resolve;
   `,
-    'function', [7], 'ERR|TypeError',
+    'function', [7], 'TypeError',
   ],
   [
     'probe-nested-synth', `
@@ -977,7 +977,7 @@ const cases = [
     })?.Promise;
     r = typeof resolve;
   `,
-    'function', [7], 'ERR|TypeError',
+    'function', [7], 'TypeError',
   ],
   [
     'prefix-nested-host', `
@@ -999,7 +999,7 @@ const cases = [
     }), globalThis.window)?.Promise;
     r = typeof resolve;
   `,
-    'function', [7], 'ERR|TypeError',
+    'function', [7], 'TypeError',
   ],
   [
     'flat-guarded-residual-prefix', `
@@ -1022,7 +1022,7 @@ const cases = [
 ];
 
 async function checkCase([name, code, result, effects = [], absent = null]) {
-  const source = scenarioSource(code);
+  const source = scenarioSource(absent ? code.replace('const effects = [];', 'const effects = global.caseEffects;') : code);
   for (const method of ['usage-global', 'usage-pure']) {
     const options = { method, version: '4.0', targets: { ie: 11 } };
     const babel = (await transformAsync(source, { filename: 'input.mjs', configFile: false, babelrc: false, plugins: [[babelPlugin, options]] })).code;
@@ -1033,11 +1033,18 @@ async function checkCase([name, code, result, effects = [], absent = null]) {
     check(`${ name }/${ method }/imports`, JSON.stringify([...importSet(single)].sort()), JSON.stringify([...importSet(babel)].sort()));
     check(`${ name }/${ method }/phase imports`, JSON.stringify([...importSet(post)].sort()), JSON.stringify([...importSet(single)].sort()));
     for (const present of absent === null ? [true] : [false, true]) {
-      const expected = !present && absent ? absent : `OK|${ JSON.stringify(result) }|${ JSON.stringify(effects) }`;
+      const expected = `OK|${ JSON.stringify(present ? result : absent) }|${ JSON.stringify(effects) }`;
       for (const [host, output] of [['native', source], ['babel', babel], ['unplugin', single], ['pre+post', post]]) {
         if (host === 'native' && method === 'usage-pure') continue;
         const file = path.join(DIR, `case-${ count++ }.mjs`);
-        await fs.outputFile(file, `${ present ? 'global.window = global;' : 'delete global.window;' }\n${ output }`);
+        let runnable = `${ present ? 'global.window = global;' : 'delete global.window;' }\n${ output }`;
+        if (absent) {
+          const fixture = `source-${ count }.mjs`;
+          await fs.outputFile(path.join(DIR, fixture), runnable);
+          runnable = `export const effects = global.caseEffects = [];
+            export const r = await import('./${ fixture }').then(m => m.r, error => error.name);`;
+        }
+        await fs.outputFile(file, runnable);
         check(`${ name }/${ method }/${ present }/${ host }/full`, await runInWorker(file, { strip: false }), expected);
         if (host !== 'native') check(`${ name }/${ method }/${ present }/${ host }/stripped`, await runInWorker(file, { stripGlobals: ['Promise', 'Iterator', 'globalThis'] }), expected);
       }

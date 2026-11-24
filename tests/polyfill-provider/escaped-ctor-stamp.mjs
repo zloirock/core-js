@@ -237,6 +237,18 @@ const NAME_ROWS = [
     ['shadowed alias', 'const Held = Map; function read(Held) { const { C: { groupBy } } = { C: Held }; }'],
     ['foreign selected slot', 'const { C: { groupBy } } = { C: flag ? Object : local };'],
   ].map(([name, code]) => ({ name: `literal native static negative: ${ name }`, code, homeOnly: ['Map'], withContainerCensus: true })),
+  ...['flag ? a : b', 'flag && a || b'].map(selection => ({
+    name: `object rest excludes the nested constructor on both arms of ${ selection }`,
+    code: 'const a = { C: Map, keep: Set }; const b = { C: Map };'
+      + ` const { C: { name }, ...rest } = ${ selection }; hand(rest);`,
+    homeOnly: ['Map'], realm: ['Set'], mintedToo: ['Set'], withContainerCensus: true,
+  })),
+  {
+    name: 'a later write can copy the excluded constructor to another key',
+    code: 'const a = { C: Map }; const b = { C: Map }; a.other = a.C;'
+      + ' const { C: { name }, ...rest } = flag ? a : b; hand(rest);',
+    realm: ['Map'], mintedToo: ['Map'], withContainerCensus: true,
+  },
   {
     name: 'positional wrapper renders no identity guard',
     code: 'function read(flag) { let M = Map; if (flag) M = Set; const [{ groupBy }] = [M]; use(groupBy); }',
@@ -2460,6 +2472,32 @@ for (const parser of adapters) {
     const candidates = [...CENSUS_STATIC_RECEIVERS.get(program)(read.object, true)];
     check(`${ parser.name }: recollected receiver/${ count }`, JSON.stringify(candidates), count > 64 ? '["Map"]' : '[]');
   }
+}
+
+// Repeating object rest over one deep selection must not rewalk every arm for every pattern.
+for (const parser of adapters) {
+  const counts = [];
+  for (const size of [24, 48]) {
+    const source = ['const v0 = { C: Map };'];
+    for (let i = 0; i < size; i++) source.push(`const v${ i + 1 } = flag ? v${ i } : v${ i };`);
+    for (let i = 0; i < size; i++) source.push(`const { C: c${ i }, ...r${ i } } = v${ size };`);
+    const program = parser.parseAndScope(source.join('\n')).node;
+    let visits = 0;
+    for (const statement of program.body.slice(1, size + 1)) {
+      const selection = statement.declarations[0].init;
+      const arm = selection.consequent;
+      Object.defineProperty(selection, 'consequent', {
+        get() {
+          visits++;
+          return arm;
+        },
+      });
+    }
+    collectFileCensus(program, [mutationShapesReducer(), escapedCtorReferencesReducer()]);
+    counts.push(visits);
+  }
+  checkTruthy(`${ parser.name }: object rest visits scale with the number of patterns`,
+    counts[0] > 0 && counts[1] <= counts[0] * 2.25);
 }
 
 finish();

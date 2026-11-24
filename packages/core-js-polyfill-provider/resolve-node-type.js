@@ -6,6 +6,7 @@ import {
   allProxySelectingInit,
   argumentOverridesSlot,
   cachedContainerPaths,
+  callPairing,
   climbTransparentWrapperPath,
   collectParamBindingNames,
   containerSlotWritten,
@@ -23,7 +24,6 @@ import {
   isNullLiteralNode,
   isTypeAnnotationWrapper,
   isVoidExpression,
-  kebabToCamel,
   lookupReadPath,
   objectLevelPairedProperty,
   ownerWritePathIndex,
@@ -45,6 +45,7 @@ import {
   SKIPPABLE_WRAPPER_TYPES,
   staleVarRedeclNodes,
   unwrapRuntimeExpr,
+  unwrapExpressionChain,
   valueIsDroppedAt,
   varInitStaleByRedecl,
   wrapScopeBindingLookup,
@@ -91,7 +92,7 @@ import {
   typeRefSegments,
 } from './resolve-node-type/ast-shapes.js';
 import { isKnownGlobalName, staticReceiverHint } from './detect-usage/globals.js';
-import { decidedLiveOperandKey, pureEntryTarget } from './detect-usage/resolve.js';
+import { decidedLiveOperandKey, pureEntryTarget, pureInstanceMethod } from './detect-usage/resolve.js';
 import { createAwaited } from './resolve-node-type/awaited.js';
 import { createBindingAnalysis } from './resolve-node-type/binding-analysis.js';
 import { createCallResolution } from './resolve-node-type/call-resolution.js';
@@ -989,6 +990,7 @@ function createResolveNodeType(babelNodeType, t, {
     isMemberLike,
     isMutatedStatic,
     instanceSlotWritten,
+    arrayElementsMayBeRetyped: (...args) => arrayElementsMayBeRetyped(...args),
     isNullableOrNever: (...args) => isNullableOrNever(...args),
     resolveMemberPropertyName: (...args) => resolveMemberPropertyName(...args),
     resolveGlobalName: (...args) => resolveGlobalName(...args),
@@ -2241,7 +2243,7 @@ function createResolveNodeType(babelNodeType, t, {
   // because the binding-analysis and guard clusters instantiated upstream consume it as a service dep
   function staticPairFromPolyfillBinding(scope, name, useStart, path = null, read = null) {
     const target = pureEntryTarget(getPolyfillBindingEntry(scope, name, useStart, useBindingThunk({ scope, name, path, read })));
-    return target?.member ? { constructor: target.global, method: target.member } : null;
+    return target?.member ? { constructor: target.global, method: target.member, imported: true } : null;
   }
 
   // the binding a name read resolves to, deferred: the injector asks it only of a USER record
@@ -2255,10 +2257,29 @@ function createResolveNodeType(babelNodeType, t, {
     const { name } = path.node;
     const useBinding = useBindingThunk({ scope: path.scope, name, path, read: path.node });
     const entry = getPolyfillBindingEntry(path.scope, name, hopAnchorStart({ node: path.node, ctx: { path } }), useBinding);
-    const segments = entry?.split('/');
+    const method = pureInstanceMethod(entry);
     // Instance dispatchers are module imports. A closer declaration can use the same name.
-    if (segments?.at(-2) !== 'instance' || useBinding()?.scope?.parent) return null;
-    return kebabToCamel(segments.at(-1));
+    return method && !useBinding()?.scope?.parent ? method : null;
+  }
+
+  // Both selecting and invoking the same receiver are reads when a pure dispatcher
+  // supplies a non-mutating method. An unrelated or borrowed invocation may write.
+  function pairedInstanceDispatcher(callee) {
+    if (unwrapExpressionChain(callee?.node?.object)?.type !== 'CallExpression') return null;
+    const key = resolveMemberPropertyName(callee);
+    if (key !== 'call' && key !== 'apply') return null;
+    const pairing = callPairing(callee.parentPath.node, null, { staticIsMutated: isMutatedStatic });
+    const dispatch = pairing?.callee;
+    if (dispatch?.type !== 'CallExpression' || dispatch.callee.type !== 'Identifier' || !pairing.thisArg) return null;
+    const selected = unwrapExpressionChain(dispatch.arguments[0]);
+    const invoked = unwrapExpressionChain(pairing.thisArg);
+    const capture = selected?.type === 'AssignmentExpression' && selected.operator === '=' ? selected : null;
+    const target = capture ? capture.left : selected;
+    if (dispatch.arguments.length !== 1 || target?.type !== 'Identifier' || invoked?.type !== 'Identifier'
+      || target.name !== invoked.name) return null;
+    const method = instanceDispatcherKey(pathOfNode(callee, dispatch.callee));
+    if (!method) return null;
+    return { pairing, selected, invoked, capture, method };
   }
 
   // the hop-shaped ask: `hop` stands on the identifier spelling `name`, its anchor
@@ -2505,7 +2526,8 @@ function createResolveNodeType(babelNodeType, t, {
     resolveKnownInstanceMember,
     KNOWN_INSTANCE_METHOD_RETURN_TYPES,
     staticPairFromPolyfillEntry,
-    instanceDispatcherKey,
+    pairedInstanceDispatcher,
+    collectBindingReferences,
     lookupNested,
     KNOWN_STATIC_METHOD_RETURN_TYPES,
     swapAliasToTSTypeQueryWithSubst,
@@ -2735,6 +2757,7 @@ function createResolveNodeType(babelNodeType, t, {
     isGetterFreshLiteral,
     pathSlotWritten,
     instanceDispatcherKey,
+    pairedInstanceDispatcher,
     isWrittenContainerSlot,
     isMutatedStatic,
     spellsMemberKey,

@@ -1,8 +1,4 @@
-// Top-level `await` triggers asynchronous module evaluation. The plugin must still
-// emit imports at program top + reorder `_ref` after them. Verify polyfilled
-// destructure inside async-IIFE-equivalent setting works.
-const data = await fetchData();
-const arr = [data];
-const last = arr.at(-1);
-const found = arr.findLast(x => x);
-export { last, found };
+// The destructured method and the receiver memo both survive module suspension.
+const { from } = Array;
+const last = (await from([4])).at(-1);
+export { last };

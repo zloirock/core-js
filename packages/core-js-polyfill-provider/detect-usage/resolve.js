@@ -2283,6 +2283,12 @@ export function guaranteedRealmObjectName(name) {
   return !!name && POSSIBLE_GLOBAL_OBJECTS.has(name) && !!resolveBuiltInMeta({ kind: 'global', name });
 }
 
+// Generic and typed instance entries dispatch the same method on their argument.
+export function pureInstanceMethod(entry) {
+  const parts = entry?.split('/');
+  return parts?.at(-2) === 'instance' ? kebabToCamel(parts.at(-1)) : null;
+}
+
 // the (global, member) a pure entry names - `array/of` -> Array + `of`, a family entry
 // (`map`, `map/constructor`) naming the global with no member of its own. the segment split
 // is the injector's, so a member whose spelling the kebab head cannot carry reads the same

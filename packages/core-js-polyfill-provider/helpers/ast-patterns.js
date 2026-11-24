@@ -2904,12 +2904,14 @@ function cachedScopeVars(node) {
 // minted declarator lands whatever slot spells it
 export function invalidateScopeVarIndex(path, rewrittenAncestors = null) {
   const owner = findNearestVarScopeOwner(path);
-  // A sibling lowering can replace lexical declarations with vars and move writes.
-  // Final memo proofs need the live indexes, once per ancestor in that emission phase.
+  // Siblings can move writes and remove var, Annex B or TypeScript declarations.
+  // A later pass needs the live indexes once per ancestor.
   if (rewrittenAncestors) for (let p = path; p?.node; p = p.parentPath) {
     if (rewrittenAncestors.has(p.node)) continue;
     rewrittenAncestors.add(p.node);
     scopeVarsCache.delete(p.node);
+    tsRuntimeBindingsCache.delete(p.node);
+    scopeBlockFunctionsCache.delete(p.node);
     scopeReassignCache.delete(p.node);
     ownerParentIndexCache.delete(p.node);
     ownerWritePathIndexCache.delete(p);

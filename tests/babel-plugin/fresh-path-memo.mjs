@@ -39,9 +39,18 @@ async function parseProgram(code, parserPlugins = []) {
 {
   const programPath = await parseProgram('const a = 1;\nconst b = 2;');
   const [, targetNode] = programPath.node.body;
+  const walk = programPath.traverse;
+  let walks = 0;
+  programPath.traverse = function (...args) {
+    walks++;
+    return walk.apply(this, args);
+  };
   const first = freshPathOfNode(programPath, targetNode);
+  check('cold lookup visits the owner', walks, 1);
   checkTruthy('live lookup finds the path', first?.node === targetNode);
   checkTruthy('repeated lookup reuses the memo', freshPathOfNode(programPath, targetNode) === first);
+  check('memo hit skips the owner walk', walks, 1);
+  delete programPath.traverse;
 }
 
 // re-targeted arm: replaceWith points the stored path at a DIFFERENT node - the memo hit must

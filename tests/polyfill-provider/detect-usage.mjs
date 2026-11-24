@@ -3565,18 +3565,18 @@ const BRANCHING_HOP = 'const w1 = { k: Map };\nconst w2 = { k: Set };\nconst box
 
 // a branching hop names NO single container, so the primary answers nothing while each arm walks the
 // remaining path into the sink
-runBoth('container union/both arms of a branching hop reach the sink', BRANCHING_HOP, (adapter, prog, lbl) => {
-  const unionSink = [];
-  check(`${ lbl } primary`, containerWalkUnion({ adapter, prog, unionSink }), null);
-  checkDeep(`${ lbl } sink`, unionSink, ['Map', 'Set']);
-});
-
-// ... and with no sink the arms are not enumerated at all: every `buildDestructuringInitMeta` caller
-// that passes none (a fallback branch's leaf, a per-branch meta) reaches this same walk in global,
-// and an enumeration there has nowhere to put its answers
-runBoth('container union/a sink-less walk leaves the arms alone', BRANCHING_HOP, (adapter, prog, lbl) => {
-  check(lbl, containerWalkUnion({ adapter, prog }), null);
-});
+for (const hasSink of [false, true]) runBoth(`container union/branch lookups with sink=${ hasSink }`, BRANCHING_HOP,
+  (adapter, prog, lbl) => {
+    const lookedUp = new Set();
+    const unionSink = hasSink ? [] : null;
+    const extraAdapter = { getBinding(options) {
+      if (options.name === 'w1' || options.name === 'w2') lookedUp.add(options.name);
+      return superBaseAdapter.getBinding(options);
+    } };
+    check(`${ lbl } primary`, containerWalkUnion({ adapter, prog, unionSink, extraAdapter }), null);
+    checkDeep(`${ lbl } branch bindings`, [...lookedUp].sort(), hasSink ? ['w1', 'w2'] : ['w2']);
+    if (hasSink) checkDeep(`${ lbl } sink`, unionSink, ['Map', 'Set']);
+  });
 
 // the sink holds receiver NAMES: an arm the walk resolves nothing for contributes nothing, or the
 // union axis crosses a nameless entry with every reachable key

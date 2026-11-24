@@ -4865,13 +4865,13 @@ function checkRuntimeParamPatternsUntouched() {
     generator: 'function* f([a, b] = [1, 2].flat()) { yield a; }\nf();',
     'async generator': 'async function* f([a, b] = [1, 2].flat()) { yield a; }\nf();',
     'object method': 'const o = { m([a, b] = [1, 2].flat()) { return a; } };\no.m();',
-    'object setter': 'const o = { set v([a, b]) { this.x = a; } };\no.v = [1, 2].flat();',
+    'object setter': 'const o = { set v([a = [[1]].flat(), b]) { this.x = [a, b]; } };\no.v = [, 2];',
     'object arrow property': 'const o = { m: ([a, b] = [1, 2].flat()) => a };\no.m();',
     'class method': 'class C { m([a, b] = [1, 2].flat()) { return a; } }\nnew C().m();',
     'class static method': 'class C { static m([a, b] = [1, 2].flat()) { return a; } }\nC.m();',
     'class private method': 'class C { #m([a, b] = [1, 2].flat()) { return a; } run() { return this.#m(); } }\nnew C().run();',
     'class constructor': 'class C { constructor([a, b] = [1, 2].flat()) { this.a = a; } }\nnew C();',
-    'class setter': 'class C { set v([a, b]) { this.x = a; } }\nnew C().v = [1, 2].flat();',
+    'class setter': 'class C { set v([a = [[1]].flat(), b]) { this.x = [a, b]; } }\nnew C().v = [, 2];',
     'class field arrow': 'class C { m = ([a, b] = [1, 2].flat()) => a; }\nnew C().m();',
     IIFE: '(function ([a, b] = [1, 2].flat()) { return a; })();',
     'parameter property default': 'class C { constructor(public a = [1, 2].flat()) {} }\nnew C();',
@@ -4884,6 +4884,17 @@ function checkRuntimeParamPatternsUntouched() {
   };
   for (const [name, source] of Object.entries(forms)) {
     check(`walked-params/${ name }`, injectsModule(source, 'array.flat'), true);
+    if (name.endsWith('setter')) {
+      const output = createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 } }).transform(source, 'setter.js').code;
+      const program = programOf(output);
+      let params;
+      walkAstNodes({ root: program, visit(node) {
+        if (node.kind === 'set') params = node.value.params;
+      } });
+      const [first, second] = params?.[0]?.elements ?? [];
+      checkDeep(`walked-params/${ name }/bindings and default`, [params?.length, first?.left?.name, first?.right?.callee?.property?.name, second?.name],
+        [1, 'a', 'flat', 'b']);
+    }
   }
 }
 checkRuntimeParamPatternsUntouched();
@@ -6007,51 +6018,25 @@ function checkSingleBareProbePerAllocation() {
 }
 checkSingleBareProbePerAllocation();
 
-// `generateUnusedName` is a PROTOTYPE method; the cascade path patches it for the duration of one
-// plan walk and restores it in `finally`. the restored value has to be the method itself, not a
-// bound copy of it - a bound copy is an own property, so each walk would wrap the previous wrapper
-// and the chain would grow monotonically for the life of the file
-function checkUnusedNameRestoreIdentity() {
-  const inj = new ImportInjector({ mode: 'actual', pkg: 'x' });
-  const prototypeMethod = Object.getPrototypeOf(inj).generateUnusedName
-    ?? Object.getPrototypeOf(Object.getPrototypeOf(inj)).generateUnusedName;
-  // wrap `generateUnusedName` the way the emitter's own tracking wrapper does
-  function withTracked(target, fn) {
-    const orig = inj.generateUnusedName;
-    inj.generateUnusedName = () => {
-      const name = orig.call(inj);
-      target.push(name);
-      return name;
-    };
-    try {
-      return fn();
-    } finally {
-      inj.generateUnusedName = orig;
-    }
-  }
-  check('tracked-unused/prototype method exists', typeof prototypeMethod, 'function');
-  const names = [];
-  withTracked(names, () => inj.generateUnusedName());
-  check('tracked-unused/restores the prototype method', inj.generateUnusedName === prototypeMethod, true);
-  // a second walk must restore to the SAME function object - reference equality is what rules the
-  // chain out; a bound copy would differ here even though the names still come out right
-  const restoredAfterFirst = inj.generateUnusedName;
-  withTracked(names, () => inj.generateUnusedName());
-  check('tracked-unused/restore is idempotent across walks', inj.generateUnusedName === restoredAfterFirst, true);
-  // nesting still composes: the inner walk restores the OUTER wrapper, so the outer keeps tracking
-  const outer = [];
-  const inner = [];
-  withTracked(outer, () => {
-    withTracked(inner, () => inj.generateUnusedName());
-    inj.generateUnusedName();
-  });
-  check('tracked-unused/inner walk collects its own name', inner.length, 1);
-  check('tracked-unused/outer walk sees both names', outer.length, 2);
-  check('tracked-unused/prototype method restored after nesting', inj.generateUnusedName === prototypeMethod, true);
-  // and the names themselves stay unique and well-formed through all of it
-  check('tracked-unused/names are distinct', new Set([...names, ...outer]).size, names.length + outer.length);
+// An exclusion in a declaration binds its own unused name. Assignment exclusions
+// instead need a declared temp, including when a user has taken the first spelling.
+{
+  const src = 'const _unused = 8; const { from, ...rest } = Array; let of, tail; ({ of, ...tail } = Array); use(from, rest, of, tail, _unused);';
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const output = plugin.transform(src, 'sentinels.mjs', 'pre').code;
+  const program = programOf(output);
+  const slots = {};
+  const declaredSentinels = [];
+  walkAstNodes({ root: program, visit(node) {
+    if (node.type === 'Property' && ['of', 'from'].includes(node.key.name)) slots[node.key.name] = node.value.name;
+    if (node.type === 'VariableDeclarator' && !node.init) declaredSentinels.push(node.id.name);
+  } });
+  check('tracked-unused/unique exclusion bindings', new Set([slots.from, slots.of, '_unused']).size, 3);
+  check('tracked-unused/declaration binds its exclusion inline', /^_unused\d+$/u.test(slots.from) && !declaredSentinels.includes(slots.from), true);
+  check('tracked-unused/assignment owns exactly one declaration', declaredSentinels.filter(name => name === slots.of).length, 1);
+  const second = plugin.transform(output, 'sentinels.mjs', 'post')?.code ?? output;
+  checkDeep('tracked-unused/second pass retains the bindings', second.match(/\b_unused\d*\b/gu), output.match(/\b_unused\d*\b/gu));
 }
-checkUnusedNameRestoreIdentity();
 
 // shared probe for the two param-pattern tables below: transform, then report whether the module
 // the row is keyed on came out. A throw is reported as its message rather than as `false` so a
@@ -6140,7 +6125,13 @@ for (const [expression, expected] of [
   const source = 'export const { from } = Array, { includes, ...rest } = obj;';
   const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
   // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
-  const parsed = parseSync('output.mjs', output);
+  const parsed = parseSync('output.mjs', output, { showSemanticErrors: true });
+  const names = parsed.program.body.filter(node => node.type === 'ExportNamedDeclaration')
+    .flatMap(node => node.declaration?.declarations.map(decl => decl.id.name) ?? node.specifiers.map(spec => spec.exported.name));
+  check('the captured binding is exported exactly once', names.filter(name => name === 'from').length, 1);
+  // eslint-disable-next-line node/no-sync -- check that this parser rejects a duplicate binding
+  check('capture oracle detects duplicate exports', parseSync('output.mjs', `${ output }\nexport const from = 0;`,
+    { showSemanticErrors: true }).errors.length > 0, true);
   check('a captured export retires the old host without duplicate bindings', parsed.errors.length, 0);
   check('a separate exported rest level stays native', output.includes('@core-js/pure/actual/instance/includes'), false);
   check('a captured export retains the native rest declaration',
@@ -7521,6 +7512,18 @@ module.exports = [name, reads];`;
   runInNewContext(source, { module: original });
   runInNewContext(code, { module: transformed, require });
   checkDeep('nested helper consumer/getter and method name', transformed.exports, original.exports);
+  const program = programOf(code);
+  const helpers = new Map();
+  let chain = null;
+  walkAstNodes({ root: program, visit(node) {
+    if (node.type === 'VariableDeclarator' && node.init?.callee?.name === 'require') helpers.set(node.id.name, node.init.arguments[0].value);
+    if (node.type !== 'CallExpression' || node.arguments[0]?.type !== 'CallExpression') return;
+    const [child] = node.arguments;
+    const [receiver] = child.arguments;
+    if (receiver?.object?.name === 'Source' && receiver.property?.name === 'A') chain = [helpers.get(node.callee.name), helpers.get(child.callee.name)];
+  } });
+  checkDeep('nested helper consumer/both imported helpers consume the getter', chain,
+    ['@core-js/pure/actual/function/instance/name', '@core-js/pure/actual/get-iterator-method']);
   check('nested helper consumer/no receiver declaration', /_ref\d*\s*=\s*Source\.A/u.test(code), false);
 }
 

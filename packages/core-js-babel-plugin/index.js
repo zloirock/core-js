@@ -23,6 +23,7 @@ import {
   foldWalkReach,
   methodReadsUsageCensus,
   withTraversalCaches,
+  invalidateScopeVarIndex,
   memberKeyName,
   memberKeyNamesReducer,
   nestedTSRuntimeDeclarationsReducer,
@@ -148,6 +149,7 @@ import {
   receiverSequenceTailKeys,
   storedUserAssignmentOf,
   unbackedRealmHopFoldAbove,
+  resolveInlineCalleeFunction,
   resolveKey as sharedResolveKey,
   realmSelectionCollapseOperand,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
@@ -160,7 +162,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/members';
 import { isPolyfillableOptional, mutatedStaticLandingVerdict } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
-import { NARROW_ENTRY } from '@core-js/polyfill-provider';
+import { hasOwnStaticDefinition, hasStaticDefinitions, NARROW_ENTRY } from '@core-js/polyfill-provider';
 import createASTHelpers, {
   deoptionalizeAstNode,
   rangePreservingTypes,
@@ -603,6 +605,9 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
       let originalBodyNodes = new WeakSet();
       let exitedBodyNodes = null;
       let sourceGlobalUses = new WeakMap();
+      let hasSiblingPlugins = false;
+      let sweepAfterExit = false;
+
       // does the LATE paren pass have work on our OWN tree? the early pass answers it and OVERWRITES
       // this - the `true` is the reset value (`resetPerFilePrimitives`), so a file that never reaches
       // that pass at all (pre bailed on a destroyed Program, and with it `programExit`) still takes
@@ -1797,10 +1802,11 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
       function usageCallback(meta, path) {
         const global = meta.kind === 'global' ? meta.name : meta.object;
         if (isKnownGlobalName(global)) {
-          // A source reference that usage-global leaves raw is no late introduction. Keep its
-          // name too: a sibling can replace a marker's spelling without replacing the node.
-          if (lateEscapeProgram && sourceGlobalUses.get(path.node) !== global) refreshLateCtorEscapes();
-          else if (!lateEscapeProgram) sourceGlobalUses.set(path.node, global);
+          // A sibling can keep the member node while changing its key or removing a shadow.
+          // Record the static only when the original usage actually resolved to this global.
+          const use = hasSiblingPlugins && path.node.object?.name === global ? `${ global }.${ memberKeyName(path.node) }` : global;
+          if (lateEscapeProgram && sourceGlobalUses.get(path.node) !== use) refreshLateCtorEscapes();
+          else if (!lateEscapeProgram) sourceGlobalUses.set(path.node, use);
         }
         return isPure ? usagePureCallback(meta, path) : usageGlobalCallback(meta, path);
       }
@@ -1926,6 +1932,9 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
           suppressProxyGlobals: false,
           walkAnnotations: false,
         }) : null;
+
+      // Babel expands and removes visitor aliases on the first helper traversal.
+      const lateMemberHandler = helperVisitors?.['MemberExpression|OptionalMemberExpression'];
 
       // --- init: per-file state reset ---
 
@@ -2273,13 +2282,15 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         return true;
       }
 
-      function preTraverse(path, visitors) {
+      function preTraverse(path) {
         if (!beginFile(path) || skipFile) return;
         // the HOST rewrite, ahead of detection: a realm-selecting destructure init names ONE object,
         // so every meta below resolves against that object instead of against a branch of it, and no
         // route has to unpick a selection the plan has already declared dead
         if (isPure) for (const site of prePassSites) destructureEmit.collapseRealmSelectingHost(site.path);
         prePassSites = null;
+        hasSiblingPlugins = path.hub.file.opts.plugins.length > 1;
+        const visitors = hasSiblingPlugins ? siblingUsageVisitors : mainUsageVisitors;
         function walk() {
           return path.traverse(visitors);
         }
@@ -2444,7 +2455,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
       // one whole-program post-sweep for built-ins a sibling transform injects AFTER our pre-pass.
       // BOTH methods need it: usage-pure SUBSTITUTES the introduced reference (`Promise`->`_Promise`),
       // usage-global INJECTS the side-effect import - either way the reference surfaced after pre() ran,
-      // so the primary pass never saw it. two shapes:
+      // so the primary pass never saw it:
       //   - raw globals (regenerator mutating a node in-place to `Promise`, `using` referencing
       //     `SuppressedError`). a sibling-introduced bare global lands here whenever it is not otherwise
       //     covered; current transforms happen to put such globals in helper bodies (swept by
@@ -2453,27 +2464,40 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
       //     helper, no co-located method) reaches a polyfill ONLY through here
       //   - statics inlined into an EXISTING statement (babel@8 emits `Object.assign(...)` for object
       //     spread under setSpreadProperties; the rest-spread plugin skips it, so pre() never saw it).
-      //     an introduced static is `<global>.<static>`, synthetic (no source position); source members
-      //     carry a position and were already handled in pre(). shape alone is NOT enough to isolate it
-      //     (see the member visitor: the plugin's own proxy chains share the shape) - the object must
-      //     also be a real polyfillable global
-      // `core-js-disable-file` is honored upstream (programExit returns before this runs); a line-level
-      // disable cannot reach an introduced node - it has no source position to match against disabledLines
+      //     A sibling can reuse a node or its position. Compare the live static with
+      //     its original spelling and honor any source position preserved by the sibling.
+      // Syntax dependencies introduced in usage-global, such as Promise for async, use the same walk.
       function postSweepIntroduced(path) {
-        const memberHandler = helperVisitors?.['MemberExpression|OptionalMemberExpression'];
         // entry-global has no usage visitor (it replaces an entry import, never detects usage), so
         // there is nothing to sweep - skip the whole-program walk
-        if (!memberHandler) return;
+        if (!lateMemberHandler) return;
         const isHandled = usageVisitors?.[USAGE_VISITORS_IS_HANDLED];
         // A synthetic static also contains its global Identifier. Inspect each live top-level
         // child as Babel reaches it, so rewrites and requeued statements keep their usual order.
         function mayHoldGlobal(node) {
           return node.type === 'Identifier' && isKnownGlobalName(node.name);
         }
-        // read-only where the primary traversal is: its climbs share the same runs
-        withTraversalCaches(!isPure, () => path.traverse({
+        // A replacement without its own location still shares a positioned parent's
+        // opt-out. Children carrying their own locations retain their own directives.
+        function inheritsOptOut(at) {
+          return disabledLines?.size && !at.node.loc
+            && isDisabledByLines(at.findParent(parent => !!parent.node.loc)?.node, disabledLines);
+        }
+        // A sibling may remove a shadow without replacing the use or its enclosing scope.
+        let refreshed;
+        let introducedOrigins;
+        function refreshIntroducedScope(at) {
+          if (!refreshed?.has(at.scope.path.node)) invalidateScopeVarIndex(at, refreshed ??= new WeakSet());
+        }
+        let lateSyntax = hasSiblingPlugins && syntaxVisitors;
+        if (lateSyntax && disabledLines?.size) {
+          lateSyntax = Object.fromEntries(Object.entries(lateSyntax).map(([kind, visit]) => [kind, at => {
+            if (!inheritsOptOut(at)) visit(at);
+          }]));
+        }
+        const visitors = {
           Statement(statement) {
-            if (statement.parent === path.node && !containsNode(statement.node, mayHoldGlobal)) statement.skip();
+            if (!lateSyntax && statement.parent === path.node && !containsNode(statement.node, mayHoldGlobal)) statement.skip();
           },
           'MemberExpression|OptionalMemberExpression'(member) {
             const obj = member.node.object;
@@ -2484,13 +2508,25 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
             // sibling-introduced `Object.assign`. requiring the object to be a real polyfillable
             // global excludes those synth names (`_globalThis` / `_Array$from` are not globals);
             // the handler then makes the polyfillability call (bails on already-handled / no-polyfill)
-            if (typeof member.node.start !== 'number' && obj?.type === 'Identifier'
-              && isKnownGlobalName(obj.name) && !member.scope.getBinding(obj.name)) memberHandler(member);
+            if (obj?.type !== 'Identifier' || !isKnownGlobalName(obj.name)) return;
+            const introduced = hasSiblingPlugins
+              ? sourceGlobalUses.get(member.node) !== `${ obj.name }.${ memberKeyName(member.node) }`
+              : typeof member.node.start !== 'number';
+            if (introduced && !member.scope.getBinding(obj.name) && !shouldSkipPath(member) && !inheritsOptOut(member)) {
+              if (hasSiblingPlugins) refreshIntroducedScope(member);
+              lateMemberHandler(member);
+            }
           },
           Identifier(idPath) {
             // This sweep claims globals alone; local and minted names need no scope lookup.
             if (!isKnownGlobalName(idPath.node.name)) return;
             if (!idPath.isReferencedIdentifier()) return;
+            // A read already served by its parent owns no independent global here.
+            if (isHandled?.(idPath.node)) return;
+            const { name } = idPath.node;
+            const original = sourceGlobalUses.get(idPath.node);
+            const introduced = hasSiblingPlugins && original !== name;
+            if (introduced) refreshIntroducedScope(idPath);
             // adapter.hasBinding (vs raw `getBindingIdentifier`) folds in TS-runtime shadows
             // estree-toolkit & babel scope miss (`enum`, `namespace`, `const enum`,
             // `import X = require()`) plus type-only TSImportEquals filtering. pass `idPath`
@@ -2510,12 +2546,53 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
             if (isInUpdateOperand(idPath.parentPath) || isAssignOrForXWriteTargetPath(idPath)) return;
             // same predicate as the primary visitor - skip disabled / type-annotation /
             // delete-target positions so this sweep doesn't overrule their exclusions
-            if (shouldSkipPath(idPath)) return;
+            if (shouldSkipPath(idPath) || inheritsOptOut(idPath)) return;
             // mirror `handleIdentifier` - TS type-only positions never need a polyfill
             if (isTSTypeOnlyIdentifierPath(idPath)) return;
-            // see `handleBinaryIn` - already covered by the outer BinaryExpression rewrite
-            if (isHandled?.(idPath.node)) return;
-            usageCallback({ kind: 'global', name: idPath.node.name }, idPath);
+            usageCallback({ kind: 'global', name }, idPath);
+            if (original !== false) return;
+            let source = peelParenAndTSSlotPath(idPath);
+            while (source.parentPath.isLogicalExpression()
+              || source.parentPath.isConditionalExpression() && source.key !== 'test'
+              || source.parentPath.isSequenceExpression() && source.parent.expressions.at(-1) === source.node) {
+              source = peelParenAndTSSlotPath(source.parentPath);
+            }
+            const parent = source.parentPath;
+            const origin = parent.isReturnStatement() ? parent.getFunctionParent()
+              : parent.isArrowFunctionExpression() && source.key === 'body' ? parent
+              : parent.isVariableDeclarator() && source.key === 'init' ? source : null;
+            if (origin?.node) {
+              introducedOrigins ??= new Map();
+              if (!introducedOrigins.has(name)) introducedOrigins.set(name, new WeakSet());
+              introducedOrigins.get(name).add(origin.node);
+            }
+          },
+        };
+        withTraversalCaches(!isPure, () => path.traverse(lateSyntax ? mergeVisitors(visitors, lateSyntax) : visitors));
+        // A newly exposed value can reach an earlier use through a return or alias.
+        // Check its actual producer: unrelated lowered code may deliberately read a native static.
+        if (introducedOrigins) withTraversalCaches(!isPure, () => path.traverse({
+          'MemberExpression|OptionalMemberExpression'(member) {
+            const key = memberKeyName(member.node);
+            let origin;
+            for (const [name, producers] of introducedOrigins) {
+              if (key !== null && !hasOwnStaticDefinition(name, key)) continue;
+              if (!origin) {
+                const receiver = peelSkippableWrapperPath(peelSkippableWrapperPath(member.get('object')).resolve());
+                origin = receiver.isCallExpression() || receiver.isOptionalCallExpression()
+                  ? resolveInlineCalleeFunction({
+                    node: receiver.node, seen: new Set(), ctx: { scope: receiver.scope, path: receiver, adapter },
+                  }, { allowIdentityParam: true })?.node
+                  : receiver.node;
+              }
+              if (!producers.has(origin)) continue;
+              if (shouldSkipPath(member) || inheritsOptOut(member)) return;
+              if (!isPure && key !== null) usageGlobalCallback({ kind: 'property', object: name, key, placement: 'static' }, member);
+              else {
+                lateMemberHandler(member);
+                return;
+              }
+            }
           },
         }));
       }
@@ -2549,6 +2626,18 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         destructureEmit.joinBodylessVarBlocks(path, containsNode);
         rewalkRetainedForInits();
         destructureEmit.rehomeOwnedComments();
+        // Run the backstop once, after a later sibling can edit the same node. Module
+        // transforms consume our injected imports in their exit and need them before it.
+        if (hasSiblingPlugins && !this.file.get('@babel/plugin-transform-modules-*')) {
+          const { plugins } = this.file.opts;
+          const current = plugins.findIndex(sibling => sibling.key === this.key);
+          sweepAfterExit = current !== -1 && plugins.slice(current + 1).some(sibling => sibling.visitor.Program?.exit?.length);
+        }
+        if (!sweepAfterExit) finishUsage(path);
+        exitedBodyNodes = new WeakSet(path.node.body);
+      }
+
+      function finishUsage(path) {
         postSweepIntroduced(path);
         // drain deferred synth-swap receivers via program walk - finds receivers via
         // node-identity WeakMap regardless of where sibling plugins (transform-parameters
@@ -2563,16 +2652,12 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         restoreIdleRelocations(path.node);
         // a file that injected nothing prints as written: the wrapper splices are undone
         restoreUnclaimedFlattens(path.node, injector);
-        exitedBodyNodes = new WeakSet(path.node.body);
-        // outputDebug() + closure-captured state cleanup deferred to postHook so the
-        // late-CJS detection (`postHook`'s diagnostic warn) can add to
-        // debug output before format(). siblings' programExit + post may run AFTER ours;
-        // nulling here would make postHook bail early and silently drop the ESM/CJS warning
       }
 
       // --- post(): detect sibling CJS transform ---
 
       function postHook() {
+        if (sweepAfterExit) finishUsage(this.file.path);
         // LAST reachable point: `post()` runs after every sibling's `Program:exit`, so a shape a
         // later-ordered sibling inserted is compensated here or nowhere. ahead of the injector bail -
         // a skipped file is reprinted just the same
@@ -2614,6 +2699,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         // The census holds written value nodes, the directive candidates hold paths,
         // and a selection without a source span is keyed by the node itself.
         lateEscapeProgram = sourceGlobalUses = null;
+        hasSiblingPlugins = false;
         prePassSites = fileCensus = escapedCtorNames = mutatedStatics = mutationRoots = null;
         writtenContainerSlots = containerSlotIndex = memberKeyNames = format = disabledLines = null;
         entryDirectiveCandidates.length = 0;
@@ -2634,6 +2720,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         importStyle = format = null;
         originalBodyNodes = null;
         exitedBodyNodes = null;
+        sweepAfterExit = false;
         sourceGlobalUses = new WeakMap();
         lateEscapeProgram = null;
         parensPending = true;
@@ -2731,22 +2818,24 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         };
       }
 
-      if (!isPure) {
-        const syntaxVisitors = createSyntaxVisitors({
-          injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack,
-        });
-        return {
-          pre: withBrand(function usageGlobalPre() {
-            preTraverse(this.file.path, mergeVisitors(usageVisitors, syntaxVisitors));
-          }),
-          visitor: { Program: { exit: withBrand(programExit) } },
-          post: withBrand(postHook),
-        };
-      }
+      const syntaxVisitors = method === 'usage-global' ? createSyntaxVisitors({
+        injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack,
+      }) : null;
+      const mainUsageVisitors = isPure ? usageWalkVisitors : mergeVisitors(usageVisitors, syntaxVisitors);
+      // Compose before Babel expands the shared visitors during the first file.
+      // Only a value whose local declaration disappears can expose an existing
+      // consumer. A native fallback preserved by lowering is still the same read.
+      const siblingUsageVisitors = mergeVisitors({
+        ReferencedIdentifier(at) {
+          const { name } = at.node;
+          if (at.key !== 'object' && at.key !== 'callee' && hasStaticDefinitions(name)
+            && adapter.hasBinding({ name, scope: at.scope, path: at })) sourceGlobalUses.set(at.node, false);
+        },
+      }, mainUsageVisitors);
 
       return {
-        pre: withBrand(function usagePurePre() {
-          preTraverse(this.file.path, usageWalkVisitors);
+        pre: withBrand(function usagePre() {
+          preTraverse(this.file.path);
         }),
         visitor: { Program: { exit: withBrand(programExit) } },
         post: withBrand(postHook),

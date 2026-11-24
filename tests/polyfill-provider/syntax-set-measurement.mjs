@@ -208,6 +208,8 @@ const FORMS = {
   },
   PRIVATE_METHOD_ENTRIES: {
     configurations: [
+      ['getter', 'export class C { get #x() { return 1; } m() { return this.#x; } }', ['@babel/plugin-transform-private-methods']],
+      ['setter', 'export class C { set #x(v) {} m(v) { this.#x = v; } }', ['@babel/plugin-transform-private-methods']],
       ['default', 'export class C { #m() {} n() { return this.#m(); } }', ['@babel/plugin-transform-private-methods']],
     ],
     unseeable: {},

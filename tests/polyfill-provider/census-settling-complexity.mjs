@@ -69,6 +69,10 @@ for (const parser of adapters) for (const [shape, { written }] of Object.entries
   const short = decisions(parser, shape, 3);
   // twice the installs: a settling polynomial in them grows by a bounded factor, one per order of asks by hundreds
   const long = decisions(parser, shape, 6, short.count * 8);
+  if (shape === 'frames' || shape === 'frames beside a destructured write') {
+    check(`${ label }/3 installs decide each guard twice`, short.count, 6);
+    check(`${ label }/6 installs decide each guard twice`, long.count, 12);
+  }
   checkTruthy(`${ label }/decision counter control`, short.count > 0, `${ short.count } decisions`);
   checkTruthy(`${ label }/decisions stay polynomial in the installs`, long.written !== null, `${ short.count } -> past ${ short.count * 8 }`);
   check(`${ label }/3 installs`, short.written, written);

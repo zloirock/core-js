@@ -27204,6 +27204,23 @@ function * generatePatternScopeReads() {
   })()`), strip: true };
 }
 
+// An explicit pure import settles only its own read or branch. Run each selection in
+// both directions so a single full namespace cannot hide the other arm's missing method.
+function * generatePriorOutputReads() {
+  for (const flag of [false, true]) {
+    for (const [name, imports, body] of [
+      ['nested-argument', '', `const C = ${ flag } ? Array : { from: x => x }; const r = C.from(Object.fromEntries([['x', 2]]));`],
+      ['different-static', "import fromArray from '@core-js/pure/actual/array/from';",
+        `const C = ${ flag } ? Array : Object; const r = C === Array ? fromArray([1]) : C.fromEntries([['x', 2]]);`],
+      ['supplied-default', "import PureMap from '@core-js/pure/actual/map';",
+        `function read({ groupBy } = PureMap) { return groupBy([7], String); } const r = ${ flag } ? read().get('7') : read(Object)['7'];`],
+      ['compared-container', "import PureMap from '@core-js/pure/actual/map';",
+        `const box = { C: Object }; function read(other) { const { groupBy } = other === box ? PureMap : box.C; return groupBy([7], String); }
+        const r = ${ flag } ? read(box).get('7') : read({})['7'];`],
+    ]) yield { name: `prior-output-reads/${ name }/${ flag }`, isolated: true, strip: true, code: `${ imports }\n${ body }\nexport { r }; export const effects = [];` };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -29048,4 +29065,5 @@ export function * generate() {
   yield * generateArrayPatternReads();
   yield * generateObjectPatternOrder();
   yield * generatePatternScopeReads();
+  yield * generatePriorOutputReads();
 }

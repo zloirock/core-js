@@ -24,7 +24,12 @@ function four() {
   var _ref4;
   return _flatMaybeArray(_ref4 = [10, 11, 12]).call(_ref4);
 }
+function five() {
+  var _ref6;
+  return _atMaybeArray(_ref6 = [13]).call(_ref6, -1);
+}
 one();
 two();
 three();
 four();
+five();

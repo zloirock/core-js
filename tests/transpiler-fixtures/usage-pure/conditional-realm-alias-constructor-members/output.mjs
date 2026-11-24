@@ -1,11 +1,11 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
+import _Promise from "@core-js/pure/actual/promise";
 // A later alias retains the possible realm value of a conditionally initialized binding.
 // Its constructor guard carries the namespace needed by the following static member read.
-function read() {
-  try {
+function read(present) {
+  if (present) {
     var realm = _globalThis;
-  } finally {}
+  }
   const held = realm;
-  return _Promise$allSettled([]);
+  return (held === _globalThis ? _Promise : held.Promise).allSettled([]);
 }

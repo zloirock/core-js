@@ -60,7 +60,20 @@ try {
     for (const method of ['usage-global', 'usage-pure']) {
       const pluginOptions = { method, version: '4.0', targets: { ie: 11 } };
       outputs.push([`babel/${ method }`, (await transformAsync(source, { ...options, plugins: [[babelPlugin, pluginOptions]] })).code]);
-      if (dialect === 'flow') continue; // unplugin has no Flow parser.
+      if (dialect === 'flow') {
+        const [, output] = outputs.at(-1);
+        const entry = expression === 'new Map([[1, 2]]).size' ? 'map'
+          : expression === 'typeof Promise.resolve' ? 'promise' : null;
+        if (entry || expression === 'new Map().user') {
+          const family = entry ?? 'map';
+          const imports = output.matchAll(/^import .*?["'](?<module>[^"']+)["'];/gmu).map(match => match.groups.module);
+          const found = imports.some(module => method === 'usage-global'
+            ? module.endsWith(`/modules/es.${ family }.js`) || module.includes(`/modules/es.${ family }.`)
+            : module.includes(`/${ family }/`) || module.endsWith(`/${ family }`));
+          check(`${ name }/${ method }/runtime import`, found, entry !== null);
+        }
+        continue;
+      }
       const plugin = createUnplugin(pluginOptions);
       const pre = plugin.transform(source, filename, 'pre')?.code ?? source;
       const post = plugin.transform(pre, filename, 'post')?.code ?? pre;

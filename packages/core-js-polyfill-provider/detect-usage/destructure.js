@@ -167,6 +167,7 @@ import {
   privateNameSpelling,
   noteRenderRetiredWrites,
   pathOfNode,
+  peelTransparentExprAncestorPath,
   pathContainedBy,
   propertyKeyName,
   CLASS_NODE_TYPES,
@@ -555,12 +556,15 @@ function buildDestructuringInitMetaCore({
   // tracker doesn't register)
   switch (unwrapped.type) {
     case 'LogicalExpression':
-      return resolveLogicalDestructureMeta({ node: unwrapped, key, scope, adapter, path, resolveStaticKey, paramDefault });
+    case 'ConditionalExpression':
+      return resolveSelectionDestructureMeta({
+        node: unwrapped, key, scope, adapter, path, resolveStaticKey, paramDefault,
+        // An uncertain container slot can still name a global import in one live arm.
+        unionSink: adapter.method === 'usage-global' ? unionSink : null,
+      });
     case 'SequenceExpression':
       // `(0, Array)`: sequence evaluates to its last expression
       return buildDestructuringInitMeta({ initNode: unwrapped.expressions.at(-1), key, scope, adapter, path, unionSink, resolveStaticKey });
-    case 'ConditionalExpression':
-      return resolveConditionalDestructureMeta({ node: unwrapped, key, scope, adapter, path, resolveStaticKey, paramDefault });
     case 'AssignmentExpression':
       // Every plain assignment yields its RHS, including an inner destructure. The
       // retained capture keeps that inner write intact while serving the outer read.
@@ -673,7 +677,8 @@ function buildDestructuringInitMetaCore({
   return { kind: 'property', object: null, key, placement: null };
 }
 
-// `Array ?? X`, `X ?? Array`, `X && Array`: try both branches, prefer the one
+// A conditional chooses between its two result arms. For logical selections
+// (`Array ?? X`, `X ?? Array`, `X && Array`), prefer the branch
 // that resolves to a known global (for `??`/`||` the primary is left side; for `&&` it's
 // the right side - the branch taken when the left/right gate is truthy).
 // `fromFallback` marks that the runtime value may come from EITHER branch, which routes the
@@ -681,10 +686,9 @@ function buildDestructuringInitMetaCore({
 // whole-init replacement - it does not disable the rewrite. `&&` is always conditional (primary
 // only when left truthy, else falsy left), so always flag; `??`/`||` flag only when the fallback
 // is the resolved side
-function resolveLogicalDestructureMeta({ node, key, scope, adapter, path, resolveStaticKey = null, paramDefault = null }) {
-  return node.operator === '&&'
-    ? resolveAndDestructureMeta({ node, key, scope, adapter, path, resolveStaticKey, paramDefault })
-    : resolveOrNullishDestructureMeta({ node, key, scope, adapter, path, resolveStaticKey, paramDefault });
+function resolveSelectionDestructureMeta(options) {
+  if (options.node.type === 'ConditionalExpression') return resolveConditionalDestructureMeta(options);
+  return options.node.operator === '&&' ? resolveAndDestructureMeta(options) : resolveOrNullishDestructureMeta(options);
 }
 
 // `&&`: primary is the RIGHT branch. when both branches resolve to the SAME known object
@@ -692,15 +696,15 @@ function resolveLogicalDestructureMeta({ node, key, scope, adapter, path, resolv
 // (`Array && Map` for `entries` -> `Array && _Map`, `Array && Promise` for `from` ->
 // `{from:_Array$from} && _Promise`). `fromFallback` always set when objects differ or left
 // doesn't resolve - runtime value depends on the left's truthiness
-function resolveAndDestructureMeta({ node, key, scope, adapter, path, resolveStaticKey = null, paramDefault = null }) {
+function resolveAndDestructureMeta({ node, ...ctx }) {
   // a branch that resolves to a monkey-patched static yields a null meta - guard before reading
   // `.object` (null deref -> build crash), leaving the destructure raw exactly as the conditional
   // path does (the per-identifier receiver substitution handles the mutated static elsewhere)
-  const primaryMeta = buildDestructuringInitMeta({ initNode: node.right, key, scope, adapter, path, resolveStaticKey, paramDefault });
+  const primaryMeta = buildDestructuringInitMeta({ ...ctx, initNode: node.right });
   if (!primaryMeta?.object) return primaryMeta;
-  const leftMeta = buildDestructuringInitMeta({ initNode: node.left, key, scope, adapter, path, resolveStaticKey, paramDefault });
+  const leftMeta = buildDestructuringInitMeta({ ...ctx, initNode: node.left, unionSink: null });
   if (leftMeta?.object === primaryMeta.object) return primaryMeta;
-  return fallbackDestructureMeta(primaryMeta, leftMeta, adapter);
+  return fallbackDestructureMeta(primaryMeta, leftMeta, ctx.adapter);
 }
 
 // a HOP meta (`{ Array: { from } } = globalThis`) names no static of its own - `globalThis.Array`
@@ -720,7 +724,8 @@ function branchingProxySurfacePrimary(meta, adapter) {
 // `MyArray || Iterator` for `from` registers `Iterator.from` because `_Iterator`'s
 // constructor binding doesn't carry the static method - unless the build decides the selection for
 // its left (`deadFallbackRight`): the right never runs there, so it carries nothing
-function resolveOrNullishDestructureMeta({ node, key, scope, adapter, path, resolveStaticKey = null, paramDefault = null }) {
+function resolveOrNullishDestructureMeta({ node, ...ctx }) {
+  const { scope, adapter, path } = ctx;
   // does this build decide the selection for its left (`deadFallbackRight`) - asked lazily, once, by the
   // readers below
   let decided;
@@ -729,7 +734,7 @@ function resolveOrNullishDestructureMeta({ node, key, scope, adapter, path, reso
     return !!decided;
   }
   // null meta = monkey-patched static branch; null-guard before `.object` (build crash otherwise)
-  const primaryMeta = buildDestructuringInitMeta({ initNode: node.left, key, scope, adapter, path, resolveStaticKey });
+  const primaryMeta = buildDestructuringInitMeta({ ...ctx, initNode: node.left, paramDefault: null });
   // a built-in the configured subset does not carry counts for nothing (`defined`): it names no
   // value of this build, and the fallback carries what the right reads (`globalThis.AsyncIterator ||
   // Array` below `full` - the right's `from`)
@@ -739,14 +744,12 @@ function resolveOrNullishDestructureMeta({ node, key, scope, adapter, path, reso
   // for `concat`). a fallback whose constructor owns the key as a STATIC is a value the selection
   // yields as well, unless this build decides the selection for its left (`deadFallbackRight`)
   const sharedStaticFallback = primaryPure?.kind === 'instance'
-    && resolveBuiltIn(buildDestructuringInitMeta({
-      initNode: node.right, key, scope, adapter, path, resolveStaticKey, paramDefault,
-    }) ?? {})?.kind === 'static'
+    && resolveBuiltIn(buildDestructuringInitMeta({ ...ctx, initNode: node.right, unionSink: null }) ?? {})?.kind === 'static'
     && !decidesForLeft();
   if (primaryMeta?.object && !sharedStaticFallback && (primaryPure || branchingProxySurfacePrimary(primaryMeta, adapter))) {
     if (node.operator === '||' && !selectionLeftAlwaysTruthy({ node: node.left, scope, adapter, path, throughChainAssign: true })
       && !decidesForLeft()) {
-      const fallbackMeta = buildDestructuringInitMeta({ initNode: node.right, key, scope, adapter, path, resolveStaticKey, paramDefault });
+      const fallbackMeta = buildDestructuringInitMeta({ ...ctx, initNode: node.right });
       return fallbackDestructureMeta(primaryMeta, fallbackMeta, adapter);
     }
     // The left must satisfy the operator's selector: truthy for OR, non-nullish for nullish coalescing.
@@ -766,7 +769,7 @@ function resolveOrNullishDestructureMeta({ node, key, scope, adapter, path, reso
   // read included (`[1] || {}` reads `map` off the array), and a guard over the left's candidates tests
   // that left as the member read off the selection does (`decidedReceiver`)
   if (decidesForLeft()) return primaryMeta?.guardedAliasHint ? { ...primaryMeta, decidedReceiver: decided.left } : primaryMeta;
-  const fallbackMeta = buildDestructuringInitMeta({ initNode: node.right, key, scope, adapter, path, resolveStaticKey, paramDefault });
+  const fallbackMeta = buildDestructuringInitMeta({ ...ctx, initNode: node.right });
   if (!fallbackMeta?.object) return fallbackMeta;
   return fallbackDestructureMeta(fallbackMeta, primaryMeta, adapter);
 }
@@ -974,12 +977,39 @@ function destructureReceiverOwesAThrow(node, aliasCtx) {
 // Join both selected receivers without substituting one arm for the whole expression.
 // Named statics retain per-arm mirroring, even for equal constructor names; a key shared
 // with instance receivers uses the guarded fallback metadata below.
-function resolveConditionalDestructureMeta({ node, key, scope, adapter, path, resolveStaticKey = null, paramDefault = null }) {
-  const consequent = buildDestructuringInitMeta({ initNode: node.consequent, key, scope, adapter, path, resolveStaticKey, paramDefault });
-  const alternate = buildDestructuringInitMeta({ initNode: node.alternate, key, scope, adapter, path, resolveStaticKey, paramDefault });
-  // a branch may be null (a monkey-patched static) - the whole conditional stays raw then,
-  // matching the single-receiver mutated path (receiver substitution happens per-identifier)
-  if (!consequent || !alternate) return null;
+function resolveConditionalDestructureMeta({ node, ...ctx }) {
+  const { key, scope, adapter, path } = ctx;
+  const consequent = buildDestructuringInitMeta({ ...ctx, initNode: node.consequent });
+  const alternate = buildDestructuringInitMeta({ ...ctx, initNode: node.alternate });
+  // A full imported namespace serves only its own arm. Keep the selected receiver and
+  // test its identity when the other arm can supply a native constructor's static.
+  if (!consequent || !alternate) {
+    if (adapter.method !== 'usage-pure' || !consequent && !alternate) return null;
+    // Applying the guard to an indirectly resolved return or stored selection would
+    // reopen the deliberately native arm of a previous pass. Only the direct pattern
+    // receiver owns the choice here.
+    const selection = pathOfNode(path, node);
+    const host = selection && peelTransparentExprAncestorPath(selection).parentPath?.node;
+    if (!host || (host.type !== 'VariableDeclarator' || host.id.type !== 'ObjectPattern')
+      && (host.type !== 'AssignmentExpression' || host.left.type !== 'ObjectPattern')
+      && (host.type !== 'AssignmentPattern' || host.left.type !== 'ObjectPattern')) return null;
+    const imported = consequent ? node.alternate : node.consequent;
+    const source = pureImportSubpath(moduleDefaultSource({ node: imported, scope, adapter, path }), adapter.packages);
+    const owner = source && entryToGlobalHint(pureImportSourceEntry(source));
+    if (!owner || !namespaceEntryCarriesStatic(source, owner, key)) return null;
+    const other = consequent ?? alternate;
+    const names = other.object ? [other.object] : [...other.guardedWriteObjects ?? []];
+    const value = consequent ? node.consequent : node.alternate;
+    if (!names.length && isMemberAccessNode(unwrapRuntimeExpr(value))) {
+      staticContainerReceiverName({ node: value, scope, path, adapter: readKeepingAdapter(adapter), unionSink: names });
+    }
+    const guarded = guardableSelectionArms(names, adapter).filter(name => hasOwnStaticDefinition(name, key)
+      && !adapter.isMutatedStatic?.(name, key));
+    return guarded.length ? {
+      kind: 'property', object: null, key, placement: 'static', guardOnly: true, captureGuardReceiver: true,
+      guardedAliasHint: guarded[0], guardedWriteObjects: guarded,
+    } : null;
+  }
   const resolved = consequent.object ? consequent : alternate.object ? alternate : null;
   if (!resolved) return consequent;
   const other = resolved === consequent ? alternate : consequent;
@@ -11174,7 +11204,7 @@ export function buildDestructureLeafMeta({
       });
       // An opaque default cannot authorize a rewrite, but a known caller can still supply
       // the static. This claim authorizes only that caller's argument mirror.
-      if (meta && meta.object === null && !meta.fromFallback && !meta.guardOnly && !resolveBuiltIn(meta)) {
+      if (!meta || meta.object === null && !meta.fromFallback && !meta.guardOnly && !resolveBuiltIn(meta)) {
         return argumentMeta ?? parameterArgumentDestructureMeta(pattern.get('left'), {
           key, adapter, parameterCallSites, resolvePure,
         }) ?? meta;

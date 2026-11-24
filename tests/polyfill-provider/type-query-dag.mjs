@@ -54,6 +54,9 @@ for (const parser of adapters) for (const shape of [
     const label = `${ parser.name }/${ shape }/${ size }`;
     check(`${ label }/type`, answer?.constructor, shape === 'closed' ? 'Object' : 'Array');
     check(`${ label }/counter armed`, reads > 0, true);
+    // An unresolved T reaches both identical conditional children. Without the memo,
+    // even six levels read the true arm 195 times on both parsers.
+    if (shape === 'conditional') check(`${ label }/conditional evaluations`, reads <= 4 * size, true);
     const family = `${ parser.name }/${ shape }`;
     if (size === 6) measured.set(family, reads);
     else check(`${ label }/bounded branching (${ measured.get(family) } -> ${ reads })`, reads <= 8 * measured.get(family), true);

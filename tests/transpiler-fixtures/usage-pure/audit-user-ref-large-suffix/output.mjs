@@ -1,5 +1,6 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
+var _ref;
 // `_ref100` is a valid plugin-emittable shape per the orphan-ref pattern
 // (multi-digit suffixes match). User code declaring `_ref100` reserves the
 // name through scope.hasBinding (babel) / the binding-name scan (unplugin);
@@ -7,6 +8,6 @@ import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 // user-declared suffix climbs
 let _ref100 = "user";
 const arr = [1, 2, 3];
-_atMaybeArray(arr).call(arr, 0);
+_atMaybeArray(_ref = [1, 2, 3]).call(_ref, 0);
 _findLastMaybeArray(arr).call(arr, x => x > 0);
 console.log(_ref100);

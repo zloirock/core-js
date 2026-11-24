@@ -273,6 +273,13 @@ for (const [label, source, expected] of [
   ['named group', 'const r = /(?<y>\\d{4})/;', NAMED_GROUP],
   ['back-reference', 'const r = /(?<y>a)\\k<y>/;', NAMED_GROUP],
   // a `(?<=` lookbehind and a `(?<!` negative one are NOT named groups
+  ['non-ASCII name', 'const r = /(?<\\u03c0>x)/;', NAMED_GROUP],
+  ['Unicode character', 'const r = /(?<\u03C0>x)/;', NAMED_GROUP],
+  ['dollar', 'const r = /(?<$x>x)/;', NAMED_GROUP],
+  ['class', 'const r = /[(?<x>)]/;', []],
+  ['escaped opening', 'const r = /\\(\\?<x>/;', []],
+  ['legacy identity escape', 'const r = /\\k<x>/;', []],
+  ['negative lookbehind', 'const r = /(?<!x)y/;', []],
   ['lookbehind', 'const r = /(?<=a)b/;', []],
 ]) {
   runBoth(`onRegExpLiteral/${ label }`, source, (adapter, prog, lbl) => {
@@ -292,7 +299,9 @@ for (const [label, source, expected] of [
   ['public field', 'class C { x = 1; }', []],
   ['private field', 'class C { #x = 1; }', ['weak-map/constructor']],
   ['private method', 'class C { #m() {} }', ['weak-set/constructor']],
-  ['private getter', 'class C { get #x() { return 1; } }', ['weak-map/constructor']],
+  ['private getter', 'class C { get #x() { return 1; } }', ['weak-set/constructor']],
+  ['private setter', 'class C { set #x(value) {} }', ['weak-set/constructor']],
+  ['static getter', 'class C { static get #x() { return 1; } }', []],
   ['static private field', 'class C { static #x = 1; }', []],
   ['static private method', 'class C { static #m() {} }', []],
 ]) {

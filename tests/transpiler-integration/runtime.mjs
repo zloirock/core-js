@@ -3,6 +3,8 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { deepEqual } from 'node:assert/strict';
+import { parse } from '@babel/parser';
+import { traverse } from '@babel/core';
 import { runInWorker } from '../transpiler-differential/realm-runner.mjs';
 
 export async function withTmpDir(fn, prefix = 'transpiler-test-') {
@@ -18,15 +20,15 @@ export async function withTmpDir(fn, prefix = 'transpiler-test-') {
 // without contributing its `var` produces a bundle that dies with `X is not defined` at
 // runtime - and only on the code paths that reach it, which a value assertion can miss
 function assertRefsDeclared(code, label) {
-  const declared = new Set();
-  for (const match of code.matchAll(/\bvar\s+(?<names>[^\n;]+);/g)) {
-    for (const name of match.groups.names.split(',')) declared.add(name.trim().split(/\s/u, 1)[0]);
-  }
-  const undeclared = new Set();
-  for (const match of code.matchAll(/\b(?<temp>_ref\d*)\b/g)) {
-    if (!declared.has(match.groups.temp)) undeclared.add(match.groups.temp);
-  }
-  if (undeclared.size) throw new Error(`${ label }: undeclared plugin temps ${ [...undeclared].join(', ') }`);
+  if (!/\b_ref\d*\b/u.test(code)) return;
+  const ast = parse(code, { sourceType: 'unambiguous', allowReturnOutsideFunction: true });
+  traverse(ast, {
+    Program(path) {
+      const undeclared = Object.keys(path.scope.globals).filter(name => /^_ref\d*$/u.test(name));
+      if (undeclared.length) throw new Error(`${ label }: undeclared plugin temps ${ undeclared.join(', ') }`);
+      path.stop();
+    },
+  });
 }
 
 // Every bundle owns its globals and module cache. Even a previous global cell must not

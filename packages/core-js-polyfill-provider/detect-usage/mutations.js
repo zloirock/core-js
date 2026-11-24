@@ -570,6 +570,7 @@ export function constructionExposesStatics(program, callee) {
 // a parameter pattern nests, and so do the defaults on its slots - the ceiling is the same one the
 // census puts on every other descent
 const PATTERN_DEFAULT_DEPTH = 8;
+const MAX_REST_SOURCE_STEPS = 16;
 
 // the simple alias inits of one file, keyed by its program: an escape reaches the constructor
 // reference through however many `const B = A` hops the source spells, and the hops may be written
@@ -1984,7 +1985,12 @@ function collectHeldReceivers({
   // (its own walk state: the receiver walk above marks a name answered without descending into it)
   const copiedState = { names: new Set(), roots: new Map(), slots: new Map() };
   for (const { pattern, rhs, from } of restValues) {
-    for (const source of aliasedValues(aliasInit, rhs, new Set())) {
+    // Project object rest onto each arm of a small selection. For a deep one,
+    // keep the whole source as escaping. Array rest always consumes an iterator.
+    const sources = pattern.type === 'ObjectPattern'
+      ? readValues(aliasInit, rhs, new Set(), MAX_REST_SOURCE_STEPS)
+      : aliasedValues(aliasInit, rhs, new Set());
+    for (const source of sources) {
       for (const value of restCopiedValues(source, pattern, from)) stampEscapesFrom(programNode, value, {
         names: restNames,
         state: copiedState,
@@ -2512,7 +2518,7 @@ function aliasedNameValues({ aliases, target, seen }) {
 // a selection is read in each container the selection may yield. any other call stays itself: what
 // it yields is its reader's to follow. walked off a stack in source order: a selection nests, and a
 // value passes through such calls, as deeply as generated code chains them
-function readValues(aliases, node, seen) {
+function readValues(aliases, node, seen, maxSteps = Infinity) {
   const passthrough = ALIAS_SCOPE_FACTS.get(aliases)?.passthrough;
   const initial = aliasedValues(aliases, node, seen);
   if (!initial.length || initial.length === 1 && peelPassthroughCalls(initial[0], passthrough) === initial[0]
@@ -2520,6 +2526,7 @@ function readValues(aliases, node, seen) {
   const out = [];
   const work = initial.toReversed().map(value => ({ value }));
   while (work.length) {
+    if (maxSteps-- === 0) return initial;
     const { position, value } = work.pop();
     if (position !== undefined) {
       for (const held of aliasedValues(aliases, position, seen).toReversed()) work.push({ value: held });
@@ -4966,7 +4973,8 @@ export function escapedCtorReferencesReducer({
         if (!sites) callableScope.parameterCallSites.set(stands, sites = []);
         sites.push({ pairing });
       }
-      if (stands && callableScope.classStaticChains.has(stands) && !optedOutNodes?.has(node) && !pairing.argsUnknown) {
+      if (stands && (closedParameterHosts.has(stands) || callableScope.classStaticChains.has(stands))
+        && !optedOutNodes?.has(node) && !pairing.argsUnknown) {
         // A visible call supplies candidates. Even a closed method may forward the
         // argument as well as reading a named static. Only a complete read proof binds it.
         for (const [index, param] of dropLeadingThisParam(stands.params).entries()) {
@@ -6717,7 +6725,8 @@ function argumentKeptBy({ pairing, index, scopeFacts, factCache, callee, referen
           // A closed read-only parameter owes only these keys to global injection. Keep
           // pure's namespace obligation until its scoped receiver proof succeeds.
           const parameter = dropLeadingThisParam(callee.params)[index];
-          scopeFacts.parameterSources.set(nodePositionKey(parameter) ?? parameter, { keys });
+          const slot = nodePositionKey(parameter) ?? parameter;
+          scopeFacts.parameterSources.set(slot, { ...scopeFacts.parameterSources.get(slot), keys });
           disposition = 'global-covered';
         }
       }

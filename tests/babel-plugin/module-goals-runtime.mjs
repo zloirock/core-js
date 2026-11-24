@@ -41,7 +41,7 @@ const CASES = [
   ['delete binding', 'delete missing; var result = [3].at(0);', '/input.js', 'script', 3],
   ['CommonJS return', 'if (false) return; var result = [3].at(0);', '/input.cjs', 'commonjs', 3],
   ['wrapper return in js', 'if (false) return; var result = [3].at(0);', '/input.js', 'commonjs', 3],
-  ['wrapper this', 'var result = [this === exports, new.target === undefined].at(0);', '/input.cjs', 'commonjs', true],
+  ['wrapper this', 'var result = [[this === exports, new.target === undefined]].at(0);', '/input.cjs', 'commonjs', [true, true]],
 ];
 
 async function checkFormats() {

@@ -10,7 +10,7 @@ import {
   pureImportEntryOfProgram,
   pureImportSourceEntry,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
-import { moduleDefaultSource, symbolKeyFromSource } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import { moduleDefaultSource, pureInstanceMethod, symbolKeyFromSource } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { importedStaticReadMeta } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
@@ -162,6 +162,10 @@ for (const prefix of ['@core-js/pure', 'my-pure', '/app/node_modules/@vendor/pur
   check(`symbol/${ prefix }`, symbolKeyFromSource(`${ prefix }/actual/symbol/iterator/index.js#x`, packages), 'Symbol.iterator');
 }
 check('foreign proxy', globalProxyNameFromImportSource('./actual/global-this.js', packages), null);
+for (const [entry, expected] of [
+  ['array/instance/find-last', 'findLast'], ['instance/at', 'at'], ['array/from', null],
+  ['array', null], ['array/instance/at/other', null], [null, null],
+]) check(`instance dispatcher/${ entry }`, pureInstanceMethod(entry), expected);
 check('foreign symbol', symbolKeyFromSource('./actual/symbol/iterator.js', packages), null);
 check('unflavored symbol', symbolKeyFromSource('@core-js/pure/symbol/iterator', packages), 'Symbol.iterator');
 check('unflavored proxy', globalProxyNameFromImportSource('@core-js/pure/global-this', packages), 'globalThis');

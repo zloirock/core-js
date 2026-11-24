@@ -195,15 +195,15 @@ const parameterKeys = VISITOR_KEYS.TSParameterProperty;
 const decoratorParser = { plugins: ['typescript', 'decorators-legacy'] };
 const typescript = requireBabel('@babel/plugin-transform-typescript');
 function decoratorArgumentResult(code) {
+  const cls = parse(code, decoratorParser).program.body.find(node => node.type === 'ClassDeclaration');
+  const [argument] = cls.body.body[0].params[0].decorators[0].expression.arguments;
+  const t = requireBabel('@babel/types');
+  // Lower optionals too: a second print through an old generator can lose a tag's seal again.
+  // eslint-disable-next-line node/no-sync -- the temporary traversal table must not leak to other unit modules
+  const lowered = transformFromAstSync(t.file(t.program([t.expressionStatement(argument)])), null, {
+    configFile: false, babelrc: false, plugins: [typescript, requireBabel('@babel/plugin-transform-optional-chaining')],
+  }).code;
   try {
-    const cls = parse(code, decoratorParser).program.body.find(node => node.type === 'ClassDeclaration');
-    const [argument] = cls.body.body[0].params[0].decorators[0].expression.arguments;
-    const t = requireBabel('@babel/types');
-    // Lower optionals too: a second print through an old generator can lose a tag's seal again.
-    // eslint-disable-next-line node/no-sync -- the temporary traversal table must not leak to other unit modules
-    const lowered = transformFromAstSync(t.file(t.program([t.expressionStatement(argument)])), null, {
-      configFile: false, babelrc: false, plugins: [typescript, requireBabel('@babel/plugin-transform-optional-chaining')],
-    }).code;
     return runInNewContext(lowered, { o: null, x: 1 });
   } catch (error) {
     return error.name;

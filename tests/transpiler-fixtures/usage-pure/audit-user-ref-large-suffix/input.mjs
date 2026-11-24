@@ -5,6 +5,6 @@
 // user-declared suffix climbs
 let _ref100 = "user";
 const arr = [1, 2, 3];
-arr.at(0);
+[1, 2, 3].at(0);
 arr.findLast(x => x > 0);
 console.log(_ref100);

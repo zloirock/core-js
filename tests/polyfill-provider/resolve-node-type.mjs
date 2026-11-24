@@ -9136,9 +9136,28 @@ runBoth('method-local generic shadowing outer alias type-param resolves null (no
     check(`${ lbl } method-local shadow`, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
   });
 
-// a deep stack of non-reducing aliased conditionals (each sibling branch re-hopping to the
-// same downstream conditional) must resolve via per-(node,scope) memoization, not a 2^N branch tree
-runBoth('deep nested non-reducing conditional type resolves via memoization',
+// The first alias walk may consume at most 64 links. Other resolver questions may
+// revisit the same bindings and still recover Array after that bounded walk ends.
+for (const count of [63, 64, 65, 96]) {
+  const source = ['const a0 = [7];', ...Array.from({ length: count }, (_, i) => `const a${ i + 1 } = a${ i };`), `a${ count }.at(0);`].join('\n');
+  runBoth(`value alias budget/${ count }`, source, (parser, tree, label) => {
+    const reads = [];
+    const resolver = parser.makeResolver({ getScopeBinding(scope, name, path) {
+      if (/^a\d+$/u.test(name)) reads.push(name);
+      return scope?.getBinding(name, path ?? undefined);
+    } });
+    const member = parser.pickPath(tree, 'MemberExpression', path => path.node.property.name === 'at');
+    check(`${ label }/receiver`, resolver.resolveNodeType(member.get('object'))?.constructor, 'Array');
+    let steps = 0;
+    const first = reads.indexOf(`a${ count - 1 }`);
+    while (reads[first + steps] === `a${ count - steps - 1 }`) steps++;
+    check(`${ label }/consecutive alias links`, steps, Math.min(count, 64));
+  });
+}
+
+// This substitution makes every condition false. The branching and its cache budget
+// are exercised separately by the unresolved generic in type-query-dag.mjs.
+runBoth('nested conditional aliases take their false arms',
   'interface Brand { __brand: true }\n'
   + 'type S0<U> = U extends Brand ? W0<U> : S1<U>;\ntype W0<U> = S1<U>;\n'
   + 'type S1<U> = U extends Brand ? W1<U> : S2<U>;\ntype W1<U> = S2<U>;\n'
