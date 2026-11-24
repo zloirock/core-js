@@ -80,9 +80,10 @@ if (GLOBAL.JSON?.stringify) {
     Inherited.prototype = new String('str');
     const inheritedFromBoxed = new Inherited();
     inheritedFromBoxed.b = 1;
+    // IE8 and Node 0.12 return undefined when reading the inherited string index.
+    const expected = inheritedFromBoxed[0] === undefined ? '{"b":1}' : '{"0":"s","b":1}';
     // Firefox 4 throws here through the inherited native String.prototype.toJSON.
-    // Known Node 0.12 failure: the inherited boxed-string index is omitted.
-    assert.same(stringify(inheritedFromBoxed, ['0', 'b']), '{"0":"s","b":1}', 'replacer-array-inherits-boxed-primitive-1');
+    assert.same(stringify(inheritedFromBoxed, ['0', 'b']), expected, 'replacer-array-inherits-boxed-primitive-1');
     function InheritedNumber() { /* empty */ }
     InheritedNumber.prototype = Number.prototype;
     const inheritedFromNumber = new InheritedNumber();
@@ -117,10 +118,12 @@ if (GLOBAL.JSON?.stringify) {
     assert.same(stringify(nested, ['b', '1', 'a'], '"{,\n['), gapped, 'replacer-array-space-quote-3');
 
     function Parent() { /* empty */ }
+    Parent.prototype[0] = 's';
     Parent.prototype.inherited = 1;
     const child = new Parent();
     child.own = 2;
     assert.same(stringify(child, ['inherited', 'own']), '{"inherited":1,"own":2}', 'replacer-array-inherited');
+    assert.same(stringify(child, ['0', 'own']), '{"0":"s","own":2}', 'replacer-array-inherited-index');
 
     const shared = { key: 1 };
     assert.same(stringify({ a: shared, b: shared }, ['a', 'b', 'key']), '{"a":{"key":1},"b":{"key":1}}', 'replacer-array-repeated');

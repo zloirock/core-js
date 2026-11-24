@@ -243,17 +243,19 @@ QUnit.test('URL domain Unicode validation: parsing and setters', assert => {
     assert.false(URL.canParse(input), 'URL.canParse rejects a disallowed character');
     assert.throws(() => new URL(`//${ hostname }/`, 'https://example.com/'), TypeError, 'relative URL');
 
-    const original = 'https://example.com:8080/path?key=value#hash';
-    const url = new URL(original);
-    const params = url.searchParams;
-    assert.throws(() => { url.href = input; }, TypeError, 'href setter');
-    assert.same(url.href, original, 'failed href setter preserves the URL');
-    assert.same(url.searchParams, params, 'failed href setter preserves searchParams identity');
-    for (const key of ['host', 'hostname']) {
-      url[key] = hostname;
-      assert.same(url.href, original, `${ key } setter rejects the host without changing the URL`);
-      assert.same(url.searchParams, params, `${ key } setter preserves searchParams identity`);
-      assert.same(String(params), 'key=value', `${ key } setter preserves searchParams contents`);
+    if (DESCRIPTORS) {
+      const original = 'https://example.com:8080/path?key=value#hash';
+      const url = new URL(original);
+      const params = url.searchParams;
+      assert.throws(() => { url.href = input; }, TypeError, 'href setter');
+      assert.same(url.href, original, 'failed href setter preserves the URL');
+      assert.same(url.searchParams, params, 'failed href setter preserves searchParams identity');
+      for (const key of ['host', 'hostname']) {
+        url[key] = hostname;
+        assert.same(url.href, original, `${ key } setter rejects the host without changing the URL`);
+        assert.same(url.searchParams, params, `${ key } setter preserves searchParams identity`);
+        assert.same(String(params), 'key=value', `${ key } setter preserves searchParams contents`);
+      }
     }
   }
 });
@@ -335,13 +337,13 @@ for (const [length, suffix] of [[16726, 't417146o'], [17000, 'yg88829o']]) {
     });
   }
 
-  for (const [key, value, expected] of [
-    ['host', `${ label }:9090`, `https://user:pass@${ encoded }:9090/path?a=1#hash`],
-    ['hostname', label, `https://user:pass@${ encoded }:8080/path?a=1#hash`],
-    ['href', `https://${ label }/new?b=2#new`, `https://${ encoded }/new?b=2#new`],
-  ]) {
-    QUnit.test(`URL domain Punycode overflow: ${ length }, ${ key } setter`, assert => {
-      if (DESCRIPTORS) {
+  if (DESCRIPTORS) {
+    for (const [key, value, expected] of [
+      ['host', `${ label }:9090`, `https://user:pass@${ encoded }:9090/path?a=1#hash`],
+      ['hostname', label, `https://user:pass@${ encoded }:8080/path?a=1#hash`],
+      ['href', `https://${ label }/new?b=2#new`, `https://${ encoded }/new?b=2#new`],
+    ]) {
+      QUnit.test(`URL domain Punycode overflow: ${ length }, ${ key } setter`, assert => {
         const accepts = URL.canParse(`https://${ label }/`);
         const initial = 'https://user:pass@example.org:8080/path?a=1#hash';
         const url = new URL(initial);
@@ -359,8 +361,8 @@ for (const [length, suffix] of [[16726, 't417146o'], [17000, 'yg88829o']]) {
         assert.same(String(params), accepts && key === 'href' ? 'b=2' : 'a=1', 'searchParams contents');
         params.set('next', '3');
         assert.same(url.search, accepts && key === 'href' ? '?b=2&next=3' : '?a=1&next=3', 'searchParams stays linked');
-      }
-    });
+      });
+    }
   }
 }
 
@@ -520,15 +522,17 @@ QUnit.test('URL domain case mapping in parsing and setters', assert => {
     assert.true(URL.canParse(input), 'URL.canParse');
     assert.same(new URL(`//${ domain }/`, 'https://example.com/').hostname, expected, 'relative URL');
 
-    const url = new URL('http://example.com/');
-    url.href = input;
-    assert.same(url.hostname, expected, 'href setter');
-    url.href = 'http://example.com/';
-    url.host = domain;
-    assert.same(url.hostname, expected, 'host setter');
-    url.href = 'http://example.com/';
-    url.hostname = domain;
-    assert.same(url.hostname, expected, 'hostname setter');
+    if (DESCRIPTORS) {
+      const url = new URL('http://example.com/');
+      url.href = input;
+      assert.same(url.hostname, expected, 'href setter');
+      url.href = 'http://example.com/';
+      url.host = domain;
+      assert.same(url.hostname, expected, 'host setter');
+      url.href = 'http://example.com/';
+      url.hostname = domain;
+      assert.same(url.hostname, expected, 'hostname setter');
+    }
 
     // Native Firefox drops file hosts, still reproducible in Firefox 159.
     // The global version uses native URL from Firefox 57, the pure version from Firefox 118.
@@ -615,13 +619,15 @@ QUnit.test('URL domain mathematical mapping in parsing and setters', assert => {
   assert.same(new URL('https://%F0%9D%9A%8D%F0%9D%9A%92%F0%9D%9A%9C%F0%9D%9A%8C%F0%9D%9A%98%F0%9D%9A%9B%F0%9D%9A%8D.gg/').hostname,
     'discord.gg', 'percent decoding before mapping');
 
-  const url = new URL('https://example.com/path?key=value#hash');
-  const params = url.searchParams;
-  for (const key of ['href', 'host', 'hostname']) {
-    url[key] = key === 'href' ? input : input.slice(8, -1);
-    assert.same(url.hostname, 'discord.gg', `${ key } setter`);
-    assert.same(url.searchParams, params, `${ key } preserves searchParams identity`);
-    url.href = 'https://example.com/path?key=value#hash';
+  if (DESCRIPTORS) {
+    const url = new URL('https://example.com/path?key=value#hash');
+    const params = url.searchParams;
+    for (const key of ['href', 'host', 'hostname']) {
+      url[key] = key === 'href' ? input : input.slice(8, -1);
+      assert.same(url.hostname, 'discord.gg', `${ key } setter`);
+      assert.same(url.searchParams, params, `${ key } preserves searchParams identity`);
+      url.href = 'https://example.com/path?key=value#hash';
+    }
   }
 
   // Native Node 20.0.0 returns an empty hostname; Node 20.20.2 passes.
@@ -838,17 +844,19 @@ QUnit.test('URL domain label validation in parsing and setters', assert => {
     assert.false(URL.canParse(input), 'URL.canParse rejects an invalid label');
     assert.throws(() => new URL(`//${ hostname }/`, 'https://example.com/'), TypeError, 'relative URL');
 
-    const original = 'https://example.com:8080/path?key=value#hash';
-    const url = new URL(original);
-    const params = url.searchParams;
-    assert.throws(() => { url.href = input; }, TypeError, 'href setter');
-    assert.same(url.href, original, 'failed href setter preserves the URL');
-    assert.same(url.searchParams, params, 'failed href setter preserves searchParams identity');
-    for (const key of ['host', 'hostname']) {
-      url[key] = hostname;
-      assert.same(url.href, original, `${ key } setter rejects the host without changing the URL`);
-      assert.same(url.searchParams, params, `${ key } setter preserves searchParams identity`);
-      assert.same(String(params), 'key=value', `${ key } setter preserves searchParams contents`);
+    if (DESCRIPTORS) {
+      const original = 'https://example.com:8080/path?key=value#hash';
+      const url = new URL(original);
+      const params = url.searchParams;
+      assert.throws(() => { url.href = input; }, TypeError, 'href setter');
+      assert.same(url.href, original, 'failed href setter preserves the URL');
+      assert.same(url.searchParams, params, 'failed href setter preserves searchParams identity');
+      for (const key of ['host', 'hostname']) {
+        url[key] = hostname;
+        assert.same(url.href, original, `${ key } setter rejects the host without changing the URL`);
+        assert.same(url.searchParams, params, `${ key } setter preserves searchParams identity`);
+        assert.same(String(params), 'key=value', `${ key } setter preserves searchParams contents`);
+      }
     }
   }
 });
@@ -1322,14 +1330,14 @@ QUnit.test('URL#host', assert => {
 });
 
 QUnit.test('URL#hostname', assert => {
-  // a value the domain parser rejects leaves the URL untouched
-  const forbiddenMapped = new URL('http://example.com/p?q#h');
-  forbiddenMapped.hostname = 'a\uFE6Ab.example.com';
-  assert.same(forbiddenMapped.href, 'http://example.com/p?q#h', 'hostname setter is a no-op on a rejected domain');
-
   let url = new URL('http://zloirock.ru:81/');
 
   if (DESCRIPTORS) {
+    // a value the domain parser rejects leaves the URL untouched
+    const forbiddenMapped = new URL('http://example.com/p?q#h');
+    forbiddenMapped.hostname = 'a\uFE6Ab.example.com';
+    assert.same(forbiddenMapped.href, 'http://example.com/p?q#h', 'hostname setter is a no-op on a rejected domain');
+
     assert.false(hasOwnProperty.call(url, 'hostname'));
     const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'hostname');
     assert.true(descriptor.enumerable);
