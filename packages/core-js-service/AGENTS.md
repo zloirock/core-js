@@ -55,6 +55,9 @@ consumer of these types need `@types/node`, so the bytes of a bundle are typed a
 
 ## Tests
 
+Keep the HTML fast path linear. A character reference can trigger source matching only inside a
+script's `src` value. Hand uncertain script tag syntax to the HTML parser.
+
 `npm run test-service` - `tests/service/`, one file per module plus
 `adapter-express.mjs`, which runs a real Express application over HTTP: both middleware orders
 around `compression`, a streamed response, the bundle route and its 304.

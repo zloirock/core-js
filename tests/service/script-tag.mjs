@@ -1,4 +1,6 @@
 import { deepStrictEqual, ok, strictEqual } from 'node:assert/strict';
+import { mock } from 'node:test';
+import { Parser } from 'parse5';
 import createScriptTag from '../../packages/core-js-service/internals/ui/script-tag.js';
 
 const SRC = '/__core-js/abc.js';
@@ -169,3 +171,26 @@ strictEqual(tagged(quoted + charset + app), quoted + charset + tag + app, 'scrip
 
 const dataFirst = `${ opening }<script type="application/json">{}</script>${ existing }${ app }`;
 strictEqual(tagged(dataFirst), dataFirst, 'script-tag-1 #15');
+
+const namedReference = `<script src="&sol;${ SRC.slice(1) }" nonce="kept"></script>`;
+const otherScript = '<script src="/app.js"></script>';
+const parsed = mock.method(Parser, 'parse');
+try {
+  for (const content of [
+    `${ otherScript }<title>A &amp; B</title>`,
+    `${ otherScript }</head><img src="/photo?w=48&amp;h=48">`,
+    `<script data-src="/lazy?v=1&amp;lang=en"></script>${ otherScript }`,
+  ]) {
+    strictEqual(tagged(opening + content), opening + tag + content, 'script-tag-1 #17');
+  }
+  strictEqual(parsed.mock.callCount(), 0, 'script-tag-1 #18');
+  strictEqual(tagged(opening + app + namedReference), opening + namedReference + app, 'script-tag-1 #16');
+  strictEqual(parsed.mock.callCount(), 1, 'script-tag-1 #19');
+  for (const script of [
+    `<SCRIPT data-label="> &lt;" SRC="&sol;${ SRC.slice(1) }"></SCRIPT>`,
+    `<script data-label="x"src=&sol;${ SRC.slice(1) }></script>`,
+    `<script data-label="<br>" src='&sol;${ SRC.slice(1) }'></script>`,
+  ]) strictEqual(tagged(opening + app + script), opening + script + app, 'script-tag-1 #20');
+} finally {
+  parsed.mock.restore();
+}

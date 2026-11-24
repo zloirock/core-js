@@ -6,8 +6,29 @@ const JAVASCRIPT_TYPE = /^(?:(?:application|text)\/(?:x-)?(?:ecma|java)script|te
 // Recognize common document openings without building a tree for the rest of the response.
 // Leave optional tags, comments and unfamiliar attribute syntax to the HTML parser.
 const OPEN_HEAD = /^[\t\n\r ]*(?:<!doctype html>[\t\n\r ]*)?(?:<html(?:[\t\n\r ]+[\w\-:]+=(?:"[^"<]*"|'[^'<]*'|[\w-]+))*[\t\n\r ]*>[\t\n\r ]*)?<head[\t\n\r ]*>/i;
-const ENCODED_SRC = /\bsrc[\t\n\f\r ]*=[\t\n\f\r ]*(?:"[^"]*&|'[^']*&|[^\t\n\f\r "'>]*&)/i;
+const SCRIPT_START = /<script(?=[\t\n\f\r />])/gi;
+const SCRIPT_TOKEN = /[\t\n\f\r ]*(?:(?<end>\/?>)|(?<name>[^\t\n\f\r "'/<=>]+)(?:[\t\n\f\r ]*=[\t\n\f\r ]*(?<value>"[^"<]*"|'[^'<]*'|[^\t\n\f\r "'<>]+))?)/y;
+const CHARACTER_REFERENCE = /&[#a-z]/i;
 const FIRST_CHARSET = /[\t\n\r ]*<meta[\t\n\r ]+charset=(?:"[\w-]+"|'[\w-]+'|[\w-]+)[\t\n\r ]*\/?>/iy;
+
+function mayHaveScript(prefix, src) {
+  SCRIPT_START.lastIndex = 0;
+  if (prefix.includes(src)) return SCRIPT_START.test(prefix);
+  const lastAmpersand = prefix.lastIndexOf('&');
+  if (lastAmpersand === -1) return false;
+  while (SCRIPT_START.test(prefix) && SCRIPT_START.lastIndex <= lastAmpersand) {
+    SCRIPT_TOKEN.lastIndex = SCRIPT_START.lastIndex;
+    let token;
+    while ((token = SCRIPT_TOKEN.exec(prefix)) && !token.groups.end) {
+      const { name, value } = token.groups;
+      if (name.toLowerCase() === 'src' && value && CHARACTER_REFERENCE.test(value)) return true;
+    }
+    // Hand unfamiliar syntax to the parser, including '<' inside an attribute value.
+    if (!token) return true;
+    SCRIPT_START.lastIndex = SCRIPT_TOKEN.lastIndex;
+  }
+  return false;
+}
 
 function simpleInsertionPoint(prefix, src) {
   const opening = OPEN_HEAD.exec(prefix);
@@ -22,9 +43,7 @@ function simpleInsertionPoint(prefix, src) {
   else if (/<meta[\t\n\f\r />]/i.test(prefix) && /charset|http-equiv/i.test(prefix)) return undefined;
 
   if (prefix.startsWith(`<script src="${ src }"></script>`, at) && !/[\r"&]/.test(src)) return null;
-  // A character reference in src can spell the same URL without containing it literally.
-  const possibleMatch = prefix.includes(src) || (prefix.includes('&') && ENCODED_SRC.test(prefix));
-  if (possibleMatch && /<script[\t\n\f\r />]/i.test(prefix)) return undefined;
+  if (mayHaveScript(prefix, src)) return undefined;
   return { at };
 }
 
