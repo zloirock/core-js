@@ -187,8 +187,25 @@ const baseStyle = {
   }],
 };
 
+const preferModernNodeBuiltIns = {
+  // prefer Node globals over their module equivalents
+  'node/prefer-global/text-decoder': [ERROR, ALWAYS],
+  'node/prefer-global/text-encoder': [ERROR, ALWAYS],
+  'node/prefer-global/url-search-params': [ERROR, ALWAYS],
+  'node/prefer-global/url': [ERROR, ALWAYS],
+  // prefer the `node:` protocol for built-in modules
+  'node/prefer-node-protocol': ERROR,
+  'unicorn/prefer-node-protocol': ERROR,
+  // prefer promise-based DNS and file system APIs
+  'node/prefer-promises/dns': ERROR,
+  'node/prefer-promises/fs': ERROR,
+  // prefer `EventTarget` over `EventEmitter`
+  'unicorn/prefer-event-target': ERROR,
+};
+
 const base = {
   ...baseStyle,
+  ...preferModernNodeBuiltIns,
   // possible problems:
   // enforces return statements in callbacks of array's methods
   'array-callback-return': ERROR,
@@ -532,25 +549,16 @@ const base = {
   'node/no-process-exit': ERROR,
   // disallow synchronous methods
   'node/no-sync': ERROR,
-  // prefer `node:` protocol
-  'node/prefer-node-protocol': ERROR,
   // prefer global
   'node/prefer-global/buffer': [ERROR, ALWAYS],
   'node/prefer-global/console': [ERROR, ALWAYS],
   'node/prefer-global/crypto': [ERROR, ALWAYS],
   'node/prefer-global/process': [ERROR, ALWAYS],
-  'node/prefer-global/text-decoder': [ERROR, ALWAYS],
-  'node/prefer-global/text-encoder': [ERROR, ALWAYS],
   'node/prefer-global/timers': [ERROR, ALWAYS],
-  'node/prefer-global/url-search-params': [ERROR, ALWAYS],
-  'node/prefer-global/url': [ERROR, ALWAYS],
   // prefer-import
   'node/prefer-import/assert-strict': ERROR,
   // enforce using `process.getBuiltinModule()` to load Node built-in modules
   'node/prefer-process-get-builtin-module': ERROR,
-  // prefer promises
-  'node/prefer-promises/dns': ERROR,
-  'node/prefer-promises/fs': ERROR,
 
   // array-func:
   // avoid reversing the array and running a method on it if there is an equivalent of the method operating on the array from the other end
@@ -878,8 +886,6 @@ const base = {
   'unicorn/prefer-else-if': ERROR,
   // prefer `Error.isError()` when checking for errors
   'unicorn/prefer-error-is-error': ERROR,
-  // prefer `EventTarget` over `EventEmitter`
-  'unicorn/prefer-event-target': ERROR,
   // prefer flat `Math.min()` and `Math.max()` calls over nested calls
   'unicorn/prefer-flat-math-min-max': ERROR,
   // prefer `.getOrInsertComputed()` when the default value has side effects
@@ -915,8 +921,6 @@ const base = {
   'unicorn/prefer-modern-math-apis': ERROR,
   // prefer negative index over `.length - index` when possible
   'unicorn/prefer-negative-index': ERROR,
-  // prefer using the `node:` protocol when importing Node builtin modules
-  'unicorn/prefer-node-protocol': ERROR,
   // prefer using `Object.fromEntries()` to transform a list of key-value pairs into an object
   'unicorn/prefer-object-from-entries': ERROR,
   // prefer omitting the `catch` binding parameter
@@ -2041,11 +2045,16 @@ const transpiledAndPolyfilled = {
   ...forbidCompletelyNonExistentBuiltIns,
 };
 
+function nodeVersionRules(target = {}, builtInOptions = {}) {
+  return {
+    // check ECMAScript syntax and Node APIs against the target Node version
+    'node/no-unsupported-features/es-syntax': [ERROR, target],
+    'node/no-unsupported-features/node-builtins': [ERROR, { ...target, allowExperimental: false, ...builtInOptions }],
+  };
+}
+
 const nodePackages = {
-  // disallow unsupported ECMAScript syntax on the specified version
-  'node/no-unsupported-features/es-syntax': [ERROR, { version: PACKAGES_NODE_VERSIONS }],
-  // disallow unsupported ECMAScript built-ins on the specified version
-  'node/no-unsupported-features/node-builtins': [ERROR, { version: PACKAGES_NODE_VERSIONS, allowExperimental: false }],
+  ...nodeVersionRules({ version: PACKAGES_NODE_VERSIONS }),
   ...forbidES2025BuiltIns,
   'es/no-iterator': OFF,
   'es/no-iterator-prototype-drop': OFF,
@@ -2094,10 +2103,14 @@ const nodePackages = {
 
 const nodeDev = {
   ...nodePackages,
-  // disallow unsupported ECMAScript syntax on the specified version
-  'node/no-unsupported-features/es-syntax': [ERROR, { version: DEV_NODE_VERSIONS }],
-  // disallow unsupported ECMAScript built-ins on the specified version
-  'node/no-unsupported-features/node-builtins': [ERROR, { version: DEV_NODE_VERSIONS, ignores: ['fetch'], allowExperimental: false }],
+  ...nodeVersionRules({ version: DEV_NODE_VERSIONS }, { ignores: ['fetch'] }),
+};
+
+const nodeLegacy = {
+  ...nodeVersionRules(),
+  ...reset(preferModernNodeBuiltIns, {}),
+  // check ES built-ins such as WeakMap against the target Node version
+  'node/no-unsupported-features/es-builtins': ERROR,
 };
 
 const tests = {
@@ -2779,6 +2792,11 @@ export default [
       `scripts/usage/**/${ jsFile }`,
     ],
     rules: playwright,
+  },
+  {
+    files: ['tests/compat/node-runner.js'],
+    settings: { node: { version: '>=0.11.4' } },
+    rules: nodeLegacy,
   },
   {
     files: [
