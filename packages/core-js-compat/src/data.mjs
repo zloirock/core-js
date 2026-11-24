@@ -703,7 +703,8 @@ export const data = {
     ie: '9',
     opera: '12',
     rhino: '1.7.13',
-    safari: '5.1',
+    // Safari 5.1 picked up bind in WebKit 534.54.
+    safari: '5.1.4',
   },
   'es.function.has-instance': {
     // https://github.com/v8/v8/blob/3c6783109ce9167345ebcf5858e794b3a913b9ef/src/bootstrapper.cc#L1152-L1166
@@ -3295,8 +3296,8 @@ export const data = {
     ios: '15.4', // '14.3', need to clarify the release, >15.2 && <= 15.4
     // record keys that shadow `Object.prototype` are dropped in NodeJS 16.17 - 18.16 and 19
     // hosts that are IPv4 addresses only after percent-decoding break URLs in NodeJS 18.17 - 18.19, 20.0 - 20.11
-    // and 21.0 - 21.6
-    node: '20.12', // '20.0', '10.0',
+    // and 21.0 - 21.6. Fixed in both 20.12 and 21.7.
+    node: '21.7', // '20.0', '10.0',
     // forbidden host code points are accepted in Safari 15.1 and rejected in Safari 16.6, the release is taken from iOS
     safari: '15.4', // '14.0.1', '14.0', need to clarify the release on macOS, >15.1 && <= 15.4
   },
@@ -3307,7 +3308,7 @@ export const data = {
     chrome: '130', // '120', shared URL constructor detection
     deno: '1.33.2',
     firefox: '133', // '115', shared URL constructor detection
-    node: '20.12', // '20.1', shared URL constructor detection
+    node: '21.7', // '20.1', shared URL constructor detection
     safari: '17.0',
   },
   'web.url.parse': {
@@ -3343,7 +3344,7 @@ export const data = {
     // `new URL(url, undefined)` throws in Safari 14.0
     // https://bugs.webkit.org/show_bug.cgi?id=215734
     ios: '15.4', // '14.3', need to clarify the release, >15.2 && <= 15.4, shared URL constructor detection
-    node: '20.12', // '20.0', '10.0', shared URL constructor detection
+    node: '21.7', // '20.0', '10.0', shared URL constructor detection
     safari: '15.4', // '14.0.1', '14.0', shared URL constructor detection
   },
   // The three modules below only add a method to the native constructor,

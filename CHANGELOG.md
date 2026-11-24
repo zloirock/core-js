@@ -240,7 +240,7 @@
     - Firefox 133
     - Safari 15.4
     - iOS 15.4
-    - NodeJS 20.12
+    - NodeJS 21.7 (also applies to `URL.canParse`). Builds targeting NodeJS 20.12 and later in the 20.x line include the modules and keep the native implementations
     - Deno 1.25.2
   - Other web APIs
     - `atob` marked as properly supported from Deno 1.17.3, `btoa` - from Deno 1.11; `atob` no longer marked as supported in Hermes / React Native because of the error handling bugs above
@@ -284,6 +284,7 @@
     - `Math.sumPrecise` marked as properly supported from [V8 ~ Chrome 158](https://github.com/v8/v8/commit/b8851805ce36c5db7c2be14d94bef42b8baf5dbf) where the bug with modified prototypes of array iterators was fixed
     - `Math.sumPrecise` marked as [properly supported](https://github.com/WebKit/WebKit/pull/65558) from Bun 1.4.5
   - Other ECMAScript built-ins
+    - `Function.prototype.bind` marked as supported from Safari 5.1.4 and iOS 6.0
     - `JSON.parse` marked as properly supported from [V8 ~ Chrome 156](https://github.com/v8/v8/commit/93cd21e8254b65c15ff131b2dcadf19beadb559d) and NodeJS 26.12.1 because of the escaped keys bug above. NodeJS 24.22.1 has the fix too, but builds targeting it still include the module and keep the native parser
     - `Iterator.concat` no longer marked as supported in V8-based engines because of the iterator-closing bug above
     - `Reflect.construct` marked as properly supported from [FF45](https://bugzilla.mozilla.org/show_bug.cgi?id=1055472) instead of FF44 because of the built-in constructor bug above
@@ -317,6 +318,7 @@
       - Marked `Array.fromAsync` and `%TypedArray%.prototype.with` as unsupported
     - Fixed Safari compat data: `%TypedArray%.prototype.set` marked as supported from Safari 14.0
   - Version mappings and data inheritance
+    - Mapped Safari 14.1.1 to iOS 14.6 and Safari 14.1.2 to iOS 14.7
     - **Added [Yandex Browser for Android](https://github.com/web-platform-dx/baseline-browser-mapping#list-of-downstream-browsers) compat data mapping**, allowed `yandex-android` target in `core-js-compat` / `core-js-builder`, [#1590](https://github.com/zloirock/core-js/pull/1590)
     - Updated Opera 140+ compat data mapping
     - Chromium-based Edge and Opera no longer inherit support from EdgeHTML and Presto where Chrome requires a later version. The resulting minimum versions also affect builds targeting those older engines
