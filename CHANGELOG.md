@@ -185,6 +185,7 @@
   - Improve `IsConstructor` checks on proxies, including revoked proxies, without reading their properties
   - Improve some more [`document.all` (falsy callable)](https://tc39.es/ecma262/#sec-IsHTMLDDA-internal-slot) cases handling
 - Entries fixes:
+  - Included `%TypedArray%.prototype.join` in the `typed-array/to-string` entry so that it returns the elements on engines without native typed array `join`
   - Fixed cases where bundlers using `sideEffects` metadata dropped required polyfills or retained unused entries
   - Added missed `Map` to `/actual/array/` namespace entries dependencies, a regression since 3.29.1
   - Fixed order of dependencies loading in some entries, for `/array/from-async` and `/array/` namespace entries it's a regression since 3.43.0
