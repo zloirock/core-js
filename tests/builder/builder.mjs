@@ -1,4 +1,4 @@
-import { deepStrictEqual, ok, rejects, strictEqual } from 'node:assert/strict';
+import { deepStrictEqual, doesNotThrow, ok, rejects, strictEqual } from 'node:assert/strict';
 import { stripVTControlCharacters } from 'node:util';
 import { runInNewContext } from 'node:vm';
 import builder from 'core-js-builder';
@@ -90,6 +90,9 @@ try {
   console.log = consoleLog;
   await fs.remove(directory);
 }
+
+const transferBundle = await builder({ modules: 'es.array-buffer.transfer' });
+doesNotThrow(() => runInNewContext(`delete Object.defineProperty;\n${ transferBundle }`), 'the transfer bundle loads without property descriptors');
 
 await rejects(builder({ modules: [], format: 'umd' }), { name: 'TypeError', message: 'Incorrect output type' });
 strictEqual(builder.formatSize('\u{1F600}'.repeat(256)), '1.00KB', 'sizes count UTF-8 bytes');

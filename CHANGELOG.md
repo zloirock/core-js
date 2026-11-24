@@ -176,6 +176,7 @@
   - Fixed the pure version marking the native `Error.isError` as `.sham`
   - Fixed a misleading error message of `Map`, `Set`, `WeakMap` and `WeakSet` methods called on `null` in the pure version
 - Polyfill internals
+  - Added a workaround for webpack 4 property getters that prevented browser bundles containing the NodeJS `MessageChannel` fallback from loading in IE8-
   - Fixed loading of `core-js` with [`node --disable-proto=throw`](https://nodejs.org/api/cli.html#--disable-protomode)
   - Fixed loading of `core-js` when a polyfilled property already contains `null` or a value of an incompatible type
   - Fixed some polyfills depending on global `TypeError`, `isFinite`, `parseInt`, `String` or `Object` replaced after loading `core-js`
