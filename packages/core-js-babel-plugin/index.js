@@ -2352,10 +2352,11 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
       function reTraverseHelperBodies(path) {
         if (!originalBodyNodes) return;
         const known = exitedBodyNodes ?? originalBodyNodes;
+        if (path.node.body.every(node => known.has(node))) return;
         const helpers = path.get('body').filter(child => !known.has(child.node));
         // A sibling lowering can replace a user loop as well as add helpers. Its removed
         // binding paths cannot answer the late walk; no crawl is needed without new nodes.
-        if (helpers.length) path.scope.crawl();
+        path.scope.crawl();
         // The late escape census runs on the first introduced global. A preceding helper can
         // trigger it before we visit a later helper's `typeof Symbol === "function" ? Symbol : {}`.
         // Record the live initializer for the census. Keep the original tree for static detection.
@@ -2665,25 +2666,19 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
           legacyParens, adapter.parameterPropertyVisitors);
         anchorDisableDirectives(this.file?.path?.node);
         if (!injector) return;
-        // a sibling CommonJS rewriter that runs after our last flush leaves whatever it did not
-        // reach behind in ESM, and the file goes out mixed. the question is asked of OUR nodes
-        // against the REST of the body, and counting our own imports as the file's ESM markers
-        // inverts it: a rewrite that reached everything reads as "no markers left" and a rewrite
-        // that missed our import reads as "markers are still here"
-        const { body } = this.file.path.node;
-        const ours = new Set(injector.survivingEmittedNodes(body));
-        // a body that was ALREADY CommonJS when we read it did not BECOME one after our flush, so a
-        // mixed output there is our own emission choice and its own report says so - this one is
-        // about a rewrite that happened behind us. and the advice it carries is to CHOOSE a
-        // spelling, so a caller who already chose one has nothing to read here
-        if (importStyleOption === undefined && !format.markers.hasCJS
-          && [...ours].some(isESMMarkerStatement)
-          && detectCommonJS({ type: 'Program', sourceType: 'script', body: body.filter(node => !ours.has(node)) })) {
-          debugOutput?.warn(
-            'a sibling plugin rewrote the file body to CommonJS after our last flush; the '
-            + 'polyfill imports it did not reach are still ESM. set `importStyle: "require"` '
-            + 'or order core-js after the module transform',
-          );
+        if (debugOutput && importStyleOption === undefined && !format.markers.hasCJS) {
+          // Only our surviving imports can be stranded by a sibling's CommonJS rewrite.
+          // Exclude them when checking what became of the source body.
+          const { body } = this.file.path.node;
+          const ours = new Set(injector.survivingEmittedNodes(body));
+          if ([...ours].some(isESMMarkerStatement)
+            && detectCommonJS({ type: 'Program', sourceType: 'script', body: body.filter(node => !ours.has(node)) })) {
+            debugOutput.warn(
+              'a sibling plugin rewrote the file body to CommonJS after our last flush; the '
+              + 'polyfill imports it did not reach are still ESM. set `importStyle: "require"` '
+              + 'or order core-js after the module transform',
+            );
+          }
         }
         // outputDebug AFTER potential warning add so format() includes the late-CJS diagnostic.
         // then release the file's state before the context can serve another file

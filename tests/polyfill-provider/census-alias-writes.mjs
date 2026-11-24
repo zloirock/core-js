@@ -23,7 +23,10 @@ import {
 const { check, checkDeep, checkTruthy, finish, runBoth } = createChecker('census-alias-writes');
 
 const sibling = 'function sibling() { var a = {}; a = Set; void a.name; }';
+const capturedMethod = 'let holder = { owner: user }; holder = { owner: Math }; const { owner } = holder; owner.max(Map, 1);';
 const rows = [
+  ['overwritten initializer cannot supply the captured callee', capturedMethod, false],
+  ['a recorded slot write vetoes the captured callee proof', `${ capturedMethod } const spare = {}; spare.value = external;`],
   ['realm alias named constructor', 'function expose() { const realm = globalThis; const a = realm.Map; hand(a); }'],
   ['realm alias computed constructor', 'function expose() { const realm = globalThis; const a = realm["Map"]; hand(a); }'],
   ['container under a non-global key', 'function expose() { const box = { unrelated: Map }; const a = box.unrelated; hand(a); }'],
@@ -387,6 +390,10 @@ for (const parser of adapters) for (const reducers of orders.slice(1)) {
   checkDeep(`${ parser.name }/a Reflect.set receiver is the target the store owns`,
     boxSlots(parser, 'const src = { M: Math }; const box = { M: Math }; Reflect.set(src, "M", Map, box);', reducers),
     { 'box.M': ['Map'], 'src.*': [] });
+  checkDeep(`${ parser.name }/calls through the same builtin keep their own arguments`,
+    boxSlots(parser, 'const box = {}, src = {}; const put = Object.assign;'
+      + ' put(box, { M: Map }); put(...unknown); put.apply(null, unknown); put(...[src, { M: Set }]);', reducers),
+    { 'box.M': ['Map'], 'src.M': ['Set'] });
 }
 
 // A pattern read of a written slot holds each value a write that may run ahead of it put there, and

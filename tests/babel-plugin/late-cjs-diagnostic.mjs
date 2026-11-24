@@ -16,7 +16,7 @@ const requireBabel = BABEL_REQUIRE_FROM
   : createRequire(import.meta.url);
 const { transformAsync } = requireBabel('@babel/core');
 
-const { checkTruthy, finish } = createChecker('late-cjs-diagnostic');
+const { check, checkTruthy, finish } = createChecker('late-cjs-diagnostic');
 
 const WARNING = 'a sibling plugin rewrote the file body';
 
@@ -27,7 +27,7 @@ function makePartialCJSRewriter({ types: t }) {
   return {
     visitor: {
       Program: {
-        exit(programPath) {
+        exit(programPath, state) {
           for (const stmt of programPath.get('body')) {
             if (!stmt.isImportDeclaration() || stmt.node.specifiers.length === 0) continue;
             stmt.replaceWith(t.variableDeclaration('var', [t.variableDeclarator(
@@ -35,32 +35,40 @@ function makePartialCJSRewriter({ types: t }) {
               t.callExpression(t.identifier('require'), [t.stringLiteral(stmt.node.source.value)]),
             )]));
           }
+          const root = t.identifier('module');
           programPath.pushContainer('body', t.expressionStatement(t.assignmentExpression(
-            '=', t.memberExpression(t.identifier('module'), t.identifier('exports')), t.identifier('dep'),
+            '=', t.memberExpression(root, t.identifier('exports')), t.identifier('dep'),
           )));
+          // Count reads of the sibling's CommonJS marker on the same emitted tree.
+          const { metadata } = state.file;
+          metadata.moduleReads = 0;
+          Object.defineProperty(root, 'name', { get() {
+            metadata.moduleReads++;
+            return 'module';
+          } });
         },
       },
     },
   };
 }
 
-async function transform(code, siblings) {
+async function transform(code, siblings, debug = true) {
   const logs = [];
   // the debug channel prints through `console.log`; the diagnostic is one of its lines
   const { log } = console;
   console.log = (...args) => logs.push(args.map(String).join(' '));
   try {
-    const { code: out } = await transformAsync(code, {
+    const { code: out, metadata } = await transformAsync(code, {
       configFile: false,
       babelrc: false,
       filename: 'input.mjs',
       sourceType: 'module',
       plugins: [
-        ['../../packages/core-js-babel-plugin/index.js', { method: 'usage-global', version: '4.0', targets: { ie: 11 }, debug: true }],
+        ['../../packages/core-js-babel-plugin/index.js', { method: 'usage-global', version: '4.0', targets: { ie: 11 }, debug }],
         ...siblings,
       ],
     });
-    return { out, warned: logs.join('\n').includes(WARNING) };
+    return { out, moduleReads: metadata.moduleReads, warned: logs.join('\n').includes(WARNING) };
   } finally {
     console.log = log;
   }
@@ -79,10 +87,14 @@ const USAGE = 'import dep from "./dep";\n[1, 2, 3].at(0);\n';
 // the sibling missed our import: the file is `import` and `module.exports` at once. this is the row
 // the old gate stayed silent on, because our surviving import answered "markers are still here"
 {
-  const { out, warned } = await transform(USAGE, [makePartialCJSRewriter]);
+  const { out, warned, moduleReads } = await transform(USAGE, [makePartialCJSRewriter]);
   checkTruthy('late-cjs/partial rewrite leaves our import', out.includes('import "core-js/modules/es.array.at"'));
   checkTruthy('late-cjs/partial rewrite leaves the body CommonJS', out.includes('module.exports'));
   checkTruthy('late-cjs/partial rewrite warns', warned);
+  const silent = await transform(USAGE, [makePartialCJSRewriter], false);
+  check('late-cjs/debug off preserves the mixed output', silent.out, out);
+  check('late-cjs/debug off is silent', silent.warned, false);
+  checkTruthy('late-cjs/debug off skips the diagnostic read', silent.moduleReads < moduleReads);
 }
 
 // no sibling at all: the file is what we emitted into, and there is nothing to report

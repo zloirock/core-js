@@ -524,7 +524,7 @@ function mutatorInstalledValues(namespace, method, args, { definite = false, acc
   return entries;
 }
 
-// the slot writes of an explicit store, for the builtin the call resolved to (`callBuiltin`): every written key
+// the slot writes of an explicit store, for the builtin the call resolved to: every written key
 // and its value as an assignment records them (`mutatorInstalledValues`), on each chain the target lands on as
 // a member write's target does (`writeTargetChains`: `Object.assign(box.inner, { C: Map })` writes
 // `box.inner.C`, `Object.assign(c ? a : b, ...)` either arm's); literal assign sources include getter returns,
@@ -614,7 +614,7 @@ const CENSUS_PAIRINGS = new WeakMap();
 function censusCallPairing(call, program = null) {
   return CENSUS_PAIRINGS.get(call) ?? callPairing(call, program);
 }
-// ... the builtin each call invokes where it stands on none (`callBuiltin`)
+// ... the builtin each call invokes where it stands on none, paired with its own arguments
 const CALL_BUILTINS = new WeakMap();
 // ... and the way to have them resolved, and the census's written record finished with them, from another
 // reducer's result (see `finalize`)
@@ -3410,11 +3410,12 @@ export function escapedCtorReferencesReducer({
   // A pattern reads its container once. A superseded initializer cannot supply its
   // callee, even if that initializer had a different constructor in the same slot.
   function capturedBuiltin(root, keys, depth) {
+    if (written.size) return null;
     const entries = aliasEntriesInScope(aliasInit, root.name, aliasReferenceScopes(aliasInit, root));
     const pattern = entries.length === 1 && entries[0].value;
     const source = pattern?.source;
     if (source?.type !== 'Identifier' || !(aliasInit.get(source.name)?.length > 1)
-      || written.size || callablePropertyWrites.has(source.name)) return null;
+      || callablePropertyWrites.has(source.name)) return null;
     const reaching = receiverEntries(source, aliasReferenceScopes(aliasInit, source), censusPaths ??= new Map());
     if (reaching.length !== 1 || !reaching[0].target) return null;
     // A call between the write and capture can mutate the container without a local store.
@@ -3730,18 +3731,10 @@ export function escapedCtorReferencesReducer({
     return !links.length || links.some(([name, owner]) => openedBy('invoker', name, owner) || openedBy('write', name, owner));
   }
 
-  // the builtin a resolved call invokes and the arguments paired to it; null for a call standing on a
-  // function of this file, an unknown callee, or an argument list the canon cannot decide
-  function callBuiltin(node) {
-    const builtin = builtinCallees.get(node);
-    const pairing = builtin && invocationOf(node);
-    return pairing && !pairing.argsUnknown ? { ...builtin, args: pairing.args } : null;
-  }
-
   // A definite store must use the pristine mutator and effect-free arguments. Reuse its
   // installed-value decoder; Reflect's separate target must be fresh and empty here.
   function definiteCallWrites(node) {
-    const store = callBuiltin(node);
+    const store = builtinCallees.get(node);
     if (!store || spineHasOptionalHop(node)
       || mayHaveSideEffects(node.callee) || node.arguments.some(mayHaveSideEffects)) return null;
     const { namespace, method, args } = store;
@@ -4664,7 +4657,7 @@ export function escapedCtorReferencesReducer({
     REALM_CTOR_REFS.set(node, classifyRealmReference);
     PASSTHROUGH_CALL_VALUES.set(node, passthrough);
     CALL_CALLEES.set(node, callCallees);
-    CALL_BUILTINS.set(node, callBuiltin);
+    CALL_BUILTINS.set(node, builtinCallees);
     CENSUS_FINALIZATION.set(node, finalize);
   }
 
@@ -4961,7 +4954,8 @@ export function escapedCtorReferencesReducer({
       if (!stands) {
         const builtin = builtinCallee(spelled);
         if (builtin) {
-          builtinCallees.set(node, builtin);
+          // Presence still identifies a builtin when a spread hides its arguments.
+          builtinCallees.set(node, pairing.argsUnknown ? null : { ...builtin, args: pairing.args });
           if (builtin.namespace === 'Reflect' && builtin.method === 'set'
             || builtin.namespace === 'Object' && builtin.method === 'assign') {
             setterStoreHosts.add(referenceScopes.get(node)?.findLast(scope => FUNCTION_LIKE_NODE_TYPES.has(scope.type)));
@@ -5103,7 +5097,7 @@ export function escapedCtorReferencesReducer({
   function fileExplicitStoreWrites(resolvedCallees) {
     for (const node of callNodes) {
       const disposition = callDisposition(node, resolvedCallees);
-      const store = disposition.decided && disposition.builtin && callBuiltin(node);
+      const store = disposition.decided && disposition.builtin && builtinCallees.get(node);
       if (!store?.namespace) {
         if (disposition.callee) continue;
         recordHopInvocation(node, (receiver, args, method) => {
@@ -5705,7 +5699,7 @@ export function escapedCtorReferencesReducer({
       }
       function addAllocation(instance) {
         if (work.get(instance) === true) return true;
-        const call = isCallShape(instance) && callBuiltin(instance);
+        const call = isCallShape(instance) && builtinCallees.get(instance);
         const args = call?.namespace === 'Reflect' && call.method === 'construct' ? call.args : null;
         const read = owner(instance?.type === 'NewExpression' ? instance.callee : args?.[0]);
         if (nameOf(read) !== family || args?.[2] && nameOf(owner(args[2])) !== family) return false;
@@ -5739,7 +5733,7 @@ export function escapedCtorReferencesReducer({
         }
         if (!instance) {
           if (parent.type === 'NewExpression' && parent.callee === node) return addAllocation(parent);
-          const call = callBuiltin(parent);
+          const call = builtinCallees.get(parent);
           return family === 'Map' && (isMemberAccessNode(parent) && parent.object === node && keyOf(parent) === 'groupBy'
             && isCallShape(test) && test.callee === parent
             || call?.namespace === 'Map' && call.method === 'groupBy' && invocationOf(parent).thisArg === node);
@@ -5757,7 +5751,7 @@ export function escapedCtorReferencesReducer({
           prototype = key === '__proto__';
         } else {
           if (!isCallShape(parent)) return false;
-          const call = callBuiltin(parent);
+          const call = builtinCallees.get(parent);
           const pairing = invocationOf(parent);
           if (pairing.args[0] !== node) return false;
           if ((call?.namespace === 'Object' || call?.namespace === 'Reflect') && call.method === 'getPrototypeOf') prototype = true;
@@ -5773,7 +5767,7 @@ export function escapedCtorReferencesReducer({
         if (test?.type === 'BinaryExpression' && EQUALITY_OPERATORS.has(test.operator)) {
           return observe(test.left === parent ? test.right : test.left, prototype);
         }
-        const call = callBuiltin(test);
+        const call = builtinCallees.get(test);
         return call?.namespace === 'Object' && call.method === 'is'
           && observe(call.args[0] === parent ? call.args[1] : call.args[1] === parent && call.args[0], prototype);
       }
@@ -8476,10 +8470,10 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
   }
 
   // an explicit store's writes, filed where the call sat through whatever spelling the escape census
-  // resolved its callee from (`callBuiltin`) - the member, an alias, a pure import. a target the store
+  // resolved its callee from - the member, an alias, a pure import. a target the store
   // owns drops the call's generic escape; the dominance proof trusts only an `Object.assign` that
   // surely runs
-  function fileExplicitStores(callBuiltin, callees) {
+  function fileExplicitStores(builtins, callees) {
     const ownedStoreTargets = new Map();
     const assignStores = new WeakMap();
     for (let index = storeCalls.length - 1; index >= 0; index--) {
@@ -8493,7 +8487,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
           ownedStoreTargets.set(node, receiver);
         }
       });
-      const store = callBuiltin?.(node);
+      const store = builtins?.get(node);
       const writes = store && explicitStoreWrites(store);
       if (!writes) continue;
       // ... the target and the dominance proof stay a named target's, whose keys they read from the root
@@ -9823,7 +9817,7 @@ export function createDetectionAdapter({
       return containerKeys(name, owner).some(root => {
         const slot = containerSlotKey(root, keys);
         if (keys[0] === '__proto__' && index?.escapes.get(`${ root }.*`)?.some(escape => {
-          const call = escape?.call && CALL_BUILTINS.get(index.programNode)?.(escape.call);
+          const call = escape?.call && CALL_BUILTINS.get(index.programNode)?.get(escape.call);
           return call?.method === 'setPrototypeOf' && (call.namespace === 'Object' || call.namespace === 'Reflect')
             && unwrapRuntimeExpr(call.args[0]) === escape.argument;
         })) return true;
