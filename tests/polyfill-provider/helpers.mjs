@@ -32,6 +32,7 @@ import {
   disableDirectiveAnchors,
   disableDirectiveKind,
   isNextLineDisableDirective,
+  lineDisableDirectiveText,
   mergeVisitors,
   parseDisableDirectives,
 } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
@@ -992,6 +993,14 @@ check('disableDirectiveKind/next-line with a reason', disableDirectiveKind(' cor
 check('disableDirectiveKind/plain comment', disableDirectiveKind(' plain note'), null);
 check('isNextLineDisableDirective/line spelling is not', isNextLineDisableDirective(' core-js-disable-line'), false);
 check('isNextLineDisableDirective/JSDoc continuation', isNextLineDisableDirective('*\n * core-js-disable-next-line\n '), true);
+for (const type of ['Block', 'CommentBlock']) {
+  check(`lineDisableDirectiveText/${ type } keeps the quoted spelling and the reason`,
+    lineDisableDirectiveText({ type, value: ' docs: core-js-disable-next-line\n * core-js-disable-next-line for this key ' }, false),
+    '/* docs: core-js-disable-next-line\n * core-js-disable-line for this key */');
+}
+check('lineDisableDirectiveText/line comment moves with the read',
+  lineDisableDirectiveText({ type: 'Line', value: ' core-js-disable-line because of a getter' }, true),
+  '// core-js-disable-next-line because of a getter');
 
 // Every line terminator still starts a directive; indentation keeps the full whitespace alphabet.
 for (const newline of ['\n', '\r', '\r\n', '\u2028', '\u2029']) {

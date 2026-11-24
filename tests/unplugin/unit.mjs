@@ -763,6 +763,23 @@ function checkTransformParseErrorThrowsWhenNoWarn() {
 }
 checkTransformParseErrorThrowsWhenNoWarn();
 
+for (const separator of ['\n', '\r\n', '\r', '\u2028', '\u2029']) {
+  const input = `const text = '\u{1F600}';${ separator }const value = ;`;
+  const plugin = createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 } });
+  for (const useWarn of [true, false]) {
+    let message;
+    try {
+      plugin.transform.call(useWarn ? { warn(value) { message = value; } } : {}, input, '/line.mjs');
+    } catch (error) {
+      if (useWarn) throw error;
+      message = error.message;
+    }
+    const label = `parse diagnostic/${ JSON.stringify(separator) }/warn=${ useWarn }`;
+    check(label, /(?:\bat |\/line\.mjs:)2:15\b/.test(message), true);
+    check(`${ label }/single location`, /\/line\.mjs:1:/.test(message), false);
+  }
+}
+
 // oxc frames whole lines and whole multi-line spans: a minified line or a span to the end of
 // the file would ship the source itself as the warning. past the size cap the labels'
 // `line:col` stands in for the frame, on the throw path too; a moderately long line keeps it
@@ -1630,7 +1647,7 @@ for (const fixture of [
 // post, so the pre-detected module arrives via the snapshot alone), and a sibling INJECTS new
 // polyfillable code between passes (post must rewrite it, dedup imports against pre's inline
 // ones, and mint refs that do not collide with pre's - the suffix state rides the snapshot)
-function checkPhaseSnapshotFlow() {
+async function checkPhaseSnapshotFlow() {
   const engine = 'ast';
   {
     const globalOpts = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };
@@ -1668,6 +1685,13 @@ function checkPhaseSnapshotFlow() {
     function directiveCount(code) {
       return (code?.match(/core-js-disable-next-line/g) ?? []).length;
     }
+    async function afterDestructuring(plugin, id, code) {
+      const require = createRequire(import.meta.url);
+      const destructured = await require('@babel/core').transformAsync(code, {
+        filename: id, configFile: false, babelrc: false, plugins: [require('@babel/plugin-transform-destructuring')],
+      });
+      return plugin.transform(destructured.code, id, 'post')?.code ?? destructured.code;
+    }
     check(`phase/pre hoists the in-pattern opt-out without a second anchor (${ engine })`, directiveCount(directive?.code), 1);
     // ... and the trailing `-line` spelling re-anchors as the same leading form
     const directiveLine = createPlugin(pureOpts).transform(
@@ -1678,12 +1702,16 @@ function checkPhaseSnapshotFlow() {
     check(`phase/pre re-anchors a trailing -line opt-out once (${ engine })`, directiveCount(directiveLine?.code), 1);
     // ... a `-line` in a block comment that closes LOWER covers the line it opens on - the same
     // line the scan disables - so the hoist is anchored off that line, not off the closing one
-    const directiveBlock = createPlugin(pureOpts).transform(
+    const blockPlugin = createPlugin(pureOpts);
+    const directiveBlock = blockPlugin.transform(
       'const {\n  Map: { groupBy },\n  Object: { groupBy: og }, /* note\n  core-js-disable-line */\n} = globalThis;\nuse(groupBy, og);',
       '/sm-directive-block.mjs', 'pre');
     check(`phase/pre re-anchors a block -line opt-out by the line it opens on (${ engine })`,
-      /\n\/\/ core-js-disable-next-line\nconst /.test(directiveBlock?.code ?? ''), true);
+      /\/\* note\n\s*core-js-disable-next-line \*\/\nconst /.test(directiveBlock?.code ?? '') && directiveCount(directiveBlock?.code) === 1, true);
     check(`phase/pre keeps the block -line opt-out off the claim (${ engine })`, /groupBy: og/.test(directiveBlock?.code ?? ''), true);
+    const afterBlock = await afterDestructuring(blockPlugin, '/sm-directive-block.mjs', directiveBlock?.code ?? '');
+    check(`phase/post keeps the block reason with the disabled Object read (${ engine })`,
+      /\/\* note\n\s*core-js-disable-next-line \*\/\nconst og = _globalThis\.Object\.groupBy;/.test(afterBlock), true);
     // a POSITIONED host - a statement no emission rebuilt - is adopted too: the in-pattern
     // comment dies in the sibling lowering all the same, so pre re-anchors it even though
     // the statement itself needed no rewrite (and, below, even when it is the file's ONLY
@@ -1747,17 +1775,24 @@ function checkPhaseSnapshotFlow() {
         /\n\/\/ core-js-disable-next-line\nconst \{/.test(chainOut) && directiveCount(chainOut) === 1, true);
     }
     // the hoist lands where the print reaches: above `export` for an exported declaration, and
-    // not at all for a declaration a loop head hosts - there the directive stays inside the
-    // pattern (the canon's in-place anchor) instead of vanishing from an inline-printed head
+    // inside the pattern for a loop head. Babel carries a trailing key comment to the member read.
     {
       const exportedSrc = 'export const {\n  Object: {\n    // core-js-disable-next-line\n    groupBy: g,\n  },\n} = globalThis;\nuse(c.at(1));\n';
       const exported = createPlugin(pureOpts).transform(exportedSrc, '/sm-directive-export.mjs', 'pre')?.code ?? '';
       check(`phase/pre hoists an exported sole chain above the export (${ engine })`,
         /\n\/\/ core-js-disable-next-line\nexport const \{/.test(exported) && directiveCount(exported) === 1, true);
       const forHeadSrc = 'for (const {\n  Object: {\n    // core-js-disable-next-line\n    groupBy: g,\n  },\n} of xs) use(g, c.at(1));\n';
-      const forHead = createPlugin(pureOpts).transform(forHeadSrc, '/sm-directive-for-head.mjs', 'pre')?.code ?? '';
+      const headId = '/sm-directive-for-head.mjs';
+      const singleHead = createPlugin(pureOpts).transform(forHeadSrc, headId)?.code ?? forHeadSrc;
+      check(`single pass keeps the loop author's leading opt-out (${ engine })`,
+        /\/\/ core-js-disable-next-line\n\s*groupBy: g/.test(singleHead) && directiveCount(singleHead) === 1, true);
+      const loopPlugin = createPlugin(pureOpts);
+      const forHead = loopPlugin.transform(forHeadSrc, headId, 'pre')?.code ?? '';
       check(`phase/pre keeps a loop-head opt-out inside the pattern (${ engine })`,
-        /\/\/ core-js-disable-next-line\n\s*groupBy: g/.test(forHead) && directiveCount(forHead) === 1, true);
+        /groupBy \/\/ core-js-disable-line\n\s*: g/.test(forHead) && forHead.match(/core-js-disable-/g)?.length === 1, true);
+      const afterHead = await afterDestructuring(loopPlugin, headId, forHead);
+      check(`phase/post keeps the directive on the nested loop read (${ engine })`,
+        /\/\/ core-js-disable-next-line\n\s*const g = _ref\.Object\.groupBy;/.test(afterHead) && directiveCount(afterHead) === 1, true);
     }
     // the anchors are keyed by node and read off the RESTORED tree: a property of a PARAMETER
     // pattern is blanked for the crawl and swapped back before the print, so an anchor computed
@@ -2043,7 +2078,7 @@ function checkPhaseSnapshotFlow() {
     }
   }
 }
-checkPhaseSnapshotFlow();
+await checkPhaseSnapshotFlow();
 
 // Whole-value optional captures keep receiver effects inside their memo. An outer
 // key still owns its replay, and a staged receiver belongs to its existing consumer.

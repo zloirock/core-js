@@ -1,6 +1,5 @@
-// stage-2.7 auto-accessor with private name + decorator + polyfillable initializer.
-// Decorator may invoke `Symbol.metadata`; the initializer constructs a Map (polyfill
-// needed pre-ES2015). Private accessor is scope-closed - external writes can't mutate
+// A decorated private accessor initializes a Set. The output must include both
+// decorator metadata and the Set constructor.
 class C {
-  @dec accessor #foo = new Map();
+  @dec accessor #foo = new Set();
 }

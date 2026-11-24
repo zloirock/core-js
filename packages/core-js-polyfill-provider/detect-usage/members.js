@@ -1858,9 +1858,10 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
   // `(0, M.groupBy)(...)` callee detaches `this` natively, so it must NOT classify as a callee.
   // a tagged-template tag (M.groupBy`x`) is a this-carrying invocation the same way -
   // without callee-ness its raw branch would run with `this = undefined` instead of `M`
+  const tagged = isTaggedTemplateTagPosition(parent, memberNode);
   const isCallee = ((parent?.type === 'CallExpression' || parent?.type === 'OptionalCallExpression')
     && unwrapRuntimeExpr(parent.callee) === memberNode)
-    || isTaggedTemplateTagPosition(parent, memberNode);
+    || tagged;
   // Absorb a captured call or an ordinary call whose arguments can be observed. Binding a
   // missing raw method would reject before its arguments. Quiet calls keep their bound spelling.
   // A tagged-template tag is not a call this render can absorb.
@@ -1930,6 +1931,8 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
   // source's `?.` in its raw branch, which is exact where the chain ends there
   const hoisted = Boolean(captureChain || receiverHop
     || (memberNode.optional && (captureReceiver || absorbedCall || chainTail.length || deleteHost)));
+  // A getter can reassign the binding before the selected tag receives its this.
+  const rawReceiver = captureReceiver ?? (tagged ? recvIdent : null);
   return {
     // A non-hoisted narrow leaves the source operator around its value, including ?.().
     deleteHost: hoisted || branchTail ? deleteHost : null,
@@ -1943,15 +1946,16 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
       interveningEffects: true, ctx: { scope: path?.scope, adapter, path },
     }),
     recvIdent,
-    captureReceiver: !hoisted && adapter && path && isReusableReceiver(captureReceiver, {
-      interveningEffects: true, ctx: { scope: path.scope, adapter, path },
-    }) ? null : captureReceiver,
+    captureReceiver: !hoisted && adapter && path && isReusableReceiver(rawReceiver, {
+      interveningEffects: !!captureReceiver, ctx: { scope: path.scope, adapter, path },
+    }) ? null : rawReceiver,
     // the decided selection the left stands in for, where the receiver was re-spelled
     decidedSelection: receiver === memberNode.object ? null : peelReceiverSequenceTail(memberNode.object),
     seqPrefix: captureReceiver ? [] : seqPrefix,
     staticPure: primary.staticPure,
     key: meta.key,
     isCallee,
+    tagSubstitutions: tagged && parent.quasi?.expressions?.length > 0,
     chainTail,
     branches,
     ctorPure: primary.ctorPure,

@@ -1,5 +1,5 @@
 import { loadBabelOptions } from '../babel-plugin/fixture-options.mjs';
-import { LEAST_UPPER_BOUND, TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
+import { fixtureMappingsError } from './fixture-source-map.mjs';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
 import { commentSignature, strip } from './structural.mjs';
 import { extractPluginOptions, inferTestId, normalizeMachinePaths, parseFixture, parseFixtureOrNull, shouldSkip } from './fixture-lang.mjs';
@@ -100,8 +100,6 @@ function firstDiff(actual, expected) {
 
 // max lines to probe in mappings before giving up. 200 covers typed-array bundles (30+
 // import prefix, user code after) with margin; bigger inputs would slow the test loop
-const MAPPING_PROBE_LIMIT = 200;
-
 // reject helper factory: keeps reject closure local without re-allocating per check
 function rejectMap(directory, msg) {
   counts.failed++;
@@ -143,46 +141,6 @@ function checkMapContent(directory, map, testId, source) {
   return true;
 }
 
-// VLQ decode + round-trip probe combined: TraceMap construction parses lazily, so
-// `originalPositionFor(line=1, col=0)` forces VLQ decode AND yields the first probe
-// result. surfaces malformed VLQ / all-zero mappings that TraceMap silently accepts
-// but devtools can't navigate from. probes every line up to MAPPING_PROBE_LIMIT
-function checkMapMappings(directory, map, method) {
-  if (!map.mappings || !map.sources.length) return true;
-  function reject(msg) {
-    return rejectMap(directory, msg);
-  }
-  let tm;
-  try {
-    tm = new TraceMap(map);
-  } catch (error) {
-    return reject(`VLQ decode failed: ${ error.message }`);
-  }
-  // an entry-global fixture is usually the entry import ALONE (plus comments): the rewrite
-  // replaces that import wholesale, so the output holds only synthetic statements and there
-  // is legitimately nothing user-mapped to find - a mixed file WOULD map its surviving
-  // code, but the runner cannot cheaply tell the shapes apart. VLQ decode above still ran
-  if (method === 'entry-global') return true;
-  const lines = (map.mappings.match(/;/g) ?? []).length + 1;
-  // both ENDS of the output: a file may lead with hundreds of synthetic import lines (no
-  // mapping by design), leaving the reprinted user code - the mapping the probe is after -
-  // beyond a head-only window
-  const probed = new Set();
-  for (let i = 0; i < Math.min(lines, MAPPING_PROBE_LIMIT); i++) {
-    probed.add(1 + i);
-    probed.add(lines - i);
-  }
-  for (const line of probed) {
-    // the first segment AT OR AFTER the line start: the AST reprint's first mapped token may
-    // sit past column 0 (a leading paren carries no mapping of its own), which the default
-    // at-or-before bias reads as unmapped; an all-zero or malformed map still yields nothing
-    const probe = originalPositionFor(tm, { line, column: 0, bias: LEAST_UPPER_BOUND });
-    if (probe.source !== undefined && probe.source !== null
-        && probe.line !== undefined && probe.line !== null) return true;
-  }
-  return reject(`no user-code mapping resolves to a valid source position (${ lines } lines, ${ MAPPING_PROBE_LIMIT }-line window at each end)`);
-}
-
 // sourcemap check: shape + content + VLQ-decode + round-trip probe. empty `mappings` is
 // permitted - entry-global with exclude-all emits no transforms and the resulting blank
 // map is a legitimate pass-through. null map (no transform) trivially passes
@@ -190,8 +148,8 @@ function checkSourceMapContent(directory, map, testId, source, method) {
   if (!map) return true;
   if (!checkMapShape(directory, map)) return false;
   if (!checkMapContent(directory, map, testId, source)) return false;
-  if (!checkMapMappings(directory, map, method)) return false;
-  return true;
+  const error = fixtureMappingsError(map, method);
+  return error ? rejectMap(directory, error) : true;
 }
 
 // parse-validate the transformed output - unparsable codegen (missing semi, broken ASI

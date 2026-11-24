@@ -16,10 +16,10 @@ import "core-js/modules/es.weak-map.get-or-insert-computed";
 import "core-js/modules/esnext.function.metadata";
 import "core-js/modules/esnext.symbol.metadata";
 import "core-js/modules/web.dom-collections.iterator";
-// IIFE inside the decorator expression hides its `Map` reference behind a function scope; the
+// IIFE inside the decorator expression hides its `Promise` reference behind a function scope; the
 // decorator itself still triggers the metadata polyfills required by stage-3 decorator support
 @(function () {
-  const Map = MyMap;
-  return Map;
+  const Promise = MyPromise;
+  return Promise;
 }())
 class Foo {}

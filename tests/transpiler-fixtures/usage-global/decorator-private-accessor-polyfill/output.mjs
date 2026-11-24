@@ -9,6 +9,15 @@ import "core-js/modules/es.map.constructor";
 import "core-js/modules/es.map.species";
 import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
+import "core-js/modules/es.set.constructor";
+import "core-js/modules/es.set.species";
+import "core-js/modules/es.set.difference";
+import "core-js/modules/es.set.intersection";
+import "core-js/modules/es.set.is-disjoint-from";
+import "core-js/modules/es.set.is-subset-of";
+import "core-js/modules/es.set.is-superset-of";
+import "core-js/modules/es.set.symmetric-difference";
+import "core-js/modules/es.set.union";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/es.weak-map.constructor";
 import "core-js/modules/es.weak-map.get-or-insert";
@@ -17,10 +26,9 @@ import "core-js/modules/es.weak-set.constructor";
 import "core-js/modules/esnext.function.metadata";
 import "core-js/modules/esnext.symbol.metadata";
 import "core-js/modules/web.dom-collections.iterator";
-// stage-2.7 auto-accessor with private name + decorator + polyfillable initializer.
-// Decorator may invoke `Symbol.metadata`; the initializer constructs a Map (polyfill
-// needed pre-ES2015). Private accessor is scope-closed - external writes can't mutate
+// A decorated private accessor initializes a Set. The output must include both
+// decorator metadata and the Set constructor.
 class C {
   @dec
-  accessor #foo = new Map();
+  accessor #foo = new Set();
 }

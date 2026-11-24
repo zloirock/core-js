@@ -2077,7 +2077,9 @@ export default function createAstDestructureEmitter({
   // Bind the shared iterator-result leaf decision to this source pattern's scope.
   function iteratorResultLeaf(value, metaPath) {
     return symbolIteratorInstanceLeaf({
-      value, resolvePure: meta => resolvePure(meta, metaPath), isDisabled: null,
+      value,
+      resolvePure: meta => resolvePure(meta, metaPath),
+      isDisabled,
       keyNameOf: prop => prop.key?.name ?? prop.key?.value ?? null,
     });
   }

@@ -11,6 +11,7 @@ import {
   foldedOperandNeedsValue,
   isDeoptedStaticRead,
   isForXWriteTarget,
+  isForXStatement,
   isMemberWriteHost,
   isStatementPosition,
   isThisReceiver,
@@ -59,6 +60,7 @@ import {
   disableDirectiveAnchors,
   isLineBoundDisableDirective,
   isNextLineDisableDirective,
+  lineDisableDirectiveText,
   leadingJsxPragmas,
   mergeVisitors,
   parseDisableDirectives,
@@ -248,33 +250,22 @@ function nonEmptyString(value) {
   return typeof value === 'string' && value.length ? value : null;
 }
 
-// the opt-outs this pass honoured, re-anchored so they reach the NEXT pass - ours over our own
-// output, or `post` over what a sibling lowered between the passes. the printer emits every
-// anchored text verbatim on its own line ahead of its node, bypassing the loc heuristics (the
-// deterministic channel; see `printProgram`). two sources fill the map:
-// - the canon `disableDirectiveAnchors`: every outermost covered node the reprint would leave
-//   without its directive. every one of them goes through the channel: the loc channel is a
-//   heuristic cursor, and a rebuilt statement or an extraction drags the author's own directive
-//   away from its node - so the directive standing directly above a target (its last line the
-//   line above the node's first) moves into the channel verbatim, and a target without one
-//   takes the canonical spelling
-// - the hoist no line scan can express: a disable directive attached INSIDE a destructuring
-//   pattern dies in a sibling pass's lowering (babel drops property-attached comments and reflows
-//   the survivors), and post then re-claims the very read the user opted out. the comment leaves
-//   the loc-attached channel and lands ahead of the STATEMENT (both source spellings - a leading
-//   `-next-line` and a trailing `-line` - as the leading form, whose covered line is the
-//   statement's first). meaning-preserving ONLY for a SOLE-prop chain - one property at every
-//   level down to the covered one (`{ Object: { groupBy } }` with the directive on either line):
-//   everything the statement lowers to derives from that disabled prop, so statement scope IS the
-//   directive's scope. a level with siblings keeps the author's placement (a hoist would widen or
-//   lose the opt-out). POSITIONED hosts too - statements no emission rebuilt - because their
-//   in-pattern comment dies in the same lowering; a hoisted statement is settled for the canon
-//   walk, its pattern owing no second anchor
-function anchorDisableDirectives({ ast, comments, code, offsetToLine, disabledLines }) {
+// Keep disable-line and disable-next-line attached to the same read after rewriting or lowering.
+// The printer places a covered statement's directive immediately above it. A standalone
+// declaration can also carry a directive from inside its pattern when each level has one
+// property; moving it above siblings would disable unrelated reads. Loop headers have no
+// separate statement for a declarator. Babel preserves a trailing key comment on the
+// lowered member read. Pin the key before the paired lowering and keep the author's
+// placement when this is the only pass over the file.
+function anchorDisableDirectives({ ast, comments, code, offsetToLine, disabledLines }, pass) {
   if (!disabledLines || disabledLines === true) return null;
   const anchored = new Map();
   const removed = new Set();
   const anchorText = `// ${ DISABLE_NEXT_LINE_DIRECTIVE }`;
+  function leadingDirective(comment) {
+    return comment.value.trim() === 'core-js-disable-line' ? anchorText
+      : lineDisableDirectiveText(comment, true);
+  }
   // the covered line of a sole-prop chain, walking single-property patterns down from the
   // declarator's id: the first level whose sole property opens on a covered line; null when a
   // level has siblings or none is covered
@@ -288,10 +279,7 @@ function anchorDisableDirectives({ ast, comments, code, offsetToLine, disabledLi
     }
     return null;
   }
-  // the statement the hoist lands on: the declaration itself in a statement position, the export
-  // wrapping it, and nothing for a declaration a loop head hosts - esrap prints such a head inline,
-  // so the channel would drop the directive and the print would carry none; there the canon walk
-  // below anchors the property in place, where the pattern's own print reaches it
+  // Standalone sole-property declarations can carry their directive on the statement.
   function hoistTarget(node, parent) {
     if (parent?.type === 'ExportNamedDeclaration' && parent.declaration === node) return parent;
     return isStatementPosition(node, parent) ? node : null;
@@ -307,14 +295,39 @@ function anchorDisableDirectives({ ast, comments, code, offsetToLine, disabledLi
     if (!coveringByLine.has(covered)) coveringByLine.set(covered, []);
     coveringByLine.get(covered).push(comment);
   }
+  function pinLoopKeys(pattern, root = pattern) {
+    while (pattern?.type === 'AssignmentPattern' || pattern?.type === 'RestElement') {
+      pattern = pattern.left ?? pattern.argument;
+    }
+    if (pattern?.type === 'ArrayPattern') for (const element of pattern.elements) pinLoopKeys(element, root);
+    if (pattern?.type !== 'ObjectPattern') return;
+    for (const prop of pattern.properties) {
+      if (prop.type !== 'Property') continue;
+      if (typeof prop.start === 'number') {
+        // Babel carries a trailing key comment to the lowered member read, even in a loop head.
+        for (const comment of coveringByLine.get(offsetToLine(prop.start)) ?? []) {
+          if (comment.start < root.start || comment.end > root.end) continue;
+          prop.disabledLoopKey = lineDisableDirectiveText(comment, false);
+          anchored.set(prop, []);
+          removed.add(comment);
+        }
+      }
+      pinLoopKeys(prop.value, root);
+    }
+  }
   if (coveringByLine.size) walkAstNodes({ root: ast, visit(node, parent) {
+    if (pass === 'pre' && (node.type === 'ForStatement' || isForXStatement(node))) {
+      const head = peelTransparentExpr(node.left ?? node.init);
+      if (head?.type === 'VariableDeclaration') for (const declarator of head.declarations) pinLoopKeys(declarator.id);
+      else pinLoopKeys(head?.type === 'AssignmentExpression' ? head.left : head);
+    }
     if (node.type === 'VariableDeclaration' && node.declarations.length === 1) {
       const target = hoistTarget(node, parent);
       const line = target ? soleChainCoveredLine(node.declarations[0].id) : null;
       if (line !== null) {
         for (const comment of coveringByLine.get(line) ?? []) {
           if (!anchored.has(target)) anchored.set(target, []);
-          anchored.get(target).push(anchorText);
+          anchored.get(target).push(leadingDirective(comment));
           removed.add(comment);
         }
       }
@@ -328,22 +341,29 @@ function anchorDisableDirectives({ ast, comments, code, offsetToLine, disabledLi
     if (typeof source.start !== 'number') return anchorText;
     const line = offsetToLine(source.start);
     const covering = coveringByLine.get(line) ?? [];
-    if (source !== node) {
-      for (const comment of covering) {
-        if (!isNextLineDisableDirective(comment.value) && comment.start >= source.end
-          && /^[\s,;]*$/.test(code.slice(source.end, comment.start))) removed.add(comment);
-      }
-    }
+    // Babel can put the semicolon after a trailing disable-line on its own line.
+    // The statement takes the directive with it when the next print moves that semicolon.
+    const trailing = covering.find(comment => !isNextLineDisableDirective(comment.value) && (source !== node
+      ? comment.start >= source.end && /^[\s,;]*$/.test(code.slice(source.end, comment.start))
+      : node.type === 'VariableDeclaration' && source.start <= comment.start && comment.end <= source.end
+        && /^[\s;\]]*$/.test(code.slice(comment.end, source.end))));
+    if (trailing) removed.add(trailing);
     // the directive standing directly above the node: a `-next-line` covering its line with nothing
     // but whitespace or opening parens between them. Splitting a parenthesized sequence
     // gives its first operand a statement host after those parens.
     const own = covering.find(comment => isNextLineDisableDirective(comment.value)
       && comment.end <= source.start && /^[\s(]*$/.test(code.slice(comment.end, source.start)));
-    if (!own) return anchorText;
+    if (!own) return trailing ? leadingDirective(trailing) : anchorText;
     removed.add(own);
     return code.slice(own.start, own.end);
   }
-  for (const node of disableDirectiveAnchors({ ast, disabledLines, offsetToLine, isLed: () => false, settled: anchored })) {
+  function retainsLoopLine(node) {
+    if (node.type !== 'ForStatement' || node.init?.type !== 'VariableDeclaration' || typeof node.start !== 'number') return false;
+    // A lowered inline initializer can still carry its own trailing disable-line.
+    // Moving it ahead of the loop would disable every following initializer and its body.
+    return coveringByLine.get(offsetToLine(node.start))?.some(comment => !isNextLineDisableDirective(comment.value) && node.init.declarations.some(declaration => declaration.init?.end <= comment.start && /^[\t ]*$/.test(code.slice(declaration.init.end, comment.start))));
+  }
+  for (const node of disableDirectiveAnchors({ ast, disabledLines, offsetToLine, isLed: retainsLoopLine, settled: anchored })) {
     anchored.set(node, [ownDirectiveText(node)]);
   }
   return anchored.size ? { anchored, removed } : null;
@@ -382,7 +402,10 @@ const MAX_CODEFRAME_LENGTH = 4096;
 function buildParseErrorBody(error, code) {
   const tail = nonEmptyString(error.helpMessage);
   const codeframe = nonEmptyString(error.codeframe);
-  if (codeframe && codeframe.length <= MAX_CODEFRAME_LENGTH) return tail ? `${ codeframe }\n${ tail }` : codeframe;
+  // The native frame counts LF. Use the parser label for other ECMAScript line breaks.
+  if (codeframe && codeframe.length <= MAX_CODEFRAME_LENGTH && !/[\u2028\u2029]|\r(?!\n)/.test(code)) {
+    return tail ? `${ codeframe }\n${ tail }` : codeframe;
+  }
   const label = error.labels?.[0];
   const chunks = [];
   if (label) {
@@ -1138,7 +1161,7 @@ export default function createPlugin(options) {
       // crawl, and an anchor keyed on the blanked copy would never meet its node in the printer
       function computeDirectiveAnchors() {
         restoreNeutralizedPatterns();
-        directiveAnchors = anchorDisableDirectives({ ast, comments, code, offsetToLine, disabledLines });
+        directiveAnchors = anchorDisableDirectives({ ast, comments, code, offsetToLine, disabledLines }, pass);
       }
       function finalizeAst() {
         if (!directiveAnchors) computeDirectiveAnchors();
@@ -1590,7 +1613,7 @@ export default function createPlugin(options) {
         // comment. Only test for anchors here: restoring parameters or retaining these node
         // keys before the scope-building flush and relocation undo would invalidate them.
         if (!astRewrote && !collected && !surgeryChanged
-          && !(pass === 'pre' && anchorDisableDirectives({ ast, comments, code, offsetToLine, disabledLines }))) {
+          && !(pass === 'pre' && anchorDisableDirectives({ ast, comments, code, offsetToLine, disabledLines }, pass))) {
           // pre stores its work in the snapshot and the post pass carries the union (finalize's rule)
           if (pass === 'pre') storeAstPreSnapshot(false);
           else outputDebug();

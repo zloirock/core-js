@@ -38,7 +38,7 @@ export function readInputSourceMap(comments, id) {
     }
     // Validate each section against its own tables before flattening can make a dangling index
     // point into a sibling. Keep the original mappings during printing; do not rebuild or encode them.
-    function validateMap(input) {
+    function validateMap(input, sectionMap = false) {
       if (input.version !== 3) return null;
       if ('sections' in input) {
         let line = -1;
@@ -48,10 +48,11 @@ export function readInputSourceMap(comments, id) {
           if (!Number.isSafeInteger(offset.line) || !Number.isSafeInteger(offset.column)
             || offset.line < 0 || offset.column < 0 || offset.line < line || offset.line === line && offset.column < column) return null;
           ({ line, column } = offset);
-          section.map = validateMap(section.map);
+          section.map = validateMap(section.map, true);
           if (!section.map) return null;
         }
-        return input;
+        // Flatten inside out: the parent column only shifts line zero of each child.
+        return AnyMap(input, base.href);
       }
       const map = new TraceMap(input, base.href);
       for (const segments of decodedMappings(map)) for (const segment of segments) {
@@ -60,10 +61,14 @@ export function readInputSourceMap(comments, id) {
         for (const value of segment) if (!Number.isSafeInteger(value) || value < 0) return null;
         if (length > 1 && (segment[1] >= map.sources.length || length === 5 && segment[4] >= map.names.length)) return null;
       }
-      return input;
+      // Each source owns a slot even when this section omits its content.
+      if (sectionMap && map.sourcesContent && map.sourcesContent.length !== map.sources.length) {
+        map.sourcesContent = map.sources.map((_, index) => map.sourcesContent[index] ?? null);
+      }
+      return map;
     }
     const parsed = validateMap(JSON.parse(text));
-    return parsed && { comments: directives, map: AnyMap(parsed, base.href) };
+    return parsed && { comments: directives, map: parsed };
   } catch {
     return null;
   }

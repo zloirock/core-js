@@ -153,6 +153,14 @@ export function isNextLineDisableDirective(value) {
   return disableDirectiveKind(value) === 'next-line';
 }
 
+// Move the actual directive between the key's line and the next statement. A block
+// comment can mention the same spelling in prose before the line that declares it.
+export function lineDisableDirectiveText({ type, value }, nextLine) {
+  const directive = nextLine ? DISABLE_NEXT_LINE_DIRECTIVE : 'core-js-disable-line';
+  const text = value.replace(DIRECTIVE, (match, kind) => match.replace(`core-js-disable-${ kind }`, directive));
+  return type === 'Block' || type === 'CommentBlock' ? `/*${ text }*/` : `//${ text }`;
+}
+
 // the line a line-bound directive comment covers - ONE rule for the scan that decides coverage and
 // for every channel that re-anchors an honoured directive: `-line` covers the line the comment
 // OPENS on (the README's "current line"; a multi-line block that closes lower still covers where it

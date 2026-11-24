@@ -94,7 +94,6 @@ import {
   hostSlotNode,
   restoreNamespacePatternExports,
   nullFirstGuardTest,
-  renderBoundRawBranch,
   renderCapturedReceiver,
   renderCtorIdentityNarrow,
   renderDestructureAssignments,
@@ -1047,16 +1046,13 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
             memberNode.computed ? t.cloneNode(memberNode.property) : t.identifier(memberNode.property.name),
             memberNode.computed)
           : readNode;
-        const rawBranch = plan.isCallee && !plan.callInBranches
-          ? estreeToBabel(renderBoundRawBranch(hostSlot(t.cloneNode(plainRead)), hostSlot(t.cloneNode(plan.recvIdent))))
-          : plainRead;
         guardedNarrowRendered.add(memberNode);
         // the whole chain is the canon's fold - one branch per candidate ctor, innermost-last.
         // the test reads the USER's binding, so its identifier is skipped like the raw branch's:
         // left live, the identifier visitor swapped it for the ponyfill wherever the binding NAME
         // is a global one (`var Map = Map`), and the test became `_Map === _Map` - constant true
         const callPath = plan.callInBranches ? peelParenAndTSSlotPath(path).parentPath : null;
-        const narrow = estreeToBabel(renderCtorIdentityNarrow(plan, hostSlot(rawBranch), {
+        const narrow = estreeToBabel(renderCtorIdentityNarrow(plan, hostSlot(plainRead), {
           call: callPath?.node,
           ctx: { scope: path.scope, path, adapter, injectorState: injector },
           embed: node => hostSlot(t.cloneNode(node)),
@@ -1108,7 +1104,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         }
         const guard = plan.seqPrefix.length
           ? t.sequenceExpression([...plan.seqPrefix.map(expr => t.cloneNode(expr)), hoisted]) : hoisted;
-        t.traverseFast(rawBranch, n => skippedNodes.add(n));
+        t.traverseFast(plainRead, n => skippedNodes.add(n));
         // Old generators need explicit grouping when the guard replaces the operand of
         // `expr<T>`. The guard contains no await or yield that regenerator would have to explode.
         if (plan.deleteHost) plan.deleteHost.replaceWith(guard);
@@ -2473,10 +2469,20 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         // there is nothing to sweep - skip the whole-program walk
         if (!lateMemberHandler) return;
         const isHandled = usageVisitors?.[USAGE_VISITORS_IS_HANDLED];
-        // A synthetic static also contains its global Identifier. Inspect each live top-level
-        // child as Babel reaches it, so rewrites and requeued statements keep their usual order.
-        function mayHoldGlobal(node) {
+        function isGlobalIdentifier(node) {
           return node.type === 'Identifier' && isKnownGlobalName(node.name);
+        }
+        // Nested statements get their own check when Babel reaches them. Leave
+        // deep expressions to Babel rather than recursing through an arbitrary AST.
+        function mayHoldGlobal(node, depth = 0) {
+          if (!node) return false;
+          if (depth === 32 || depth > 0 && babelTypes.isStatement(node) || isGlobalIdentifier(node)) return true;
+          const keys = babelTypes.VISITOR_KEYS[node.type];
+          if (!keys) return true;
+          return keys.some(key => {
+            const child = node[key];
+            return Array.isArray(child) ? child.some(item => mayHoldGlobal(item, depth + 1)) : mayHoldGlobal(child, depth + 1);
+          });
         }
         // A replacement without its own location still shares a positioned parent's
         // opt-out. Children carrying their own locations retain their own directives.
@@ -2498,7 +2504,10 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         }
         const visitors = {
           Statement(statement) {
-            if (!lateSyntax && statement.parent === path.node && !containsNode(statement.node, mayHoldGlobal)) statement.skip();
+            if (lateSyntax) return;
+            const { node } = statement;
+            const relevant = statement.parent === path.node ? containsNode(node, isGlobalIdentifier) : mayHoldGlobal(node);
+            if (!relevant) statement.skip();
           },
           'MemberExpression|OptionalMemberExpression'(member) {
             const obj = member.node.object;

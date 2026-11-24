@@ -27221,6 +27221,27 @@ function * generatePriorOutputReads() {
   }
 }
 
+// The tag getter runs before the substitutions. The eventual call uses the original
+// receiver even when the getter changes the binding.
+function * generateTagLookupOrder() {
+  for (const kind of ['noncallable', 'callable', 'throwing']) {
+    const answer = kind === 'throwing' ? 'throw new RangeError();'
+      : kind === 'noncallable' ? 'return null;' : 'return function () { return this === user; };';
+    yield snippet(`tag-lookup-order/${ kind }`, `(() => {
+      let C = Array;
+      const user = { get of() { log.push('get'); C = Array; ${ answer } } };
+      if (log) C = user;
+      try { return C.of\`x\${log.push('sub')}\`; }
+      catch (error) { return error.name; }
+    })()`);
+  }
+  yield snippet('tag-lookup-order/optional-receiver', `(() => {
+    const list = [];
+    list.at = function () { return this === list; };
+    return (list?.at)\`hello\`;
+  })()`);
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -29066,4 +29087,5 @@ export function * generate() {
   yield * generateObjectPatternOrder();
   yield * generatePatternScopeReads();
   yield * generatePriorOutputReads();
+  yield * generateTagLookupOrder();
 }

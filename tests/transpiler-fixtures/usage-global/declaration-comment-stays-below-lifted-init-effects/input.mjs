@@ -1,7 +1,5 @@
-// The comments a declaration owns keep leading it below the effects its rewrite lifts out of the
-// initializer, which run first - a JSDoc type keeps typing the declaration - whether it opens its
-// list or follows a statement. A comment inside each effect shows their order to the structural
-// comparison too; a block set apart by a blank line is a section header and stays above the effect.
+// Global mode keeps each initializer intact. Declaration comments, JSDoc and the section header
+// keep their source positions relative to the logged effects.
 
 // owned by the declaration that opens the program
 const { from } = (log(/* first */), Array);

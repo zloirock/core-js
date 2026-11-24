@@ -10,6 +10,7 @@ import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
 import { createChecker } from '../polyfill-provider/harness.mjs';
 import { runInWorker } from '../transpiler-differential/realm-runner.mjs';
+import { fixtureMappingsError } from './fixture-source-map.mjs';
 
 const { check, checkDeep, checkTruthy, finish } = createChecker('leading-comments-maps');
 const integration = createRequire(new URL('../transpiler-integration/package.json', import.meta.url));
@@ -27,6 +28,27 @@ function mappedToken(out, token) {
 }
 
 try {
+  const babel = createRequire(import.meta.url)('@babel/core');
+  function optionalTokens(code) {
+    return babel.parseSync(code, { configFile: false, babelrc: false, parserOpts: { tokens: true } }).tokens
+      .filter(token => token.type.label === '?.').map(token => token.loc.start);
+  }
+  for (const expression of [
+    'arr.at?.(0)',
+    '((arr.flat()).at?.(0)).flat?.()',
+    '((arr.flat()).at /* ?. */\n?.(0)).flat // ?.\n?.()',
+  ]) {
+    const source = `const arr = [1, 2];\nexport const r = ${ expression };`;
+    const output = createPlugin({ ...options, method: 'usage-pure' }).transform(source, '/input.mjs');
+    const positions = optionalTokens(source).map(token => [token.line, token.column]);
+    const traced = new TraceMap(output.map);
+    const calls = optionalTokens(output.code).map(token => {
+      const point = originalPositionFor(traced, token);
+      return [point.line, point.column];
+    });
+    check(`source optional call count/${ expression }`, positions.length, expression === 'arr.at?.(0)' ? 1 : 2);
+    checkDeep(`original optional call sites/${ expression }`, calls, positions);
+  }
   const hosts = [['unplugin', (source, method) => createPlugin({ ...options, method }).transform(source, '/view.tsx')]];
   for (const version of ['babel-plugin', 'babel-plugin-v7']) {
     const { transformSync, transformFromAstSync, parseSync: parseBabel } = createRequire(new URL(`../${ version }/package.json`, import.meta.url))('@babel/core');
@@ -132,6 +154,38 @@ export const effects = [];`;
         [mappedToken(out, 'marker').line, mappedToken(out, 'marker').column], [3, 13]);
       check(`${ method }/all old map comments removed`, out.code.includes('sourceMappingURL'), false);
     }
+    for (const sameLine of [false, true]) {
+      const prefix = sameLine ? '     ' : '/* padding */\n';
+      const input = prefix + code;
+      const marker = linesOf(input.slice(0, input.indexOf('marker')));
+      const line = marker.length - 1;
+      const column = marker.at(-1).length;
+      const leaf = { version: 3, sources: ['original.ts'], names: [], mappings: 'AAEG' };
+      const child = { offset: { line, column: line === 0 ? column - 5 : column }, map: leaf };
+      const index = { version: 3, sections: [{ offset: { line: 0, column: 5 }, map: { version: 3, sections: [child] } }] };
+      const mapped = createPlugin({ ...options, method }).transform(`${ input }\n//# sourceMappingURL=${ encoded(index) }`, join(directory, 'input.js'));
+      const location = mappedToken(mapped, 'marker');
+      checkDeep(`${ method }/nested section offset/${ sameLine }`, [location.line, location.column], [3, 3]);
+    }
+    for (const first of [{}, { sourcesContent: [] }, { sourcesContent: [null] }]) {
+      const input = `export const a = xs => xs.at(0);\nexport const b = 2;\n${ entry(method) }`;
+      const leaf = { version: 3, names: [], mappings: 'aAAA' };
+      const index = { version: 3, sections: [
+        { offset: { line: 0, column: 0 }, map: { ...leaf, sources: ['first.ts'], ...first } },
+        { offset: { line: 1, column: 0 }, map: { ...leaf, sources: ['second.ts'], sourcesContent: ['const b = 2;'] } },
+      ] };
+      const output = createPlugin({ ...options, method }).transform(`${ input }\n//# sourceMappingURL=${ encoded(index) }`, join(directory, 'input.js'));
+      const contents = output.map.sources.map((file, i) => [file.slice(file.lastIndexOf('/') + 1), output.map.sourcesContent[i]]);
+      checkDeep(`${ method }/section contents/${ JSON.stringify(first) }`, contents, [['first.ts', null], ['second.ts', 'const b = 2;']]);
+    }
+    const valid = { version: 3, sources: ['input.js'], names: ['item'] };
+    for (const segments of ['AA', '!', 'g', 'AAA', 'AAAA,', 'A,,AAAA', 'AAAA,;', 'ggggggEAAA', 'AAAA;AAgggggggBA', 'ggggggghAAAA']) {
+      checkTruthy(`${ method }/reject invalid mapping/${ segments }`, fixtureMappingsError({ ...valid, mappings: segments }, method));
+    }
+    for (const segments of ['AAAA', 'AAAAA', 'A;AAAA', '+/////DAAA', 'ggggggjgAAAA']) {
+      check(`${ method }/accept mapping/${ segments }`, fixtureMappingsError({ ...valid, mappings: segments }, method), null);
+    }
+    check(`${ method }/synthetic-only map`, Boolean(fixtureMappingsError({ ...valid, mappings: ';' }, method)), method !== 'entry-global');
     for (const indexed of [false, true, 'nested']) for (const decoded of [false, true]) {
       const namedMappings = Array.from({ length: before.length }, () => []);
       namedMappings[before.length - 1].push([before.at(-1).length, 1, 2, 13, 0]);

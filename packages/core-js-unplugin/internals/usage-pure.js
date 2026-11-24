@@ -26,7 +26,7 @@ import {
   isFunctionParamDestructureParent,
   isTaggedTemplateTag,
   mutatedSlotLeftNativeWarning,
-  peelParenAndTSParentPath,
+  climbTransparentWrapperPath,
   patternSlotTarget,
   receiverCarriesLiveOptional,
   unwrapRuntimeExpr,
@@ -492,7 +492,7 @@ export default function createAstUsagePureCallback({
       // a TAGGED-TEMPLATE tag is a plain binding swap for a STATIC claim (`String.raw\`x\``
       // -> `_String$raw\`x\``); an INSTANCE one would need a `.call` dispatch the tag position
       // has no room for, so that stays raw - through the wrappers the tag may wear
-      if (isTaggedTemplateTag(peelParenAndTSParentPath(metaPath)?.node, node, meta.placement)) return;
+      if (isTaggedTemplateTag(climbTransparentWrapperPath(metaPath).parentPath?.node, node, meta.placement)) return;
       // a string-spelled key (`arr['Symbol.iterator']`) is a plain property read and stays raw
       if (isSourcedSymbolIteratorMeta(meta)) {
         if (chainAssignStaged(meta)) return;

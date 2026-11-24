@@ -7,6 +7,7 @@ import {
   buildOffsetToLoc,
   firstSpelledOffset,
   isLineBoundDisableDirective,
+  isNextLineDisableDirective,
   ownedLeadingComments,
 } from '@core-js/polyfill-provider/helpers/source-scan';
 import { stampReplacementSpan } from './emit-shared.js';
@@ -53,7 +54,7 @@ function parenthesize(expression) {
 
 // esrap 2.4.2 gaps, held by the printer and roundtrip checks; every override
 // carries its reproducing shape and dies as upstream catches up
-function withCorpusGapOverrides(language, tails, script) {
+function withCorpusGapOverrides(language, tails, script, { blankBefore, hasOptionalSuffix }) {
   // Grammar lookahead depends on the first expression, not only on precedence.
   // `new`, unary operators and explicit parens already spell a safe leading token.
   function expressionLeftEdge(node) {
@@ -123,6 +124,17 @@ function withCorpusGapOverrides(language, tails, script) {
     // where the input is already lowered) that rewrites the author's longhand back into
     // ES2015 syntax. spell the longhand the flag records
     const collapseTarget = node.value?.type === 'AssignmentPattern' ? node.value.left : node.value;
+    if (node.disabledLoopKey) {
+      context.newline();
+      if (node.computed) context.write('[');
+      context.visit(node.key);
+      context.write(` ${ node.disabledLoopKey }`);
+      context.newline();
+      if (node.computed) context.write(']');
+      context.write(': ');
+      context.visit(node.value);
+      return;
+    }
     if (!node.shorthand && !node.computed && !node.method && node.kind === 'init'
       && node.key?.type === 'Identifier' && collapseTarget?.type === 'Identifier'
       && node.key.name === collapseTarget.name) {
@@ -156,6 +168,13 @@ function withCorpusGapOverrides(language, tails, script) {
         return typeof target[key] === 'function' ? target[key].bind(target) : target[key];
       },
     });
+  }
+  if (hasOptionalSuffix) {
+    const baseMember = language.MemberExpression;
+    language.MemberExpression = (node, context) => {
+      if (node.optionalSuffixAfter === undefined) return baseMember(node, context);
+      baseMember(node, withWrites(context, (text, at) => context.write(text, text === '?.' ? node.property : at)));
+    };
   }
   // TypeScript orders access/static before abstract/override. Preserve the base printer's
   // decorators, key, async/generator markers and body; change only the modifier prefix.
@@ -193,7 +212,11 @@ function withCorpusGapOverrides(language, tails, script) {
   // a list's tail follows its last member, inside the list (`List tails` below)
   const baseVisit = language._;
   language._ = (node, context, visit) => {
-    baseVisit(node, context, visit);
+    baseVisit(node, context, blankBefore?.has(node) ? child => {
+      context.margin();
+      context.newline();
+      visit(child);
+    } : visit);
     const trailing = tails.byEnd.get(tails.ownerEnds.get(node));
     if (trailing && !tails.written.has(trailing)) {
       writeListTail(trailing, context, 'code');
@@ -294,6 +317,16 @@ function synthesizeLocs(program, comments, source) {
     }
     return peeled;
   }
+  // A next-line directive followed by an empty line must still cover an empty line after print.
+  let gaps;
+  let hasOptionalSuffix = false;
+  const whitespace = /\s*/y;
+  for (const comment of directives) if (isNextLineDisableDirective(comment.value)) {
+    whitespace.lastIndex = comment.end;
+    whitespace.test(source);
+    if (locate(whitespace.lastIndex).line > locate(comment.end).line + 1) (gaps ??= new Set()).add(whitespace.lastIndex);
+  }
+  const blankBefore = gaps && new WeakSet();
   const sourceStarts = program.defaultCommentSpans?.length ? [] : null;
   (function walk(node, anchor) {
     if (Array.isArray(node)) {
@@ -304,8 +337,16 @@ function synthesizeLocs(program, comments, source) {
     // the flag feeds the dead-chain gate, and a SYNTHESIZED chain (no source positions,
     // so the loc branch below never sees it) must arm it too
     if (node.type === 'ChainExpression') hasChainExpression = true;
+    if (node.optionalSuffixAfter !== undefined) {
+      const at = codeOffset(source, comments, node.optionalSuffixAfter, 1);
+      if (at >= 0 && source.startsWith('?.', at)) {
+        hasOptionalSuffix = true;
+        stampReplacementSpan(node.property, { start: at, end: at });
+      }
+    }
     if (typeof node.ownedCommentsAt === 'number') heirs.push(node);
     if (typeof node.type === 'string') {
+      if (gaps?.size && gaps.delete(sourceOffset(node, 'start'))) blankBefore.add(node);
       if (sourceStarts) {
         const sourceStart = sourceOffset(node, 'start');
         if (Number.isInteger(sourceStart)) sourceStarts.push(sourceStart);
@@ -361,6 +402,11 @@ function synthesizeLocs(program, comments, source) {
       }
       walk(node[key], anchor);
     }
+    // At a shared generated column TraceMap reads the first segment. The lookup's closing
+    // position and the optional suffix's opening position describe the same boundary.
+    if (node.optionalSuffixAfter !== undefined && node.object.loc && node.property.replacedSpan) {
+      node.object.loc = { ...node.object.loc, end: node.property.loc.start };
+    }
     if (comments.length && Array.isArray(node.body)
       && (STATEMENT_LIST_HOST_TYPES.has(node.type) || node.type === 'ClassBody')) bodies.push(node.body);
   })(program, null);
@@ -387,7 +433,9 @@ function synthesizeLocs(program, comments, source) {
   return {
     comments: comments.map(comment => ({ ...comment, loc: printLoc(comment), value: printValue(comment) })),
     bodies,
+    blankBefore,
     hasChainExpression,
+    hasOptionalSuffix,
     endOwners,
     heirs,
     listHosts,
@@ -499,6 +547,16 @@ function sourceOffset(node, edge) {
   return Number.isInteger(node?.[edge]) ? node[edge] : node?.replacedSpan?.[edge];
 }
 
+// The nearest code character on either side of an offset, past whitespace and parser comments.
+function codeOffset(source, comments, offset, step) {
+  for (let i = offset; i >= 0 && i < source.length; i += step) {
+    const comment = comments[sortedPrefixLength(comments, ({ start }) => start <= i) - 1];
+    if (comment?.end > i) i = step > 0 ? comment.end - 1 : comment.start;
+    else if (source[i].trim()) return i;
+  }
+  return -1;
+}
+
 // the tails of the positioned hosts the print walk met, keyed by the member they follow - or by the
 // host, for an empty list. a comment another channel owns (`taken`) stays there, and a comment two
 // hosts would claim (a copied span) goes to the first
@@ -513,27 +571,13 @@ function collectListTails({ hosts, comments, taken, source, locate }) {
     written: new Set(),
   };
   if (!hosts.length || !comments.length) return tails;
-  // the comment covering `offset`, if any: the list is source-ordered and its members do not overlap
-  function commentAt(offset) {
-    const comment = comments[sortedPrefixLength(comments, ({ start }) => start <= offset) - 1];
-    return comment?.end > offset ? comment : null;
-  }
-  // the nearest code character on either side of `offset`, past whitespace and comments
-  function codeOffset(offset, step) {
-    for (let i = offset; i >= 0 && i < source.length; i += step) {
-      const comment = commentAt(i);
-      if (comment) i = step > 0 ? comment.end - 1 : comment.start;
-      else if (source[i].trim()) return i;
-    }
-    return -1;
-  }
   // the gap between an optional call's `?.` and its `(` prints after the `?.` as its type arguments
   // would (`f?. /* c */(x)`): with none to print, the cursor flushed it into the argument list
   function claimOptionalCallGap(host) {
     const [first] = host.arguments;
-    const open = codeOffset((first ? sourceOffset(first, 'start') : host.end - 1) - 1, -1);
+    const open = codeOffset(source, comments, (first ? sourceOffset(first, 'start') : host.end - 1) - 1, -1);
     if (source[open] !== '(') return;
-    const dot = codeOffset(open - 1, -1);
+    const dot = codeOffset(source, comments, open - 1, -1);
     if (source[dot] !== '.' || source[dot - 1] !== '?') return;
     const run = claimRun(dot + 1, open);
     if (run.length) tails.byGap.set(host, tail(run, dot + 1, open));
@@ -562,7 +606,9 @@ function collectListTails({ hosts, comments, taken, source, locate }) {
       // each substitution is a list of one, closed by its own `}`
       for (const member of host.expressions) {
         const from = sourceOffset(member, 'end');
-        const to = Number.isInteger(from) ? codeOffset(from, 1) : -1;
+        let to = Number.isInteger(from) ? codeOffset(source, comments, from, 1) : -1;
+        // Parentheses shed by the printer can separate two runs of trailing comments.
+        while (source[to] === ')') to = codeOffset(source, comments, to + 1, 1);
         if (source[to] === '}') claim({ host, member, from, to });
       }
       continue;
@@ -571,7 +617,7 @@ function collectListTails({ hosts, comments, taken, source, locate }) {
     const to = host.end - 1;
     if (source[to] !== close) continue;
     const member = members.at(-1) ?? null;
-    const from = member ? sourceOffset(member, 'end') : codeOffset(to - 1, -1) + 1;
+    const from = member ? sourceOffset(member, 'end') : codeOffset(source, comments, to - 1, -1) + 1;
     if (!Number.isInteger(from) || (!member && source[from - 1] !== open)) continue;
     claim({ host, member, from, to });
   }
@@ -758,7 +804,8 @@ export function printProgram({ program, comments, source, id, jsx = false,
     return false;
   }
   const {
-    comments: locatedComments, bodies, endOwners, hasChainExpression, heirs, listHosts, locate, sourceStarts, trailEnds,
+    comments: locatedComments, bodies, blankBefore, endOwners, hasChainExpression, hasOptionalSuffix,
+    heirs, listHosts, locate, sourceStarts, trailEnds,
   } = synthesizeLocs(program, ownComments, source);
   // A surviving source node keeps its default's comments, including a rewritten default's span.
   // No source node in the span means the default was removed: do not annotate a lifted effect.
@@ -813,7 +860,9 @@ export function printProgram({ program, comments, source, id, jsx = false,
     // Moved defaults and same-line statements have their own comment cursors. A receiver or
     // sibling must not flush their interiors, including annotations inside call arguments.
     function createLanguage(dialectComments) {
-      const dialect = withCorpusGapOverrides((jsx ? tsx : ts)({ comments: dialectComments }), tails, program.sourceType === 'script');
+      const dialect = withCorpusGapOverrides((jsx ? tsx : ts)({ comments: dialectComments }), tails, program.sourceType === 'script', {
+        blankBefore, hasOptionalSuffix,
+      });
       for (const type of new Set(anchors.keys().map(node => node.type))) {
         const base = dialect[type];
         if (typeof base !== 'function') continue;

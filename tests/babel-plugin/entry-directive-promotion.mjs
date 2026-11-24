@@ -18,7 +18,7 @@ const requireBabel = BABEL_REQUIRE_FROM
   : createRequire(import.meta.url);
 const { transformSync } = requireBabel('@babel/core');
 
-const { check, checkTruthy, finish } = createChecker('entry-directive-promotion');
+const { check, checkDeep, finish } = createChecker('entry-directive-promotion');
 
 const ENTRY = 'import "core-js/es/array/from";';
 const ENTRY2 = 'import "core-js/es/array/at";';
@@ -65,14 +65,12 @@ const ROWS = [
   ['entry inside a sequence, literal after', `${ SEQ_ENTRY }\n"use strict";\nf();`],
 ];
 
-let changed = 0;
 for (const [label, source] of ROWS) {
   const output = transform(source);
-  if (output !== source) changed++;
-  const before = prologue(source);
-  const promoted = prologue(output).filter(value => !before.includes(value));
-  check(`promotion/${ label }`, promoted.join(' '), '');
+  checkDeep(`promotion/${ label }/prologue`, prologue(output), prologue(source));
+  for (const entry of ['core-js/es/array/from', 'core-js/es/array/at']) {
+    if (source.includes(entry)) check(`promotion/${ label }/removed ${ entry }`, output.includes(entry), false);
+  }
 }
-checkTruthy('promotion/control - every row actually had an entry removed', changed === ROWS.length);
 
 finish();

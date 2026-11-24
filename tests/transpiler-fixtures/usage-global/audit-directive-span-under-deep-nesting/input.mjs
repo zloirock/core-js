@@ -29,7 +29,7 @@ const disabled = wrap(
   Array.from(src)
 );
 const enabled = wrap(
-  [...src].flat()
+  [src].flat()
 );
 return [disabled, enabled];
 });

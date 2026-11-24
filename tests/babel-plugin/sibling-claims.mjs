@@ -199,6 +199,42 @@ async function checkUnshadowedLookupWork() {
   check('unshadowed statics with sibling', await count([corejs, () => ({ visitor: {} })]) <= single, true);
 }
 
+// A live global in one method must not send the late member visitor through
+// unrelated statements in the same class. A sibling can still add a use there.
+async function checkLateMemberVisits() {
+  const { NodePath } = requireBabel('@babel/traverse');
+  const { traverse } = NodePath.prototype;
+  const source = `class View {
+    draw(rows) { ${ 'rows.local();'.repeat(40) } }
+    keep(rows) { return Object.keys(rows); }
+    added() { return marker([['x', 3]]); }
+  }`;
+  let visits = 0;
+  let introduced = 0;
+  NodePath.prototype.traverse = function (visitors, ...args) {
+    const member = 'MemberExpression|OptionalMemberExpression';
+    if (this.isProgram() && visitors.Statement && visitors.Identifier && typeof visitors[member] === 'function') {
+      const visitMember = visitors[member];
+      visitors = { ...visitors, [member](at) {
+        if (at.node.property.name === 'local') visits++;
+        else if (at.node.property.name === 'fromEntries') introduced++;
+        return visitMember(at);
+      } };
+    }
+    return traverse.call(this, visitors, ...args);
+  };
+  try {
+    const { code } = await transformAsync(source, {
+      ...config, plugins: [[babelPlugin, { ...options, method: 'usage-pure' }], editCall('static', 'fresh', 'visit')],
+    });
+    check('late member visit counter sees the introduced static', introduced > 0, true);
+    check('late sweep skips unrelated members', visits, 0);
+    check('late sweep serves the introduced static', code.includes('/object/from-entries'), true);
+  } finally {
+    NodePath.prototype.traverse = traverse;
+  }
+}
+
 async function checkStage(phase) {
   for (const method of ['usage-global', 'usage-pure']) for (const form of ['inherited', 'in-place', 'fresh']) for (const disabled of [false, true]) {
     const input = `${ disabled ? '// core-js-disable-next-line\n' : '' }export const r = ${ form === 'in-place' ? 'macros.marker' : 'marker' }([['x', 3]]);`;
@@ -222,6 +258,7 @@ async function checkStage(phase) {
 
 try {
   await checkUnshadowedLookupWork();
+  await checkLateMemberVisits();
   for (const method of ['usage-global', 'usage-pure']) {
     await checkExitOrder(method);
     await checkExposedStatic(method);

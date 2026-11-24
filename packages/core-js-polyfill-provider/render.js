@@ -1345,9 +1345,18 @@ export function renderCtorIdentityNarrow(plan, rawBranch, {
     // an absorbed call invokes the dispatched method through `.call`, as the ordinary dispatch does: bound
     // first, any value but a function would throw ahead of the arguments, and an absorbed `?.()` would test
     // the bound function instead of the method
-    if (plan.callInBranches) {
-      rawThis = spellRecv();
-    } else if (plan.isCallee) rawBranch = renderBoundRawBranch(rawBranch, spellRecv());
+    if (plan.callInBranches) rawThis = spellRecv();
+  }
+  if (plan.isCallee && !plan.callInBranches) {
+    if (plan.tagSubstitutions) {
+      // Bind call, not the tag itself. A non-callable tag still evaluates its substitutions.
+      const method = plan.branches[0].staticPure;
+      const callable = staticMethodType(plan.ctorName, plan.key)
+        ? identifier(injectImport(method.entry, method.hintName))
+        : arrowFunctionExpression([], blockStatement([]));
+      rawBranch = callExpression(memberExpression(memberExpression(callable, identifier('call')), identifier('bind')),
+        [rawBranch, spellRecv()]);
+    } else rawBranch = renderBoundRawBranch(rawBranch, spellRecv());
   }
   let fallback = invoke(rawBranch, true, rawThis);
   if (plan.destructureDefault) {

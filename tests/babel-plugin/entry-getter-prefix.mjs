@@ -42,7 +42,13 @@ for (const [label, entry, expected] of [
     const unplugin = createPlugin(options).transform(input, '/entry.cjs')?.code ?? input;
     for (const [host, code] of [['babel', babel], ['unplugin', unplugin]]) {
       const row = `${ method }/${ Object.keys(targets)[0] }/${ host }/${ label }`;
-      checkDeep(`${ row }/getter log`, Array.from(runInNewContext(code, { require: () => undefined, log: [] })), native);
+      const loads = [];
+      const log = runInNewContext(code, { require(id) { loads.push(id); }, log: [] });
+      checkDeep(`${ row }/getter log`, Array.from(log), native);
+      if (method === 'entry-global') {
+        checkDeep(`${ row }/loads`, loads, targets.ie
+          ? ['core-js/modules/es.object.to-string', 'core-js/modules/es.array.from', 'core-js/modules/es.string.iterator'] : []);
+      }
       if (method !== 'usage-pure') {
         check(`${ row }/entry removed`, /,\s*require\s*\)+\s*(?:\?\.)?\(/u.test(code), false);
         if (label === 'quiet data') check(`${ row }/quiet prefix removed`, /box\.quiet/u.test(code), false);

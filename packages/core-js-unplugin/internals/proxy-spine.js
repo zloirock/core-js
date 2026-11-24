@@ -76,7 +76,6 @@ import {
   renderShortCircuitGuard,
   renderSealedCallFallback,
   renderDeleteShortCircuitGuard,
-  renderBoundRawBranch,
   renderCtorIdentityNarrow,
   renderDestructureAssignments,
   renderNavCollapseValue,
@@ -236,9 +235,7 @@ export default function createProxySpineChannel(ctx) {
     // a hoisted chain guard has already proved the receiver, so the raw branch drops the `?.` the
     // source wrote on the hop - and with it the chain wrapper that spelled it
     if (plan.hoisted) memberClone.optional = false;
-    const rawBranch = plan.isCallee && !plan.callInBranches
-      ? renderBoundRawBranch(memberClone, identifier(plan.recvIdent.name))
-      : memberClone.optional || receiverCarriesOptional(memberClone) ? chainExpression(memberClone) : memberClone;
+    const rawBranch = memberClone.optional || receiverCarriesOptional(memberClone) ? chainExpression(memberClone) : memberClone;
     const liveArguments = plan.callInBranches ? new Set() : null;
     // Arguments and continuation keys keep their own claims: the guard mark walks around them.
     const tailClaims = new Set();

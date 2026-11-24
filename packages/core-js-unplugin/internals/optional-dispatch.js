@@ -77,6 +77,15 @@ import {
   inheritedStaticCalleeSplit,
 } from './se-dispatch.js';
 
+// Keep both optional-call sites when a continuing claim clones the inner dispatch.
+function mapOptionalCall(result, source) {
+  const call = unwrapRuntimeExpr(result);
+  const member = call?.callee;
+  if (member?.optional && member.property?.name === 'call' && Number.isInteger(source.callee?.end)) {
+    member.optionalSuffixAfter = source.callee.end;
+  }
+}
+
 export default function createOptionalDispatchChannel(ctx) {
   const {
     STAGED_SPLIT,
@@ -155,6 +164,7 @@ export default function createOptionalDispatchChannel(ctx) {
       },
       recordLookup: lookup => stampReplacementSpan(lookup, callee),
     });
+    mapOptionalCall(product.receiver, node);
     return {
       hopKind: 'call',
       disjuncts: product.disjuncts,
@@ -627,6 +637,7 @@ export default function createOptionalDispatchChannel(ctx) {
         mintRef: () => injector.generateDeclaredRef(metaPath),
         embed: cloneCallSlot,
       });
+      if (callOptional) mapOptionalCall(built, parent);
     } else {
       // The source receiver or its guard already carries its own effects. The key
       // follows the live receiver and never runs on the short-circuited branch.

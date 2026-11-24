@@ -1,6 +1,8 @@
 // Rebuilt pattern hosts keep child claims, residual reads and initializer effects.
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
+import { parse } from 'oxc-parser';
+import { importSources } from '../unplugin/phase-imports.mjs';
 import { transform as lower } from '@swc/core';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
 import createUnplugin from '../../packages/core-js-unplugin/internals/plugin.js';
@@ -11,7 +13,9 @@ const requireBabel = process.env.BABEL_REQUIRE_FROM
   ? createRequire(pathToFileURL(`${ path.resolve(process.env.BABEL_REQUIRE_FROM) }/`).href)
   : createRequire(import.meta.url);
 const { transformAsync } = requireBabel('@babel/core');
-const { check, finish } = createChecker('destructure-plan-runtime', { tsc: 'Destructuring user-valued, missing and written builtin slots exercises runtime coercions.' });
+const { check, checkDeep, finish } = createChecker('destructure-plan-runtime', {
+  tsc: 'Destructuring user-valued, missing and written builtin slots exercises runtime coercions.',
+});
 const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
 const TMP = path.join(import.meta.dirname, '../transpiler-differential/tmp');
 await fs.ensureDir(TMP);
@@ -325,9 +329,10 @@ for (const rootState of ['missing', 'undefined', 'present']) for (const outcome 
 }
 
 for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
-  for (const directive of ['file', 'line', 'next-line']) {
-    const body = 'const { globalThis: { Array: { prototype: { at } }, Object: o } } = globalThis;';
-    const source = directive === 'line' ? `${ body } // core-js-disable-line`
+  for (const directive of ['file', 'line', 'next-line', 'active']) {
+    const entry = 'core-js/actual/array/at';
+    const body = method === 'entry-global' ? `import "${ entry }";` : 'const { globalThis: { Array: { prototype: { at } }, Object: o } } = globalThis;';
+    const source = directive === 'active' ? body : directive === 'line' ? `${ body } // core-js-disable-line`
       : `// core-js-disable-${ directive }\n${ body }`;
     const options = { ...OPTIONS, method };
     const babel = (await transformAsync(source, {
@@ -337,7 +342,12 @@ for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
     const pre = plugin.transform(source, 'input.mjs', 'pre')?.code ?? source;
     const post = plugin.transform(pre, 'input.mjs', 'post')?.code ?? pre;
     for (const [host, output] of [['babel', babel], ['unplugin', pre], ['pre+post', post]]) {
-      check(`opt-out/${ method }/${ directive }/${ host }`, output.includes('@core-js/'), false);
+      const expected = directive !== 'active' ? method === 'entry-global' ? [entry] : []
+        : method === 'entry-global' ? ['core-js/modules/es.array.at']
+          : method === 'usage-pure' ? ['@core-js/pure/actual/array/instance/at', '@core-js/pure/actual/global-this']
+            : host === 'unplugin' ? [] : ['core-js/modules/es.array.at', 'core-js/modules/es.global-this'];
+      const parsed = await parse('input.mjs', output);
+      checkDeep(`opt-out/${ method }/${ directive }/${ host }`, importSources(parsed.program), expected);
     }
   }
 }

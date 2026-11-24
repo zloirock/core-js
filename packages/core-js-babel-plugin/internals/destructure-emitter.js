@@ -3539,7 +3539,7 @@ export default function createDestructureEmitter({
       }
       // a single instance leaf binds its own dispatch over the helper result, as the extraction does
       const keyedLeaf = keyedPattern && symbolIteratorInstanceLeaf({
-        value: keyedPattern, resolvePure, isDisabled: null, keyNameOf: propertyKeyName,
+        value: keyedPattern, resolvePure, isDisabled, keyNameOf: propertyKeyName,
       });
       if (keyedLeaf) read = instanceLeafCall(keyedLeaf, read, prop.scope);
       const binding = keyedLeaf ? t.identifier(keyedLeaf.localName)
@@ -3610,7 +3610,7 @@ export default function createDestructureEmitter({
     // never sees (`= Array` / a plain object reach the synth through this route). one helper, so the
     // two producers cannot drift apart on it
     const instanceLeaf = patternValue
-      ? symbolIteratorInstanceLeaf({ value: patternValue, resolvePure, isDisabled: null, keyNameOf: propertyKeyName })
+      ? symbolIteratorInstanceLeaf({ value: patternValue, resolvePure, isDisabled, keyNameOf: propertyKeyName })
       : null;
     function bindingLhs() {
       const id = instanceLeaf ? t.identifier(instanceLeaf.localName)

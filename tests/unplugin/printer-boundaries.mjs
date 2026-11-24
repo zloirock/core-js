@@ -70,6 +70,113 @@ const exports = [
 const directory = await fs.mkdtemp(path.join(import.meta.dirname, '../transpiler-differential/tmp/printer-boundaries-'));
 let serial = 0;
 try {
+  for (const [label, source, tokens] of [
+    // eslint-disable-next-line no-template-curly-in-string -- this is source text for the printer
+    ['template interpolation', 'const a = 3; export const t = `a${/*before*/ (a /*inner*/) /*outside*/}b${a /*tail*/}`;',
+      ['`a${', '/*before*/', 'a', '/*inner*/', '/*outside*/', '}b${', 'a', '/*tail*/', '}`']],
+    ['default and namespace import', 'import /*before*/ d /*default*/, /*namespace*/ * as n from "pkg"; export { d, n };',
+      ['import', '/*before*/', 'd', '/*default*/', '/*namespace*/', '*', 'as n', 'from']],
+  ]) {
+    let text = `${ source }\nArray.from([]);`;
+    for (const stage of ['pre', 'post']) {
+      text = createPlugin({ ...options, method: 'usage-pure' }).transform(text, '/comments.mjs', stage)?.code ?? text;
+      // Start after generated imports. Each later token belongs to the same syntactic slot.
+      let start = text.indexOf(tokens[0] === 'import' ? '/*before*/' : tokens[0]);
+      for (const token of tokens.slice(tokens[0] === 'import' ? 1 : 0)) {
+        const at = text.indexOf(token, start);
+        checkTruthy(`${ label }/${ stage }/${ token }`, at !== -1);
+        start = at + token.length;
+      }
+      const parsed = await parse('/comments.mjs', text);
+      check(`${ label }/${ stage }/parses`, parsed.errors.length, 0);
+      checkDeep(`${ label }/${ stage }/comments`, parsed.comments.map(comment => comment.value.trim()),
+        tokens.filter(token => token.startsWith('/*')).map(token => token.slice(2, -2)));
+    }
+  }
+  const babel = require('@babel/core');
+  const lowerPattern = require('@babel/plugin-transform-destructuring');
+  const lowerSpread = require('@babel/plugin-transform-object-rest-spread');
+  const stripTypes = require('@babel/plugin-transform-typescript');
+  {
+    const input = 'for (const {\n// core-js-disable-next-line\nat,\n} of rows) use(at);';
+    const plugin = createPlugin({ ...options, method: 'usage-global' });
+    const single = plugin.transform(input, '/idle.mjs')?.code ?? input;
+    check('single pass keeps the loop key directive in place', /\/\/ core-js-disable-next-line\s+at\b/.test(single), true);
+    const pre = plugin.transform(input, '/idle.mjs', 'pre')?.code ?? input;
+    const lowered = (await babel.transformAsync(pre, { configFile: false, babelrc: false, plugins: [lowerPattern] })).code;
+    const post = plugin.transform(lowered, '/idle.mjs', 'post')?.code ?? lowered;
+    check('paired lowering keeps the same loop read native', /es\.(?:array|string)\.at["']/.test(post), false);
+    check('paired lowering retains one directive on the native read', post.match(/core-js-disable-/g)?.length, 1);
+  }
+  for (const method of ['usage-global', 'usage-pure']) {
+    const plugin = createPlugin({ ...options, method });
+    for (const gap of ['', '\n']) {
+      const id = '/gap.ts';
+      const source = `const obj = { a: 1 };\n// core-js-disable-next-line\n${ gap
+      }export const copy = { ...obj };\nexport const witness = (obj.run<number>)?.(1);`;
+      const pre = plugin.transform(source, id, 'pre')?.code ?? source;
+      const lowered = (await babel.transformAsync(pre, {
+        configFile: false, babelrc: false, filename: id, retainLines: true,
+        assumptions: { setSpreadProperties: true }, plugins: [stripTypes, [lowerSpread, { useBuiltIns: true }]],
+      })).code;
+      const post = plugin.transform(lowered, id, 'post')?.code ?? lowered;
+      const entry = method === 'usage-global' ? 'modules/es.object.assign' : 'actual/object/assign';
+      check(`${ method }/spread opt-out gap=${ gap.length }`, post.includes(entry), Boolean(gap));
+      check(`${ method }/spread directive count=${ gap.length }`, post.match(/core-js-disable-/g)?.length, 1);
+    }
+    for (const [label, header] of [
+      ['for-of', 'for (const PATTERN of [Object]) sink(groupBy, fromEntries);'],
+      ['classic', 'for (let PATTERN = Object; condition; ) sink(groupBy, fromEntries);'],
+    ]) {
+      const pattern = '{\n// core-js-disable-next-line\ngroupBy,\nfromEntries,\n}';
+      const source = header.replace('PATTERN', pattern);
+      const pre = plugin.transform(source, '/loop.mjs', 'pre')?.code ?? source;
+      const lowered = (await babel.transformAsync(pre, {
+        configFile: false, babelrc: false, filename: '/loop.mjs', plugins: [lowerPattern],
+      })).code;
+      const post = plugin.transform(lowered, '/loop.mjs', 'post')?.code ?? lowered;
+      const result = await parse('/loop.mjs', post);
+      const imports = result.program.body.filter(node => node.type === 'ImportDeclaration').map(node => node.source.value);
+      const labelBase = `${ method }/loop directive/${ label }`;
+      check(`${ labelBase }/disabled`, imports.some(value => value.endsWith('group-by')), false);
+      check(`${ labelBase }/enabled`, imports.some(value => value.endsWith('from-entries')), true);
+      const directives = result.comments.filter(comment => comment.value.includes('core-js-disable-'));
+      // In pure for-of the loop also builds a mirror with its own native Object.groupBy read.
+      // The lowered head and the mirror each keep one directive on the access they own.
+      if (method === 'usage-pure' && label === 'for-of') {
+        check(`${ labelBase }/native mirror read`, /core-js-disable-next-line\s+groupBy: Object\.groupBy/.test(post), true);
+        check(`${ labelBase }/lowered head read`, /core-js-disable-next-line\s+const groupBy = _ref\.groupBy/.test(post)
+          || /\b_ref\.groupBy\s*\/\/ core-js-disable-line/.test(post), true);
+        check(`${ labelBase }/one directive per native read`, directives.length, 2);
+      } else check(`${ labelBase }/single directive`, directives.length, 1);
+      const added = post.replace('sink(groupBy, fromEntries);', '{\nObject.hasOwn({}, "x");\n}');
+      const again = plugin.transform(added, '/loop.mjs', 'post')?.code ?? added;
+      check(`${ labelBase }/new body use stays enabled`, again.includes(method === 'usage-pure' ? '/object/has-own' : 'es.object.has-own'), true);
+    }
+    for (const [label, pattern, values] of [
+      ['literal', '{ KEY "groupBy": f,\nfromEntries }', '[Object]'],
+      ['computed', '{ KEY ["groupBy"]: f,\nfromEntries }', '[Object]'],
+      ['array', '[{ KEY groupBy: f,\nfromEntries }]', '[[Object]]'],
+      ['array rest', '[...[{ KEY groupBy: f,\nfromEntries }]]', '[[Object]]'],
+      ['assignment', '{ KEY groupBy: f,\nfromEntries }', '[Object]'],
+    ]) {
+      const directive = label === 'computed'
+        ? '/* docs mention core-js-disable-next-line\n * core-js-disable-next-line custom implementation */'
+        : '// core-js-disable-next-line custom implementation';
+      const head = pattern.replace('KEY ', `\n${ directive }\n`);
+      const start = label === 'assignment' ? 'let f, fromEntries; for (' : 'for (const ';
+      const input = `${ start }${ head } of ${ values }) sink(f, fromEntries);\nObject.hasOwn(obj, "a");`;
+      const pre = plugin.transform(input, '/loop.mjs', 'pre')?.code ?? input;
+      const lowered = (await babel.transformAsync(pre, { configFile: false, babelrc: false, plugins: [lowerPattern] })).code;
+      const post = plugin.transform(lowered, '/loop.mjs', 'post')?.code ?? lowered;
+      const imports = (await parse('/loop.mjs', post)).program.body.filter(n => n.type === 'ImportDeclaration').map(n => n.source.value);
+      const name = `${ method }/loop key/${ label }`;
+      check(`${ name }/disabled groupBy`, imports.some(id => id.includes('group-by')), false);
+      check(`${ name }/enabled hasOwn`, imports.some(id => id.includes('has-own')), true);
+      check(`${ name }/directive explanation`, post.includes('custom implementation'), true);
+      if (label === 'computed') check(`${ name }/quoted directive`, post.includes('docs mention core-js-disable-next-line'), true);
+    }
+  }
   for (const [label, loop] of [
     ['declaration', 'for (const { at /* key */: method, length } of [[1]]) use(method, length);'],
     ['assignment', 'let method; for ({ at /* key */: method } of [[1]]) ;'],
