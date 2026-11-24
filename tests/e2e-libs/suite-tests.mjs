@@ -1,6 +1,7 @@
 import { deepEqual, rejects, strictEqual, throws } from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { basename, join, parse } from 'node:path';
 import { promisify } from 'node:util';
 import { runInNewContext } from 'node:vm';
@@ -10,7 +11,7 @@ import { allCells, RUN_TIMEOUT_MS } from './cells.mjs';
 import { checkFailureLine, checkResultProblem, errorReason, renderValue } from './diagnostics.mjs';
 import { checker, deepEqual as exerciseEqual } from './exercises/checks.mjs';
 import { librariesMatching } from './libraries.mjs';
-import { reconcileRows, runtimeVerdict } from './manifest.mjs';
+import { prepare, reconcileRows, runtimeVerdict } from './manifest.mjs';
 import { cellScript } from './page.mjs';
 import { HERE, ROOT, isCoreJsModule } from './paths.mjs';
 import { isSnapshotName } from './snapshots.mjs';
@@ -94,6 +95,16 @@ try {
   strictEqual(exerciseEqual(NaN, null), false);
 } finally {
   Number.isNaN = isNaN;
+}
+
+const previousRun = await mkdtemp(join(tmpdir(), 'e2e-libs-artifacts-'));
+try {
+  const manifest = join(previousRun, 'manifest.json');
+  await writeFile(manifest, JSON.stringify({ cells: [] }));
+  await rejects(prepare(176, 220, previousRun), /176 cells, under the floor of 220/u);
+  await rejects(access(manifest), { code: 'ENOENT' });
+} finally {
+  await rm(previousRun, { recursive: true, force: true });
 }
 
 const first = { label: 'first' };
@@ -429,6 +440,10 @@ const probe = `
   const grammar = highlight().checks.find(check => check.label === 'grammar_registry');
   deepEqual(grammar.actual, { missing: ['ada'], unexpected: [] });
   deepEqual(grammar.pass, false);
+  hljs.getLanguage('abnf').unicodeRegex = true;
+  const compiled = highlight().checks.find(check => check.label === 'compiled');
+  deepEqual(compiled.actual.skipped, ['abnf', 'haskell', 'python', 'xml']);
+  deepEqual(compiled.pass, false);
 
   const getter = 'this.E2E={run(){let reads=0; return {checks:[{label:"x",get pass(){return reads++ > 0;}}]};}};';
   deepEqual((await preflight(getter, 'single-read'))[0].pass, false);

@@ -12,7 +12,7 @@
 // escaped, without markup. Compiling a grammar is outside that net - a pattern the engine refuses throws.
 //
 // Grammars that set `unicodeRegex` compile with the `u` flag, which IE11 refuses, so the compile pass
-// skips them by that flag.
+// checks the exclusions against the known grammars for the pinned release.
 import hljs from 'highlight.js';
 import { checker } from './checks.mjs';
 
@@ -31,6 +31,7 @@ const LANGUAGES = ('1c abnf accesslog actionscript ada angelscript apache apples
   + 'scilab scss shell smali smalltalk sml sqf sql stan stata step21 stylus subunit swift taggerscript tap tcl '
   + 'thrift tp twig typescript vala vbnet vbscript vbscript-html verilog vhdl vim wasm wren x86asm xl xml '
   + 'xquery yaml zephir').split(' ');
+const UNICODE_REGEX_LANGUAGES = ['haskell', 'python', 'xml'];
 
 function html(code, language) {
   return hljs.highlight(code, { language }).value;
@@ -45,7 +46,12 @@ export function run() {
   }, { missing: [], unexpected: [] });
   check('registered', names.filter(name => hljs.getLanguage(name).name === 'Plain text'), ['plaintext']);
   const failed = [];
-  names.filter(name => !hljs.getLanguage(name).unicodeRegex).forEach(name => {
+  const skipped = [];
+  names.forEach(name => {
+    if (hljs.getLanguage(name).unicodeRegex) {
+      skipped.push(name);
+      return;
+    }
     try {
       const { errorRaised } = hljs.highlight('', { language: name });
       if (errorRaised) failed.push(`${ name }: ${ errorRaised.message }`);
@@ -53,7 +59,7 @@ export function run() {
       failed.push(`${ name }: ${ error.message }`);
     }
   });
-  check('compiled', failed, []);
+  check('compiled', { failed, skipped: skipped.sort() }, { failed: [], skipped: UNICODE_REGEX_LANGUAGES });
 
   const js = html('class A extends B { m() { return this; } }', 'javascript');
   check('nested_scope', [

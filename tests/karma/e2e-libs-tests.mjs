@@ -1,4 +1,6 @@
-import { deepEqual, throws } from 'node:assert/strict';
+import { deepEqual, rejects, throws } from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 import { link, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -118,6 +120,25 @@ const { promise: hanging, resolve: stop } = Promise.withResolvers();
 Object.assign(hanging, { kill: signal => stop({ exitCode: null, signal, stdout: '', stderr: '' }) });
 const expired = await waitForKarma(hanging, 10);
 deepEqual([expired.timedOut, expired.signal], [true, 'SIGKILL']);
+const { promise: stillRunning } = Promise.withResolvers();
+const stopError = new Error('could not list child processes');
+Object.assign(stillRunning, { kill: () => Promise.reject(stopError) });
+await rejects(waitForKarma(stillRunning, 10), { message: /Karma timed out after 10ms/u, cause: stopError });
+// A resolved kill request does not guarantee that the command exited.
+const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 2000)']);
+const exit = once(child, 'exit');
+try {
+  const command = Object.assign(exit, { child, kill: () => Promise.resolve() });
+  await rejects(waitForKarma(command, 10, 20), {
+    message: /Karma timed out after 10ms/u, cause: new Error('no exit within 20ms'),
+  });
+  deepEqual(child.killed, true);
+  deepEqual(child.stdio.every(stream => stream.destroyed), true);
+} finally {
+  child.ref();
+  child.kill('SIGKILL');
+  await exit;
+}
 const completed = await waitForKarma(Promise.resolve({ exitCode: 0 }), 10);
 deepEqual([completed.timedOut, completed.exitCode], [false, 0]);
 

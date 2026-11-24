@@ -36,8 +36,11 @@ export function save(parsed) {
 
 // cells are written only on the success path, so without this a failed one leaves yesterday's green
 // page beside a manifest recording the failure, and nothing downstream tells the two apart
-export function prepare() {
-  return rm(ARTIFACTS, { recursive: true, force: true });
+export async function prepare(cellCount, minimumCells, directory = ARTIFACTS) {
+  await rm(directory, { recursive: true, force: true });
+  if (cellCount < minimumCells) {
+    throw new Error(`runtime matrix collapsed: ${ cellCount } cells, under the floor of ${ minimumCells }`);
+  }
 }
 
 export function reconcileRows(cells, rows) {

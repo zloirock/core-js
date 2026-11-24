@@ -23,6 +23,8 @@ const { mkdir } = fs;
 const gzipAsync = promisify(gzip);
 
 const IS_SHARD = Boolean(FIXTURE_SHARD);
+// The snapshots cover usage builds only. Keep a floor independent of the scheduling matrix.
+const CELL_FLOOR = 220;
 
 process.on('unhandledRejection', reason => {
   throw new Error(`unhandled rejection - ${ errorReason(reason) }`, { cause: reason });
@@ -149,16 +151,15 @@ async function collectShards() {
 const [libraryFilter] = IS_SHARD ? [process.env.E2E_LIBS_LIB || undefined] : argv._.map(String);
 const libs = librariesMatching(libraryFilter);
 const libraryMethodGroups = groupByLibraryAndMethod(libs);
+const cells = (IS_SHARD ? shardSlice(libraryMethodGroups) : libraryMethodGroups).flat();
 
 const shardsRequested = Number(process.env.E2E_LIBS_SHARDS) || Math.floor(os.cpus().length / 2);
 const shardCount = IS_SHARD ? 1 : Math.min(Math.max(shardsRequested, 1), libraryMethodGroups.length);
 
 // a parent that forks builds nothing itself - its rows come back from the children
-const cellsBuiltHere = IS_SHARD ? shardSlice(libraryMethodGroups).flat()
-  : shardCount > 1 ? []
-  : libraryMethodGroups.flat();
+const cellsBuiltHere = shardCount > 1 ? [] : cells;
 
-if (!IS_SHARD) await manifest.prepare();
+if (!IS_SHARD) await manifest.prepare(cells.length, libraryFilter === undefined ? CELL_FLOOR : 1);
 const input = await describeInput();
 
 if (!IS_SHARD) {
@@ -189,7 +190,7 @@ if (IS_SHARD) {
 } else {
   if (shardCount > 1) await collectShards();
   if (!rows.length) throw new Error('no cells ran - the registry or METHODS is empty');
-  const orderedRows = manifest.reconcileRows(libraryMethodGroups.flat(), rows);
+  const orderedRows = manifest.reconcileRows(cells, rows);
 
   await mkdir(ARTIFACTS, { recursive: true });
   await manifest.save({ input, scope: libraryFilter ?? 'all libraries', sharded: shardCount, cells: orderedRows });

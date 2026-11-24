@@ -1,5 +1,30 @@
 import { fork } from 'node:child_process';
 
+export const CHILD_STOP_TIMEOUT_MS = 10_000;
+
+export async function waitWithin(promise, timeout) {
+  const { promise: deadline, resolve: expire } = Promise.withResolvers();
+  const timer = setTimeout(expire, timeout, null);
+  try {
+    return await Promise.race([promise, deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// A process or its inherited pipes can keep Node alive after the watchdog reports failure.
+export function releaseChild(child) {
+  if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+  for (const stream of child.stdio) stream?.destroy();
+  if (child.connected) child.disconnect();
+  child.unref();
+}
+
+async function killTree(child) {
+  const { kill } = await import('zx');
+  await kill(child.pid, 'SIGKILL');
+}
+
 export class ChildExerciseError extends Error {
   name = 'ChildExerciseError';
 }
@@ -11,11 +36,13 @@ export async function runWithDeadline(module, method, args, { ms, what }) {
     execArgv: [],
     stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
   });
-  const closed = new Promise(resolve => child.once('close', resolve));
+  const closed = new Promise(resolve => child.once('close', () => resolve()));
   let timer;
   let timedOut = false;
+  let result;
+  let reaped;
   try {
-    return await new Promise((resolve, reject) => {
+    result = await new Promise((resolve, reject) => {
       function arm(budget) {
         clearTimeout(timer);
         timer = setTimeout(() => {
@@ -42,13 +69,18 @@ export async function runWithDeadline(module, method, args, { ms, what }) {
   } finally {
     clearTimeout(timer);
     try {
-      if (timedOut && child.exitCode === null && child.signalCode === null) {
-        const { kill } = await import('zx');
-        await kill(child.pid, 'SIGKILL');
+      if (timedOut && child.exitCode === null && child.signalCode === null
+        && await waitWithin(killTree(child), CHILD_STOP_TIMEOUT_MS) === null) {
+        console.warn(`could not stop the process tree for ${ what } within ${ CHILD_STOP_TIMEOUT_MS }ms`);
       }
+    } catch (error) {
+      console.warn(`could not stop the process tree for ${ what }: ${ error.message }`);
     } finally {
       if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
-      await closed;
+      reaped = await waitWithin(closed, CHILD_STOP_TIMEOUT_MS) !== null;
+      if (!reaped) releaseChild(child);
     }
   }
+  if (!reaped) throw new Error(`could not reap the child for ${ what }`);
+  return result;
 }

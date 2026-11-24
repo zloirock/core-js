@@ -1,3 +1,4 @@
+import { CHILD_STOP_TIMEOUT_MS, releaseChild, waitWithin } from '../e2e-libs/deadline.mjs';
 import findInternetExplorer from './internet-explorer.js';
 
 if (process.env.CI) await $`playwright install --with-deps chromium firefox webkit`;
@@ -21,19 +22,27 @@ const TEST_FAILURE = /\(\d+ FAILED\)|TOTAL: \d+ FAILED/;
 
 $.quote = it => `'${ it }'`;
 
-// zx kills the command tree (taskkill /T on Windows), including a launcher stuck in teardown.
-export async function waitForKarma(command, timeout) {
-  let timedOut = false;
-  const timer = timeout && setTimeout(async () => {
-    timedOut = true;
-    await command.kill('SIGKILL');
-  }, timeout);
-  try {
-    const { exitCode, signal, stdout, stderr } = await command;
-    return { exitCode, signal, stdout, stderr, timedOut };
-  } finally {
-    clearTimeout(timer);
+// zx kills the command tree (taskkill /T on Windows). Wait for its exit before retrying.
+async function stopKarma(command) {
+  await command.kill('SIGKILL');
+  return command;
+}
+
+export async function waitForKarma(command, timeout, stopTimeout = CHILD_STOP_TIMEOUT_MS) {
+  let output = timeout ? await waitWithin(command, timeout) : await command;
+  const timedOut = output === null;
+  if (timedOut) {
+    try {
+      output = await waitWithin(stopKarma(command), stopTimeout);
+      if (output === null) throw new Error(`no exit within ${ stopTimeout }ms`);
+    } catch (error) {
+      // zx sets exitCode on failure. A surviving child or an inherited pipe can keep it alive.
+      if (command.child) releaseChild(command.child);
+      throw new Error(`Karma timed out after ${ timeout }ms and its process tree could not be stopped`, { cause: error });
+    }
   }
+  const { exitCode, signal, stdout, stderr } = output;
+  return { exitCode, signal, stdout, stderr, timedOut };
 }
 
 // runs one bundle set, repeating it while the browsers rather than the tests are what failed: a red
