@@ -1,9 +1,11 @@
+import { has as hasInternalState } from 'core-js-pure/internals/internal-state';
 import { DESCRIPTORS, NATIVE } from '../helpers/constants.js';
 import { nativeSubclass } from '../helpers/helpers.js';
 
 QUnit.test('DataView', assert => {
   assert.same(DataView, Object(DataView), 'is object'); // in Safari 5 typeof DataView is 'object'
-  if (NATIVE) assert.arity(DataView, 3); // 1 in IE11
+  // old V8 native constructors can have a length of 0 or 3
+  if (NATIVE || hasInternalState(DataView)) assert.arity(DataView, 1);
   if (NATIVE) assert.name(DataView, 'DataView'); // Safari 5 bug
   if (NATIVE) assert.looksNative(DataView); // Safari 5 bug
   let dataview = new DataView(new ArrayBuffer(8));

@@ -119,13 +119,14 @@ if (!NATIVE_ARRAY_BUFFER) {
 
   ArrayBufferPrototype = $ArrayBuffer[PROTOTYPE];
 
-  $DataView = function DataView(buffer, byteOffset, byteLength) {
+  $DataView = function DataView(buffer /* , byteOffset, byteLength */) {
     anInstance(this, DataViewPrototype);
     anInstance(buffer, ArrayBufferPrototype);
     var bufferState = getInternalArrayBufferState(buffer);
     var bufferLength = bufferState.byteLength;
-    var offset = toIntegerOrInfinity(byteOffset);
+    var offset = arguments.length > 1 ? toIntegerOrInfinity(arguments[1]) : 0;
     if (offset < 0 || offset > bufferLength) throw new RangeError('Wrong offset');
+    var byteLength = arguments.length > 2 ? arguments[2] : undefined;
     byteLength = byteLength === undefined ? bufferLength - offset : toIndex(byteLength);
     if (offset + byteLength > bufferLength) throw new RangeError(WRONG_LENGTH);
     setInternalState(this, {

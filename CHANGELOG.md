@@ -134,6 +134,7 @@
   - Fixed falsely detected `ArrayBuffer` transfer support in [Deno 1.13](https://github.com/denoland/deno/pull/11840), preventing installation of unusable transfer methods and loss of `MessagePort`s in failed mixed transfers
   - Fixed `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfills losing the source on allocation failure, using species, ignoring changes during length coercion, and accepting non-detachable buffers. `transfer` preserves `maxByteLength` for resizable buffers
   - Fixed native `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` crashing on allocation failure in [NodeJS 21 and 22.0-22.3](https://github.com/nodejs/node/pull/52910)
+  - Corrected the arity of the `DataView` constructor polyfill from 3 to 1
   - Added missed detection of native `DataView` constructor accepting a negative `byteLength` and rejecting a non-integer `byteOffset` in V8 ~ Chrome 50-53
   - Fixed polyfills for `ArrayBuffer.prototype.slice` (when `end` is omitted or `undefined`), `DataView.prototype.{ getFloat16, setFloat16, getUint8Clamped, setUint8Clamped }` and `%TypedArray%.prototype.{ set, slice, subarray }` in NodeJS 0.11.0 - 0.11.3, where native methods are own properties of instances and could shadow the typed array polyfills
   - Added missed detection of native `%TypedArray%.prototype.slice` returning a view on the source buffer instead of a copy in [Rhino 1.8](https://github.com/mozilla/rhino/pull/1905)
