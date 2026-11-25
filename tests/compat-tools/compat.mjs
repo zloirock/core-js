@@ -117,6 +117,13 @@ for (const exclude of [false, 0, '', [null], ['']]) {
 throws(() => compat({ modules: [''] }), TypeError, 'an empty module name is invalid');
 deepEqual(compat({ modules: '' }), compat(), 'modules: an empty string means all modules');
 
+for (const [version, expected] of [['3.16', 'esnext.array.at'], ['3.17', 'es.array.at']]) {
+  deepEqual(compat({ modules: ['es.array.at', 'esnext.array.at'], version }), {
+    list: [expected],
+    targets: { [expected]: {} },
+  }, `modules available in core-js ${ version }`);
+}
+
 for (const version of [null, undefined]) {
   deepEqual(compat({ version }), compat(), `version: ${ version } means the latest version`);
 }
