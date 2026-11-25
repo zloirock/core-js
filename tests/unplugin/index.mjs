@@ -1,8 +1,9 @@
 import { loadBabelOptions } from '../babel-plugin/fixture-options.mjs';
+import { normalizeMachinePaths } from '../babel-plugin/fixture-output.mjs';
 import { fixtureMappingsError } from './fixture-source-map.mjs';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
 import { commentSignature, strip } from './structural.mjs';
-import { extractPluginOptions, inferTestId, normalizeMachinePaths, parseFixture, parseFixtureOrNull, shouldSkip } from './fixture-lang.mjs';
+import { extractPluginOptions, inferTestId, parseFixture, parseFixtureOrNull, shouldSkip } from './fixture-lang.mjs';
 import { fileURLToPath } from 'node:url';
 import {
   FIXTURE_SHARD,

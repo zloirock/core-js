@@ -1,3 +1,18 @@
+import { fileURLToPath } from 'node:url';
+
+// A filesystem separator is one backslash. Its spelling in emitted JS strings is two.
+export function slashifyPath(machinePath) {
+  return machinePath.replaceAll('\\', '/');
+}
+
+const ROOT_URL = new URL('../../', import.meta.url);
+const ROOT_PATH = slashifyPath(fileURLToPath(ROOT_URL));
+
+// Snapshots store the checkout directory as <CWD>/ for both filesystem paths and file URLs.
+export function normalizeMachinePaths(code, rootPath = ROOT_PATH, rootURL = ROOT_URL.href) {
+  return code.replaceAll('\\\\', '/').replaceAll(rootURL, '<CWD>/').replaceAll(rootPath, '<CWD>/');
+}
+
 // Variant comparisons ignore enum tail commas and redundant type parentheses.
 // Other bytes stay exact; removing type parentheses must preserve the parsed tree.
 export function normalizeFixtureOutput(code, babel, parserOpts, variant) {

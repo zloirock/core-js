@@ -1,7 +1,22 @@
 import { equal, notEqual, ok } from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
-import { normalizeFixtureOutput } from './fixture-output.mjs';
+import { normalizeFixtureOutput, normalizeMachinePaths } from './fixture-output.mjs';
+
+for (const [directory, windows] of [
+  ['D:/a/core-js/core-js/', true],
+  ['//server/share/repo # %/', true],
+  ['/tmp/repo # %/', false],
+]) {
+  const file = pathToFileURL(`${ directory }packages/example#.js`, { windows });
+  const url = new URL('../', file).href;
+  const sibling = `${ url.slice(0, -1) }-other/file.js`;
+  for (const [source, expected] of [
+    [`import "${ file.href }?mode=raw#part";`, 'import "<CWD>/packages/example%23.js?mode=raw#part";'],
+    [`require("${ directory }packages/example.js");`, 'require("<CWD>/packages/example.js");'],
+    [sibling, sibling],
+  ]) equal(normalizeMachinePaths(source, directory, url), expected);
+}
 
 const { BABEL_REQUIRE_FROM } = process.env;
 const requireBabel = BABEL_REQUIRE_FROM

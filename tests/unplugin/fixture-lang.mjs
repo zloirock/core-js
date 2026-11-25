@@ -1,6 +1,5 @@
 // fixture-language resolution shared by the unplugin fixture runner and the AST-engine
 // roundtrip gate: the babel-shaped options sidecar decides the oxc parse dialect
-import { resolve } from 'node:path';
 import { parseSync } from 'oxc-parser';
 import { moduleIdLanguage } from '../../packages/core-js-polyfill-provider/helpers/path-normalize.js';
 
@@ -93,17 +92,4 @@ export function shouldSkip(dirName, babelOptions) {
   if (SKIP_DIRS.has(dirName) || declaresScriptUnreadableFromTheId(babelOptions)) return true;
   const plugins = babelOptions?.parserOpts?.plugins ?? [];
   return plugins.some(p => (typeof p === 'string' ? p : p?.[0]) === 'flow');
-}
-
-// machine paths as the baselines store them. TWO DISTINCT escaping domains, confused twice
-// already - once each way: `slashifyPath` walks a FILESYSTEM string, where a Windows
-// separator is ONE backslash; the code-side matcher below targets the ESCAPED separator
-// spelling inside emitted string literals, which is TWO - and touching single backslashes
-// in code would mangle every regex and String.raw escape
-export function slashifyPath(machinePath) {
-  return machinePath.replaceAll('\\', '/');
-}
-const ROOT = slashifyPath(resolve(import.meta.dirname, '../..'));
-export function normalizeMachinePaths(code) {
-  return code.replaceAll('\\\\', '/').replaceAll(ROOT, '<CWD>');
 }

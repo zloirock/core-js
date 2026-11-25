@@ -45,7 +45,7 @@ import {
 } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helpers/pattern-matching.js';
 import { buildOffsetToLoc } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
-import { normalizeMachinePaths, slashifyPath } from './fixture-lang.mjs';
+import { normalizeMachinePaths, slashifyPath } from '../babel-plugin/fixture-output.mjs';
 import ImportInjector from '../../packages/core-js-unplugin/internals/import-injector.js';
 import applyEntryProgram, { injectImportStatements } from '../../packages/core-js-unplugin/internals/entry.js';
 import createOptionalDispatchChannel from '../../packages/core-js-unplugin/internals/optional-dispatch.js';
@@ -2621,8 +2621,14 @@ for (const apply of [applyEntryProgram, injectImportStatements]) {
     const plan = { toRemove: [original[2]], toReplaceWithNoop: [] };
     apply({ program, plan, modules, importStyle, pkg, absoluteImports });
     const label = `global import block/${ apply.name }/${ importStyle }/${ pkg }/${ absoluteImports }`;
-    const paths = ['es.array.at', 'es.array.flat'].map(name => absoluteImports
-      ? slashifyPath(createRequire(import.meta.url).resolve(`${ pkg }/modules/${ name }`)) : `${ pkg }/modules/${ name }`);
+    const paths = ['es.array.at', 'es.array.flat'].map(name => {
+      const source = `${ pkg }/modules/${ name }`;
+      if (!absoluteImports) return source;
+      const filename = slashifyPath(createRequire(import.meta.url).resolve(source));
+      if (importStyle === 'require') return filename;
+      const url = import.meta.resolve(source);
+      return new URL(filename, import.meta.url).href === url ? filename : url;
+    });
     const expected = paths.map(path => importStyle === 'require' ? `require(${ JSON.stringify(path) });` : `import ${ JSON.stringify(path) };`);
     const printed = printProgram({ program: { ...program, body: program.body.slice(2, 4) }, comments: [], source: '', id: '/imports.mjs' });
     check(`${ label }/ordered statements`, collapseWhitespace(printed.code), collapseWhitespace(expected.join('\n')));

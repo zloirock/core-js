@@ -15,7 +15,7 @@ const { fileURLToPath, pathToFileURL } = require('node:url');
 const { createRequire } = require('node:module');
 
 const { loadBabelOptions } = await import('./fixture-options.mjs');
-const { normalizeFixtureOutput } = await import('./fixture-output.mjs');
+const { normalizeFixtureOutput, normalizeMachinePaths } = await import('./fixture-output.mjs');
 
 const { FIXTURE_SHARD, collectFixtures, defaultShardCount, emitShardSummary, runShards, shardSlice } =
   await import('./fixture-shards.mjs');
@@ -37,7 +37,6 @@ const { join } = path;
 const { cyan, green, red, yellow } = chalk;
 
 const UTF8 = { encoding: 'utf8' };
-const ROOT = path.resolve('../..').replaceAll('\\', '/');
 // Resolve named plugins from the same workspace as the selected Babel host.
 // Fixtures that pin their own cwd take precedence.
 const transformCwd = BABEL_REQUIRE_FROM ? path.resolve(BABEL_REQUIRE_FROM) : null;
@@ -55,10 +54,6 @@ if (BABEL_SKIP) {
     if (!Array.isArray(value)) continue;
     for (const entry of value) skipPaths.add(entry);
   }
-}
-
-function normalizeOutput(code) {
-  return code.replaceAll('\\\\', '/').replaceAll(ROOT, '<CWD>');
 }
 
 // the debug `Using targets: { ... }` block can carry environment-derived, time-varying values:
@@ -185,7 +180,7 @@ async function runFixture(directory) {
   let result, error, parserOpts;
   try {
     const transformed = await transformAsync(source, withTransformCwd(options));
-    result = normalizeOutput(transformed.code);
+    result = normalizeMachinePaths(transformed.code);
     parserOpts = transformed.options.parserOpts;
   } catch (transformError) {
     error = transformError;
@@ -195,9 +190,9 @@ async function runFixture(directory) {
 
   const actualFile = error ? errorFile : outputFile;
   const staleFile = error ? outputFile : errorFile;
-  const actual = error ? normalizeOutput(error.message) : result;
-  const debugOutput = normalizeDriftingTargets(logs.length ? normalizeOutput(logs.join('\n')) : null);
-  const warningsOutput = warns.length ? normalizeOutput(warns.join('\n')) : null;
+  const actual = error ? normalizeMachinePaths(error.message) : result;
+  const debugOutput = normalizeDriftingTargets(logs.length ? normalizeMachinePaths(logs.join('\n')) : null);
+  const warningsOutput = warns.length ? normalizeMachinePaths(warns.join('\n')) : null;
   // Keep the default Babel 8 snapshots exact. Variant comparison and regeneration share
   // the same narrow normalization for enum tails and redundant type parentheses.
   function normalizeCode(code) {
