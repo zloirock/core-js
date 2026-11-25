@@ -146,6 +146,7 @@
   - Added missed detection of [`Uint8Array.prototype.setFromBase64` reading past the last chunk that fits](https://github.com/tc39/test262/pull/4605) in [V8](https://groups.google.com/g/v8-dev/c/sMEwyJ9GtY0) and [JavaScriptCore](https://github.com/WebKit/WebKit/blob/52cfc989e4a5cf1cc63da6d72b65d16946f821f5/JSTests/test262/expectations.yaml#L55-L57)
   - Fixed `Uint8Array.prototype.{ toBase64, toHex, setFromBase64, setFromHex }` polyfills on shared buffers
   - Fixed the `Uint8Array.prototype.setFromBase64` polyfill using the old target length when an `alphabet` or `lastChunkHandling` getter resizes the buffer
+  - Improved the `TypeError` message for an incompatible receiver in the `Uint8Array.prototype.{ toBase64, toHex, setFromBase64, setFromHex }` polyfills
   - Improved hex decoding in the `Uint8Array` polyfills. `fromHex` decodes directly into the result, and `setFromHex` reads only the pairs that fit in the target
 - `String` and `RegExp` methods
   - Fixed `String.dedent` line splitting, CR / CRLF normalization, validation of raw templates with large lengths, and vertical tab escapes in old IE; documented its frozen `raw` requirement
