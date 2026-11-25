@@ -312,6 +312,10 @@
       - [FF53](https://bugzilla.mozilla.org/show_bug.cgi?id=1317309) instead of FF49 for `String.prototype.{ match, search }`
       - [FF78](https://bugzilla.mozilla.org/show_bug.cgi?id=1277799) for `DOMException.prototype[@@toStringTag]` and iterable DOM collections because of missing `@@toStringTag`
       - [FF157](https://bugzilla.mozilla.org/show_bug.cgi?id=2062666) for `Iterator.prototype.{ drop, take }`
+    - Updated Hermes / React Native compat data
+      - Hermes 0.1.1 for `globalThis` and 0.10 for `Math.log2` (earlier versions lose precision on powers of two)
+      - Hermes 250829098.0.0 / React Native 0.84 for `Symbol.asyncIterator`, `Error.isError`, `Set.prototype.{ difference, intersection, isDisjointFrom, isSubsetOf, isSupersetOf, symmetricDifference, union }` and `String.prototype.{ isWellFormed, toWellFormed }`
+      - Hermes 260318099.0.0 / React Native 0.88 for `Symbol.prototype.description`, `ArrayBuffer.prototype.detached`, `Iterator`, `Iterator.from`, `Iterator.prototype.{ every, filter, find, flatMap, forEach, map, reduce, some, toArray }`, `Map.groupBy`, `Object.groupBy`, `Math.sumPrecise` and `%TypedArray%.{ from, of }`
     - Fixed IE compat data: `%TypedArray%.prototype.subarray` marked as supported from IE11, the `DOMException` `.stack` patch is no longer required in IE10+
     - Corrected minimum NodeJS versions in the compat data
       - 0.11.0 for `Array.prototype.{ reduce, reduceRight }`

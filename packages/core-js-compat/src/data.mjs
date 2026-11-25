@@ -19,6 +19,8 @@ export const data = {
   'es.symbol.description': {
     chrome: '70',
     firefox: '63',
+    hermes: '260318099.0.0',
+    'react-native': '0.88',
     rhino: '1.8.0',
     safari: '12.1',
   },
@@ -35,6 +37,8 @@ export const data = {
   'es.symbol.async-iterator': {
     chrome: '63',
     firefox: '55',
+    hermes: '250829098.0.0',
+    'react-native': '0.84',
     safari: '12.0',
   },
   'es.symbol.dispose': {
@@ -166,8 +170,10 @@ export const data = {
     // bun: '1.1.39',
     chrome: '134',
     firefox: '138',
+    hermes: '250829098.0.0',
     // https://github.com/nodejs/node/issues/58134
     node: '24.3',
+    'react-native': '0.84',
     rhino: '1.9.0',
     safari: '27.3',
   },
@@ -587,6 +593,8 @@ export const data = {
     bun: '1.0.19',
     chrome: '114',
     firefox: '122',
+    hermes: '260318099.0.0',
+    'react-native': '0.88',
     rhino: '1.9.0',
     safari: '17.4',
   },
@@ -727,7 +735,7 @@ export const data = {
   'es.global-this': {
     chrome: '71',
     firefox: '65',
-    hermes: '0.2',
+    hermes: '0.1.1',
     rhino: '1.7.14',
     safari: '12.1',
   },
@@ -736,6 +744,8 @@ export const data = {
     chrome: '122',
     deno: '1.38.1',
     firefox: '131',
+    hermes: '260318099.0.0',
+    'react-native': '0.88',
     safari: '18.4',
   },
   'es.iterator.chunks': {
@@ -780,6 +790,8 @@ export const data = {
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
     firefox: '141', // '131',
+    hermes: '260318099.0.0',
+    'react-native': '0.88',
     safari: '26.0', // 18.4',
   },
   'es.iterator.filter': {
@@ -789,6 +801,8 @@ export const data = {
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
     firefox: '141', // '131',
+    hermes: '260318099.0.0',
+    'react-native': '0.88',
     safari: '26.0', // 18.4',
   },
   'es.iterator.find': {
@@ -798,6 +812,8 @@ export const data = {
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
     firefox: '141', // '131',
+    hermes: '260318099.0.0',
+    'react-native': '0.88',
     safari: '26.0', // 18.4',
   },
   'es.iterator.flat-map': {
@@ -809,6 +825,8 @@ export const data = {
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
     firefox: '141', // '131',
+    hermes: '260318099.0.0',
+    'react-native': '0.88',
     safari: '26.2', // '26.0', '18.4
   },
   'es.iterator.for-each': {
@@ -818,6 +836,8 @@ export const data = {
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
     firefox: '141', // '131',
+    hermes: '260318099.0.0',
+    'react-native': '0.88',
     safari: '26.0', // 18.4',
   },
   'es.iterator.from': {
@@ -826,6 +846,8 @@ export const data = {
     chrome: '122',
     deno: '1.38.1',
     firefox: '131',
+    hermes: '260318099.0.0',
+    'react-native': '0.88',
     // Because of a bug in wrapper validation https://bugs.webkit.org/show_bug.cgi?id=288714
     safari: '26.0', // 18.4',
   },
@@ -848,6 +870,8 @@ export const data = {
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
     firefox: '141', // '131',
+    hermes: '260318099.0.0',
+    'react-native': '0.88',
     safari: '26.0', // 18.4',
   },
   'es.iterator.reduce': {
@@ -859,6 +883,8 @@ export const data = {
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
     firefox: '141', // '131',
+    hermes: '260318099.0.0',
+    'react-native': '0.88',
     safari: '26.0', // 18.4',
   },
   'es.iterator.some': {
@@ -868,6 +894,8 @@ export const data = {
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
     firefox: '141', // '131',
+    hermes: '260318099.0.0',
+    'react-native': '0.88',
     safari: '26.0', // 18.4',
   },
   'es.iterator.take': {
@@ -888,6 +916,8 @@ export const data = {
     chrome: '122',
     deno: '1.38.1',
     firefox: '131',
+    hermes: '260318099.0.0',
+    'react-native': '0.88',
     safari: '18.4',
   },
   'es.iterator.windows': {
@@ -965,6 +995,8 @@ export const data = {
     bun: '1.1.2', // '1.0.19',
     chrome: '117',
     firefox: '119',
+    hermes: '260318099.0.0',
+    'react-native': '0.88',
     rhino: '1.8.0',
     // https://bugs.webkit.org/show_bug.cgi?id=271524
     safari: '18.0', // '17.4',
@@ -1096,7 +1128,7 @@ export const data = {
     chrome: '41',
     edge: '12',
     firefox: '48',
-    hermes: '0.1',
+    hermes: '0.10',
     rhino: '1.9.2',
     safari: '7.1',
   },
@@ -1123,6 +1155,8 @@ export const data = {
     // https://issues.chromium.org/issues/572987948
     chrome: '158', // '147',
     firefox: '137',
+    hermes: '260318099.0.0',
+    'react-native': '0.88',
     // https://bugs.webkit.org/show_bug.cgi?id=315450
     // safari: '26.2',
   },
@@ -1384,6 +1418,8 @@ export const data = {
     bun: '1.1.2', // '1.0.19',
     chrome: '117',
     firefox: '119',
+    hermes: '260318099.0.0',
+    'react-native': '0.88',
     rhino: '1.8.0',
     // https://bugs.webkit.org/show_bug.cgi?id=271524
     safari: '18.0', // '17.4',
@@ -1824,8 +1860,10 @@ export const data = {
     // https://issues.chromium.org/issues/351332634
     chrome: '128', // '122',
     firefox: '127',
+    hermes: '250829098.0.0',
     // https://github.com/nodejs/node/pull/54883
     node: '22.10',
+    'react-native': '0.84',
     // safari 17 does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // A WebKit bug occurs when `this` is updated while Set.prototype.difference is being executed
@@ -1840,8 +1878,10 @@ export const data = {
     // https://issues.chromium.org/issues/351332634
     chrome: '128', // '122',
     firefox: '127',
+    hermes: '250829098.0.0',
     // https://github.com/nodejs/node/pull/54883
     node: '22.10',
+    'react-native': '0.84',
     // safari 17 does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     safari: '18.0', // '17.0',
@@ -1854,8 +1894,10 @@ export const data = {
     // https://issues.chromium.org/issues/351332634
     chrome: '128', // '122',
     firefox: '127',
+    hermes: '250829098.0.0',
     // https://github.com/nodejs/node/pull/54883
     node: '22.10',
+    'react-native': '0.84',
     // safari 17 does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     safari: '18.0', // '17.0',
@@ -1868,8 +1910,10 @@ export const data = {
     // https://issues.chromium.org/issues/351332634
     chrome: '128', // '122',
     firefox: '127',
+    hermes: '250829098.0.0',
     // https://github.com/nodejs/node/pull/54883
     node: '22.10',
+    'react-native': '0.84',
     // safari 17 does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     safari: '18.0', // '17.0',
@@ -1882,8 +1926,10 @@ export const data = {
     // https://issues.chromium.org/issues/351332634
     chrome: '128', // '122',
     firefox: '127',
+    hermes: '250829098.0.0',
     // https://github.com/nodejs/node/pull/54883
     node: '22.10',
+    'react-native': '0.84',
     // safari 17 does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     safari: '18.0', // '17.0',
@@ -1896,6 +1942,8 @@ export const data = {
     // https://issues.chromium.org/issues/42204504
     chrome: '123',
     firefox: '127',
+    hermes: '250829098.0.0',
+    'react-native': '0.84',
     // safari 17 does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // Should get iterator record of a set-like object before cloning this
@@ -1912,6 +1960,8 @@ export const data = {
     // https://issues.chromium.org/issues/352690887
     chrome: '133', // '123',
     firefox: '127',
+    hermes: '250829098.0.0',
+    'react-native': '0.84',
     // safari 17 does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // Should get iterator record of a set-like object before cloning this
@@ -1961,6 +2011,8 @@ export const data = {
     bun: '0.4.0',
     chrome: '111',
     firefox: '119',
+    hermes: '250829098.0.0',
+    'react-native': '0.84',
     rhino: '1.8.0',
     safari: '16.4',
   },
@@ -2071,6 +2123,8 @@ export const data = {
     bun: '0.5.7', // '0.4.0',
     chrome: '111',
     firefox: '119',
+    hermes: '250829098.0.0',
+    'react-native': '0.84',
     rhino: '1.8.0',
     safari: '16.4',
   },
@@ -2341,6 +2395,8 @@ export const data = {
     chrome: '54',
     edge: '15',
     firefox: '55',
+    hermes: '260318099.0.0',
+    'react-native': '0.88',
     safari: '15.0',
   },
   'es.typed-array.includes': {
@@ -2394,6 +2450,8 @@ export const data = {
     chrome: '54',
     edge: '15',
     firefox: '55',
+    hermes: '260318099.0.0',
+    'react-native': '0.88',
     safari: '14.0',
   },
   'es.typed-array.reduce': {
