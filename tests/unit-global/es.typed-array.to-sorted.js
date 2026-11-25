@@ -3,7 +3,7 @@ import { DESCRIPTORS, TYPED_ARRAYS } from '../helpers/constants.js';
 
 if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.toSorted', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
-  for (const { name, TypedArray } of TYPED_ARRAYS) {
+  for (const { name, TypedArray, bytes } of TYPED_ARRAYS) {
     const { toSorted } = TypedArray.prototype;
 
     assert.isFunction(toSorted, `${ name }::toSorted is function`);
@@ -20,12 +20,10 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.toSorted', assert => {
       assert.deepEqual(new TypedArray([NaN, 1, NaN]).toSorted(), new TypedArray([1, NaN, NaN]), 'NaN');
     }
 
-    if (name.indexOf('8') === -1) {
-      for (const { input, compare, expected, label } of createTypedArraySortCases()) {
-        const array = new TypedArray(input);
-        assert.arrayEqual(array.toSorted(compare), expected, label);
-        assert.arrayEqual(array, input, 'preserves the receiver');
-      }
+    for (const { input, compare, expected, label } of createTypedArraySortCases(bytes)) {
+      const array = new TypedArray(input);
+      assert.arrayEqual(array.toSorted(compare), expected, label);
+      assert.arrayEqual(array, input, 'preserves the receiver');
     }
 
     assert.returns(() => new TypedArray([1, 2, 3]).toSorted(undefined).length, 3, 'works with undefined');

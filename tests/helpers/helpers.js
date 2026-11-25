@@ -146,7 +146,15 @@ export function arrayFromArrayLike(source) {
   } return result;
 }
 
-export function createTypedArraySortCases() {
+export function createTypedArraySortCases(bytesPerElement) {
+  const keys = [0, 1, 0, 2, 1, 1, 2, 1, 0, 0];
+  const cases = [
+    { input: keys, compare: () => NaN, expected: keys, label: 'NaN comparator result' },
+    { input: keys, compare: () => { /* empty */ }, expected: keys, label: 'undefined comparator result' },
+  ];
+  // The larger stability cases use values that do not fit in 8 bits.
+  if (bytesPerElement === 1) return cases;
+
   const descending = [];
   const ascendingGroups = [];
   for (let i = 0; i < 516; i++) {
@@ -154,7 +162,6 @@ export function createTypedArraySortCases() {
     ascendingGroups.push(i - 2 * (i % 4) + 3);
   }
 
-  const keys = [0, 1, 0, 2, 1, 1, 2, 1, 0, 0];
   const input = [];
   const groups = [[], [], []];
   for (let i = 0; i < 520; i++) {
@@ -165,10 +172,11 @@ export function createTypedArraySortCases() {
     groups[key].push(value);
   }
 
-  return [
+  cases.push(
     { input: descending, compare: (a, b) => (a / 4 | 0) - (b / 4 | 0), expected: ascendingGroups, label: 'stable #1' },
     { input, compare: (a, b) => b % 3 - a % 3, expected: groups[2].concat(groups[1], groups[0]), label: 'stable #2' },
-  ];
+  );
+  return cases;
 }
 
 export function includes(target, wanted) {

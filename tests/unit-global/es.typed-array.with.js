@@ -11,15 +11,17 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.with', assert => {
     // assert.name(withAt, 'with', `${ name }::with name is 'with'`);
     assert.looksNative(withAt, `${ name }::with looks native`);
 
-    const array = new TypedArray([$(1), $(2), $(3), $(4), $(5)]);
-    assert.notSame(array.with(2, $(1)), array, 'immutable');
+    const input = [$(1), $(2), $(3), $(4), $(5)];
+    const array = new TypedArray(input);
+    assert.notSame(array.with(2, $(1)), array, 'returns a new typed array');
+    input.forEach((value, index) => assert.same(array[index], value, 'preserves the receiver'));
 
-    assert.deepEqual(new TypedArray([$(1), $(2), $(3), $(4), $(5)]).with(2, $(6)), new TypedArray([$(1), $(2), $(6), $(4), $(5)]));
-    assert.deepEqual(new TypedArray([$(1), $(2), $(3), $(4), $(5)]).with(-2, $(6)), new TypedArray([$(1), $(2), $(3), $(6), $(5)]));
-    assert.deepEqual(new TypedArray([$(1), $(2), $(3), $(4), $(5)]).with('1', $(6)), new TypedArray([$(1), $(6), $(3), $(4), $(5)]));
+    assert.deepEqual(new TypedArray(input).with(2, $(6)), new TypedArray([$(1), $(2), $(6), $(4), $(5)]));
+    assert.deepEqual(new TypedArray(input).with(-2, $(6)), new TypedArray([$(1), $(2), $(3), $(6), $(5)]));
+    assert.deepEqual(new TypedArray(input).with('1', $(6)), new TypedArray([$(1), $(6), $(3), $(4), $(5)]));
 
-    assert.throws(() => new TypedArray([$(1), $(2), $(3), $(4), $(5)]).with(5, $(6)), RangeError);
-    assert.throws(() => new TypedArray([$(1), $(2), $(3), $(4), $(5)]).with(-6, $(6)), RangeError);
+    assert.throws(() => new TypedArray(input).with(5, $(6)), RangeError);
+    assert.throws(() => new TypedArray(input).with(-6, $(6)), RangeError);
 
     assert.throws(() => withAt.call(null, 1, $(2)), TypeError, "isn't generic #1");
     assert.throws(() => withAt.call(undefined, 1, $(2)), TypeError, "isn't generic #2");

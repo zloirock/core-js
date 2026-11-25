@@ -3,7 +3,7 @@ import { DESCRIPTORS, STRICT, TYPED_ARRAYS } from '../helpers/constants.js';
 
 if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.sort', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
-  for (const { name, TypedArray } of TYPED_ARRAYS) {
+  for (const { name, TypedArray, bytes } of TYPED_ARRAYS) {
     const { sort } = TypedArray.prototype;
     assert.isFunction(sort, `${ name }::sort is function`);
     assert.arity(sort, 1, `${ name }::sort arity is 1`);
@@ -16,12 +16,10 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.sort', assert => {
       assert.deepEqual(new TypedArray([NaN, 1, NaN]).sort(), new TypedArray([1, NaN, NaN]), 'NaN');
     }
 
-    if (name.indexOf('8') === -1) {
-      for (const { input, compare, expected, label } of createTypedArraySortCases()) {
-        const array = new TypedArray(input);
-        assert.same(array.sort(compare), array, 'returns the receiver');
-        assert.arrayEqual(array, expected, label);
-      }
+    for (const { input, compare, expected, label } of createTypedArraySortCases(bytes)) {
+      const array = new TypedArray(input);
+      assert.same(array.sort(compare), array, 'returns the receiver');
+      assert.arrayEqual(array, expected, label);
     }
 
     assert.throws(() => sort.call([0], () => { /* empty */ }), "isn't generic");

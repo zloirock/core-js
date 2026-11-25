@@ -10,8 +10,10 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.toReversed', assert => {
     assert.name(toReversed, 'toReversed', `${ name }::toReversed name is 'toReversed'`);
     assert.looksNative(toReversed, `${ name }::toReversed looks native`);
 
-    const array = new TypedArray([$(1), $(2)]);
-    assert.notSame(array.toReversed(), array, 'immutable');
+    const input = [$(1), $(2)];
+    const array = new TypedArray(input);
+    assert.notSame(array.toReversed(), array, 'returns a new typed array');
+    input.forEach((value, index) => assert.same(array[index], value, 'preserves the receiver'));
     assert.deepEqual(new TypedArray([$(1), $(2), $(3), $(4)]).toReversed(), new TypedArray([$(4), $(3), $(2), $(1)]), 'works #1');
     assert.deepEqual(new TypedArray([$(1), $(2), $(3)]).toReversed(), new TypedArray([$(3), $(2), $(1)]), 'works #2');
 

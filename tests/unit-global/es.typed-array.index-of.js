@@ -13,6 +13,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.indexOf', assert => {
     assert.same(new TypedArray([1, 2, 3]).indexOf(2, 1), 1);
     assert.same(new TypedArray([1, 2, 3]).indexOf(2, -1), -1);
     assert.same(new TypedArray([1, 2, 3]).indexOf(2, -2), 1);
+    if (name.indexOf('Float') === 0) assert.same(new TypedArray([1, NaN]).indexOf(NaN), -1, 'does not find NaN');
     assert.throws(() => indexOf.call([1], 1), "isn't generic");
   }
 });
