@@ -277,6 +277,8 @@ If a custom `package` has separate ESM and CommonJS exports or an import-only en
 
 Controls the syntax of injected polyfill imports: `'import'` for ESM `import` statements, `'require'` for CJS `require()` calls. When not set, surviving ESM imports or exports select `import`; otherwise the source format (including the filename and explicit parse goal) determines the style. Setting this option changes injection syntax only, not the source language.
 
+With `absoluteImports`, Babel recognizes its CommonJS transform in the same pass and resolves static imports to CommonJS targets. For a separate CommonJS compilation step, set `importStyle: 'require'`.
+
 ```json
 {
   "plugins": [["@core-js", {

@@ -8,6 +8,7 @@ import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { parse } from '@babel/parser';
 import 'zx/globals';
+import babelPlugin from '../../../packages/core-js-babel-plugin/index.js';
 import { resolveImportPath } from '../../../packages/core-js-polyfill-provider/helpers/path-normalize.js';
 import createUnplugin from '../../../packages/core-js-unplugin/internals/plugin.js';
 import { transformBabel, transformUnplugin } from '../../transpiler-differential/harness.mjs';
@@ -17,6 +18,24 @@ const pkg = join(project, 'node_modules', 'entry-test');
 const esmBranch = process.argv.at(2);
 assert.ok(esmBranch === 'import' || esmBranch === 'require');
 const requireFromProject = createRequire(join(project, 'input.cjs'));
+
+const requireBabel = createRequire(import.meta.url);
+const babel = requireBabel('@babel/core');
+const commonjs = requireBabel('@babel/plugin-transform-modules-commonjs');
+const corejs = [babelPlugin, { method: 'usage-pure', package: 'entry-test', version: '4.0', targets: { ie: 11 }, absoluteImports: true }];
+for (const [kind, config] of Object.entries({
+  before: { plugins: [corejs, commonjs] },
+  after: { plugins: [commonjs, corejs] },
+  preset: { passPerPreset: true, presets: [() => ({ plugins: [corejs, commonjs] })] },
+})) {
+  const { code } = await babel.transformAsync('const require = () => 99; export const r = [Array.from([]), require()];', {
+    filename: join(project, 'input.mjs'), configFile: false, babelrc: false,
+    ...config,
+  });
+  const out = join(project, `lowered-${ kind }.cjs`);
+  await writeFile(out, code);
+  assert.deepEqual(requireFromProject(out).r, [23, 99]);
+}
 
 const hook = registerHooks({ resolve(specifier, context, nextResolve) {
   if (specifier.endsWith('/')) throw new Error('Directory imports are unsupported');

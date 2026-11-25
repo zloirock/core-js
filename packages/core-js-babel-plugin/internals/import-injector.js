@@ -30,6 +30,10 @@ import { polyfillOrderComparator } from '@core-js/polyfill-provider/plugin-optio
 import { ownedLeadingComments } from '@core-js/polyfill-provider/helpers/source-scan';
 import { brand } from '@core-js/polyfill-provider/helpers/error-tag';
 
+function hasCommonJSTransform({ plugins }) {
+  return plugins.some(plugin => plugin.key === 'transform-modules-commonjs');
+}
+
 // babel@7 exposes `scope.references` / `scope.uids` as object maps; babel@8 replaced them
 // with `scope.referencesSet` / `scope.uidsSet` (real Sets) and throws on the legacy
 // accessors. one probe of any scope at injector construction commits the bag to a single
@@ -58,6 +62,7 @@ export default class ImportInjector extends ImportInjectorState {
 
   #t;
   #programPath;
+  #resolveStyle;
   // binding name -> babel Identifier node (flushed imports clone it to preserve range/loc).
   // hint / source live on the base class via `#importInfoByName` + `existingPureImports`
   #idByName = new Map();
@@ -98,6 +103,13 @@ export default class ImportInjector extends ImportInjectorState {
     super({ absoluteImports, mode, pkg, importStyle, packages, emitsGlobalModules });
     this.#t = t;
     this.#programPath = programPath;
+    // Our pre hook can flush before the CommonJS plugin sets its file metadata.
+    // Its Program.exit will load these static imports with require().
+    this.#resolveStyle = importStyle;
+    if (absoluteImports && importStyle === 'import' && programPath.node.sourceType === 'module') {
+      const options = programPath.hub.file.opts;
+      if (hasCommonJSTransform(options) || options.presets.some(hasCommonJSTransform)) this.#resolveStyle = 'require';
+    }
     this.#memoReuseContext = adapter ? { adapter } : null;
     const program = programPath.scope.getProgramParent();
     this.#scopeReferences = makeScopeBag(program, 'referencesSet', 'references');
@@ -730,7 +742,7 @@ export default class ImportInjector extends ImportInjectorState {
   }
 
   #resolvePath(subpath, pkg = null) {
-    return resolveImportPath(pkg ?? this.pkg, subpath, this.absoluteImports, this.importStyle);
+    return resolveImportPath(pkg ?? this.pkg, subpath, this.absoluteImports, this.#resolveStyle);
   }
 
   #buildNodes() {

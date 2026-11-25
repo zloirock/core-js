@@ -44,6 +44,12 @@ try {
     await fs.outputFile(path.join(DIR, `node_modules/${ pkg }/actual/map.js`),
       'function Map() {} Map.prototype.has = function () { return this.constructor === Map; }; module.exports = Map;');
   }
+  const absoluteCases = [
+    ['absolute-write', 'globalThis.Array.from = () => \'patched\'; export const r = globalThis.Array.from([1]);', 'patched'],
+    ['absolute-delete', 'delete globalThis.Array.from; export const r = typeof globalThis.Array.from;', 'undefined'],
+    ['absolute-ctor', 'globalThis.Map = function Map() { this.value = 23; }; export const r = new globalThis.Map().value;', 23],
+  ];
+  const consumeURL = pathToFileURL(path.join(DIR, 'consume.mjs')).href;
   const cases = [
     ['same-name-prototype-key', `import Map from 'my-pure/actual/map.js'; const key = 'prototype';
 export const r = [Map[key].has.call(new Map()), Map[key].has === new Map().has];`, [true, true], { package: 'my-pure' }],
@@ -67,12 +73,12 @@ export const r = [rescue, pooled.extra, R.events];`, [13, 17, ['Promise', 'any']
     ['foreign-call', 'import getList from "./features/list/get-list.mjs"; export const r = getList().at(-1);', 9],
     ['foreign-package-segment', `import C from './vendor/@core-js/pure/actual/map/constructor.js';
 const { at } = C; export const r = at.call(C, -1);`, 9],
-    ['absolute-write', 'globalThis.Array.from = () => \'patched\'; export const r = globalThis.Array.from([1]);', 'patched',
-      { absoluteImports: true }],
-    ['absolute-delete', 'delete globalThis.Array.from; export const r = typeof globalThis.Array.from;', 'undefined',
-      { absoluteImports: true }],
-    ['absolute-ctor', 'globalThis.Map = function Map() { this.value = 23; }; export const r = new globalThis.Map().value;', 23,
-      { absoluteImports: true }],
+    ...absoluteCases.map(row => [...row, { absoluteImports: true }]),
+    ...absoluteCases.map(([name, source, expected]) => [
+      `${ name }-require`, source, expected, { absoluteImports: true, importStyle: 'require' },
+    ]),
+    ['absolute-file-url', `import consume from ${ JSON.stringify(consumeURL) }; export const r = consume(Array.from([7]))[0];`,
+      7, { absoluteImports: true }],
     ['custom-index', `import P from 'my-pure/actual/promise.js'; const { resolve, ...rest } = P;
 export const r = [resolve === P.resolve, resolve(8), rest.token];`, [true, ['custom', 8], 17], { package: 'my-pure' }],
     ['additional-index', `import P from '@vendor/pure/actual/promise.js'; const { resolve, ...rest } = P;
@@ -113,10 +119,8 @@ export const r = [7][key]().next().value;`, 7],
         stages.push(['pre+post', plugin.transform(pre, filename, 'post')?.code ?? pre]);
       }
       for (const [phase, output] of stages) {
-        // absoluteImports emits filesystem paths for bundlers, including Windows drive paths.
-        // Node's ESM loader treats a drive letter as a URL scheme; lower only for execution,
-        // after the untouched output has passed through the fresh-plugin and pre+post checks.
-        const script = options?.absoluteImports;
+        // Lower the named exports only for the CommonJS cases. ESM imports can be file URLs.
+        const script = options?.importStyle === 'require';
         const executable = script ? (await transformAsync(output, {
           configFile: false, babelrc: false,
           plugins: [requireBabel('@babel/plugin-transform-modules-commonjs')],
