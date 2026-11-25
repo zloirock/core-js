@@ -663,7 +663,9 @@ var prepareTransfer = function (rawTransfer, map) {
     }
 
     if (type === 'ArrayBuffer') {
-      if (!detachTransferable && !isCallable(getBuiltInPrototypeMethod('ArrayBuffer', 'transfer'))) throwUnpolyfillable(type, TRANSFERRING);
+      if (!(detachTransferable && detachTransferable.isSupported()) && !isCallable(getBuiltInPrototypeMethod('ArrayBuffer', 'transfer'))) {
+        throwUnpolyfillable(type, TRANSFERRING);
+      }
       setAdd(buffers, value);
       // Keep attached host buffers in mixed-list validation, e.g. Node's untransferable buffer pool.
       if (PROPER_TRANSFER_VALIDATION && length > 1 && !isDetached(value)) push(nativeTransfer, value);
@@ -756,7 +758,7 @@ var performTransfer = function (transfer, map, replacements) {
 
 var detachBuffer = function (buffer) {
   if (isDetached(buffer)) throw new DOMException('ArrayBuffer is detached', DATA_CLONE_ERROR);
-  if (detachTransferable) {
+  if (detachTransferable && detachTransferable.isSupported()) {
     detachTransferable(buffer);
   } else {
     var transfer = getBuiltInPrototypeMethod('ArrayBuffer', 'transfer');

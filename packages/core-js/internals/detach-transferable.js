@@ -8,42 +8,45 @@ var postMessage = require('../internals/message-channel-post');
 var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
 
 var structuredClone = globalThis.structuredClone;
-var $ArrayBuffer = globalThis.ArrayBuffer;
-// captured before the transfer polyfill of this copy can replace it
-var arrayBufferTransfer = $ArrayBuffer && uncurryThis($ArrayBuffer.prototype.transfer);
-var detach = false;
-var buffer, $detach;
+var TypeError = globalThis.TypeError;
+var supported, nativeTransfer, markDetached;
 
-if (PROPER_STRUCTURED_CLONE_TRANSFER) {
-  detach = function (transferable) {
-    structuredClone(transferable, { transfer: [transferable] });
-    // modern engines trust any `structuredClone` to detach, but a non-native one leaves the buffer attached
-    if (isDetached(transferable)) return;
-    if (postMessage) postMessage(null, [transferable]);
-    // the callers report buffers that stay attached
-    else if (arrayBufferTransfer) try {
-      arrayBufferTransfer(transferable);
-    } catch (error) { /* empty */ }
-  };
-} else if ($ArrayBuffer) try {
-  if (postMessage) {
-    buffer = new $ArrayBuffer(2);
-
-    $detach = function (transferable) {
-      postMessage(null, [transferable]);
-    };
-
-    if (buffer.byteLength === 2) {
-      $detach(buffer);
-      if (buffer.byteLength === 0) {
-        // Firefox 41-44 accepts detached buffers in view constructors and structured cloning
-        detach = isDetached(buffer) ? $detach : function (transferable) {
-          $detach(transferable);
-          if (arrayBufferByteLength(transferable) === 0) enforceInternalState(transferable).detached = true;
-        };
-      }
+var isSupported = function () {
+  if (supported !== undefined) return supported;
+  var ArrayBuffer = globalThis.ArrayBuffer;
+  if (!ArrayBuffer) return PROPER_STRUCTURED_CLONE_TRANSFER;
+  supported = PROPER_STRUCTURED_CLONE_TRANSFER;
+  try {
+    // Capture the fallback before installing the transfer polyfill.
+    if (supported) nativeTransfer = !postMessage && uncurryThis(ArrayBuffer.prototype.transfer);
+    else {
+      var buffer = new ArrayBuffer(2);
+      if (buffer.byteLength !== 2) return false;
+      postMessage(null, [buffer]);
+      if (buffer.byteLength !== 0) return false;
+      // Firefox 41-44 accepts detached buffers in view constructors and structured cloning.
+      markDetached = !isDetached(buffer);
+      supported = true;
     }
-  }
-} catch (error) { /* empty */ }
+  } catch (error) { /* empty */ }
+  return supported;
+};
 
-module.exports = detach;
+var detach = function (transferable) {
+  if (!isSupported()) throw new TypeError('ArrayBuffer is not detachable');
+  if (PROPER_STRUCTURED_CLONE_TRANSFER) {
+    structuredClone(transferable, { transfer: [transferable] });
+    // A non-native structuredClone can leave the buffer attached.
+    if (isDetached(transferable)) return;
+  }
+  if (postMessage) {
+    postMessage(null, [transferable]);
+    if (markDetached && arrayBufferByteLength(transferable) === 0) enforceInternalState(transferable).detached = true;
+  } else if (nativeTransfer) try {
+    nativeTransfer(transferable);
+  } catch (error) { /* empty */ }
+};
+
+detach.isSupported = isSupported;
+// Defer the probe if ArrayBuffer is not installed yet.
+module.exports = (PROPER_STRUCTURED_CLONE_TRANSFER || !!postMessage) && (!globalThis.ArrayBuffer || isSupported()) && detach;
