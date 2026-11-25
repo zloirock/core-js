@@ -298,7 +298,7 @@
     - `Symbol.dispose`, `Symbol.asyncDispose` and `Iterator.prototype[@@dispose]` marked as [shipped in FF141](https://bugzilla.mozilla.org/show_bug.cgi?id=1967744) instead of FF135 - before that, they were available only in Nightly
     - `Function.prototype[@@hasInstance]` marked as supported from Chrome 50 instead of 51
     - `Promise`, its original methods, `finally` and `allSettled` marked as supported from Deno 1.0 instead of 1.24
-    - `Map` and `Set` marked as properly supported from Rhino 1.7.15 instead of 1.7.13 and no longer marked as supported in Hermes / React Native because of missing `@@species`
+    - `Map` and `Set` no longer marked as supported in Hermes / React Native because of missing `@@species`
     - `Set.prototype.union` marked as properly supported from [V8 ~ Chrome 133](https://issues.chromium.org/issues/352690887) where it gets the iterator record of a set-like object before cloning `this`
     - `String.prototype[@@iterator]` marked as properly supported from Chrome 49, Edge 15, FF51 and Safari 10.0 instead of Chrome 41, Edge 13, FF36 and Safari 9.0 because of missing `%StringIteratorPrototype%[@@toStringTag]`
     - Aligned the `String.fromCodePoint` probe with the module arity check; marked as properly supported from [FF35](https://bugzilla.mozilla.org/show_bug.cgi?id=1062484) instead of FF29
@@ -327,6 +327,7 @@
       - [1.8.0](https://github.com/mozilla/rhino/commit/db117290720838a54126f6a27da117097f539353) and later for `%TypedArray%.prototype.{ copyWithin, every, filter, find, findIndex, forEach, includes, indexOf, join, lastIndexOf, map, reduce, reduceRight, reverse, some, sort, toLocaleString }`
       - [1.9.0](https://github.com/mozilla/rhino/pull/1980) and later for `Promise.withResolvers`
       - Marked `Array.fromAsync` and `%TypedArray%.prototype.with` as unsupported
+      - Include the array, string, `Map` and `Set` iterator polyfills so their native iterators inherit the iterator helpers
     - Fixed Safari compat data: `%TypedArray%.prototype.set` marked as supported from Safari 14.0
   - Version mappings and data inheritance
     - Mapped Safari 14.1.1 to iOS 14.6 and Safari 14.1.2 to iOS 14.7

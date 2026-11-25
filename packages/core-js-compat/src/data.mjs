@@ -358,7 +358,7 @@ export const data = {
     firefox: '60',
     // Array.prototype.values is still disabled in NodeJS 10.8.
     node: '10.9',
-    rhino: '1.8.0',
+    // rhino: '1.8.0', // no shared iterator prototype
     safari: '10.0',
   },
   'es.array.join': {
@@ -987,7 +987,7 @@ export const data = {
     // hermes: '0.13',
     // 'react-native': '0.73',
     // no `Map[@@species]` before 1.7.15
-    rhino: '1.7.15', // '1.7.13',
+    // rhino: '1.7.15', // no shared iterator prototype
     safari: '10.0',
   },
   'es.map.group-by': {
@@ -1847,7 +1847,7 @@ export const data = {
     // hermes: '0.13',
     // 'react-native': '0.73',
     // no `Set[@@species]` before 1.7.15
-    rhino: '1.7.15', // '1.7.13',
+    // rhino: '1.7.15', // no shared iterator prototype
     safari: '10.0',
   },
   'es.set.difference.v2': {
@@ -2022,7 +2022,7 @@ export const data = {
     edge: '15', // '13',
     firefox: '51', // '36',
     hermes: '0.1',
-    rhino: '1.7.13',
+    // rhino: '1.7.13', // no shared iterator prototype
     safari: '10.0', // '9.0',
   },
   'es.string.match': {

@@ -472,6 +472,19 @@ function TIMERS() {
   })());
 }
 
+// Like iterators-core, find %IteratorPrototype% through array keys. Rhino gets Object.prototype here.
+function hasCorrectIteratorPrototype(iterator, tag) {
+  var getPrototypeOf = Object.getPrototypeOf;
+  var keys = [].keys();
+  var prototype = getPrototypeOf(getPrototypeOf(keys));
+  var receiver = {};
+  return 'next' in keys
+    && prototype !== Object.prototype
+    && getPrototypeOf(getPrototypeOf(iterator)) === prototype
+    && prototype[Symbol.iterator].call(receiver) === receiver
+    && iterator[Symbol.toStringTag] === tag;
+}
+
 // https://github.com/tc39/ecma262/pull/3467
 function checkIteratorClosingOnEarlyError(METHOD_NAME, ExpectedError) {
   return function () {
@@ -692,7 +705,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.array.iterator': [SYMBOLS_SUPPORT, function () {
     return [][Symbol.iterator] === [].values
       && [][Symbol.iterator].name === 'values'
-      && [].entries()[Symbol.toStringTag] === 'Array Iterator'
+      && hasCorrectIteratorPrototype([].entries(), 'Array Iterator')
       && [].keys().next()
       && [][Symbol.unscopables].keys
       && [][Symbol.unscopables].values
@@ -1139,13 +1152,14 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     };
 
     var map = new Map(iterable);
+    var iterator = map[Symbol.iterator]();
     return map.forEach
-      && map[Symbol.iterator]().next()
+      && iterator.next()
       && map.get(1) === 2
       && map.set(-0, 3) === map
       && map.has(0)
       && map[Symbol.toStringTag]
-      && map[Symbol.iterator]()[Symbol.toStringTag] === 'Map Iterator'
+      && hasCorrectIteratorPrototype(iterator, 'Map Iterator')
       && Map[Symbol.species] === Map;
   }],
   'es.map.group-by': function () {
@@ -1714,13 +1728,14 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     };
 
     var set = new Set(iterable);
+    var iterator = set[Symbol.iterator]();
     return set.forEach
-      && set[Symbol.iterator]().next()
+      && iterator.next()
       && set.has(1)
       && set.add(-0) === set
       && set.has(0)
       && set[Symbol.toStringTag]
-      && set[Symbol.iterator]()[Symbol.toStringTag] === 'Set Iterator'
+      && hasCorrectIteratorPrototype(iterator, 'Set Iterator')
       && Set[Symbol.species] === Set;
   }],
   'es.set.difference.v2': [createSetMethodTest('difference', function (result) {
@@ -1784,7 +1799,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return String.prototype.isWellFormed;
   },
   'es.string.iterator': [SYMBOLS_SUPPORT, function () {
-    return ''[Symbol.iterator] && ''[Symbol.iterator]()[Symbol.toStringTag] === 'String Iterator';
+    return hasCorrectIteratorPrototype(''[Symbol.iterator](), 'String Iterator');
   }],
   'es.string.match': function () {
     var O = {};
