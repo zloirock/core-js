@@ -20,6 +20,7 @@ var getIteratorRecord = require('../internals/get-iterator-record');
 var iterateSimple = require('../internals/iterate-simple');
 var anObject = require('../internals/an-object');
 var classof = require('../internals/classof');
+var InternalStateModule = require('../internals/internal-state');
 var hasOwn = require('../internals/has-own-property');
 var createProperty = require('../internals/create-property');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
@@ -449,7 +450,8 @@ var structuredCloneInternal = function (value, map) {
         cloned = tryNativeRestrictedStructuredClone(value, type);
       } break;
     default:
-      if (nativeRestrictedStructuredClone) {
+      // native cloning sees objects with polyfilled internal slots as ordinary objects
+      if (nativeRestrictedStructuredClone && !(InternalStateModule.has(value) && InternalStateModule.get(value).type)) {
         cloned = nativeRestrictedStructuredClone(value);
       } else switch (type) {
         case 'BigInt':

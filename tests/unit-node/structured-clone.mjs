@@ -12,8 +12,9 @@ const loadClone = () => flavor === 'core-js'
   : require('../../packages/core-js-pure/actual/structured-clone');
 
 if (!flavor) {
+  // isolate changes to built-ins and the order in which the polyfills load
   for (const variant of ['core-js', 'core-js-pure']) {
-    for (const scenario of ['missing', 'broken', 'late-constructors', 'identity', 'shared', 'shared-copy', 'shared-fixed-copy', 'buffer-errors', 'collections']) {
+    for (const scenario of ['missing', 'broken', 'late-constructors', 'identity', 'shared-copy', 'shared-fixed-copy', 'buffer-errors']) {
       const { stdout } = await promisify(execFile)(process.execPath, [fileURLToPath(import.meta.url), variant, scenario]);
       console.log(stdout.trim());
     }
@@ -47,7 +48,7 @@ if (!flavor) {
   const byteLength = Object.getOwnPropertyDescriptor(viewPrototype, 'byteLength');
   const repairSet = mode === 'missing' || mode === 'broken';
   const lengths = new Map();
-  if (repairSet || mode === 'buffer-errors' || mode === 'collections') {
+  if (repairSet || mode === 'buffer-errors') {
     const configure = flavor === 'core-js'
       ? require('../../packages/core-js/configurator')
       : require('../../packages/core-js-pure/configurator');
@@ -110,7 +111,7 @@ if (!flavor) {
     assert.equal(new Uint8Array(moved)[1], 123);
   }
 
-  const shared = mode === 'shared' || mode === 'shared-copy' || mode === 'shared-fixed-copy';
+  const shared = mode === 'shared-copy' || mode === 'shared-fixed-copy';
   const buffer = shared ? new SharedArrayBuffer(8, { maxByteLength: 16 }) : new ArrayBuffer(8, { maxByteLength: 16 });
   const fixed = new Uint8Array(buffer, 0, 8);
   const tracking = new Uint8Array(buffer);
@@ -192,8 +193,7 @@ if (!flavor) {
     assert.equal(copy.fixed.buffer, copy.buffer);
     assert.equal(copy.tracking.buffer, copy.buffer);
     if (shared) {
-      if (mode === 'shared') assert.notEqual(copy.buffer, buffer);
-      else assert.equal(copy.buffer, buffer);
+      assert.equal(copy.buffer, buffer);
       tracking[0] = 73;
       assert.equal(copy.tracking[0], 73);
       copy.buffer.grow(16);
@@ -203,28 +203,6 @@ if (!flavor) {
     assert.equal(copy.tracking.length, mode === 'shared-fixed-copy' ? 8 : 16);
   }
   assert.equal(buffer.byteLength, shared ? 16 : 8);
-
-  if (mode === 'collections') {
-    assert.notEqual(clone, nativeClone);
-    const PureMap = require('../../packages/core-js-pure/es/map');
-    const PureSet = require('../../packages/core-js-pure/es/set');
-    for (const [M, S] of [[Map, Set], [PureMap, PureSet]]) {
-      const value = { data: 1 };
-      const map = new M([[value, 1], [2, value]]);
-      const set = new S([value, map]);
-      map.set(map, set);
-      set.add(set);
-      const copy = clone({ map, set });
-      const [key] = copy.map.keys();
-      assert.notEqual(key, value);
-      assert.deepEqual(key, value);
-      assert.equal(copy.map.get(2), key);
-      assert.equal(copy.map.get(copy.map), copy.set);
-      assert.ok(copy.set.has(key));
-      assert.ok(copy.set.has(copy.map));
-      assert.ok(copy.set.has(copy.set));
-    }
-  }
 
   if (mode === 'buffer-errors') {
     assert.notEqual(clone, nativeClone);
@@ -286,19 +264,6 @@ if (!flavor) {
           Object.defineProperty(owner, key, descriptor);
         }
         assert.equal(new Uint8Array(source).length, 4);
-      }
-    }
-    for (const resizable of [false, true]) {
-      for (const length of [0, 4]) {
-        const source = new ArrayBuffer(length, resizable ? { maxByteLength: 8 } : undefined);
-        const copy = clone(source);
-        assert.notEqual(copy, source);
-        assert.equal(copy.byteLength, length);
-        assert.equal(copy.resizable, resizable);
-        const views = [new DataView(source), new Uint8Array(source)];
-        nativeClone(source, { transfer: [source] });
-        assert.throws(() => clone(source), { name: 'DataCloneError' });
-        for (const view of views) assert.throws(() => clone(view), { name: 'DataCloneError' });
       }
     }
   }

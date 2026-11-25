@@ -2,11 +2,16 @@
 // Copyright © web-platform-tests contributors. Available under the 3-Clause BSD License.
 /* eslint-disable es/no-error-cause, es/no-typed-arrays -- safe */
 import getBuiltInNodeModule from 'core-js-pure/internals/get-built-in-node-module';
+import { enforce } from 'core-js-pure/internals/internal-state';
+import URLSearchParamsState from 'core-js-pure/modules/web.url-search-params.constructor';
 import { DESCRIPTORS, GLOBAL, NODE, NODE_MESSAGE_PORT_TYPE_ERROR, BUN, DENO, DENO_VERSION } from '../helpers/constants.js';
 import { bufferToArray, createIterator, fromSource, observableReturn } from '../helpers/helpers.js';
 
 import structuredClone from 'core-js-pure/stable/structured-clone';
 import from from 'core-js-pure/es/array/from';
+import AsyncDisposableStack from 'core-js-pure/es/async-disposable-stack';
+import DisposableStack from 'core-js-pure/es/disposable-stack';
+import Iterator from 'core-js-pure/es/iterator';
 import rawJSON from 'core-js-pure/es/json/raw-json';
 import assign from 'core-js-pure/es/object/assign';
 import objectCreate from 'core-js-pure/es/object/create';
@@ -234,6 +239,7 @@ QUnit.module('structuredClone', () => {
             const copy = structuredClone(graph);
             assert.same(buffer.byteLength, 8, 'cloning does not grow the source');
             assert.true(copy.buffer instanceof SharedArrayBuffer, 'shared buffer type preserved');
+            if (NODE && !DENO) assert.notSame(copy.buffer, buffer, 'distinct wrappers share the same memory');
             assert.same(copy.again, copy.tracking, 'repeated view reference');
             assert.same(reads, 1, 'source getter runs once');
             assert.same(copy.self, copy, 'circular reference');
@@ -427,6 +433,20 @@ QUnit.module('structuredClone', () => {
           assert.same(copy.fixed.byteLength, 8, 'fixed view keeps its length');
           assert.throws(() => structuredClone(tracking), error => error.name === 'DataCloneError', 'detached tracking view');
           assert.throws(() => structuredClone(fixed), error => error.name === 'DataCloneError', 'detached fixed view');
+        }
+        for (const resizable of [false, true]) {
+          for (const length of [0, 4]) {
+            const source = new ArrayBuffer(length, resizable ? { maxByteLength: 8 } : undefined);
+            const views = [new DataView(source), new Uint8Array(source)];
+            const copy = structuredClone(source);
+            assert.notSame(copy, source, 'attached buffer is cloned');
+            assert.same(copy.byteLength, length, 'byte length is preserved');
+            assert.same(copy.resizable, resizable, 'resizability is preserved');
+            structuredClone(null, { transfer: [source] });
+            for (const value of [source, ...views]) {
+              assert.throws(() => structuredClone(value), error => error.name === 'DataCloneError', 'detached buffer or view');
+            }
+          }
         }
       });
       /* eslint-enable es/no-resizable-and-growable-arraybuffers -- restore restrictions */
@@ -906,6 +926,27 @@ QUnit.module('structuredClone', () => {
     assert.same(multiClone.a, multiClone.b, 'multiple references deduplicated');
   });
 
+  QUnit.test('Map and Set references', assert => {
+    const value = { data: 1 };
+    const map = new Map();
+    const set = new Set();
+    map.set(value, 1);
+    map.set(2, value);
+    map.set(map, set);
+    set.add(value);
+    set.add(map);
+    set.add(set);
+    const copy = structuredClone({ map, set, value });
+    assert.notSame(copy.value, value, 'object key is cloned');
+    assert.deepEqual(copy.value, value, 'object key data');
+    assert.same(copy.map.get(copy.value), 1, 'shared map key');
+    assert.same(copy.map.get(2), copy.value, 'shared map value');
+    assert.same(copy.map.get(copy.map), copy.set, 'map used as its own key');
+    assert.true(copy.set.has(copy.value), 'shared set entry');
+    assert.true(copy.set.has(copy.map), 'map in the set');
+    assert.true(copy.set.has(copy.set), 'set contains itself');
+  });
+
   QUnit.test('transfer list validation', assert => {
     const iterator = createIterator([{}, 1, 2], observableReturn);
     const transfer = { [Symbol.iterator]() { return iterator; } };
@@ -1323,8 +1364,17 @@ QUnit.module('structuredClone', () => {
     return Promise.all(tasks);
   });
 
+  if (!structuredClone.sham) QUnit.test('ordinary object with an iterator tag', assert => {
+    const object = objectCreate(Iterator.prototype);
+    object.type = 'WrapForValidIterator';
+    assert.deepEqual(structuredClone(object), { type: 'WrapForValidIterator' }, 'public tag and type');
+    enforce(object);
+    assert.deepEqual(structuredClone(object), { type: 'WrapForValidIterator' }, 'internal state without a type');
+  });
+
   // Non-serializable types
   QUnit.test('Non-serializable types', assert => {
+    const wrapped = Iterator.from(createIterator([]));
     const nons = [
       ['Function', function () { return 1; }],
       ['Symbol', Symbol('desc')],
@@ -1333,6 +1383,12 @@ QUnit.module('structuredClone', () => {
       ['WeakSet', new WeakSet()],
       ['URL', new URL('https://example.com/')],
       ['URLSearchParams', new URLSearchParams('a=1')],
+      // exercise the polyfill even where the engine supplies its own URLSearchParams
+      ['URLSearchParams iterator', new URLSearchParamsState().getFacade().entries()],
+      ['Iterator.from wrapper', wrapped],
+      ['Iterator Helper in an object', { value: wrapped.map(it => it) }],
+      ['DisposableStack', new DisposableStack()],
+      ['AsyncDisposableStack', new AsyncDisposableStack()],
       ['RawJSON', rawJSON('1')],
       ['RawJSON in an array', [rawJSON('1')]],
     ];
