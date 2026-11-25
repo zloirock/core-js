@@ -49,6 +49,36 @@ for (const [name, first, second] of [
 deepEqual(detached.checks.map(check => check.pass), [false, false]);
 strictEqual(exerciseEqual(new Map(), new Set()), false);
 strictEqual(exerciseEqual(new Set(), {}), false);
+const recordPrototypes = [Map.prototype, Set.prototype];
+const sizes = recordPrototypes.map(prototype => Object.getOwnPropertyDescriptor(prototype, 'size'));
+let sizeReads = 0;
+try {
+  for (const prototype of recordPrototypes) {
+    Object.defineProperty(prototype, 'size', {
+      get() {
+        sizeReads++;
+        return 0;
+      },
+    });
+  }
+  strictEqual(exerciseEqual([{ id: 1, value: 7 }], [{ id: 1, value: 7 }]), true);
+  strictEqual(exerciseEqual([{ id: 1, value: 7 }], [{ id: 1, value: 8 }]), false);
+  strictEqual(sizeReads, 0);
+} finally {
+  for (const [index, prototype] of recordPrototypes.entries()) Object.defineProperty(prototype, 'size', sizes[index]);
+}
+const foreignBags = runInNewContext(`
+  class Bag {
+    constructor(value) { this.value = value; }
+    get size() { throw new Error('ordinary class size was read'); }
+    has() {}
+    clear() {}
+    add() {}
+  }
+  [new Bag(1), new Bag(1), new Bag(2)];
+`);
+strictEqual(exerciseEqual(foreignBags[0], foreignBags[1]), true);
+strictEqual(exerciseEqual(foreignBags[0], foreignBags[2]), false);
 const foreign = runInNewContext('({ set: new Set([1]), map: new Map([["x", 1]]) })');
 strictEqual(exerciseEqual(foreign.set, new Set([1])), true);
 strictEqual(exerciseEqual(new Set([2]), foreign.set), false);
@@ -122,6 +152,28 @@ for (const create of [() => ({}), () => [], () => new Map(), () => new Set([1])]
   strictEqual(checkFailureLine(checks[3]), 'extra key actual=at [Symbol(field)] <missing> expected=at [Symbol(field)] 1');
   deepEqual(checks.map(row => row.pass), [true, false, false, false]);
 }
+const readOnce = checker();
+let lengthReads = 0;
+const changingLength = new Proxy([0], {
+  get(target, key) {
+    if (key === 'length') return ++lengthReads;
+    return target[key];
+  },
+});
+readOnce.check('length read once', changingLength, [0, 0]);
+strictEqual(lengthReads, 1);
+strictEqual(checkFailureLine(readOnce.checks[0]), 'length read once actual=at [length] 1 expected=at [length] 2');
+
+let equalLengthReads = 0;
+const changingAfterComparison = new Proxy([1], {
+  get(target, key) {
+    if (key === 'length') return ++equalLengthReads === 1 ? 1 : 0;
+    return target[key];
+  },
+});
+strictEqual(exerciseEqual(changingAfterComparison, [1]), true);
+strictEqual(equalLengthReads, 1);
+
 const diagnostic = checker();
 const wide = Array(128).fill('long common prefix');
 diagnostic.check('length', wide, [...wide, 'tail']);
@@ -818,6 +870,11 @@ const probe = `
       }
       await exited;
     }
+    const observed = join(scratch, 'observed.mjs');
+    await writeFile(observed, 'export function run() { let reads = 0; const actual = new Proxy([1], {'
+      + ' get(target, key) { if (key === "length" && ++reads > 1) throw Error("read length twice"); return target[key]; }'
+      + ' }); return { checks: [{ label: "array", pass: true, actual }] }; }');
+    deepEqual(await rawChecks(observed, { repeat: true }), [{ label: 'array', pass: true, failure: null }]);
     const mutating = join(scratch, 'mutating.mjs');
     await writeFile(mutating, 'const check = { label: "ok", pass: true, actual: { n: 0 } };'
       + 'export function run() { check.actual.n++; return { checks: [check] }; }');
@@ -888,17 +945,27 @@ const probe = `
       + 'const timer = setInterval(() => { if (fs.existsSync(' + JSON.stringify(release) + ')) {'
       + 'fs.writeFileSync(' + JSON.stringify(completed) + ', "done"); clearInterval(timer); } }, 10);'
       + 'setTimeout(() => clearInterval(timer), 5000).unref();';
-    // Wait for the nested Node to start before arming the short exercise watchdog.
-    await writeFile(blocked, 'import { fork } from "node:child_process"; import { once } from "node:events";'
-      + 'const child = fork(' + JSON.stringify(join(scratch, 'nested.cjs')) + ', [], { execArgv: [] });'
-      + 'await once(child, "message"); export function run() { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0); }');
-    await writeFile(join(scratch, 'nested.cjs'), finish + 'process.send("ready");');
-    await rejects(runWithDeadline(pathToFileURL(blocked).href, 'run', [], { ms: 500, what: 'nested command' }),
-      /nested command did not finish within 500ms/);
-    deepEqual(await readFile(marker, 'utf8'), 'started');
-    await writeFile(release, 'release');
-    await new Promise(resolve => setTimeout(resolve, 250));
-    await rejects(access(completed), { code: 'ENOENT' }, 'the watchdog must stop the nested command');
+    const nested = join(scratch, 'nested.cjs');
+    await writeFile(nested, finish + 'process.send("ready");');
+    const launch = 'import { fork } from "node:child_process"; import { once } from "node:events";'
+      + 'const child = fork(' + JSON.stringify(nested) + ', [], { execArgv: [] });'
+      + 'await once(child, "message");';
+    for (const [body, problem] of [
+      ['Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0);', /did not finish within 500ms/],
+      ['process.exit(23);', /exited with code 23 without a result/],
+      ['return "done";', null],
+    ]) {
+      await writeFile(blocked, launch + 'export function run() { ' + body + ' }');
+      const result = runWithDeadline(pathToFileURL(blocked).href, 'run', [], { ms: 500, what: 'nested command' });
+      if (problem) await rejects(result, problem);
+      else deepEqual(await result, 'done');
+      deepEqual(await readFile(marker, 'utf8'), 'started');
+      await writeFile(release, 'release');
+      await new Promise(resolve => setTimeout(resolve, 250));
+      await rejects(access(completed), { code: 'ENOENT' }, 'nested process survived: ' + body);
+      await rm(release);
+      await rm(marker);
+    }
   } finally {
     try {
       await rm(scratch, { recursive: true, force: true });

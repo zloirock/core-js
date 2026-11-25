@@ -173,7 +173,18 @@ function currentRealm() {
   if (typeof self === 'object') return self;
   return Function('return this')();
 }
-const realms = [currentRealm()];
+const host = currentRealm();
+const realms = [host];
+// Node can inspect native slots without throwing, including after a prototype change.
+// The browser and the stripped realm have no host API and use the size getters.
+function getNativeTypes() {
+  const { process } = host;
+  if (typeof process?.versions?.node === 'string' && typeof process.getBuiltinModule === 'function') {
+    return process.getBuiltinModule('node:util')?.types;
+  }
+  return undefined;
+}
+const nativeTypes = getNativeTypes();
 
 export function observeRealm(realm) {
   realms.push(realm);
@@ -208,16 +219,38 @@ export function collectionInfo(value) {
     }
     return { isMap, size: state.size, first: state.first };
   }
-  for (let i = 0; i < realms.length; i++) {
-    const realm = realms[i];
-    const native = nativeCollection(value, realm.Map?.prototype, true) || nativeCollection(value, realm.Set?.prototype, false);
-    if (native) return native;
+  const isMap = nativeTypes?.isMap(value);
+  const isSet = nativeTypes?.isSet(value);
+  if (isMap !== false || isSet !== false) {
+    for (let i = 0; i < realms.length; i++) {
+      const realm = realms[i];
+      const map = isMap !== false && nativeCollection(value, realm.Map?.prototype, true);
+      if (map) return map;
+      const set = isSet !== false && nativeCollection(value, realm.Set?.prototype, false);
+      if (set) return set;
+    }
   }
   // A foreign pure wrapper has no native collection slot. Its empty enumerable
   // surface cannot stand in for its contents when the host omitted its realm.
   if (realms.some(realm => Object.prototype.isPrototypeOf.call(realm.Object.prototype, value))) return undefined;
-  if (collectionPrototype(value)) throw new TypeError('Cannot inspect foreign collection: register its source with observeRealm()');
+  const prototype = collectionPrototype(value);
+  if (prototype && hasOwnProperty.call(prototype, 'forEach') && hasCollectionTag(prototype)) {
+    throw new TypeError('Cannot inspect foreign collection: register its source with observeRealm()');
+  }
   return undefined;
+}
+
+// Pure installs a data tag on its prototype. On symbolless engines it uses
+// core-js's string key for the well-known symbol.
+function hasCollectionTag(prototype) {
+  const tag = host.Symbol?.toStringTag;
+  const keys = Object.getOwnPropertyNames(prototype).filter(key => /^Symbol\(Symbol\.toStringTag\)_/.test(key));
+  if (tag !== undefined) keys.push(tag);
+  return keys.some(key => {
+    const name = Object.getOwnPropertyDescriptor(prototype, key)?.value;
+    return (name === 'Map' && hasOwnProperty.call(prototype, 'set'))
+      || (name === 'Set' && hasOwnProperty.call(prototype, 'add'));
+  });
 }
 
 function nativeCollection(collection, prototype, isMap) {
@@ -274,9 +307,9 @@ export function collectionValues(info) {
 // In a pure bundle on a symbolless engine the logical symbol is an object, its
 // property is stored under a string, and es.symbol.constructor keeps enumerability
 // in internal state. Global reflection alone cannot see this combination.
-export function enumerableKeys(value, array = false) {
+export function enumerableKeys(value, arrayLength) {
   const keys = Object.keys(value);
-  const fields = array ? keys.filter(key => String(key >>> 0) !== key || +key >= value.length) : keys;
+  const fields = arrayLength === undefined ? keys : keys.filter(key => String(key >>> 0) !== key || +key >= arrayLength);
   if (Object.getOwnPropertySymbols) {
     const symbols = Object.getOwnPropertySymbols(value);
     for (let i = 0; i < symbols.length; i++) {
@@ -315,18 +348,22 @@ function missingKey(object, key, missing, difference) {
   return false;
 }
 
+function differentValue(difference, key, actual, expected) {
+  if (difference) {
+    difference.pair = [actual, expected];
+    prependKey(difference, key);
+  }
+  return false;
+}
+
 function equalObjects(a, b, difference, state) {
   const array = Array.isArray(a);
   if (array !== Array.isArray(b)) return false;
+  const length = array ? a.length : undefined;
   if (array) {
-    if (a.length !== b.length) {
-      if (difference) {
-        difference.pair = [a.length, b.length];
-        prependKey(difference, 'length');
-      }
-      return false;
-    }
-    for (let i = 0; i < a.length; i++) {
+    const expectedLength = b.length;
+    if (length !== expectedLength) return differentValue(difference, 'length', length, expectedLength);
+    for (let i = 0; i < length; i++) {
       const present = hasOwnProperty.call(a, i);
       if (present !== hasOwnProperty.call(b, i)) return missingKey(present ? a : b, i, present ? 'expected' : 'actual', difference);
       if (present && !equalProperty(a, b, i, difference, state)) return false;
@@ -336,13 +373,13 @@ function equalObjects(a, b, difference, state) {
     const bCollection = collectionInfo(b);
     if (aCollection?.isMap !== bCollection?.isMap) return false;
     // Compare collection iteration order and contents, then the object's own enumerable fields.
-    if (aCollection && (aCollection.size !== bCollection.size
-      || !compare(collectionValues(aCollection), collectionValues(bCollection), difference, state))) {
-      return false;
+    if (aCollection) {
+      if (aCollection.size !== bCollection.size) return differentValue(difference, 'size', aCollection.size, bCollection.size);
+      if (!compare(collectionValues(aCollection), collectionValues(bCollection), difference, state)) return false;
     }
   }
-  const keys = enumerableKeys(a, array);
-  const other = enumerableKeys(b, array);
+  const keys = enumerableKeys(a, length);
+  const other = enumerableKeys(b, length);
   const remaining = new Map();
   for (let i = 0; i < other.length; i++) remaining.set(other[i], true);
   for (let i = 0; i < keys.length; i++) {

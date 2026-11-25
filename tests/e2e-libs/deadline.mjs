@@ -20,11 +20,6 @@ export function releaseChild(child) {
   child.unref();
 }
 
-async function killTree(child) {
-  const { kill } = await import('zx');
-  await kill(child.pid, 'SIGKILL');
-}
-
 export class ChildExerciseError extends Error {
   name = 'ChildExerciseError';
 }
@@ -41,7 +36,6 @@ export async function runWithDeadline(module, method, args, { ms, what }) {
     child.once('error', () => resolve());
   });
   let timer;
-  let timedOut = false;
   let result;
   let reaped;
   try {
@@ -52,7 +46,6 @@ export async function runWithDeadline(module, method, args, { ms, what }) {
       function arm(budget) {
         clearTimeout(timer);
         timer = setTimeout(() => {
-          timedOut = true;
           reject(new Error(`${ what } did not finish within ${ budget }ms`));
         }, budget);
       }
@@ -75,18 +68,10 @@ export async function runWithDeadline(module, method, args, { ms, what }) {
     });
   } finally {
     clearTimeout(timer);
-    try {
-      if (timedOut && child.exitCode === null && child.signalCode === null
-        && await waitWithin(killTree(child), CHILD_STOP_TIMEOUT_MS) === null) {
-        console.warn(`could not stop the process tree for ${ what } within ${ CHILD_STOP_TIMEOUT_MS }ms`);
-      }
-    } catch (error) {
-      console.warn(`could not stop the process tree for ${ what }: ${ error.message }`);
-    } finally {
-      if (child.connected) child.disconnect();
-      reaped = await waitWithin(exited, CHILD_STOP_TIMEOUT_MS) !== null;
-      if (!reaped) releaseChild(child);
-    }
+    // The supervisor can stop the process tree even when the exercise never yields.
+    if (child.connected) child.disconnect();
+    reaped = await waitWithin(exited, CHILD_STOP_TIMEOUT_MS) !== null;
+    if (!reaped) releaseChild(child);
   }
   if (!reaped) throw new Error(`could not reap the child for ${ what }`);
   return result;

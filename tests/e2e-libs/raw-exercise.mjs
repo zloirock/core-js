@@ -45,19 +45,20 @@ function snapshotValue(raw, copies = new WeakMap(), project = cachedProjection()
   if (isEmulatedSymbol(value)) return value;
   if (copies.has(value)) return copies.get(value);
   const array = Array.isArray(value);
-  const properties = array ? new Array(value.length) : Object.create(null);
+  const length = array ? value.length : undefined;
+  const properties = array ? new Array(length) : Object.create(null);
   const collection = !array && collectionInfo(value);
   const entries = collection ? [] : null;
   // Keep ordered contents separate from the collection's own enumerable properties.
   const copy = entries ? { [collectionKind]: collection.isMap ? 'Map' : 'Set', entries, properties } : properties;
   copies.set(value, copy);
   if (array) {
-    for (let i = 0; i < value.length; i++) if (Object.hasOwn(value, i)) copy[i] = snapshotValue(value[i], copies, project);
+    for (let i = 0; i < length; i++) if (Object.hasOwn(value, i)) copy[i] = snapshotValue(value[i], copies, project);
   }
   if (entries) {
     for (const entry of collectionValues(collection)) entries.push(snapshotValue(entry, copies, project));
   }
-  for (const key of enumerableKeys(value, array)) {
+  for (const key of enumerableKeys(value, length)) {
     Object.defineProperty(properties, key, { enumerable: true, value: snapshotValue(value[key], copies, project) });
   }
   return copy;

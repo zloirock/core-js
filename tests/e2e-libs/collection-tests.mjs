@@ -7,6 +7,7 @@ import { runInNewContext } from 'node:vm';
 import { buildCell } from './bundle.mjs';
 import { allCells } from './cells.mjs';
 import { checker, deepEqual as exerciseEqual, observeRealm } from './exercises/checks.mjs';
+import { checkFailureLine } from './diagnostics.mjs';
 import { HERE } from './paths.mjs';
 import { runRaw } from './raw-exercise.mjs';
 
@@ -52,7 +53,9 @@ try {
     const constructors = E2E.run();
     if (constructors.Map === Map || constructors.Set === Set) throw new Error('expected pure collection constructors');
     ({ constructors, realm: this });`;
-  const { constructors: foreign, realm: nativeRealm } = runInNewContext(source);
+  const { constructors: foreign, realm: nativeRealm } = runInNewContext(source, {
+    process: { getBuiltinModule() { throw new Error('browser process shim'); } },
+  });
   const { constructors: legacy, realm: legacyRealm } = runInNewContext(`delete this.globalThis; delete Object.getOwnPropertySymbols; delete Set.prototype.forEach; delete Map.prototype.forEach;
     ${ source }`, { Symbol: undefined });
   for (const { Set: RealmSet, Map: RealmMap } of [foreign, legacy]) {
@@ -72,6 +75,9 @@ try {
     ['map', Map, require('@core-js/pure/full/map'), foreign.Map, legacy.Map],
   ]) {
     function inputs(n) { return name === 'set' ? [n] : [['key', n]]; }
+    const { check, checks } = checker();
+    check(name, new Foreign(inputs(1)), new Foreign());
+    strictEqual(checkFailureLine(checks[0]), `${ name } actual=at [size] 1 expected=at [size] 0`);
     strictEqual(exerciseEqual(new Foreign(inputs(1)), new Native(inputs(1))), true);
     strictEqual(exerciseEqual(new Foreign(inputs(1)), new Foreign(inputs(2))), false);
     strictEqual(exerciseEqual(new Foreign(), Object.create(Foreign.prototype)), false);
