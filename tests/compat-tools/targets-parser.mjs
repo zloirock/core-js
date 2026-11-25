@@ -92,6 +92,11 @@ deepEqual(targetsParser({ node: '14.0' }), new Map([
   ['node', '14.0'],
 ]), 'targets.node: version');
 
+deepEqual(targetsParser({ node: process.version, electron: 30, browsers: { electron: 'V28.0.0' } }), new Map([
+  ['electron', 'V28.0.0'],
+  ['node', process.version],
+]), 'v-prefixed target versions are compared numerically and retain their prefix');
+
 deepEqual(targetsParser({
   ie_mob: 11,
   chromeandroid: 56,

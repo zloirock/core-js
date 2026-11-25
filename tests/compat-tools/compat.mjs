@@ -256,6 +256,15 @@ deepEqual(
   'mobile browserslist ranges include all required polyfills',
 );
 
+for (const version of ['^14.0.0', '~14.0', '>= 14', ' 14', 'version14', '14 || 20']) {
+  deepEqual(compat({ modules: ['es.array.at', 'es.array.includes'], targets: { node: version } }), {
+    list: ['es.array.at'],
+    targets: { 'es.array.at': { node: version } },
+  }, `target version uses the first number in "${ version }"`);
+}
+
+throws(() => compat({ modules: [], targets: { node: 'beta' } }), RangeError, 'invalid target version with no modules');
+
 for (const targets of ['safari TP', { safari: 'tp' }, { browsers: { safari: 'latest' } }]) {
   deepEqual(compat({ modules: ['es.array.at', 'esnext.array.filter-out'], targets }), {
     list: ['esnext.array.filter-out'],

@@ -101,7 +101,7 @@ module.exports = function (targets) {
   for (const [engine, value] of normalized) {
     // Treat TP and latest as newer than known numeric releases.
     const version = /^(?:latest|tp)$/i.test(value) ? '999999999' : value;
-    if (!/^\d/.test(version)) {
+    if (!/\d/.test(version)) {
       throw new RangeError(`Invalid version "${ version }" for "${ engine }"`);
     }
     if (!reduced.has(engine) || compare(version, '<=', reduced.get(engine))) {
