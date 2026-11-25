@@ -2034,7 +2034,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return Int8Array.prototype.includes;
   }],
   'es.typed-array.index-of': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype.indexOf;
+    return 1 / new Int8Array(1).indexOf(0, -0) === Infinity;
   }],
   'es.typed-array.iterator': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     try {
@@ -2050,7 +2050,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return Int8Array.prototype.join;
   }],
   'es.typed-array.last-index-of': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype.lastIndexOf;
+    return 1 / new Int8Array(1).lastIndexOf(0, -0) === Infinity;
   }],
   'es.typed-array.map': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     return Int8Array.prototype.map;

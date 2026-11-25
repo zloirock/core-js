@@ -13,6 +13,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.lastIndexOf', assert => {
     assert.same(new TypedArray([1, 2, 3]).lastIndexOf(2, 1), 1);
     assert.same(new TypedArray([1, 2, 3]).lastIndexOf(2, -3), -1);
     assert.same(new TypedArray([1, 2, 3]).lastIndexOf(2, -2), 1);
+    assert.same(new TypedArray([1]).lastIndexOf(1, -0), 0, "shouldn't return negative zero");
     assert.throws(() => lastIndexOf.call([1], 1), "isn't generic");
   }
 });

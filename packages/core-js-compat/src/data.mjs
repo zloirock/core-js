@@ -2405,9 +2405,9 @@ export const data = {
     safari: '10.0',
   },
   'es.typed-array.index-of': {
-    chrome: '45',
+    chrome: '51',
     edge: '13',
-    firefox: '37',
+    firefox: '47',
     hermes: '0.1',
     rhino: '1.8.0',
     safari: '10.0',
@@ -2428,9 +2428,9 @@ export const data = {
     safari: '10.0',
   },
   'es.typed-array.last-index-of': {
-    chrome: '45',
+    chrome: '51',
     edge: '13',
-    firefox: '37',
+    firefox: '47',
     hermes: '0.1',
     rhino: '1.8.0',
     safari: '10.0',
