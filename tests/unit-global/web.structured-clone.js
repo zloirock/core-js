@@ -739,19 +739,22 @@ QUnit.module('structuredClone', () => {
     });
   }
 
-  // Deno 2.8-2.9 clones DOMPoint as a plain object.
-  if (!DENO && typeof DOMPoint == 'function') {
+  if (typeof DOMPoint == 'function') {
     QUnit.test('Geometry types, DOMPoint', assert => {
       cloneObjectTest(assert, new DOMPoint(1, 2, 3, 4), (orig, clone) => {
         for (const key of keys(getPrototypeOf(orig))) {
           assert.same(orig[key], clone[key], `Property ${ key }`);
         }
       });
+      if (DESCRIPTORS && DOMPoint.prototype.toJSON) {
+        const point = new DOMPoint(1, 2, 3, 4);
+        defineProperty(point, 'x', { value: 5 });
+        assert.same(structuredClone(point).x, 1, 'shadowed x');
+      }
     });
   }
 
-  // Deno 2.8-2.9 clones DOMPointReadOnly as a plain object.
-  if (!DENO && typeof DOMPointReadOnly == 'function' && typeof DOMPointReadOnly.fromPoint == 'function') {
+  if (typeof DOMPointReadOnly == 'function' && typeof DOMPointReadOnly.fromPoint == 'function') {
     QUnit.test('Geometry types, DOMPointReadOnly', assert => {
       cloneObjectTest(assert, new DOMPointReadOnly(1, 2, 3, 4), (orig, clone) => {
         for (const key of keys(getPrototypeOf(orig))) {
@@ -761,17 +764,19 @@ QUnit.module('structuredClone', () => {
     });
   }
 
-  // Deno 2.8-2.9 clones DOMQuad as a plain object.
-  if (!DENO && typeof DOMQuad == 'function' && typeof DOMPoint == 'function') {
+  if (typeof DOMQuad == 'function' && typeof DOMPoint == 'function') {
     QUnit.test('Geometry types, DOMQuad', assert => {
       cloneObjectTest(assert, new DOMQuad(
         new DOMPoint(1, 2, 3, 4),
-        new DOMPoint(2, 2, 3, 4),
-        new DOMPoint(1, 3, 3, 4),
-        new DOMPoint(1, 2, 4, 4),
+        new DOMPoint(5, 6, 7, 8),
+        new DOMPoint(-1, -2, -3, -4),
+        new DOMPoint(9, 10, 11, 0),
       ), (orig, clone) => {
-        for (const key of keys(getPrototypeOf(orig))) {
-          assert.deepEqual(orig[key], clone[key], `Property ${ key }`);
+        for (const key of ['p1', 'p2', 'p3', 'p4']) {
+          const point = orig[key];
+          const copy = clone[key];
+          assert.notSame(copy, point, key);
+          assert.arrayEqual([copy.x, copy.y, copy.z, copy.w], [point.x, point.y, point.z, point.w], key);
         }
       });
     });
@@ -799,11 +804,10 @@ QUnit.module('structuredClone', () => {
     });
   }
 
-  // Deno through 2.7 clones ImageData as a plain object.
-  // Safari 8- does not support `{ colorSpace }` option
-  if ((!DENO || DENO_VERSION >= 208) && fromSource('new ImageData(new ImageData(8, 8).data, 8, 8, { colorSpace: new ImageData(8, 8).colorSpace })')) {
+  // the ImageData constructor in Safari 8 and earlier does not accept the colorSpace option
+  if (fromSource('new ImageData(new ImageData(8, 8).data, 8, 8, { colorSpace: new ImageData(8, 8).colorSpace })')) {
     QUnit.test('ImageData', assert => {
-      const imageData = new ImageData(8, 8);
+      const imageData = fromSource('new ImageData(8, 8, { colorSpace: "display-p3" })') || new ImageData(8, 8);
       for (let i = 0; i < 256; ++i) {
         imageData.data[i] = i;
       }
@@ -813,8 +817,28 @@ QUnit.module('structuredClone', () => {
         assert.same(orig.colorSpace, clone.colorSpace);
         assert.arrayEqual(orig.data, clone.data);
       });
+      if (Object.prototype.toString.call(imageData) === '[object Object]') {
+        const object = objectCreate(ImageData.prototype);
+        object.ref = {};
+        const clone = structuredClone([object, object.ref]);
+        assert.same(clone[0].ref, clone[1], 'an object inheriting from ImageData keeps its own properties');
+      }
     });
   }
+
+  const float16Image = fromSource('new ImageData(2, 1, { pixelFormat: "rgba-float16" })');
+  if (float16Image?.pixelFormat === 'rgba-float16') QUnit.test('ImageData with float16 pixels', assert => {
+    float16Image.data[0] = -0.5;
+    float16Image.data[7] = 2.25;
+    const { image, data } = structuredClone({ image: float16Image, data: float16Image.data });
+    assert.true(image instanceof ImageData);
+    assert.same(image.pixelFormat, 'rgba-float16');
+    assert.same(image.colorSpace, float16Image.colorSpace);
+    assert.same(image.data, data, 'shared pixel data');
+    assert.notSame(data.buffer, float16Image.data.buffer, 'independent storage');
+    assert.same(data[0], -0.5);
+    assert.same(data[7], 2.25);
+  });
 
   // Deno 1.x (except 1.10) and 2.0-2.7 lose Blob data or its prototype when cloning.
   if ((!DENO || DENO_VERSION === 110 || DENO_VERSION >= 208) && fromSource('new Blob(["test"])')) QUnit.test('Blob', assert => {
@@ -996,6 +1020,11 @@ QUnit.module('structuredClone', () => {
     Object.defineProperty(other, 'transfer', { get() { throw new Error('transfer must not be read'); } });
     assert.same(structuredClone(1, { transfer: [other] }), 1, 'does not call an own transfer method');
     assert.same(other.byteLength, 0, 'unreferenced buffer detached');
+    const image = fromSource('new ImageData(1, 1)');
+    if (image?.data.buffer) {
+      structuredClone(null, { transfer: [image.data.buffer] });
+      assert.throws(() => structuredClone(image), error => error.name === 'DataCloneError', 'detached ImageData');
+    }
     for (const C of [Uint8Array, fromSource('DataView')]) {
       if (!C) continue;
       const source = new ArrayBuffer(4);

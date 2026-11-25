@@ -155,6 +155,11 @@ var structuredCloneFromMark = !nativeStructuredClone && checkBasicSemantic(funct
 
 nativeRestrictedStructuredClone = nativeRestrictedStructuredClone || structuredCloneFromMark;
 
+// before Deno 2.8.2 ImageData has no toStringTag
+// https://github.com/denoland/deno/pull/33777
+var getUntaggedImageDataWidth = ENVIRONMENT === 'DENO' && typeof ImageData == 'function'
+  && classof(ImageData.prototype) === 'Object' && uncurryThisAccessor(ImageData.prototype, 'width', 'get');
+
 var throwUncloneable = function (type) {
   throw new DOMException('Uncloneable type: ' + type, DATA_CLONE_ERROR);
 };
@@ -331,6 +336,13 @@ var structuredCloneInternal = function (value, map) {
   var type = classof(value);
   var C, name, cloned, dataTransfer, i, length, keys, key, entries;
 
+  if (getUntaggedImageDataWidth && type === 'Object') try {
+    if (value instanceof ImageData) {
+      getUntaggedImageDataWidth(value);
+      type = 'ImageData';
+    }
+  } catch (error) { /* empty */ }
+
   switch (type) {
     case 'WeakMap':
     case 'WeakSet':
@@ -405,6 +417,19 @@ var structuredCloneInternal = function (value, map) {
     case 'BigUint64Array':
       cloned = cloneView(value, type, map);
       break;
+    case 'DOMPoint':
+    case 'DOMPointReadOnly':
+      try {
+        // in Deno 2.8-2.9 native cloning returns plain objects for DOM points
+        // https://github.com/denoland/deno/issues/37106
+        C = globalThis[type];
+        var point = C.prototype.toJSON ? call(C.prototype.toJSON, value) : value;
+        cloned = C.fromPoint
+          ? C.fromPoint(point)
+          : new C(point.x, point.y, point.z, point.w);
+      } catch (error) {
+        cloned = tryNativeRestrictedStructuredClone(value, type);
+      } break;
     case 'DOMQuad':
       try {
         cloned = new DOMQuad(
@@ -438,14 +463,12 @@ var structuredCloneInternal = function (value, map) {
       } else cloned = tryNativeRestrictedStructuredClone(value, type);
       break;
     case 'ImageData':
-      // Safari 9 ImageData is a constructor, but typeof ImageData is 'object'
+      // detached pixel data must throw before the native fallback
+      var data = structuredCloneInternal(value.data, map);
+      // in Safari 9 ImageData is a constructor, but typeof ImageData is 'object'
       try {
-        cloned = new ImageData(
-          structuredCloneInternal(value.data, map),
-          value.width,
-          value.height,
-          { colorSpace: value.colorSpace }
-        );
+        // the source supplies both colorSpace and pixelFormat
+        cloned = new ImageData(data, value.width, value.height, value);
       } catch (error) {
         cloned = tryNativeRestrictedStructuredClone(value, type);
       } break;
@@ -473,16 +496,6 @@ var structuredCloneInternal = function (value, map) {
         case 'Blob':
           try {
             cloned = value.slice(0, value.size, value.type);
-          } catch (error) {
-            throwUnpolyfillable(type);
-          } break;
-        case 'DOMPoint':
-        case 'DOMPointReadOnly':
-          C = globalThis[type];
-          try {
-            cloned = C.fromPoint
-              ? C.fromPoint(value)
-              : new C(value.x, value.y, value.z, value.w);
           } catch (error) {
             throwUnpolyfillable(type);
           } break;

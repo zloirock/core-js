@@ -44,6 +44,7 @@
   - Fixed `structuredClone` cloning `URL` and `URLSearchParams` as empty objects instead of throwing a `DataCloneError`: polyfilled instances and native ones in NodeJS <= 20 and Deno <= 2.8
   - Fixed the `structuredClone` polyfill cloning `RawJSON` objects as ordinary objects instead of throwing a `DataCloneError`
   - Fixed the native fallback in `structuredClone` returning empty objects for some polyfilled types instead of throwing a `DataCloneError`
+  - Fixed `structuredClone` handling of `ImageData` pixel buffers, including float16, and cloning of DOM points and quads in Deno
   - Sped up cloning large resizable `ArrayBuffer`s in the `structuredClone` polyfill by copying their bytes in bulk
   - Fixed `structuredClone` reading shadowed properties of buffers and views, such as `byteLength` and `byteOffset`
   - Fixed `structuredClone` with `ArrayBuffer`, `DataView` and `Uint8Array` polyfills loaded after it. The `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfills now also use `Uint8Array.prototype.set` when it is installed later
