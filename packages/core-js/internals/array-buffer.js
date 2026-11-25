@@ -8,6 +8,7 @@ var createNonEnumerableProperty = require('../internals/create-non-enumerable-pr
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var defineBuiltIns = require('../internals/define-built-ins');
 var fails = require('../internals/fails');
+var aDataView = require('../internals/a-data-view');
 var anInstance = require('../internals/an-instance');
 var isCallable = require('../internals/is-callable');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
@@ -273,16 +274,16 @@ if (!NATIVE_ARRAY_BUFFER) {
     if (isCallable(testView[key])) createNonEnumerableProperty(DataViewPrototype, key, testView[key]);
   }
 
-  // iOS Safari 7.x bug
+  // iOS Safari 7.x and NodeJS 0.11.4 truncate large values incorrectly
   var $setInt8 = uncurryThis(DataViewPrototype.setInt8);
   testView.setInt8(0, 2147483648);
   testView.setInt8(1, 2147483649);
   if (testView.getInt8(0) || !testView.getInt8(1)) defineBuiltIns(DataViewPrototype, {
     setInt8: function setInt8(byteOffset, value) {
-      $setInt8(this, byteOffset, value << 24 >> 24);
+      $setInt8(aDataView(this), toIndex(byteOffset), value << 24 >> 24);
     },
     setUint8: function setUint8(byteOffset, value) {
-      $setInt8(this, byteOffset, value << 24 >> 24);
+      $setInt8(aDataView(this), toIndex(byteOffset), value << 24 >> 24);
     }
   }, { unsafe: true });
 }

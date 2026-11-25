@@ -144,6 +144,28 @@ if (DESCRIPTORS) {
   });
 }
 
+for (const name of ['setInt8', 'setUint8']) {
+  QUnit.test(`DataView#${ name } argument coercion order`, assert => {
+    const view = new DataView(new ArrayBuffer(1));
+    const setter = view[name];
+    const log = [];
+    const track = (key, number) => ({
+      valueOf() {
+        log.push(key);
+        return number;
+      },
+    });
+    const offset = track('offset', 0);
+    const value = track('value', 0x80000001);
+    setter.call(view, offset, value);
+    assert.arrayEqual(log, ['offset', 'value'], 'converts the offset before the value');
+    assert.same(view.getUint8(0), 1, 'writes the low byte');
+    log.length = 0;
+    assert.throws(() => setter.call({}, offset, value), TypeError, 'rejects a non-DataView receiver');
+    assert.arrayEqual(log, [], 'checks the receiver before converting either argument');
+  });
+}
+
 const types = ['Uint8', 'Int8', 'Uint16', 'Int16', 'Uint32', 'Int32', 'Float32', 'Float64'];
 
 for (const type of types) {
