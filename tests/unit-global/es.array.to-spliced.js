@@ -18,6 +18,11 @@ QUnit.test('Array#toSpliced', assert => {
   assert.deepEqual([1, 2, 3, 4, 5].toSpliced(2, -2), [1, 2, 3, 4, 5]);
   assert.deepEqual([1, 2, 3, 4, 5].toSpliced(2, 2, 6, 7), [1, 2, 6, 7, 5]);
 
+  // eslint-disable-next-line no-sparse-arrays -- testing
+  const copy = [1, , 3].toSpliced(2, 1, 4, 5);
+  assert.same(copy[1], undefined, 'copies a hole as undefined');
+  assert.true(Object.hasOwn(copy, 1), 'creates an own property for the hole');
+
   if (DESCRIPTORS) {
     const source = Object.defineProperty({ length: 2, 1: 'kept' }, 0, { get() { throw new Error(); } });
     assert.deepEqual(toSpliced.call(source, 0, 1), ['kept'], 'skips the deleted element');

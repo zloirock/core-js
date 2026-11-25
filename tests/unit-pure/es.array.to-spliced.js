@@ -15,6 +15,11 @@ QUnit.test('Array#toSpliced', assert => {
   assert.deepEqual(toSpliced([1, 2, 3, 4, 5], 2, -2), [1, 2, 3, 4, 5]);
   assert.deepEqual(toSpliced([1, 2, 3, 4, 5], 2, 2, 6, 7), [1, 2, 6, 7, 5]);
 
+  // eslint-disable-next-line no-sparse-arrays -- testing
+  const copy = toSpliced([1, , 3], 2, 1, 4, 5);
+  assert.same(copy[1], undefined, 'copies a hole as undefined');
+  assert.true(Object.prototype.hasOwnProperty.call(copy, 1), 'creates an own property for the hole');
+
   if (DESCRIPTORS) {
     const source = defineProperty({ length: 2, 1: 'kept' }, 0, { get() { throw new Error(); } });
     assert.deepEqual(toSpliced(source, 0, 1), ['kept'], 'skips the deleted element');
