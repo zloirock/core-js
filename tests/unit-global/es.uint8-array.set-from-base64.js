@@ -342,3 +342,15 @@ if (DESCRIPTORS && typeof ArrayBuffer.prototype.resize == 'function') QUnit.test
   assert.arrayEqual(tracking, [102, 111, 111, 98, 97, 114, 102, 111, 111, 98, 97, 114], 'grown RAB bytes');
   assert.deepEqual(fixed.setFromBase64('Zm9vYmFyZm9vYmFy'), { read: 8, written: 6 }, 'fixed-length view after growth');
 });
+
+if (DESCRIPTORS && typeof ArrayBuffer.prototype.resize == 'function') QUnit.test('Uint8Array.prototype.setFromBase64, resize while reading options', assert => {
+  const buffer = new ArrayBuffer(6, { maxByteLength: 6 });
+  const target = new Uint8Array(buffer);
+  const input = 'Zm9vYmFy';
+  const shrink = Object.defineProperty({}, 'alphabet', { get: () => buffer.resize(3) });
+  const grow = Object.defineProperty({}, 'lastChunkHandling', { get: () => buffer.resize(6) });
+
+  assert.deepEqual(target.setFromBase64(input, shrink), { read: 4, written: 3 }, 'shrink in alphabet');
+  assert.deepEqual(target.setFromBase64(input, grow), { read: 8, written: 6 }, 'grow in lastChunkHandling');
+  assert.arrayEqual(target, [102, 111, 111, 98, 97, 114], 'bytes after growth');
+});

@@ -69,7 +69,7 @@ var writeBytes = function (bytes, elements, written) {
 };
 
 /* eslint-disable max-statements, max-depth -- TODO */
-module.exports = function (string, options, into, maxLength) {
+module.exports = function (string, options, into) {
   aString(string);
   anObjectOrUndefined(options);
   var alphabet = getAlphabetOption(options) === 'base64' ? base64Alphabet : base64UrlAlphabet;
@@ -83,6 +83,7 @@ module.exports = function (string, options, into, maxLength) {
 
   if (into) notDetached(into.buffer);
 
+  var maxLength = into ? into.length : 0x1FFFFFFFFFFFFF;
   var stringLength = string.length;
   var bytes = into || $Array(floor(stringLength * 3 / 4));
   var written = 0;

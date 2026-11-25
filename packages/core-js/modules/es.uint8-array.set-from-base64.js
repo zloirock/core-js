@@ -48,7 +48,7 @@ if (Uint8Array) $({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIO
   setFromBase64: function setFromBase64(string /* , options */) {
     anUint8Array(this);
 
-    var result = $fromBase64(string, arguments.length > 1 ? arguments[1] : undefined, this, this.length);
+    var result = $fromBase64(string, arguments.length > 1 ? arguments[1] : undefined, this);
 
     return { read: result.read, written: result.written };
   }

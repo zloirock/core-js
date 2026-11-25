@@ -23,7 +23,7 @@ var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array || !Uint8Array.fromBase64 
 // https://tc39.es/ecma262/#sec-uint8array.frombase64
 if (Uint8Array) $({ target: 'Uint8Array', stat: true, forced: INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS }, {
   fromBase64: function fromBase64(string /* , options */) {
-    var result = $fromBase64(string, arguments.length > 1 ? arguments[1] : undefined, null, 0x1FFFFFFFFFFFFF);
+    var result = $fromBase64(string, arguments.length > 1 ? arguments[1] : undefined);
     return arrayFromConstructorAndList(Uint8Array, result.bytes);
   }
 });
