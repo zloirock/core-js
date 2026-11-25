@@ -11,6 +11,7 @@ var $TypeError = TypeError;
 
 // `Symbol.keyFor` method
 // https://tc39.es/ecma262/#sec-symbol.keyfor
+// @dependency: es.symbol.constructor
 $({ target: 'Symbol', stat: true, forced: !NATIVE_SYMBOL_REGISTRY }, {
   keyFor: function keyFor(sym) {
     if (!isSymbol(sym)) throw new $TypeError(tryToString(sym) + ' is not a symbol');
