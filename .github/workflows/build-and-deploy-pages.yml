@@ -102,9 +102,9 @@ jobs:
       queue: max
     environment:
       name: github-pages
-      url: ${{ steps.deployment-retry.outputs.page_url || steps.deployment.outputs.page_url }}
+      url: &pages-url ${{ steps.deployment-final.outputs.page_url || steps.deployment-retry.outputs.page_url || steps.deployment.outputs.page_url }}
     outputs:
-      page-url: ${{ steps.deployment-retry.outputs.page_url || steps.deployment.outputs.page_url }}
+      page-url: *pages-url
       test-directory: ${{ steps.current.outputs.test-directory }}
       sauce-group: ${{ steps.current.outputs.sauce-group }}
     steps:
@@ -128,7 +128,7 @@ jobs:
         uses: actions/upload-pages-artifact@v5
         with:
           path: ${{ runner.temp }}/pages
-          name: github-pages-${{ github.run_attempt }}
+          name: &pages-artifact github-pages-${{ github.run_attempt }}
       # Pages deployments can remain queued until the action's timeout. A fresh deployment
       # of the same artifact may succeed after the timed-out deployment is canceled.
       # See https://github.com/actions/deploy-pages/issues/406.
@@ -138,18 +138,28 @@ jobs:
         continue-on-error: true
         uses: actions/deploy-pages@v5
         with:
-          artifact_name: github-pages-${{ github.run_attempt }}
-      # A finalized upload can take time to appear in the artifact list.
+          artifact_name: *pages-artifact
+      # A lookup can miss a finalized upload, then the first request to create the deployment can fail.
       # See https://github.com/actions/deploy-pages/issues/451.
       - name: Wait before retrying the Pages deployment
         if: steps.deployment.outcome == 'failure'
-        run: sleep 15
+        run: sleep 60
       - name: Deploy to GitHub Pages (retry)
         id: deployment-retry
-        if: steps.current.outputs.publish == 'true' && steps.deployment.outcome == 'failure'
+        if: steps.deployment.outcome == 'failure'
+        continue-on-error: true
         uses: actions/deploy-pages@v5
         with:
-          artifact_name: github-pages-${{ github.run_attempt }}
+          artifact_name: *pages-artifact
+      - name: Wait before the final Pages deployment attempt
+        if: steps.deployment-retry.outcome == 'failure'
+        run: sleep 60
+      - name: Deploy to GitHub Pages (final attempt)
+        id: deployment-final
+        if: steps.deployment-retry.outcome == 'failure'
+        uses: actions/deploy-pages@v5
+        with:
+          artifact_name: *pages-artifact
 
   sauce-labs:
     needs: combine-pages-and-deploy
