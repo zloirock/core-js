@@ -41,10 +41,11 @@ function stop() {
 process.once('disconnect', stop);
 process.once('message', request => { if (child.connected) child.send(request); });
 child.on('message', reply => { if (process.connected) process.send(reply, () => { /* The caller can disconnect before the relay completes. */ }); });
-child.on('close', async (code, signal) => {
-  await stop();
+child.on('exit', (code, signal) => {
+  // Report the exercise exit before tree cleanup can consume its remaining deadline.
   process.exitCode = code ?? 1;
   if (process.connected) process.send({ type: 'e2e-libs:exit', code, signal }, () => {
     if (process.connected) process.disconnect();
   });
+  return stop();
 });
