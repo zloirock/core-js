@@ -27,6 +27,7 @@ jobs:
     if: *not-duplicate
     runs-on: windows-2022
     env:
+      IE_BIN: C:\Program Files\Internet Explorer\iexplore.exe
       PLAYWRIGHT_BROWSERS_PATH: D:\ms-playwright
     steps:
       - uses: actions/checkout@v7

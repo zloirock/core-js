@@ -24,7 +24,10 @@ const browsers = [
   'PhantomJS',
 ];
 
-if (process.env.CI || which('iexplore.exe', { nothrow: true })) {
+const IE_BIN = process.env.IE_BIN || which('iexplore.exe', { nothrow: true });
+
+if (IE_BIN) {
+  process.env.IE_BIN = IE_BIN;
   browsers.push('IE_NFM');
 }
 
@@ -52,6 +55,8 @@ module.exports = config => config.set({
   // Synchronous URL tests exceed the default 5s heartbeat timeout in PhantomJS on Windows.
   // Match the 30s browser no-activity timeout while the browser cannot answer pings.
   pingTimeout: 30000,
+  // Three suites share the CI runner. Limit their load to avoid fetch timeouts.
+  concurrency: process.env.CI ? 1 : Infinity,
   customLaunchers,
   browsers,
   // A synchronous write per passing test can stall the echo server on Windows CI.

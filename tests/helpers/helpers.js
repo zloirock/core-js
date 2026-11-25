@@ -196,7 +196,7 @@ export function timeLimitedPromise(time, functionOrPromise) {
   return Promise.race([
     typeof functionOrPromise == 'function' ? new Promise(functionOrPromise) : functionOrPromise,
     new Promise((resolve, reject) => {
-      timer = setTimeout(reject, time);
+      timer = setTimeout(() => reject(new Error(`Timed out after ${ time } ms`)), time);
     }),
   ]).then(result => {
     clearTimeout(timer);
