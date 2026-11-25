@@ -53,7 +53,6 @@ core-js/modules/es.object.get-own-property-descriptors
 core-js/modules/es.object.get-own-property-names
 core-js/modules/es.object.get-own-property-symbols
 core-js/modules/es.object.get-prototype-of
-core-js/modules/es.object.has-own
 core-js/modules/es.object.keys
 core-js/modules/es.object.set-prototype-of
 core-js/modules/es.object.to-string

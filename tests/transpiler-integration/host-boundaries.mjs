@@ -3,6 +3,7 @@ import { strict as assert } from 'node:assert';
 import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { withCleanup } from './runtime.mjs';
 import { runInNewContext } from 'node:vm';
 import unplugin from '../../packages/core-js-unplugin/index.js';
 import { closeRollupBundle } from './warning-policy.mjs';
@@ -28,7 +29,7 @@ function verify(code, value = 3, stripped = true) {
 
 export async function hostBoundaries(run) {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'core-js-host-')));
-  try {
+  await withCleanup(async () => {
     const esbuild = await import('esbuild');
     await run('esbuild declining parse leaves the next loader', async () => {
       const file = join(dir, 'unparsed.js');
@@ -42,7 +43,7 @@ export async function hostBoundaries(run) {
           },
         }], logLevel: 'silent',
       });
-      try {
+      await withCleanup(async () => {
         const first = await context.rebuild();
         verify(first.outputFiles[0].text);
         assert.ok(first.warnings.some(warning => warning.text.includes('core-js')));
@@ -50,9 +51,7 @@ export async function hostBoundaries(run) {
         const second = await context.rebuild();
         verify(second.outputFiles[0].text);
         assert.equal(second.warnings.length, 0);
-      } finally {
-        await context.dispose();
-      }
+      }, () => context.dispose());
     });
     await run('esbuild non-code loader preserves text', async () => {
       const file = join(dir, 'text.js');
@@ -128,7 +127,7 @@ export async function hostBoundaries(run) {
         server: { watch: null, middlewareMode: true },
         optimizeDeps: { noDiscovery: true, include: ['@core-js/pure/actual/instance/at'] },
       });
-      try {
+      await withCleanup(async () => {
         const environment = server.environments.client;
         await environment.depsOptimizer.init();
         const pending = Object.values(environment.depsOptimizer.metadata.discovered);
@@ -144,9 +143,7 @@ export async function hostBoundaries(run) {
         await writeFile(join(dir, 'custom-cache-user.js'), code);
         const user = await server.transformRequest('/custom-cache-user.js');
         assert.ok(user.code.includes('core-js'));
-      } finally {
-        await server.close();
-      }
+      }, () => server.close());
     });
     for (const host of ['webpack', 'rspack']) {
       const mod = await import(host === 'webpack' ? 'webpack' : '@rspack/core');
@@ -161,13 +158,11 @@ export async function hostBoundaries(run) {
           module: { rules: [{ test: /lib\.js$/, ...rule }], ...noParse ? { noParse } : {} },
           plugins: [unplugin[host](opts(method))],
         });
-        try {
+        return withCleanup(async () => {
           const stats = await new Promise((resolveResult, reject) => compiler.run((error, value) => error ? reject(error) : resolveResult(value)));
           assert.equal(stats.hasErrors(), false, stats.toString({ all: false, errors: true }));
           return await readFile(join(dir, 'out/bundle.js'), 'utf8');
-        } finally {
-          await new Promise((resolveResult, reject) => compiler.close(error => error ? reject(error) : resolveResult()));
-        }
+        }, () => new Promise((resolveResult, reject) => compiler.close(error => error ? reject(error) : resolveResult())));
       }
       for (const method of ['usage-global', 'usage-pure']) {
         for (const strict of [false, true]) await run(`${ host } auto strictness/${ method }/${ strict }`, async () => {
@@ -228,8 +223,6 @@ export async function hostBoundaries(run) {
         }
       });
     }
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
+  }, () => rm(dir, { recursive: true, force: true }));
 }
 

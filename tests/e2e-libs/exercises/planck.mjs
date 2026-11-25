@@ -41,7 +41,7 @@ const GRAVITY = -10;
 
 // local on purpose, like three's twin of it - see the note in checks.mjs
 function round(n, d = 3) {
-  return +n.toFixed(d);
+  return +num(n).toFixed(d);
 }
 function xy(vector, digits = 3) {
   return [round(vector.x, digits), round(vector.y, digits)];

@@ -5,7 +5,7 @@ import { shouldTransform } from '@core-js/unplugin';
 import { babel } from '@rollup/plugin-babel';
 import { createRequire } from 'node:module';
 import { SUPPORTED_ENGINES } from './cells.mjs';
-import { PACKAGE_JSON, isCoreJsModule } from './paths.mjs';
+import { PACKAGE_JSON, isCoreJsModule, isExerciseChecker } from './paths.mjs';
 import { TS_EXTENSION } from './ts-sources.mjs';
 
 // absolute paths rather than bare names: Babel resolves a bare one from the FILE being compiled,
@@ -31,7 +31,7 @@ export function makeBabelPlugin(coreJs = null) {
     presets: [[PRESET, { targets: SUPPORTED_ENGINES, useBuiltIns: false, modules: false }]],
     overrides: [
       { test: TS_EXTENSION, plugins: [[TYPESCRIPT, {}], ...provider] },
-      { exclude: TS_EXTENSION, plugins: provider },
+      { exclude: [TS_EXTENSION, isExerciseChecker], plugins: provider },
     ],
   });
 }

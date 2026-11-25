@@ -8,6 +8,12 @@ export const ARTIFACTS = join(HERE, 'artifacts');
 export const SNAPSHOTS = join(HERE, 'snapshots');
 export const NODE_MODULES = join(HERE, 'node_modules');
 
+const CHECKER = toPosix(join(HERE, 'exercises', 'checks.mjs'));
+
+export function isExerciseChecker(id) {
+  return typeof id === 'string' && toPosix(id) === CHECKER;
+}
+
 const PACKAGE = /^(?:core-js(?:-pure)?|@core-js\/[^/]+)\//;
 
 export function isCoreJsModule(id) {

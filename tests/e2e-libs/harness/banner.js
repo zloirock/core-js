@@ -67,7 +67,7 @@
       var row = document.createElement('tr');
       row.className = checks[i].pass ? 'ok' : 'bad';
       var name = document.createElement('td');
-      name.textContent = checks[i].label;
+      name.textContent = checks[i].pass ? checks[i].label : window.e2eCheckResult(checks[i]).message;
       var result = document.createElement('td');
       result.textContent = checks[i].pass ? 'PASS' : 'FAIL';
       row.appendChild(name);

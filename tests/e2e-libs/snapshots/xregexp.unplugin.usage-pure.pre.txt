@@ -1,2 +1,0 @@
--@core-js/pure/full/symbol/constructor
--@core-js/pure/full/symbol/iterator

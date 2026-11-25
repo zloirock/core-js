@@ -1,10 +1,9 @@
 // markdown-it: CommonMark rendered to HTML, the GFM table extension, the token stream. Every expected
 // value is a CommonMark spec example (0.31.2) or the table extension's documented output.
 //
-// Its reason is the SYNTAX axis: its export is a class wrapped to be callable without `new`, and the
-// wrapper reads `new.target` - `Reflect.construct(cls, args, new.target && new.target !== wrapper ?
-// new.target : cls)` - forwarding the constructor of a derived class. Calling it directly and constructing
-// a subclass cover the fallback and the forwarded constructor.
+// The export is a class wrapped to be callable without `new`. The wrapper uses `new.target` to pass
+// the derived constructor to `Reflect.construct`. Calling it directly and constructing a subclass
+// exercise both paths after down-compilation. Lowering `new.target` itself adds no polyfill.
 //
 // linkify-it, which markdown-it pulls in, builds its URL and e-mail patterns with the sticky flag at
 // run time, which only the global version can answer on IE11; linkify is off by default and stays off.

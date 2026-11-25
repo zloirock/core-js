@@ -10,8 +10,9 @@
 // importers the provider cannot see, so it imports the whole namespace - a subclass kept inside its
 // module costs only `.../constructor`. Measured on the babel-plugin cells against the union of the
 // ten reference baselines before it, `usage-pure` gains `@core-js/pure/full/map` and `.../set`,
-// where the corpus only ever held `.../constructor`, and both flavors gain number toPrecision. The global reference also gains
-// `es.map.group-by`, which nothing here calls. The two flavors lower the class differently. The global one keeps the
+// where the corpus only ever held `.../constructor`, and both flavors gain number toPrecision. The
+// global reference also gains `es.map.group-by`, `es.number.min-safe-integer` and `es.number.parse-float`.
+// Nothing here calls `Map.groupBy`. The two flavors lower the class differently. The global one keeps the
 // built-in's name, so Babel wraps it in `_wrapNativeSuper`, which asks whether the parent reads as
 // native; in the pure one the parent is core-js's own `Map`, a name Babel does not know, so
 // `_callSuper` constructs it directly. Both go through `Reflect.construct` where there is one. A
@@ -75,6 +76,8 @@ export function run() {
   // tenths, so the float arithmetic d3 computes them with does not decide ---
   const linear = scaleLinear().domain([10, 20]).range([0, 100]);
   check('linear', [linear(10), linear(15), linear(20), linear.invert(50)], [0, 50, 100, 15]);
+  const formatTick = linear.tickFormat(10, '.2g');
+  check('tick_format', [formatTick(0.52), formatTick(12.3)], ['0.52', '12']);
   check('log', [scaleLog().domain([1, 1000]).range([0, 3])(100)], [2]);
   check('ticks', ticks(0, 1, 5).map(tick => Math.round(tick * 10)), [0, 2, 4, 6, 8, 10]);
   check('nice', scaleLinear().domain([0.3, 9.7]).nice().domain(), [0, 10]);

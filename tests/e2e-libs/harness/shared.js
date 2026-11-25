@@ -23,6 +23,19 @@
     return errorField(err, 'name') || 'failed without a message';
   };
 
+  // Both the standalone page and QUnit show the location recorded by the checker.
+  window.e2eCheckResult = function (check) {
+    var result = { result: check.pass, actual: check.actual, expected: check.expected, message: check.label };
+    var difference = check.difference;
+    if (difference && Array.isArray(difference.pair)) {
+      result.actual = difference.missing === 'actual' ? '<missing>' : difference.pair[0];
+      result.expected = difference.missing === 'expected' ? '<missing>' : difference.pair[1];
+      if (difference.path) result.message += ' at ' + difference.path;
+      if (difference.missing) result.message += ' (missing on ' + difference.missing + ')';
+    }
+    return result;
+  };
+
   // Only IE exposes documentMode, and its compatibility modes report 5 through 10 while serving a
   // DIFFERENT set of natives from the 11 this suite targets, so a page rendered in one measures an
   // engine nothing here names. Every other browser has none at all and is a legitimate target.
@@ -84,6 +97,7 @@
             throw new TypeError('run() returned a malformed check at index ' + i);
           }
           rows[i] = { label: label, pass: pass, actual: check.actual, expected: check.expected };
+          if (!pass) rows[i].difference = check.difference;
         }
         window.e2eAfterRejections(function () {
           if (settled || uncaughtError()) return;

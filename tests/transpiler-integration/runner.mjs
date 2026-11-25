@@ -6,7 +6,7 @@ import { KNOWN_BUNDLERS, isChunkLoaderBundler } from '../../packages/core-js-unp
 import './runtime-tests.mjs';
 import { makeBundlers } from './bundlers.mjs';
 import { METHODS as methods, phasesFor, pluginOpts as matrixPluginOpts } from './matrix.mjs';
-import { withTmpDir, verifyInNode, verifyPhases, verifyDynamic } from './runtime.mjs';
+import { withCleanup, withTmpDir, verifyInNode, verifyPhases, verifyDynamic, verifySplitDynamic } from './runtime.mjs';
 import { viteHandoff } from './vite-handoff.mjs';
 import { hostBoundaries } from './host-boundaries.mjs';
 import { assetExternals } from './asset-externals.mjs';
@@ -23,7 +23,10 @@ const unpluginPath = resolve(testDir, '../../packages/core-js-unplugin/index.js'
 // differs differs by the bundler rather than by whatever browserslist the working directory answers
 // with. `matrix.mjs` leaves `targets` to its caller for exactly this reason.
 function pluginOpts(method, phase) {
-  return matrixPluginOpts(method, phase, { targets: { ie: 11 } });
+  const options = matrixPluginOpts(method, phase, { targets: { ie: 11 } });
+  // The fixture installs isRawJSON unless a provider expands the entry and applies this exclusion.
+  if (method === 'entry-global') options.exclude = ['es.json.is-raw-json'];
+  return options;
 }
 
 function inputOf(method) {
@@ -35,7 +38,7 @@ function inputOf(method) {
 // stops yielding prints the same final line and exits 0 (measured: 19 cells instead of 93).
 // Missing or outdated Bun skips its seven cells; every other cell remains required.
 let cells = 0;
-const CELL_FLOOR = 236;
+const CELL_FLOOR = 237;
 
 const expected = {
   clamp: 4,
@@ -56,7 +59,9 @@ async function verifyInBun(code, label, method) {
       deepEqual(mod.clamp, exp.clamp);
       equal(mod.cooked, exp.cooked);
     ` : `
+      ${ method === 'entry-global' ? 'delete JSON.isRawJSON;' : '' }
       await import(${ url });
+      ${ method === 'entry-global' ? "equal(typeof JSON.isRawJSON, 'undefined');" : '' }
       deepEqual(2.0.clamp(4, 6), exp.clamp);
       equal(String.cooked\`hello\`, exp.cooked);
     `;
@@ -207,10 +212,12 @@ const builders = {
           naming: 'bundle.js',
           plugins: [plugin(${ JSON.stringify(pluginOpts(method, phase)) })],
         });
-        if (!result.success) { for (const l of result.logs) console.error(l); process.exit(1); }
+        for (const log of result.logs) console.error(log);
+        if (!result.success) process.exitCode = 1;
       `);
       // Native paths go through cwd, not shell quoting; the directory exercises spaces and quotes.
-      await $({ quiet: true, cwd: dir })`bun ./build.mjs`;
+      const { stderr } = await $({ quiet: true, cwd: dir })`bun ./build.mjs`;
+      if (stderr.trim()) console.warn(stderr.trimEnd());
       return { code: await readFile(join(dir, 'bundle.js'), 'utf8'), verifier: 'bun' };
     }, "transpiler bun's test-");
   },
@@ -288,7 +295,7 @@ for (const name of Object.keys(builders)) {
         await runLeg(name, async () => {
           const { code, ext, map, verifier } = await builders[name](inputOf(method), method, phase);
           if (verifier === 'bun') await verifyInBun(code, label, method);
-          else await verifyInNode(code, label, ext);
+          else await verifyInNode(code, label, ext, method);
           if (name === 'rollup' || name === 'vite') assertMapShape(label, map);
         });
         echo(`${ cyan(label) } ${ green('passed') }`);
@@ -359,6 +366,18 @@ for (const name of DYNAMIC_LEG) {
     echo(red(`${ cyan(label) } failed: ${ error.message }`));
     failures++;
   }
+}
+
+const splitLabel = 'rollup/usage-global/dynamic-import split';
+try {
+  await runLeg('rollup', async () => {
+    const bundle = await builders.rollup(dynamicInput, 'usage-global', undefined, { splitDynamic: true });
+    await verifySplitDynamic(bundle, splitLabel);
+  });
+  echo(`${ cyan(splitLabel) } ${ green('passed') }`);
+} catch (error) {
+  echo(red(`${ cyan(splitLabel) } failed: ${ error.message }`));
+  failures++;
 }
 
 // --- id-flow legs ---
@@ -465,7 +484,7 @@ async function runIdFlow(mode) {
       optimizeDeps: { noDiscovery: true, include: [] },
       plugins,
     });
-    try {
+    await withCleanup(async () => {
       await server.transformIndexHtml('/index.html', await readFile(entry, 'utf8'));
       // the SFC's TEMPLATE block is reached only through the module that imports it, and nothing
       // asks for it on its own - so read the specifier the framework plugin just minted out of
@@ -489,9 +508,7 @@ async function runIdFlow(mode) {
           seen.missed.push(`${ url } (${ error.message.split('\n', 1)[0] })`);
         }
       }
-    } finally {
-      await server.close();
-    }
+    }, () => server.close());
   }
   return seen;
 }

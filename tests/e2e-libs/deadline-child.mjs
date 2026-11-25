@@ -1,30 +1,17 @@
-import { once } from 'node:events';
-import { setImmediate, setTimeout } from 'node:timers/promises';
-import { errorReason } from './diagnostics.mjs';
+// Keep the caller's IPC channel on an event loop the exercise cannot block.
+import { fork } from 'node:child_process';
 
-// A fork waiting on user code can otherwise keep its handles after its caller exits.
-// eslint-disable-next-line node/no-process-exit -- the caller is gone and the exercise can still hold handles
-process.once('disconnect', () => process.exit(1));
-const [{ module, method, args }] = await once(process, 'message');
-// Keep a never-settling exercise alive until the caller's deadline.
-process.channel.ref();
-const run = (await import(module))[method];
-if (typeof run !== 'function') throw new Error(`missing child entry point ${ method }`);
-
-process.on('unhandledRejection', reason => {
-  throw new Error(`unhandled rejection - ${ errorReason(reason) }`, { cause: reason });
-});
-process.on('uncaughtException', error => {
-  process.send({ type: 'e2e-libs:failure', error: errorReason(error) });
+const child = fork(new URL('./deadline-exercise.mjs', import.meta.url), {
+  execArgv: [],
+  stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
 });
 
-try {
-  process.send({ type: 'e2e-libs:ready' });
-  const result = await run(...args, () => process.send({ type: 'e2e-libs:repeat' }));
-  // Let already queued timers run, then let Node deliver their unhandled rejections.
-  await setTimeout(0);
-  await setImmediate();
-  process.send({ type: 'e2e-libs:result', result });
-} catch (error) {
-  process.send({ type: 'e2e-libs:failure', error: errorReason(error) });
-}
+process.once('disconnect', () => child.kill('SIGKILL'));
+process.once('message', request => { if (child.connected) child.send(request); });
+child.on('message', reply => { if (process.connected) process.send(reply, () => { /* The caller can disconnect before the relay completes. */ }); });
+child.on('close', (code, signal) => {
+  process.exitCode = code ?? 1;
+  if (process.connected) process.send({ type: 'e2e-libs:exit', code, signal }, () => {
+    if (process.connected) process.disconnect();
+  });
+});

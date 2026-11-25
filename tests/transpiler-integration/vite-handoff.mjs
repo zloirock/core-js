@@ -7,7 +7,7 @@ import { createServer } from 'vite';
 import { transform } from 'esbuild';
 import unplugin, { vite } from '../../packages/core-js-unplugin/index.js';
 import { runInWorker } from '../transpiler-differential/realm-runner.mjs';
-import { withTmpDir } from './runtime.mjs';
+import { withCleanup, withTmpDir } from './runtime.mjs';
 
 async function serve(method, filename, sibling, verify) {
   await withTmpDir(async dir => {
@@ -27,12 +27,10 @@ async function serve(method, filename, sibling, verify) {
       // Vite caches a result only when its request started strictly after invalidation.
       while (Date.now() <= node.lastInvalidationTimestamp) await setTimeout(1);
     }
-    try {
+    await withCleanup(async () => {
       await verify(() => server.transformRequest(`/${ filename }`), invalidate,
         () => client.pluginContainer.getModuleInfo(id)?.meta.coreJSRequires ?? [], root);
-    } finally {
-      await server.close();
-    }
+    }, () => server.close());
   });
 }
 

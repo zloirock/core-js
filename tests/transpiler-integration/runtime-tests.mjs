@@ -1,7 +1,8 @@
+import { fileURLToPath } from 'node:url';
 import { access } from 'node:fs/promises';
-import { deepEqual, rejects } from 'node:assert/strict';
+import { deepEqual, rejects, strictEqual } from 'node:assert/strict';
 import { makeBundlers } from './bundlers.mjs';
-import { withTmpDir, verifyInNode, verifyPhases, verifyDynamic } from './runtime.mjs';
+import { withCleanup, withTmpDir, verifyInNode, verifyPhases, verifyDynamic, verifySplitDynamic } from './runtime.mjs';
 
 // An earlier global bundle must never supply natives to a later cell, even when
 // the latter returns an awaited result or a CommonJS default export.
@@ -80,5 +81,45 @@ try {
   console.warn = warn;
 }
 deepEqual(warnings, ['[esbuild] [fixture] build warning']);
+checks += 2;
+const controlBundlers = makeBundlers({ root: import.meta.dirname, unpluginName: 'entry-global-control' });
+const uncontrolledEntry = await controlBundlers.esbuild(fileURLToPath(new URL('./input-entry-global.js', import.meta.url)));
+await rejects(verifyInNode(uncontrolledEntry.code, 'entry without a provider', uncontrolledEntry.ext, 'entry-global'),
+  { actual: 'ERR|AssertionError' });
+checks++;
+const eagerChunk = { fileName: 'eager.mjs', code: 'export const n = 2;', isDynamicEntry: false, dynamicImports: [] };
+const eagerEntry = 'import { n } from "./eager.mjs"; export const results = { lazy: Promise.resolve(n), control: 4 };';
+await rejects(verifySplitDynamic({ code: eagerEntry, chunks: [eagerChunk], dynamicImports: [] }, 'static import'),
+  /expected a separate dynamic chunk/u);
+const lazyChunk = { fileName: 'lazy.mjs', code: 'export const value = typeof window === "object" ? _ref : 2;', isDynamicEntry: true, dynamicImports: [] };
+await rejects(verifySplitDynamic({
+  code: 'export const results = { lazy: import("./lazy.mjs").then(mod => mod.value), control: 4 };',
+  chunks: [lazyChunk], dynamicImports: [lazyChunk.fileName],
+}, 'split'), /split\/lazy\.mjs: undeclared plugin temps _ref/u);
+const splitCode = 'export const results = { lazy: import("./lazy.mjs").then(mod => mod.value), control: 4 };';
+await rejects(verifySplitDynamic({
+  code: splitCode,
+  chunks: [{ ...lazyChunk, code: `function unused() { var _ref; } ${ lazyChunk.code }` }],
+  dynamicImports: [lazyChunk.fileName],
+}, 'split scope'), /split scope\/lazy\.mjs: undeclared plugin temps _ref/u);
+await verifySplitDynamic({
+  code: splitCode,
+  chunks: [
+    eagerChunk,
+    { ...lazyChunk, code: 'import { n as _ref } from "./eager.mjs"; export const value = { _ref3: _ref }._ref3;' },
+  ],
+  dynamicImports: [lazyChunk.fileName],
+}, 'split binding');
+checks += 4;
+const primary = new Error('primary failure');
+const cleanup = new Error('cleanup failure');
+await rejects(withCleanup(() => { throw primary; }, () => {
+  throw cleanup;
+}), error => {
+  strictEqual(error.cause, primary);
+  deepEqual(error.errors, [primary, cleanup]);
+  return true;
+});
+await rejects(withCleanup(() => 1, () => { throw cleanup; }), error => error === cleanup);
 checks += 2;
 console.log(`integration-runtime: ${ checks } passed, 0 failed`);

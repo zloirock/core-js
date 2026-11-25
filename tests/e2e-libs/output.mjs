@@ -78,6 +78,12 @@ export function announceRun({ libs, libraryMethodGroups, libraryFilter, shardCou
     + ` the browsers run those pages afterwards, from ${ cyan('tests/karma/e2e-libs.mjs') }`));
 }
 
+// Shards buffer verdicts on stdout. Name the active build immediately on inherited stderr.
+export function announceCell({ label }) {
+  const shard = FIXTURE_SHARD ? ` [shard ${ FIXTURE_SHARD }]` : '';
+  console.error(`Building ${ label }${ shard }`);
+}
+
 export function reportCell(cell, { ok, checks, failingChecks, injected, delta, snapshotState, stripped, strippedFailed, rawKb, wire, buildMs }) {
   // `providers agree` is about entry-global rather than about a baseline, so it names itself
   const snapshotNote = snapshotState === 'skipped' ? '' : snapshotState === 'providers agree'
@@ -144,7 +150,7 @@ export function announceBrowserRun(pages) {
 export function reportBrowserCell(cell, browsers, diagnostic = false) {
   const where = `in ${ browsers.join(', ') }`;
   if (diagnostic) echo(yellow(`  expected browser diagnostic ${ cyan(cell.label) } ${ where }`));
-  else echo(red(`  FAIL ${ cyan(cell.label) } ${ where }`));
+  else echo(`FAIL ${ red(`${ cyan(cell.label) } ${ where }`) }`);
 }
 
 export function reportBrowserTally({ failed, pages }) {

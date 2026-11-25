@@ -1,10 +1,10 @@
 import { basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { isDeepStrictEqual, types } from 'node:util';
 import { runWithDeadline } from './deadline.mjs';
-import { captureChecks, checkResultProblem, checkRows, renderValues } from './diagnostics.mjs';
-import { unwrap } from './exercises/checks.mjs';
+import { captureChecks, checkResultProblem, checkRows, renderDifference } from './diagnostics.mjs';
+import { cachedProjection, collectionInfo, collectionValues, deepEqual, enumerableKeys, isEmulatedSymbol } from './exercises/checks.mjs';
 
+const collectionKind = Symbol('collection kind');
 const RUN_DEADLINE_MS = 60_000;
 
 export function rawChecks(target, { repeat = false, timeout = RUN_DEADLINE_MS } = {}) {
@@ -17,7 +17,10 @@ export async function runRaw(target, name, repeat, beforeRepeat) {
   const checks = await oneRun(target, name);
   const rows = checkRows(checks);
   if (repeat) {
-    const first = checks.map(check => snapshotActual(check.actual));
+    const first = checks.map(({ actual, expected }) => ({
+      actual: snapshotValue(actual),
+      expected: snapshotValue(expected),
+    }));
     beforeRepeat();
     assertDeterministic(name, rows, first, await oneRun(target, name));
   }
@@ -36,24 +39,26 @@ async function oneRun(target, name) {
 
 // Compare the observed values even when the second run mutates an object returned by the first.
 // Use the exercise's toJSON projection and keep sparse slots and opaque values (e.g. symbols).
-function snapshotActual(raw, copies = new WeakMap()) {
-  const value = unwrap(raw);
+function snapshotValue(raw, copies = new WeakMap(), project = cachedProjection()) {
+  const value = project(raw);
   if (!value || typeof value !== 'object') return value === 0 ? 0 : value;
+  if (isEmulatedSymbol(value)) return value;
   if (copies.has(value)) return copies.get(value);
   const array = Array.isArray(value);
   const properties = array ? new Array(value.length) : Object.create(null);
-  const map = types.isMap(value);
-  const entries = map || types.isSet(value) ? [] : null;
+  const collection = !array && collectionInfo(value);
+  const entries = collection ? [] : null;
   // Keep ordered contents separate from the collection's own enumerable properties.
-  const copy = entries ? { [map ? 'map' : 'set']: entries, properties } : properties;
+  const copy = entries ? { [collectionKind]: collection.isMap ? 'Map' : 'Set', entries, properties } : properties;
   copies.set(value, copy);
   if (array) {
-    for (let i = 0; i < value.length; i++) if (Object.hasOwn(value, i)) copy[i] = snapshotActual(value[i], copies);
-  } else {
-    if (entries) {
-      for (const entry of value) entries.push(snapshotActual(entry, copies));
-    }
-    for (const [key, entry] of Object.entries(value)) properties[key] = snapshotActual(entry, copies);
+    for (let i = 0; i < value.length; i++) if (Object.hasOwn(value, i)) copy[i] = snapshotValue(value[i], copies, project);
+  }
+  if (entries) {
+    for (const entry of collectionValues(collection)) entries.push(snapshotValue(entry, copies, project));
+  }
+  for (const key of enumerableKeys(value, array)) {
+    Object.defineProperty(properties, key, { enumerable: true, value: snapshotValue(value[key], copies, project) });
   }
   return copy;
 }
@@ -66,11 +71,17 @@ function assertDeterministic(name, rows, first, second) {
   for (const [index, check] of rows.entries()) {
     const other = second[index];
     if (check.label !== other.label) throw notDeterministic(`check #${ index + 1 } is '${ check.label }' on the first run and '${ other.label }' on the second`);
-    const actual = snapshotActual(other.actual);
     if (check.pass !== other.pass) throw notDeterministic(`'${ check.label }' pass changed from ${ check.pass } to ${ other.pass }`);
-    if (!isDeepStrictEqual(first[index], actual)) {
-      const [before, after] = renderValues(first[index], actual);
-      throw notDeterministic(`'${ check.label }' gave ${ before } on the first run and ${ after } on the second`);
+    for (const key of ['actual', 'expected']) {
+      const previous = first[index][key];
+      const value = snapshotValue(other[key]);
+      const difference = {};
+      // Both snapshots already contain the result of each toJSON projection.
+      if (!deepEqual(previous, value, difference, entry => entry)) {
+        const [before, after] = renderDifference(difference);
+        const detail = key === 'actual' ? 'gave' : 'expected';
+        throw notDeterministic(`'${ check.label }' ${ detail } ${ before } on the first run and ${ after } on the second`);
+      }
     }
   }
 }

@@ -45,7 +45,6 @@ core-js/modules/es.number.is-finite
 core-js/modules/es.number.is-integer
 core-js/modules/es.object.get-own-property-symbols
 core-js/modules/es.object.get-prototype-of
-core-js/modules/es.object.has-own
 core-js/modules/es.object.is-extensible
 core-js/modules/es.object.keys
 core-js/modules/es.object.to-string
@@ -55,15 +54,6 @@ core-js/modules/es.promise.finally
 core-js/modules/es.promise.reject
 core-js/modules/es.promise.resolve
 core-js/modules/es.regexp.to-string
-core-js/modules/es.set.constructor
-core-js/modules/es.set.difference
-core-js/modules/es.set.intersection
-core-js/modules/es.set.is-disjoint-from
-core-js/modules/es.set.is-subset-of
-core-js/modules/es.set.is-superset-of
-core-js/modules/es.set.species
-core-js/modules/es.set.symmetric-difference
-core-js/modules/es.set.union
 core-js/modules/es.string.includes
 core-js/modules/es.string.iterator
 core-js/modules/es.symbol.constructor

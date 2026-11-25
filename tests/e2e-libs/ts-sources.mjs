@@ -71,6 +71,9 @@ export function tsSources() {
       const sub = (rest.length ? rest.join('/') : entry).replace(/\.[cm]?js$/, '');
       const file = firstExistingFile([join(NODE_MODULES, name, 'src', `${ sub }.ts`), join(NODE_MODULES, name, 'src', sub, 'index.ts')]);
       if (file) return file;
+      // A public subpath can be an asset or a published build without a matching source path.
+      // The next resolver still checks the package's export map. A missing root source is fatal.
+      if (rest.length) return null;
       throw new Error(`TS_SOURCE_PACKAGES: '${ source }' has no TypeScript source under node_modules/${ name }/src `
         + '- that package is built from its sources (see ts-sources.mjs), and without them this build silently '
         + 'degrades to a published-JS one. Reinstall, or drop the package from the set deliberately.');

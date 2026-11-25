@@ -2,6 +2,9 @@
   "name": "tests/e2e-libs",
   "type": "module",
   "private": true,
+  "engines": {
+    "node": "^22.18.0 || >=24.11.0"
+  },
   "devDependencies": {
     "@babel/core": "^8.0.1",
     "@babel/preset-env": "^8.0.1",

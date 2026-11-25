@@ -33,7 +33,6 @@ core-js/modules/es.data-view.set-float16
 core-js/modules/es.data-view.set-int8
 core-js/modules/es.data-view.set-uint8
 core-js/modules/es.data-view.to-string-tag
-core-js/modules/es.date.to-json
 core-js/modules/es.date.to-primitive
 core-js/modules/es.error.cause
 core-js/modules/es.error.is-error

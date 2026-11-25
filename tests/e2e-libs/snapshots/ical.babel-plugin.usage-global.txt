@@ -32,7 +32,6 @@ core-js/modules/es.object.entries
 core-js/modules/es.object.from-entries
 core-js/modules/es.object.get-own-property-descriptor
 core-js/modules/es.object.get-prototype-of
-core-js/modules/es.object.has-own
 core-js/modules/es.object.keys
 core-js/modules/es.object.set-prototype-of
 core-js/modules/es.object.to-string

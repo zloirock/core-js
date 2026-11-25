@@ -50,9 +50,9 @@
           var problem = window.e2eLabelProblem(checks, expected);
           assert.ok(problem === null, entry.label + ': ' + (problem === null ? 'check labels match the raw exercise' : problem));
           for (k = 0; k < checks.length; k++) {
-            assert.pushResult({
-              result: !!checks[k].pass, actual: checks[k].actual, expected: checks[k].expected, message: entry.label + ' - ' + checks[k].label,
-            });
+            var result = window.e2eCheckResult(checks[k]);
+            result.message = entry.label + ' - ' + result.message;
+            assert.pushResult(result);
           }
         }
         dispose();

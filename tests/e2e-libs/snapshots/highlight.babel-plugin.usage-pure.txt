@@ -26,7 +26,6 @@
 @core-js/pure/full/object/freeze
 @core-js/pure/full/object/get-own-property-names
 @core-js/pure/full/object/get-prototype-of
-@core-js/pure/full/object/has-own
 @core-js/pure/full/object/is-frozen
 @core-js/pure/full/object/keys
 @core-js/pure/full/object/set-prototype-of

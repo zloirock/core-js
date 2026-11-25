@@ -28,9 +28,7 @@
 @core-js/pure/full/object/define-properties
 @core-js/pure/full/object/define-property
 @core-js/pure/full/object/get-prototype-of
-@core-js/pure/full/object/has-own
 @core-js/pure/full/object/is
-@core-js/pure/full/object/keys
 @core-js/pure/full/object/set-prototype-of
 @core-js/pure/full/parse-int
 @core-js/pure/full/reflect/construct

@@ -53,6 +53,10 @@ export function renderValues(first, second, path = '', seen = new Set()) {
       }
     } catch { /* Opaque objects still have the original inspector output. */ }
   }
+  return formatPair(first, second, path, values);
+}
+
+function formatPair(first, second, path, values) {
   const location = path ? `at ${ path } ` : '';
   if (typeof first !== 'string' || typeof second !== 'string' || first === second || values.every(text => !text.endsWith('...'))) {
     return values.map(value => location + value);
@@ -63,11 +67,24 @@ export function renderValues(first, second, path = '', seen = new Set()) {
   return [first, second].map(value => `${ location }at offset ${ offset } ${ renderValue(value.slice(start, offset + 24)) }`);
 }
 
+export function renderDifference(difference) {
+  const { missing, pair, path } = difference;
+  if (missing) {
+    return pair.map((value, index) => {
+      const absent = missing === (index === 0 ? 'actual' : 'expected');
+      return `at ${ path } ${ absent ? '<missing>' : renderValue(value) }`;
+    });
+  }
+  // The comparator has already isolated the mismatch, including structural
+  // differences. Formatting it must not start another graph comparison.
+  return formatPair(pair[0], pair[1], path, pair.map(renderValue));
+}
+
 export function checkFailureLine(check) {
   // Use the values read by the comparison, including accessors and toJSON projections.
   const { difference } = check;
   const [actual, expected] = Array.isArray(difference?.pair)
-    ? renderValues(difference.pair[0], difference.pair[1], difference.path)
+    ? renderDifference(difference)
     : renderValues(check.actual, check.expected);
   return `${ check.label } actual=${ actual } expected=${ expected }`;
 }

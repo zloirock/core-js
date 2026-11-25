@@ -1,6 +1,12 @@
 import { stripVTControlCharacters } from 'node:util';
 import { isExpectedFailure } from './e2e-libs-diagnostics.mjs';
 
+export function selectRunnableCells(cells, libFilter) {
+  const runnable = cells.filter(cell => !cell.error && (libFilter === undefined || cell.lib === libFilter));
+  if (!runnable.length) throw new Error(`no e2e-libs pages to run${ libFilter ? ` for '${ libFilter }'` : '' }`);
+  return runnable;
+}
+
 export function hasUnexpectedBrowserFailure({ results, errors }) {
   // Karma emits browser_error for both script errors and disconnects (lib/browser.js).
   return errors.some(({ error }) => !error.startsWith('Disconnected '))

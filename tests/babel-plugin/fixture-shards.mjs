@@ -6,6 +6,7 @@
 // keep their zx globals without a zxi round-trip (deps are already installed by the parent's zxi)
 import { fork } from 'node:child_process';
 import { createRequire } from 'node:module';
+import { kill } from 'zx';
 import { loadBabelOptions } from './fixture-options.mjs';
 
 export const { FIXTURE_SHARD } = process.env;
@@ -98,50 +99,128 @@ export function defaultShardCount(fixtureCount) {
 // that dies without reporting fails the run loudly instead of vanishing from the totals.
 // runner parameters travel via `extraEnv`, not CLI args - the zx CLI keeps the script name
 // in `argv._`, so positional args would land off-by-one against the zxi-invoked parent
-export async function runShards({ script, shards, extraEnv = {}, print = echo }) {
+export async function runShards({ script, shards, extraEnv = {}, print = echo, timeout = 45 * 60_000 }) {
   if (!Number.isSafeInteger(shards) || shards < 1) throw new Error(`expected a positive integer shard count, got ${ shards }`);
+  if (!Number.isInteger(timeout) || timeout < 1 || timeout > 2 ** 31 - 1) throw new Error(`invalid shard deadline: ${ timeout }ms`);
+
   const cli = zxCliPath();
-  const runs = Array.from({ length: shards }, (_, index) => new Promise((resolve, reject) => {
-    const child = fork(cli, [script], {
-      execArgv: [],
-      env: { ...process.env, ...extraEnv, FIXTURE_SHARD: `${ index }/${ shards }`, FORCE_COLOR: '1' },
-      stdio: ['ignore', 'pipe', 'inherit', 'ipc'],
-    });
-    let output = '';
-    let payload;
-    let duplicate = false;
-    child.stdout.setEncoding('utf8');
-    child.stdout.on('data', data => { output += data; });
-    child.on('message', message => {
-      if (payload !== undefined) duplicate = true;
-      payload = message;
-    });
-    child.on('error', reject);
-    child.on('close', (code, signal) => {
-      const shard = `fixture shard ${ index }/${ shards }`;
-      let problem;
-      if (payload === undefined) problem = `${ shard } produced no result (code ${ code }, signal ${ signal })`;
-      else if (code !== 0) problem = `${ shard } failed after reporting (code ${ code }, signal ${ signal })`;
-      else if (duplicate || !payload || typeof payload !== 'object' || Array.isArray(payload)) {
-        problem = `${ shard } must report exactly one result object`;
-      }
-      resolve({ shard, payload, output, problem });
-    });
-  }));
-  const results = await Promise.all(runs);
-  for (const { output } of results) {
-    if (output.trim()) print(output.trimEnd());
+  const output = Array(shards).fill('');
+  const active = new Set();
+  const fields = new Map();
+  const { promise: stopped, resolve: finishStop } = Promise.withResolvers();
+  let failure;
+  let stopTimer;
+  let stopping;
+  function running(child) {
+    return child.pid && child.exitCode === null && child.signalCode === null;
   }
+
+  async function stopShard(child) {
+    if (!running(child)) return;
+    try {
+      await kill(child.pid, 'SIGKILL');
+    } catch {
+      if (running(child)) child.kill('SIGKILL');
+    }
+  }
+
+  function fail(error) {
+    if (failure) return;
+    failure = error;
+    // Join cancellation before returning, or release the pipes on the cleanup deadline.
+    // eslint-disable-next-line promise/no-promise-in-callback -- collected alongside the shard results
+    stopping = Promise.all([...active].map(stopShard));
+    stopTimer = setTimeout(() => {
+      for (const child of active) {
+        if (running(child)) child.kill('SIGKILL');
+        child.stdout?.destroy();
+        if (child.connected) child.disconnect();
+        child.unref();
+      }
+      finishStop();
+    }, 10_000);
+  }
+
+  const deadline = setTimeout(() => fail(new Error(`fixture shards did not finish within ${ timeout }ms`)), timeout);
+  let results;
+  try {
+    const runs = Array.from({ length: shards }, (_, index) => new Promise(resolve => {
+      if (failure) {
+        resolve();
+        return;
+      }
+      const shard = `fixture shard ${ index }/${ shards }`;
+      let child;
+      try {
+        child = fork(cli, [script], {
+          execArgv: [],
+          env: { ...process.env, ...extraEnv, FIXTURE_SHARD: `${ index }/${ shards }`, FORCE_COLOR: '1' },
+          stdio: ['ignore', 'pipe', 'inherit', 'ipc'],
+        });
+      } catch (error) {
+        fail(new Error(`${ shard } process error: ${ error.message }`, { cause: error }));
+        resolve();
+        return;
+      }
+      active.add(child);
+      let payload;
+      child.stdout.setEncoding('utf8');
+      child.stdout.on('data', data => { output[index] += data; });
+      child.on('message', message => {
+        if (payload !== undefined || !message || typeof message !== 'object' || Array.isArray(message)) {
+          fail(new Error(`${ shard } must report exactly one result object`));
+          return;
+        }
+        for (const [key, value] of Object.entries(message)) {
+          const array = Array.isArray(value);
+          const seen = fields.get(key);
+          if (!array && typeof value !== 'number') {
+            fail(new Error(`${ shard }: invalid value for shard key \`${ key }\` - expected a number or an array`));
+            return;
+          }
+          if (seen && seen.array !== array) {
+            fail(new Error(`fixture shards ${ Math.min(index, seen.index) } and ${ Math.max(index, seen.index) }/${ shards }: incompatible values for shard key \`${ key }\``));
+            return;
+          }
+          if (!seen) fields.set(key, { array, index });
+        }
+        payload = message;
+      });
+      child.on('error', error => fail(new Error(`${ shard } process error: ${ error.message }`, { cause: error })));
+      // A descendant can keep stdout open after the shard has already failed.
+      function checkExit(code, signal) {
+        if (code === null && signal === null) return;
+        // A clean exit needs the final IPC message before it can be called silent.
+        if (code === 0 && child.connected) return;
+        if (payload === undefined) fail(new Error(`${ shard } produced no result (code ${ code }, signal ${ signal })`));
+        else if (code !== 0) fail(new Error(`${ shard } failed after reporting (code ${ code }, signal ${ signal })`));
+      }
+      child.once('exit', checkExit);
+      child.once('disconnect', () => checkExit(child.exitCode, child.signalCode));
+      child.once('close', () => {
+        active.delete(child);
+        resolve(payload);
+      });
+    }));
+    async function collect() {
+      const summaries = await Promise.all(runs);
+      await stopping;
+      return summaries;
+    }
+    results = await Promise.race([collect(), stopped]);
+  } finally {
+    clearTimeout(deadline);
+    clearTimeout(stopTimer);
+    for (const lines of output) {
+      if (lines.trim()) print(lines.trimEnd());
+    }
+  }
+  if (failure) throw failure;
   const totals = Object.create(null);
-  for (const { shard, payload, problem } of results) {
-    if (problem) throw new Error(problem);
+  for (const payload of results) {
     for (const [key, value] of Object.entries(payload)) {
-      const previous = totals[key];
-      if (typeof value === 'number' && (previous === undefined || typeof previous === 'number')) {
-        totals[key] = (previous ?? 0) + value;
-      } else if (Array.isArray(value) && (previous === undefined || Array.isArray(previous))) {
-        totals[key] = (previous ?? []).concat(value);
-      } else throw new Error(`${ shard }: incompatible values for shard key \`${ key }\` - only numbers and arrays of the same kind merge`);
+      if (Array.isArray(value)) totals[key] = (totals[key] ?? []).concat(value);
+      else totals[key] = (totals[key] ?? 0) + value;
     }
   }
   return totals;

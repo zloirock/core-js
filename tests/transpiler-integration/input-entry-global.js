@@ -1,5 +1,6 @@
 import 'core-js/full/number/clamp';
 import 'core-js/full/string/cooked';
+import 'core-js/full/json/is-raw-json';
 
 // These proposals don't exist natively — they MUST come from core-js
 export const results = {

@@ -1,4 +1,5 @@
 // The child half of fixture-shard-protocol.mjs, forked by runShards.
+import { spawn } from 'node:child_process';
 import { setTimeout } from 'node:timers/promises';
 import { FIXTURE_SHARD, emitShardSummary } from './fixture-shards.mjs';
 
@@ -26,19 +27,50 @@ if (process.env.SHARD_PROTOCOL_ORDER) {
   process.stdout.write(bytes.subarray(2));
 }
 
+if (process.env.SHARD_PROTOCOL_HELD_PIPE) {
+  spawn(process.execPath, ['-e', 'setTimeout(() => process.stdout.write("pipe drained"), 6000)'], {
+    stdio: ['ignore', 'inherit', 'ignore'],
+  }).unref();
+}
+if (process.env.SHARD_PROTOCOL_HANG) await setTimeout(30_000);
+if (process.env.SHARD_PROTOCOL_FAIL_FAST) {
+  const marker = process.env.SHARD_PROTOCOL_FAIL_FAST;
+  if (index === '0') {
+    while (!await fs.pathExists(marker)) await setTimeout(20);
+    if (process.env.SHARD_PROTOCOL_BAD_MESSAGE) {
+      emitShardSummary({ passed: 1 });
+      emitShardSummary({ passed: 1 });
+      await setTimeout(30_000);
+    } else if (process.env.SHARD_PROTOCOL_BAD) emitShardSummary({ passed: 'bad counter' });
+    else process.exitCode = 2;
+  } else {
+    if (process.env.SHARD_PROTOCOL_DESCENDANT) {
+      spawn(process.execPath, ['-e', [
+        'require("node:fs").writeFileSync(process.argv[1], "started");',
+        'setTimeout(() => process.stdout.write("descendant finished"), 6500);',
+      ].join('\n'), marker], { stdio: ['ignore', 'inherit', 'inherit'] }).unref();
+    } else await fs.writeFile(marker, '');
+    await setTimeout(30_000);
+    process.stdout.write('slow shard finished');
+  }
+}
+
 // SILENT exits cleanly having said nothing - the sneakier half of "produced no result", since a crash
 // is loud on its own while a silent zero would just vanish from the totals
-if (!process.env.SHARD_PROTOCOL_SILENT && !process.env.SHARD_PROTOCOL_EARLY_EXIT) {
-  if (process.env.SHARD_PROTOCOL_DUPLICATE) emitShardSummary({ passed: 1 });
+if (!process.env.SHARD_PROTOCOL_SILENT && !process.env.SHARD_PROTOCOL_EARLY_EXIT && !process.env.SHARD_PROTOCOL_FAIL_FAST) {
+  if (process.env.SHARD_PROTOCOL_DUPLICATE && index === '0') emitShardSummary({ passed: 1 });
   if (process.env.SHARD_PROTOCOL_BAD) emitShardSummary({ passed: 'not a number' });
   else if (process.env.SHARD_PROTOCOL_MIXED) emitShardSummary({ passed: index === '0' ? 1 : [2] });
   else if (process.env.SHARD_PROTOCOL_REVERSE) emitShardSummary({ passed: index === '0' ? [1] : 2 });
-  else if (process.env.SHARD_PROTOCOL_NULL) emitShardSummary(null);
-  else if (process.env.SHARD_PROTOCOL_STRING) emitShardSummary('invalid');
-  else if (process.env.SHARD_PROTOCOL_ARRAY) emitShardSummary([]);
+  else if (process.env.SHARD_PROTOCOL_NULL && index === '0') emitShardSummary(null);
+  else if (process.env.SHARD_PROTOCOL_STRING && index === '0') emitShardSummary('invalid');
+  else if (process.env.SHARD_PROTOCOL_ARRAY && index === '0') emitShardSummary([]);
   else emitShardSummary({
     passed: Number(index) + 1,
-    rows: [{ shard: Number(index), error: 'Cannot find module @rollup/plugin-babel @@ inside, separators \u2028\u2029, ends with @' }],
+    rows: [{
+      shard: Number(index), execArgv: process.execArgv, forceColor: process.env.FORCE_COLOR,
+      error: 'Cannot find module @rollup/plugin-babel @@ inside, separators \u2028\u2029, ends with @',
+    }],
   });
 }
 

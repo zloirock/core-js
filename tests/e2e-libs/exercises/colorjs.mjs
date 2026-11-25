@@ -19,7 +19,8 @@
 // its pure twin enter the baselines from the FORM alone - unlike `object/from-entries` and the
 // `reflect/has`/`set` pair beside them, which come from library usage. The global reference also gains
 // `es.regexp.escape` relative to the preceding fixtures. The percentage checks drive the form: a
-// coordinate's range comes out of `params.groups`, so a lowering that omits the groups object throws.
+// parser needs `params.groups` to read the coordinate type and any explicit range. Lab uses the
+// coordinate's default range, while sRGB declares its numeric range explicitly.
 //
 // A run-time `new RegExp` would not do: es-toolkit and chrono-node build named groups from strings,
 // which Babel cannot lower, and only the global version installs core-js's RegExp - the pure one
@@ -50,8 +51,8 @@
 // `Proxy` behind a `typeof Proxy === 'undefined'` guard, so IE11 takes the library's fallback and
 // the accessor path is the one thing this exercise could not answer for. That is also what the
 // `reflect/has`/`set` pair in these baselines is: injected from the Proxy branch, and executed by
-// nothing here, while the parser and object conversion do run - the named-group literal 12 times over the
-// checks below and `Object.fromEntries` 6.
+// nothing here. The parser and object conversion exercise the named-group literal and
+// `Object.fromEntries`.
 import Color from 'colorjs.io';
 import { checker } from './checks.mjs';
 
@@ -71,6 +72,7 @@ export function run() {
   // and serialising an LCH lightness prints one back ---
   const percent = new Color('lab(50% 40% -40% / 0.5)');
   check('percent_parse', [percent.coords, percent.alpha], [[50, 50, -50], 0.5]);
+  check('rgb_numeric_range', coords(new Color('rgb(0 51 255)')), [0, 0.2, 1]);
   check('percent_serialize', new Color('oklab', [0.5, 0, 0], 0.5).toString(), 'oklab(50% 0 0 / 0.5)');
   check('hex_named', new Color('rebeccapurple').toString({ format: 'hex' }), '#639');
 

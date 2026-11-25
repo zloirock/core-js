@@ -20,7 +20,6 @@ core-js/modules/es.array.sort
 core-js/modules/es.array.species
 core-js/modules/es.array.splice
 core-js/modules/es.array.unscopables.flat-map
-core-js/modules/es.date.to-json
 core-js/modules/es.date.to-primitive
 core-js/modules/es.function.name
 core-js/modules/es.global-this
@@ -51,7 +50,6 @@ core-js/modules/es.object.get-own-property-descriptor
 core-js/modules/es.object.get-own-property-descriptors
 core-js/modules/es.object.get-own-property-symbols
 core-js/modules/es.object.get-prototype-of
-core-js/modules/es.object.has-own
 core-js/modules/es.object.is
 core-js/modules/es.object.keys
 core-js/modules/es.object.to-string

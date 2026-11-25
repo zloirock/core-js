@@ -33,7 +33,6 @@ core-js/modules/es.array.species
 core-js/modules/es.array.splice
 core-js/modules/es.array.unscopables.flat-map
 core-js/modules/es.array.values
-core-js/modules/es.date.to-json
 core-js/modules/es.function.name
 core-js/modules/es.iterator.constructor
 core-js/modules/es.iterator.drop
@@ -74,7 +73,6 @@ core-js/modules/es.math.tanh
 core-js/modules/es.math.trunc
 core-js/modules/es.object.get-own-property-symbols
 core-js/modules/es.object.get-prototype-of
-core-js/modules/es.object.has-own
 core-js/modules/es.object.keys
 core-js/modules/es.object.to-string
 core-js/modules/es.parse-int

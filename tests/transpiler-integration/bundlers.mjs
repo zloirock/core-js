@@ -121,7 +121,7 @@ export function makeBundlers({
       return { code: result.outputFiles[0].text, ext: '.cjs' };
     },
 
-    async rollup(input, plugins = [], { inlineDynamic } = {}) {
+    async rollup(input, plugins = [], { inlineDynamic, splitDynamic } = {}) {
       const { rollup } = await import('rollup');
       const nodeResolve = (await import('@rollup/plugin-node-resolve')).default;
       const commonjs = (await import('@rollup/plugin-commonjs')).default;
@@ -131,8 +131,13 @@ export function makeBundlers({
         onwarn: strictWarn,
       });
       try {
-        const { output } = await bundle.generate({ format: 'es', sourcemap: true, inlineDynamicImports: !!inlineDynamic });
-        return { code: output[0].code, map: output[0].map };
+        const { output } = await bundle.generate({
+          format: 'es', sourcemap: true, inlineDynamicImports: !!inlineDynamic,
+          ...splitDynamic && { entryFileNames: 'bundle.mjs', chunkFileNames: 'chunk-[hash].mjs' },
+        });
+        const [entry] = output;
+        const chunks = output.filter(item => item.type === 'chunk' && item !== entry);
+        return { code: entry.code, map: entry.map, chunks, dynamicImports: entry.dynamicImports };
       } finally {
         await closeRollupBundle(bundle);
       }
@@ -153,9 +158,8 @@ export function makeBundlers({
           // the ids vite hands to its CommonJS interop: the inputs here need core-js alone
           commonjsOptions: { include: [/core-js/] },
           // vite bundles with rolldown, so the output option follows rolldown's spelling - and the
-          // handler reaches it the same way. Of the three codes `strictWarn` escalates vite raises
-          // only `UNRESOLVED_IMPORT` by itself; the other two, the plugin's own channel among them,
-          // are warnings here and would leave this leg alone in answering the question differently
+          // handler reaches it the same way. Reuse `strictWarn` so unresolved injections and
+          // the plugin's own warnings fail the build under the same policy as Rollup and Rolldown.
           rollupOptions: { onwarn: strictWarn, ...inlineDynamic ? { output: { codeSplitting: false } } : {} },
         },
         resolve: { dedupe: ['core-js'] },

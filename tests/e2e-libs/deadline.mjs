@@ -36,13 +36,19 @@ export async function runWithDeadline(module, method, args, { ms, what }) {
     execArgv: [],
     stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
   });
-  const closed = new Promise(resolve => child.once('close', () => resolve()));
+  const exited = new Promise(resolve => {
+    child.once('exit', () => resolve());
+    child.once('error', () => resolve());
+  });
   let timer;
   let timedOut = false;
   let result;
   let reaped;
   try {
     result = await new Promise((resolve, reject) => {
+      function exitError(code, signal) {
+        return new Error(`${ what } exited with ${ signal ?? `code ${ code }` } without a result`);
+      }
       function arm(budget) {
         clearTimeout(timer);
         timer = setTimeout(() => {
@@ -58,12 +64,13 @@ export async function runWithDeadline(module, method, args, { ms, what }) {
         switch (message?.type) {
           case 'e2e-libs:ready':
           case 'e2e-libs:repeat': arm(ms); break;
+          case 'e2e-libs:exit': reject(exitError(message.code, message.signal)); break;
           case 'e2e-libs:failure': reject(new ChildExerciseError(message.error)); break;
           case 'e2e-libs:result': resolve(message.result); break;
         }
       });
       child.once('error', reject);
-      child.once('close', (code, signal) => reject(new Error(`${ what } exited with ${ signal ?? `code ${ code }` } without a result`)));
+      child.once('close', (code, signal) => reject(exitError(code, signal)));
       child.send({ module, method, args }, error => { if (error) reject(error); });
     });
   } finally {
@@ -76,8 +83,8 @@ export async function runWithDeadline(module, method, args, { ms, what }) {
     } catch (error) {
       console.warn(`could not stop the process tree for ${ what }: ${ error.message }`);
     } finally {
-      if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
-      reaped = await waitWithin(closed, CHILD_STOP_TIMEOUT_MS) !== null;
+      if (child.connected) child.disconnect();
+      reaped = await waitWithin(exited, CHILD_STOP_TIMEOUT_MS) !== null;
       if (!reaped) releaseChild(child);
     }
   }

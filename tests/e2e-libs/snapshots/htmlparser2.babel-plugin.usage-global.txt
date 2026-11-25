@@ -16,7 +16,6 @@ core-js/modules/es.array.sort
 core-js/modules/es.array.species
 core-js/modules/es.array.splice
 core-js/modules/es.array.unshift
-core-js/modules/es.date.to-json
 core-js/modules/es.date.to-primitive
 core-js/modules/es.error.cause
 core-js/modules/es.function.name

@@ -6,7 +6,7 @@ import { checkResultProblem, errorReason } from './diagnostics.mjs';
 import { describeInput } from './input.mjs';
 import { librariesMatching, libraries } from './libraries.mjs';
 import * as manifest from './manifest.mjs';
-import { announceArtifacts, announceInput, announceRun, reportCell, reportCellFailure,
+import { announceArtifacts, announceCell, announceInput, announceRun, reportCell, reportCellFailure,
   reportRuntimeTally, warnWireSize } from './output.mjs';
 import { ARTIFACTS } from './paths.mjs';
 import { writeCell } from './page.mjs';
@@ -55,6 +55,7 @@ function getReferenceInjection(cell) {
 }
 
 async function runCell(cell) {
+  announceCell(cell);
   let snapshotState = 'not run';
   try {
     const expected = await rawLabels(cell.lib.exercise);
@@ -164,6 +165,7 @@ const input = await describeInput();
 
 if (!IS_SHARD) {
   await assertDetectionsStillNeedHelp();
+  await import('./collection-tests.mjs');
   const exercise = fileURLToPath(new URL('./fixtures/promise-rejection.mjs', import.meta.url));
   const cell = allCells([{ name: 'promise-rejection', exercise }]).find(entry => entry.isReference && entry.method === 'usage-pure');
   const { code } = await buildCell(cell);

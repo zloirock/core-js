@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { checkWebKitRejections } from './e2e-libs-rejections-test.mjs';
 import config from './e2e-libs.conf.js';
-import { browserOutcome, hasLoggedFailure, hasUnexpectedBrowserFailure } from './e2e-libs-results.mjs';
+import { browserOutcome, hasLoggedFailure, hasUnexpectedBrowserFailure, selectRunnableCells } from './e2e-libs-results.mjs';
 import { shouldRetryKarma, waitForKarma } from './helpers.mjs';
 
 const scratch = await mkdtemp(join(tmpdir(), 'karma-checkpoint-'));
@@ -26,6 +26,13 @@ try {
     console.warn(`could not remove ${ scratch }: ${ error.message }`);
   }
 }
+
+const builtCell = { lib: 'highlight', label: 'highlight/built' };
+const failedCell = { lib: 'three', label: 'three/failed', error: 'build failed' };
+deepEqual(selectRunnableCells([failedCell, builtCell]), [builtCell]);
+deepEqual(selectRunnableCells([failedCell, builtCell], 'highlight'), [builtCell]);
+throws(() => selectRunnableCells([failedCell, builtCell], 'three'), /no e2e-libs pages to run for 'three'/u);
+throws(() => selectRunnableCells([failedCell, builtCell], 'absent-library'), /no e2e-libs pages to run for 'absent-library'/u);
 
 const frames = [{ label: 'diagnostic' }];
 const chromium = { id: '1', name: 'Chromium' };

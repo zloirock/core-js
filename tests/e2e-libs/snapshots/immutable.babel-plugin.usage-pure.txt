@@ -28,10 +28,8 @@
 @core-js/pure/full/object/define-property
 @core-js/pure/full/object/get-own-property-symbols
 @core-js/pure/full/object/get-prototype-of
-@core-js/pure/full/object/has-own
 @core-js/pure/full/object/is-extensible
 @core-js/pure/full/object/keys
-@core-js/pure/full/set/constructor
 @core-js/pure/full/symbol/constructor
 @core-js/pure/full/symbol/iterator
 @core-js/pure/full/weak-map/constructor

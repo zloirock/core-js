@@ -7,7 +7,7 @@ import { assertES5 } from '../../scripts/assert-es5.mjs';
 import { closeRollupBundle, makeStrictWarn } from '../transpiler-integration/warning-policy.mjs';
 import { makeBabelPlugin } from './babel.mjs';
 import { pluginOpts } from './cells.mjs';
-import { HERE, NODE_MODULES, isCoreJsModule, toPosix } from './paths.mjs';
+import { HERE, NODE_MODULES, isCoreJsModule, isExerciseChecker, toPosix } from './paths.mjs';
 import { assertWorkspacePayload } from './payload.mjs';
 import { tsSources } from './ts-sources.mjs';
 import { join, relative } from 'node:path';
@@ -80,7 +80,12 @@ function es5({ code }, label) {
 }
 
 // a build that injected nothing has verified nothing
-function injected({ injected: specifiers }, label) {
+function injected({ injected: specifiers, origins }, label) {
+  for (const [specifier, files] of origins) {
+    if ([...files].some(file => isExerciseChecker(join(HERE, file)))) {
+      throw new Error(`${ label }: the shared checker injected ${ specifier }`);
+    }
+  }
   if (!specifiers.length) throw new Error(`${ label }: the provider injected 0 polyfills`);
 }
 
@@ -123,6 +128,24 @@ export async function assertDetectionsStillNeedHelp() {
   }
 }
 
+// The checker uses baseline primitives and is outside the test surface. Keep post-phase
+// injection out too, since the ES5 transform can synthesize helpers ahead of its code.
+function exerciseProvider(cell) {
+  return [unplugin.rollup(pluginOpts(cell))].flat().map(plugin => {
+    const { transform } = plugin;
+    return {
+      ...plugin,
+      transform: {
+        ...transform,
+        handler(code, id, options) {
+          if (isExerciseChecker(id)) return null;
+          return transform.handler.call(this, code, id, options);
+        },
+      },
+    };
+  });
+}
+
 // ONE provider per bundle: both would inject the union and the cell would describe neither. A graph may
 // hold CommonJS - ml-matrix's implementation is one such file behind an ESM wrapper, and echarts'
 // exercise reads the SVG with two such packages - and a provider writes a `require` into such a module
@@ -138,7 +161,7 @@ export async function buildCell(cell) {
       entryPlugin({ exercise: cell.lib.exercise, entryGlobal: cell.method === 'entry-global' }),
       tsSources(),
       makeBabelPlugin(cell.isReference ? pluginOpts(cell) : null),
-      ...cell.isReference ? [] : [unplugin.rollup(pluginOpts(cell))],
+      ...cell.isReference ? [] : exerciseProvider(cell),
       ...record.plugins,
       keepCoreJsDetections,
       nodeResolve(),

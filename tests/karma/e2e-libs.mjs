@@ -7,7 +7,7 @@
 //
 // Usage:  npm run test-e2e-libs-karma-run [libFilter]
 import * as manifest from '../e2e-libs/manifest.mjs';
-import { browserOutcome, hasLoggedFailure, hasUnexpectedBrowserFailure } from './e2e-libs-results.mjs';
+import { browserOutcome, hasLoggedFailure, hasUnexpectedBrowserFailure, selectRunnableCells } from './e2e-libs-results.mjs';
 import { announceBrowserRun, announceScopedRun, reportBrowserCell, reportBrowserTally } from '../e2e-libs/output.mjs';
 import { RUN_TIMEOUT_MS } from '../e2e-libs/cells.mjs';
 import { ARTIFACTS } from '../e2e-libs/paths.mjs';
@@ -21,8 +21,7 @@ const [libFilter] = argv._.map(String);
 const parsed = await manifest.read();
 
 // a cell that failed to build has no page, and its own tier has already reddened the run
-const runnable = parsed.cells.filter(cell => !cell.error && (libFilter === undefined || cell.lib === libFilter));
-if (!runnable.length) throw new Error(`no e2e-libs pages to run${ libFilter ? ` for '${ libFilter }'` : '' }`);
+const runnable = selectRunnableCells(parsed.cells, libFilter);
 
 // A previous session's result is no longer valid once this session starts.
 for (const cell of runnable) cell.karma = 'not run';

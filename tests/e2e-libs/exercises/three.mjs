@@ -384,17 +384,26 @@ export function run() {
     skeletonClone.skeleton.bones[0] !== skeletonSource.skeleton.bones[0],
     skeletonClone.skeleton.bones[1].parent === skeletonClone.skeleton.bones[0],
   ], [2, true, true]);
-  const splitInput = new THREE.BoxGeometry(1, 1, 1, 2, 2, 2);
-  const beforeSplit = splitInput.getAttribute('position').count;
-  const beforeIndices = splitInput.getIndex().count;
+  // Two triangles share an edge and meet at 90 degrees. Check the remapped edge indices and
+  // the duplicated coordinates: allocating extra slots alone does not copy the vertex data.
+  const splitInput = new THREE.BufferGeometry();
+  const splitPositions = new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], 3);
+  splitInput.setAttribute('position', splitPositions);
+  splitInput.setIndex([0, 1, 2, 0, 3, 1]);
+  const sourceIndex = splitInput.getIndex();
   const split = new EdgeSplitModifier().modify(splitInput, 1);
-  // splitting at the cube's hard edges duplicates the vertices sitting on them and drops no indices,
-  // so the vertex count has to GROW while the index count stays put - and growing it is the part a
-  // `modify` returning its argument cannot fake. Both halves are RELATIONS to the input: the totals
-  // themselves are properties of the geometry, and a retessellation upstream would redden them for
-  // no reason of ours
-  check('addon_edge_split',
-    [split.getAttribute('position').count > beforeSplit, split.getIndex().count === beforeIndices], [true, true]);
+  const splitIndex = split.getIndex();
+  const resultPositions = split.getAttribute('position');
+  const sourceVertex = new THREE.Vector3();
+  const resultVertex = new THREE.Vector3();
+  let copiedPositions = true;
+  for (let i = 0; i < splitIndex.count; i++) {
+    sourceVertex.fromBufferAttribute(splitPositions, sourceIndex.getX(i));
+    resultVertex.fromBufferAttribute(resultPositions, splitIndex.getX(i));
+    if (!sourceVertex.equals(resultVertex)) copiedPositions = false;
+  }
+  check('addon_edge_split', [splitIndex.count, splitIndex.getX(0) !== splitIndex.getX(3),
+    splitIndex.getX(1) !== splitIndex.getX(5), copiedPositions], [6, true, true, true]);
   const rounded = new RoundedBoxGeometry(1, 1, 1, 2, 0.2); // Math.sign, seven sites
   rounded.computeBoundingBox();
   // the bounds alone cannot tell a rounded box from a plain one - both span -0.5..0.5 - so the

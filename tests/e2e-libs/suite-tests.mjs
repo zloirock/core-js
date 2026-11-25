@@ -1,20 +1,23 @@
 import { deepEqual, rejects, strictEqual, throws } from 'node:assert/strict';
 import { execFile } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, parse } from 'node:path';
-import { promisify } from 'node:util';
+import { promisify, stripVTControlCharacters } from 'node:util';
 import { runInNewContext } from 'node:vm';
 import { assertES5 } from '../../scripts/assert-es5.mjs';
 import { closeRollupBundle, makeStrictWarn } from '../transpiler-integration/warning-policy.mjs';
 import { allCells, RUN_TIMEOUT_MS } from './cells.mjs';
 import { checkFailureLine, checkResultProblem, errorReason, renderValue } from './diagnostics.mjs';
 import { checker, deepEqual as exerciseEqual } from './exercises/checks.mjs';
-import { librariesMatching } from './libraries.mjs';
+import { assertExerciseRegistry, librariesMatching } from './libraries.mjs';
 import { prepare, reconcileRows, runtimeVerdict } from './manifest.mjs';
+import { announceCell, reportBrowserCell } from './output.mjs';
 import { cellScript } from './page.mjs';
 import { HERE, ROOT, isCoreJsModule } from './paths.mjs';
 import { isSnapshotName } from './snapshots.mjs';
+import { tsSources } from './ts-sources.mjs';
 import { assertWorkspacePayload } from './payload.mjs';
 
 const sparse = [];
@@ -23,6 +26,224 @@ strictEqual(exerciseEqual(sparse, ['a', 'b']), false);
 strictEqual(exerciseEqual(['a', 'b'], sparse), false);
 strictEqual(exerciseEqual(sparse, sparse.slice()), true);
 strictEqual(exerciseEqual(sparse, [undefined, undefined]), false);
+
+const enumerableX = { x: 1 };
+const hiddenX = Object.defineProperty({ y: 2 }, 'x', { value: 1 });
+strictEqual(exerciseEqual(enumerableX, hiddenX), false);
+strictEqual(exerciseEqual(hiddenX, enumerableX), false);
+strictEqual(exerciseEqual({ x: 1, y: 2 }, { y: 2, x: 1 }), true);
+strictEqual(exerciseEqual(new Set([1]), new Set([2])), false);
+strictEqual(exerciseEqual(new Set([1, 2]), new Set([2, 1])), false);
+strictEqual(exerciseEqual(new Set([{ x: 1 }]), new Set([{ x: 1 }])), true);
+strictEqual(exerciseEqual(new Map([['x', 1]]), new Map([['x', 2]])), false);
+strictEqual(exerciseEqual(new Map([[{ x: 1 }, 2]]), new Map([[{ x: 1 }, 2]])), true);
+const detached = checker();
+for (const [name, first, second] of [
+  ['set', new Set([1]), new Set([2])],
+  ['map', new Map([['x', 1]]), new Map([['x', 2]])],
+]) {
+  const actual = Object.setPrototypeOf(first, null);
+  const expected = Object.setPrototypeOf(second, Object.prototype);
+  detached.check(name, actual, expected);
+}
+deepEqual(detached.checks.map(check => check.pass), [false, false]);
+strictEqual(exerciseEqual(new Map(), new Set()), false);
+strictEqual(exerciseEqual(new Set(), {}), false);
+const foreign = runInNewContext('({ set: new Set([1]), map: new Map([["x", 1]]) })');
+strictEqual(exerciseEqual(foreign.set, new Set([1])), true);
+strictEqual(exerciseEqual(new Set([2]), foreign.set), false);
+strictEqual(exerciseEqual(foreign.map, new Map([['x', 1]])), true);
+strictEqual(exerciseEqual(foreign.map, {}), false);
+strictEqual(exerciseEqual(new Set(), Object.create(Set.prototype)), false);
+for (const [prototype, first, second, remote] of [
+  [Set.prototype, new Set([1]), new Set([2]), foreign.set],
+  [Map.prototype, new Map([['x', 1]]), new Map([['x', 2]]), foreign.map],
+]) {
+  const descriptor = Object.getOwnPropertyDescriptor(prototype, 'forEach');
+  delete prototype.forEach;
+  try {
+    strictEqual(exerciseEqual(first, remote), true);
+    strictEqual(exerciseEqual(second, remote), false);
+    strictEqual(exerciseEqual(first, second), false);
+  } finally {
+    Object.defineProperty(prototype, 'forEach', descriptor);
+  }
+}
+class Bag {
+  #items = [7];
+  get size() { return this.#items.length; }
+  add() { return this; }
+  forEach(fn) { fn(7, 7, this); }
+  toString() { throw new Error('comparison formatted an ordinary object'); }
+}
+strictEqual(exerciseEqual(new Set([7]), new Bag()), false);
+strictEqual(exerciseEqual(new Bag(), foreign.set), false);
+Object.defineProperty(Bag.prototype, Symbol.toStringTag, { value: 'Set' });
+strictEqual(exerciseEqual(new Set([7]), new Bag()), false);
+const requirePure = createRequire(import.meta.url);
+const PureMap = requirePure('@core-js/pure/full/map');
+const PureSet = requirePure('@core-js/pure/full/set');
+const contents = new WeakMap();
+const pureSize = Object.getOwnPropertyDescriptor(PureSet.prototype, 'size').get;
+class SetView {
+  constructor() { contents.set(this, new PureSet([7])); }
+  get size() { return pureSize.call(contents.get(this)); }
+  add(value) { contents.get(this).add(value); }
+  forEach(visit) { contents.get(this).forEach(visit); }
+}
+Object.defineProperty(SetView.prototype, Symbol.toStringTag, { value: 'Set' });
+strictEqual(exerciseEqual(new SetView(), new Set([7])), false);
+strictEqual(exerciseEqual(new PureMap([['x', 1]]), foreign.map), true);
+strictEqual(exerciseEqual(new PureSet([2]), foreign.set), false);
+strictEqual(exerciseEqual(new PureSet([7]), new Bag()), false);
+Object.defineProperty(Bag.prototype, 'size', { get() { return 1; } });
+strictEqual(exerciseEqual(new Bag(), new Set([7])), false);
+function ignoreElements() { /* The comparator must read elements through the prototype. */ }
+const firstSet = Object.assign(new Set([1]), { forEach: ignoreElements, note: 'same' });
+const secondSet = Object.assign(new Set([2]), { forEach: ignoreElements, note: 'same' });
+strictEqual(exerciseEqual(firstSet, secondSet), false);
+const sameSet = Object.assign(new Set([1]), { forEach: ignoreElements, note: 'different' });
+strictEqual(exerciseEqual(firstSet, sameSet), false);
+const field = Symbol('field');
+for (const create of [() => ({}), () => [], () => new Map(), () => new Set([1])]) {
+  const { checks, check } = checker();
+  const actual = Object.assign(create(), { [field]: 1 });
+  const expected = Object.assign(create(), { [field]: 1 });
+  check('equal', actual, expected);
+  expected[field] = 2;
+  check('different value', actual, expected);
+  strictEqual(checkFailureLine(checks[1]), 'different value actual=at [Symbol(field)] 1 expected=at [Symbol(field)] 2');
+  delete expected[field];
+  expected[Symbol('field')] = 1;
+  check('different key', actual, expected);
+  strictEqual(checkFailureLine(checks[2]), 'different key actual=at [Symbol(field)] 1 expected=at [Symbol(field)] <missing>');
+  delete actual[field];
+  check('extra key', actual, expected);
+  strictEqual(checkFailureLine(checks[3]), 'extra key actual=at [Symbol(field)] <missing> expected=at [Symbol(field)] 1');
+  deepEqual(checks.map(row => row.pass), [true, false, false, false]);
+}
+const diagnostic = checker();
+const wide = Array(128).fill('long common prefix');
+diagnostic.check('length', wide, [...wide, 'tail']);
+strictEqual(checkFailureLine(diagnostic.checks[0]), 'length actual=at [length] 128 expected=at [length] 129');
+const disappearing = { x: 1 };
+diagnostic.check('removed', disappearing, new Proxy({}, {
+  ownKeys() {
+    delete disappearing.x;
+    return [];
+  },
+}));
+strictEqual(diagnostic.checks[1].pass, false);
+strictEqual(checkFailureLine(diagnostic.checks[1]), 'removed actual=at [x] "<removed during enumeration>" expected=at [x] <missing>');
+const cycle = { value: 1 };
+cycle.self = cycle;
+const twinCycle = { value: 1 };
+twinCycle.self = twinCycle;
+strictEqual(exerciseEqual(cycle, twinCycle), true);
+strictEqual(exerciseEqual(cycle, { value: 1, self: twinCycle }), false);
+const sharedRoot = { value: 1, self: cycle };
+strictEqual(exerciseEqual(cycle, sharedRoot), false);
+strictEqual(exerciseEqual(sharedRoot, cycle), false);
+const leftRoot = {};
+const sharedBranch = { parent: leftRoot };
+leftRoot.branch = sharedBranch;
+const rightRoot = { branch: sharedBranch };
+strictEqual(exerciseEqual(leftRoot, rightRoot), false);
+strictEqual(exerciseEqual(rightRoot, leftRoot), false);
+// Two references per level, one distinct node per level. Bound property reads instead of wall time.
+let leafReads = 0;
+let branch = {
+  get value() {
+    leafReads++;
+    return 1;
+  },
+};
+const leaf = branch;
+for (let i = 0; i < 16; i++) branch = { first: branch, second: branch };
+strictEqual(exerciseEqual({ branch }, { branch }), true);
+strictEqual(leafReads, 2);
+leaf.self = leaf;
+leafReads = 0;
+strictEqual(exerciseEqual({ branch }, { branch }), true);
+strictEqual(leafReads <= 4, true);
+function linkedGraph(wrap) {
+  const root = {};
+  let node = {
+    parent: root,
+    get value() {
+      leafReads++;
+      return 1;
+    },
+  };
+  for (let i = 0; i < 16; i++) node = { first: wrap(node), second: wrap(node) };
+  root.start = node;
+  return root;
+}
+for (const wrap of [node => node, node => ({ next: node })]) {
+  leafReads = 0;
+  strictEqual(exerciseEqual(linkedGraph(wrap), linkedGraph(wrap)), true);
+  strictEqual(leafReads, 2);
+}
+
+// Forward shortcuts and backward edges give these twenty vertices many simple paths.
+function ladder() {
+  const nodes = Array.from({ length: 20 }, () => ({
+    get value() {
+      leafReads++;
+      return 1;
+    },
+  }));
+  for (const [index, node] of nodes.entries()) {
+    if (index + 1 < nodes.length) node.next = nodes[index + 1];
+    if (index + 2 < nodes.length) node.shortcut = nodes[index + 2];
+    if (index) node.previous = nodes[index - 1];
+  }
+  return nodes[0];
+}
+leafReads = 0;
+strictEqual(exerciseEqual(ladder(), ladder()), true);
+strictEqual(leafReads, 40);
+
+// A pair equal under one pair of ancestors can disagree when reached via another edge.
+function ring(length) {
+  const nodes = Array.from({ length }, () => ({}));
+  for (const [index, node] of nodes.entries()) node.next = nodes[(index + 1) % length];
+  return nodes[0];
+}
+strictEqual(exerciseEqual(ring(60), ring(61)), false);
+function sharedPrefix(split, depth) {
+  const child = {};
+  const root = { first: child, second: split ? {} : child };
+  root.first.back = root.second.back = root;
+  let node = root;
+  for (let i = 0; i < depth; i++) node = { first: node, second: node };
+  return node;
+}
+let lookups = 0;
+const mapHas = Map.prototype.has;
+// eslint-disable-next-line no-extend-native -- count graph operations independently of machine speed
+Map.prototype.has = function (key) {
+  if (++lookups > 10000) throw new Error('shared cyclic graph exceeded its lookup budget');
+  return mapHas.call(this, key);
+};
+try {
+  strictEqual(exerciseEqual(sharedPrefix(false, 16), sharedPrefix(true, 16)), true);
+} finally {
+  // eslint-disable-next-line no-extend-native -- restore the intrinsic before any other test runs
+  Map.prototype.has = mapHas;
+}
+const firstRing = { next: {} };
+firstRing.next.next = firstRing;
+const secondRing = { next: {} };
+secondRing.next.next = secondRing;
+strictEqual(exerciseEqual({ a: firstRing, b: firstRing.next }, { a: secondRing, b: { next: secondRing } }), false);
+twinCycle.value = 2;
+strictEqual(exerciseEqual(cycle, twinCycle), false);
+const mapCycle = new Map();
+const twinMapCycle = new Map();
+mapCycle.set('self', mapCycle);
+twinMapCycle.set('self', twinMapCycle);
+strictEqual(exerciseEqual(mapCycle, twinMapCycle), true);
 
 let reads = 0;
 const projected = {
@@ -35,6 +256,23 @@ const projected = {
 };
 strictEqual(exerciseEqual(projected, 1), true);
 strictEqual(reads, 1);
+
+let projections = 0;
+class ProjectedNode {
+  constructor(value) { this.value = value; }
+  toJSON() {
+    projections++;
+    return typeof this.value === 'number' ? this.value : { left: this.value, right: this.value };
+  }
+}
+function projectedGraph(value) {
+  let node = new ProjectedNode(value);
+  for (let i = 0; i < 14; i++) node = new ProjectedNode(node);
+  return node;
+}
+strictEqual(exerciseEqual(projectedGraph(1), projectedGraph(1)), true);
+strictEqual(projections, 30);
+strictEqual(exerciseEqual(projectedGraph(1), projectedGraph(2)), false);
 
 const differing = checker();
 function accessor(n) {
@@ -71,12 +309,57 @@ for (const suffix of ['green', '']) {
   const tail = longString.slice(-24);
   strictEqual(failure, `svg actual=at offset 4096 ${ JSON.stringify(`${ tail }red`) } expected=at offset 4096 ${ JSON.stringify(tail + suffix) }`);
 }
+const shortString = `${ 'x'.repeat(2039) }A`;
+const longTail = `${ 'x'.repeat(2039) }${ 'B'.repeat(4096) }`;
+const shortWindow = `at offset 2039 "${ 'x'.repeat(24) }A"`;
+const longWindow = `at offset 2039 "${ 'x'.repeat(24) }${ 'B'.repeat(24) }"`;
+strictEqual(checkFailureLine({ label: 'asymmetric', actual: shortString, expected: longTail }),
+  `asymmetric actual=${ shortWindow } expected=${ longWindow }`);
+strictEqual(checkFailureLine({ label: 'asymmetric', actual: longTail, expected: shortString }),
+  `asymmetric actual=${ longWindow } expected=${ shortWindow }`);
 const earlyDifference = checkFailureLine({ label: 'svg', actual: `a${ longString }`, expected: `b${ longString }` });
 strictEqual(earlyDifference.includes('actual=at offset 0 "a') && earlyDifference.includes('expected=at offset 0 "b'), true);
 // URL's inspector needs the native internal slots.
 strictEqual(renderValue(Object.create(URL.prototype)), '<unrenderable>');
 throws(() => assertES5('() => 1', 'fixture'), /fixture: not ES5/u);
 throws(() => librariesMatching('absent-library'), /no library matches filter/u);
+assertExerciseRegistry(['one.mjs', 'checks.mjs', 'README.md'], ['one']);
+throws(() => assertExerciseRegistry(['ready.mjs', 'unregistered.mjs'], ['ready', 'missing']),
+  /missing: missing.mjs; unregistered: unregistered.mjs/u);
+const resolveSource = tsSources().resolveId;
+const resolvePublic = createRequire(import.meta.url).resolve;
+for (const specifier of ['css-what/package.json', 'planck/dist/planck.mjs', 'planck/with-testbed']) {
+  strictEqual(resolveSource(specifier), null);
+  strictEqual(typeof resolvePublic(specifier), 'string');
+}
+strictEqual(resolveSource('entities/decode').endsWith(join('src', 'decode.ts')), true);
+strictEqual(resolveSource('planck').endsWith(join('src', 'main.ts')), true);
+
+const progressLog = [];
+const verdictLog = [];
+const printError = console.error;
+const printVerdict = globalThis.echo;
+const colorLevel = chalk.level;
+try {
+  console.error = line => progressLog.push(line);
+  chalk.level = 1;
+  globalThis.echo = line => verdictLog.push(line);
+  const cell = { label: 'library/unplugin/usage-global' };
+  announceCell(cell);
+  reportBrowserCell(cell, ['Firefox']);
+  reportBrowserCell(cell, ['IE'], true);
+} finally {
+  console.error = printError;
+  globalThis.echo = printVerdict;
+  chalk.level = colorLevel;
+}
+deepEqual(progressLog, ['Building library/unplugin/usage-global']);
+strictEqual(verdictLog[0].startsWith('FAIL '), true);
+strictEqual(verdictLog[0].includes('\x1B['), true);
+deepEqual(verdictLog.map(stripVTControlCharacters), [
+  'FAIL library/unplugin/usage-global in Firefox',
+  '  expected browser diagnostic library/unplugin/usage-global in IE',
+]);
 
 const { hasOwn } = Object;
 try {
@@ -98,14 +381,22 @@ try {
 }
 
 const previousRun = await mkdtemp(join(tmpdir(), 'e2e-libs-artifacts-'));
+let prepareTestError;
 try {
   const manifest = join(previousRun, 'manifest.json');
   await writeFile(manifest, JSON.stringify({ cells: [] }));
   await rejects(prepare(176, 220, previousRun), /176 cells, under the floor of 220/u);
   await rejects(access(manifest), { code: 'ENOENT' });
-} finally {
-  await rm(previousRun, { recursive: true, force: true });
+} catch (error) {
+  prepareTestError = error;
 }
+try {
+  await rm(previousRun, { recursive: true, force: true });
+} catch (cleanupError) {
+  if (!prepareTestError) throw cleanupError;
+  throw new AggregateError([prepareTestError, cleanupError], 'manifest preparation test and cleanup both failed', { cause: prepareTestError });
+}
+if (prepareTestError) throw prepareTestError;
 
 const first = { label: 'first' };
 const second = { label: 'second' };
@@ -192,6 +483,35 @@ function browserRun() {
 await rejects(browserRun, /did not return a checks array/u);
 E2E.run = () => ({ checks: sparse });
 await rejects(browserRun, /malformed check at index 0/u);
+E2E.run = () => diagnostic;
+const browserRows = await browserRun();
+const pushed = [];
+const driver = { ...window, E2E_FRAMES: [{ label: 'cell', frame: 'frame.html' }] };
+runInNewContext(await readFile(join(HERE, 'harness/qunit.js'), 'utf8'), {
+  window: driver,
+  document: {
+    getElementsByTagName: () => [{ src: '/test/frames.js' }],
+    createElement: () => ({}),
+    body: { appendChild() { driver.e2eFrameDone('cell', ['length', 'removed'], undefined, browserRows, null); } },
+  },
+  QUnit: {
+    config: {},
+    test(cellLabel, run) {
+      strictEqual(cellLabel, 'cell');
+      run({
+        timeout() { /* synchronous frame */ },
+        async: () => () => { /* synchronous frame */ },
+        strictEqual,
+        ok: (value, message) => strictEqual(value, true, message),
+        pushResult: result => pushed.push({ ...result }),
+      });
+    },
+  },
+});
+deepEqual(pushed, [
+  { message: 'cell - length at [length]', result: false, actual: 128, expected: 129 },
+  { message: 'cell - removed at [x] (missing on expected)', result: false, actual: '<removed during enumeration>', expected: '<missing>' },
+]);
 const valid = [{ label: 'working', pass: true }];
 E2E.run = () => ({ checks: valid });
 strictEqual((await browserRun())[0].label, valid[0].label);
@@ -424,13 +744,15 @@ const rawModule = new URL('./raw-exercise.mjs', import.meta.url).href;
 const highlightModule = new URL('./exercises/highlight.mjs', import.meta.url).href;
 const probe = `
   import { deepEqual, match, rejects } from 'node:assert/strict';
+  import { fork } from 'node:child_process';
+  import { once } from 'node:events';
   import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
   import { createRequire } from 'node:module';
   import { tmpdir } from 'node:os';
   import { join } from 'node:path';
   import { pathToFileURL } from 'node:url';
   import { preflight } from ${ JSON.stringify(new URL('./preflight.mjs', import.meta.url).href) };
-  import { runWithDeadline } from ${ JSON.stringify(new URL('./deadline.mjs', import.meta.url).href) };
+  import { runWithDeadline, waitWithin } from ${ JSON.stringify(new URL('./deadline.mjs', import.meta.url).href) };
   import { errorReason } from ${ JSON.stringify(new URL('./diagnostics.mjs', import.meta.url).href) };
   import { rawChecks } from ${ JSON.stringify(rawModule) };
   import { strippedFails, strippedLeg } from ${ JSON.stringify(strippedModule) };
@@ -461,10 +783,41 @@ const probe = `
   const scratch = await mkdtemp(join(tmpdir(), 'core-js-e2e-deadline-'));
   try {
     const stalled = join(scratch, 'stalled.mjs');
+    await writeFile(stalled, 'export function run() { process.exit(23); }');
+    await rejects(rawChecks(stalled), /exited with code 23 without a result/);
+    // Windows reports a numeric exit code when a process terminates itself with SIGTERM.
+    if (process.platform !== 'win32') {
+      await writeFile(stalled, 'export function run() { process.kill(process.pid, "SIGTERM"); }');
+      await rejects(rawChecks(stalled), /exited with SIGTERM without a result/);
+    }
     const progress = join(scratch, 'progress.mjs');
     await writeFile(progress, 'export function run() { process.send({ action: "progress" });'
       + 'return { checks: [{ label: "ok", pass: true }] }; }');
     deepEqual(await rawChecks(progress), [{ label: 'ok', pass: true, failure: null }]);
+    await writeFile(stalled, 'export function run() { process.send({ waiting: process.pid });'
+      + 'Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 30000); }');
+    const supervised = fork(new URL(${ JSON.stringify(new URL('./deadline-child.mjs', import.meta.url).href) }), { execArgv: [] });
+    const exited = once(supervised, 'exit');
+    const waiting = new Promise(resolve => supervised.on('message', message => {
+      if (message.waiting) resolve(message.waiting);
+    }));
+    let exercisePid;
+    try {
+      supervised.send({ module: pathToFileURL(stalled).href, method: 'run', args: [] });
+      exercisePid = await waitWithin(waiting, 5000);
+      if (!exercisePid) throw new Error('exercise never entered the blocking call');
+      supervised.disconnect();
+      deepEqual(await waitWithin(exited, 5000), [1, null]);
+    } finally {
+      if (supervised.exitCode === null && supervised.signalCode === null) {
+        supervised.kill('SIGKILL');
+        if (exercisePid) {
+          try { process.kill(exercisePid, 'SIGKILL'); }
+          catch (error) { if (error.code !== 'ESRCH') throw error; }
+        }
+      }
+      await exited;
+    }
     const mutating = join(scratch, 'mutating.mjs');
     await writeFile(mutating, 'const check = { label: "ok", pass: true, actual: { n: 0 } };'
       + 'export function run() { check.actual.n++; return { checks: [check] }; }');
@@ -478,17 +831,49 @@ const probe = `
     for (const collection of [
       'new Set([n])',
       'new Map([["key", n]])',
+      'Object.setPrototypeOf(new Set([n]), null)',
+      'Object.setPrototypeOf(new Map([["key", n]]), null)',
+      'new (class extends Set { *[Symbol.iterator]() {} })([n])',
+      'new (class extends Map { *[Symbol.iterator]() {} })([["key", n]])',
       'new Map([[new Date(0), n], [new Date(0).toISOString(), 0]])',
       'new Set(n === 1 ? [1, 2] : [2, 1])',
       'Object.assign(new Map(), { map: n })',
       'Object.assign(new Set(), { set: n })',
+      'Object.assign(new Map(), { [Symbol.for("note")]: n })',
+      'Object.assign(new Set(), { [Symbol.for("note")]: n })',
+      'Object.assign([], { [Symbol.for("note")]: n })',
+      '({ [Symbol.for("note")]: n })',
     ]) {
       await writeFile(mutating, 'let n = 0; export function run() { n++; return { checks: [{ label: "collection", pass: true, actual: '
         + collection + ' }] }; }');
       await rejects(rawChecks(mutating, { repeat: true }), /collection.*1.*first run.*2.*second/);
     }
+    await writeFile(mutating, 'let n = 0; export function run() { const actual = ++n === 1 ? new Set([1])'
+      + ' : { entries: [1], properties: {} }; return { checks: [{ label: "brand", pass: true, actual }] }; }');
+    await rejects(rawChecks(mutating, { repeat: true }), /not deterministic: 'brand' gave/);
+    await writeFile(mutating, 'const actual = { toJSON() { if (this !== actual) throw Error("projected twice"); return this; } };'
+      + ' export function run() { return { checks: [{ label: "projection", pass: true, actual }] }; }');
+    deepEqual(await rawChecks(mutating, { repeat: true }), [{ label: 'projection', pass: true, failure: null }]);
+    const graphFixture = 'let n = 0; export function run() { let node = { value: LEAF };'
+      + ' for (let i = 0; i < 28; i++) node = { left: node, right: node };'
+      + ' return { checks: [{ label: "graph", pass: true, expected: node }] }; }';
+    await writeFile(mutating, graphFixture.replace('LEAF', '1'));
+    deepEqual(await rawChecks(mutating, { repeat: true, timeout: 5000 }), [{ label: 'graph', pass: true, failure: null }]);
+    await writeFile(mutating, graphFixture.replace('LEAF', '++n'));
+    await rejects(rawChecks(mutating, { repeat: true, timeout: 5000 }), /'graph' expected .*1 on the first run and .*2 on the second/);
+    const projectedFixture = graphFixture.replace('node = { left: node, right: node }',
+      'node = { next: node, toJSON() { return { left: this.next, right: this.next }; } }');
+    await writeFile(mutating, projectedFixture.replace('LEAF', '1'));
+    deepEqual(await rawChecks(mutating, { repeat: true, timeout: 5000 }), [{ label: 'graph', pass: true, failure: null }]);
+    await writeFile(mutating, projectedFixture.replace('LEAF', '++n'));
+    await rejects(rawChecks(mutating, { repeat: true, timeout: 5000 }), /'graph' expected .*1 on the first run and .*2 on the second/);
+    const changedKey = graphFixture.replace('LEAF', '1').replace('expected: node', 'expected: { node, [++n === 1 ? "before" : "after"]: 0 }');
+    await writeFile(mutating, changedKey);
+    await rejects(rawChecks(mutating, { repeat: true, timeout: 5000 }), /expected at \\[before\\] 0 on the first run and at \\[before\\] <missing>/);
     await writeFile(mutating, 'let pass = false; export function run() { pass = !pass; return { checks: [{ label: "ok", pass, actual: 1 }] }; }');
     await rejects(rawChecks(mutating, { repeat: true }), /pass changed from true to false/);
+    await writeFile(mutating, 'let n = 0; export function run() { return { checks: [{ label: "row", actual: 0, expected: ++n, pass: false }] }; }');
+    await rejects(rawChecks(mutating, { repeat: true }), /'row' expected 1 on the first run and 2 on the second/);
     await writeFile(stalled, 'export function run() { for (;;) {} }');
     await rejects(rawChecks(stalled, { timeout: 500 }), /stalled\\.mjs run\\(\\) did not finish within 500ms/);
     const twice = join(scratch, 'twice.mjs');

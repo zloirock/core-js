@@ -8,6 +8,7 @@ import { pathToFileURL } from 'node:url';
 import { runInNewContext } from 'node:vm';
 import unplugin from '../../packages/core-js-unplugin/index.js';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
+import { withCleanup } from './runtime.mjs';
 import { runInWorker } from '../transpiler-differential/realm-runner.mjs';
 
 const root = resolvePath(import.meta.dirname, '../..');
@@ -27,21 +28,17 @@ function onlyEsbuildRequireErrors(error) {
 }
 
 async function compileWebpack(compiler) {
-  try {
-    return await new Promise((resolve, reject) => compiler.run((error, stats) => {
-      if (error) reject(error);
-      else if (stats.hasErrors()) reject(new Error(stats.toString({ all: false, errors: true })));
-      else resolve(stats);
-    }));
-  } finally {
-    await new Promise((resolve, reject) => compiler.close(error => error ? reject(error) : resolve()));
-  }
+  return withCleanup(() => new Promise((resolve, reject) => compiler.run((error, stats) => {
+    if (error) reject(error);
+    else if (stats.hasErrors()) reject(new Error(stats.toString({ all: false, errors: true })));
+    else resolve(stats);
+  })), () => new Promise((resolve, reject) => compiler.close(error => error ? reject(error) : resolve())));
 }
 
 export async function assetExternals(run) {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'core-js-asset-externals-')));
-  await symlink(join(root, 'node_modules'), join(dir, 'node_modules'), 'dir');
-  try {
+  await withCleanup(async () => {
+    await symlink(join(root, 'node_modules'), join(dir, 'node_modules'), 'dir');
     const esbuild = await import('esbuild');
     const rolldown = await import('rolldown');
     const vite = await import('vite');
@@ -215,11 +212,7 @@ export async function assetExternals(run) {
                   input: join(dir, 'entry.mjs'), external: id => external.test(id),
                   platform: compatible ? 'node' : 'neutral', plugins: [unplugin.rolldown(options(method))],
                 });
-                try {
-                  return await bundle.write({ file, format: 'es' });
-                } finally {
-                  await bundle.close();
-                }
+                return withCleanup(() => bundle.write({ file, format: 'es' }), () => bundle.close());
               }
               if (host === 'vite') return vite.build({
                 root: dir, configFile: false, logLevel: 'silent', plugins: [unplugin.vite(options(method))],
@@ -303,7 +296,5 @@ export async function assetExternals(run) {
         assert.ok(text.every(contents => !contents.includes(pathToFileURL(input).href)), 'no build-machine URL leaks into the bundle');
       });
     }
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
+  }, () => rm(dir, { recursive: true, force: true }));
 }

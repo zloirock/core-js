@@ -38,7 +38,6 @@ core-js/modules/es.object.assign
 core-js/modules/es.object.freeze
 core-js/modules/es.object.get-own-property-names
 core-js/modules/es.object.get-prototype-of
-core-js/modules/es.object.has-own
 core-js/modules/es.object.is-frozen
 core-js/modules/es.object.keys
 core-js/modules/es.object.set-prototype-of
