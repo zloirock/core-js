@@ -839,7 +839,7 @@
   - Added `'intersect'` support for `targets.esmodules` (Babel 7 behavior)
   - Fixed handling of `targets.esmodules: true` (Babel 7 behavior)
 - Compat data improvements:
-  - [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) features disabled (again) in V8 ~ Chromium 135 and re-added in 136
+  - Raised the Chromium threshold for `DisposableStack`, `SuppressedError` and `Iterator.prototype[@@dispose]` from 134 to 136 because some 135 builds disabled [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management)
   - [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) marked as [shipped from V8 ~ Chromium 136](https://issues.chromium.org/issues/353856236#comment17)
   - [`Error.isError`](https://github.com/tc39/proposal-is-error) marked as [shipped from FF138](https://bugzilla.mozilla.org/show_bug.cgi?id=1952249)
   - [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) features re-enabled in [Deno 2.2.10](https://github.com/denoland/deno/releases/tag/v2.2.10)

@@ -208,8 +208,7 @@ export const data = {
     // https://github.com/oven-sh/bun/issues/9282
     // https://github.com/oven-sh/bun/issues/9283
     bun: '1.2.15', // '1.0.23',
-    // reverted in https://issues.chromium.org/issues/42203506#comment25
-    // disabled again in 135 and re-enabled in 136
+    // Some Chromium 135 builds lacked this feature. See the rollout in `es.async-disposable-stack.constructor`.
     chrome: '136', // '134', // '133',
     deno: '2.2.10',
     // https://bugzilla.mozilla.org/show_bug.cgi?id=1971000
@@ -688,8 +687,7 @@ export const data = {
   },
   'es.disposable-stack.constructor': {
     bun: '1.3.0',
-    // reverted in https://issues.chromium.org/issues/42203506#comment25
-    // disabled again in 135 and re-enabled in 136
+    // Some Chromium 135 builds lacked this feature. See the rollout in `es.async-disposable-stack.constructor`.
     chrome: '136', // '134', // '133',
     deno: '2.2.10',
     firefox: '141',
@@ -763,8 +761,7 @@ export const data = {
   },
   'es.iterator.dispose': {
     bun: '1.3.0',
-    // reverted in https://issues.chromium.org/issues/42203506#comment25
-    // disabled again in 135 and re-enabled in 136
+    // Some Chromium 135 builds lacked this feature. See the rollout in `es.async-disposable-stack.constructor`.
     chrome: '136', // '134', // '133',
     deno: '2.2.10',
     firefox: '141',
