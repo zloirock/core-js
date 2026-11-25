@@ -3675,6 +3675,10 @@ function checkHasPureImport(label, src, packages, expected) {
 }
 checkHasPureImport('hasCoreJSImport/match',
   'import _ from "@core-js/pure/x";\nfoo();', ['@core-js/pure'], true);
+checkHasPureImport('hasCoreJSImport/grouped after a foreign import',
+  'var foreign = require("other"), pony = require("@core-js/pure/actual/array/from");', ['@core-js/pure'], true);
+checkHasPureImport('hasCoreJSImport/grouped assets and foreign modules',
+  'var image = require("@core-js/pure/actual/array/from?raw"), foreign = require("other");', ['@core-js/pure'], false);
 checkHasPureImport('hasCoreJSImport/exact-prefix not enough',
   'import _ from "@core-js/pure";\nfoo();', ['@core-js/pure'], false);
 checkHasPureImport('hasCoreJSImport/no imports', 'foo();', ['@core-js/pure'], false);
@@ -5871,9 +5875,8 @@ await checkRefusedAliasRawPassIdempotent();
 
 // usage-global indirect-require removal BODY: the fixture comparator for usage-global is
 // imports-only, so the extracted SE-prefix statements are never text-validated there - pin
-// them here. each removed `(se, require)('core-js/...')` leaves exactly its prefix as a
-// bare statement in source order (incl. the optional-call and outer-comma shapes), the
-// require call itself is gone, and a polyfillable usage INSIDE a kept prefix stays visited
+// them here. Each indirect load leaves its prefix as a statement in source order. A late
+// load still runs immediately after that prefix, including when the loader is optional.
 function checkUsageGlobalIndirectRequirePrefixBody() {
   const plugin = createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 } });
   const source = [
@@ -5888,13 +5891,19 @@ function checkUsageGlobalIndirectRequirePrefixBody() {
     'Array.from([1]);',
   ].join('\n');
   const code = plugin.transform(source, '/indirect-require-prefix.js')?.code ?? '';
-  // the injected block is dropped in EITHER spelling: a body that spells `require` is CommonJS, so
-  // the emission is `require` too, and the question here is only what became of the USER's calls
-  const injected = /^(?:import "|require\(")core-js\/modules\//;
-  const body = code.split('\n').filter(line => !injected.test(line)).join('\n');
+  const load = /^(?:import "|require(?:\?\.)?\(")core-js\/modules\//;
+  const statements = code.slice(code.indexOf('let loads = 0;')).split('\n').filter(Boolean);
+  checkDeep('indirect-require body/each original load follows its own prefix',
+    statements.flatMap((line, i) => load.test(line) ? [[statements[i - 1], line]] : []), [
+      ['loads++;', 'require("core-js/modules/es.array.from");'],
+      ['arr.includes(1);', 'require("core-js/modules/es.array.includes");'],
+      ['opt++;', 'require?.("core-js/modules/es.array.from");'],
+      ['outer++;', 'require("core-js/modules/es.array.of");'],
+    ]);
+  const body = code.split('\n').filter(line => !load.test(line)).join('\n');
   check('indirect-require body/prefixes survive as statements in source order',
     /let loads = 0;\s*loads\+\+;\s*let arr = \[1\];\s*arr\.includes\(1\);\s*let opt = 0;\s*opt\+\+;\s*let outer = 0;\s*outer\+\+;\s*Array\.from\(\[1\]\);/.test(body), true);
-  check('indirect-require body/no require call survives', /require\s*\(/.test(body), false);
+  check('indirect-require body/no extra require call survives', /require\s*\(/.test(body), false);
   check('indirect-require body/kept-prefix usage stays visited', /es\.array\.includes/.test(code), true);
 }
 checkUsageGlobalIndirectRequirePrefixBody();

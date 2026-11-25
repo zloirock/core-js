@@ -190,6 +190,7 @@ import {
   synthSlotName,
   TS_EXPR_WRAPPERS,
   tsImportEqualsProxyName,
+  userRequireAt,
   tsImportEqualsRequireSource,
   unwrapExpressionChain,
   unwrapRuntimeExpr,
@@ -3606,10 +3607,15 @@ export function escapedCtorReferencesReducer({
       const object = unwrapRuntimeExpr(bare.object);
       if (object?.type !== 'Identifier') return null;
       const values = aliasedValues(aliasInit, object, new Set());
-      const entries = new Set(values.map(value => pureImportSourceEntry(pureImportSubpath(inlineInteropCallSource(value), packages))));
+      const entries = new Set(values.map(value => {
+        const source = inlineInteropCallSource(value, programNode);
+        return pureImportSourceEntry(pureImportSubpath(source, packages));
+      }));
       return values.length && entries.size === 1 && !entries.has(null) ? [...entries][0] : null;
     }
-    if (bare?.type !== 'Identifier') return pureImportSourceEntry(pureImportSubpath(requireCallSource(bare), packages));
+    if (bare?.type !== 'Identifier') {
+      return pureImportSourceEntry(pureImportSubpath(requireCallSource(bare, undefined, programNode), packages));
+    }
     // ... answered once per binding (`PURE_ENTRY_BY_BINDING`): every call through the name asks again, and what the
     // name holds grows with its writes. a name no declaration binds answers per occurrence
     const scopes = aliasReferenceScopes(aliasInit, bare);
@@ -3618,7 +3624,9 @@ export function escapedCtorReferencesReducer({
     if (key && byBinding?.has(key)) return byBinding.get(key);
     // the leaf an import local resolves to is itself; a require binding resolves to its call
     const entries = new Set(aliasedValues(aliasInit, bare, new Set()).map(leaf => {
-      if (leaf?.type !== 'Identifier') return pureImportSourceEntry(pureImportSubpath(requireCallSource(leaf), packages));
+      if (leaf?.type !== 'Identifier') {
+        return pureImportSourceEntry(pureImportSubpath(requireCallSource(leaf, undefined, programNode), packages));
+      }
       const leafScopes = aliasReferenceScopes(aliasInit, leaf) ?? referenceScopes.get(leaf) ?? [];
       const owner = declarations.resolve(leaf.name, leafScopes);
       return owner === programNode || owner === null ? pureImportEntryOfProgram(programNode, leaf.name, packages) : null;
@@ -7654,7 +7662,9 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
       // module lowering turns a proxy-entry import into a require (bare, or behind an interop
       // wrapper whose `.default` is the global) - the gate must name those bindings too
       const required = requiredSourceOfInit(value);
-      if (required && globalProxyNameFromImportSource(required, packages)) proxyGlobalBound.add(id.name);
+      if (required && globalProxyNameFromImportSource(required, packages) && !userRequireAt(value, programNode)) {
+        proxyGlobalBound.add(id.name);
+      }
       // an array literal is inert as DATA, but a container when a slot could hold a built-in: its
       // slots are index-keyed members the receiver walk descends, so a patch THROUGH one
       // (`box[0].from = shim`) has to reach the gate or the polyfill overrides the replacement.
@@ -8095,7 +8105,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
         if (node.id?.name) importBound.add(node.id.name);
         // the TS require-import twin of the case above; adapter-less reducer reads the
         // module-reference string directly
-        if (tsImportEqualsProxyName(node, null, packages)) {
+        if (tsImportEqualsProxyName(node, null, packages, programNode)) {
           valueBound.add(node.id.name);
           proxyGlobalBound.add(node.id.name);
         }

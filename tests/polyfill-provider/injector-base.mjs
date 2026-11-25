@@ -376,6 +376,18 @@ function makeInjector() {
   otherSource.pureImports = new Map(pre.pureImports);
   otherSource.registerUserPureImport('global-this', name);
   check('ownership/same name under a different source proves no prior ownership', otherSource.isOwnPassPureBinding(name), true);
+  for (const restriction of [{ initialized: { end: 31 } }, { reassigned: true }, { shadowedHome: { type: 'Program' } }]) {
+    const received = makeInjector();
+    const held = received.addPureImport('array/from', 'Array.from');
+    received.existingPureImports.set('usage-pure/array/from', held);
+    received.registerUserPureImport('array/from', held, restriction);
+    const [label] = Object.keys(restriction);
+    check(`ownership/${ label } source binding supersedes the earlier emit`, received.isOwnPassPureBinding(held), false);
+    check(`ownership/${ label } use without proof gets its own binding`, received.addPureImport('array/from', 'Array.from') === held, false);
+    if (restriction.reassigned || restriction.shadowedHome) {
+      check(`ownership/${ label } prior metadata cannot answer blind`, received.getPureImport(held), null);
+    }
+  }
   const memo = post.generateDeclaredRef();
   check('ownership/generated receiver memo is not a pure import', post.isOwnPassPureBinding(memo), false);
   check('ownership/generated receiver memo retains current-pass provenance', post.isOwnPassGeneratedName(memo), true);
@@ -425,6 +437,9 @@ function makeInjector() {
   injector.registerBodyExtractAlias('from', 'array/from',
     { kind: 'const', scope: { block: { type: 'FunctionDeclaration', start: 100, end: 200 } } });
   check('registry/user record serves inside its span', injector.getBindingInfo('from', 150)?.entry, 'array/from');
+  check('registry/user record includes the opening position', injector.getBindingInfo('from', 100)?.entry, 'array/from');
+  check('registry/user record excludes the closing position', injector.getBindingInfo('from', 200), null);
+  check('registry/alias existence excludes the closing position', injector.hasAliasName('from', 200), false);
   check('registry/user record declines outside its span', injector.getBindingInfo('from', 300), null);
   check('registry/user record declines a position-blind ask', injector.getBindingInfo('from', null), null);
   const minted = makeInjector();
@@ -448,6 +463,7 @@ function makeInjector() {
   check('registry/same-name aliases return to the outer span', injector.getBindingInfo('method', 400)?.entry, 'array/from');
   check('registry/same-name aliases select a later disjoint span', injector.getBindingInfo('method', 650)?.entry, 'map/group-by');
   check('registry/duplicate span registration keeps its first entry', injector.getBindingInfo('method', 650)?.entry, 'map/group-by');
+  check('registry/sibling record excludes the closing position', injector.getBindingInfo('method', 700), null);
   check('registry/same-name aliases decline outside every span', injector.getBindingInfo('method', 800), null);
   injector.registerBodyExtractAlias('method', 'weak-map/upsert', binding(600, 675));
   check('registry/registration after a lookup selects a narrower equal-start span',

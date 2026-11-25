@@ -114,19 +114,17 @@ export function bindingNamesReducer() {
   return { visit, result };
 }
 
-// top-level statement mapped to the core-js source string it imports, else null.
-// dispatches ESM `import` and CJS `require`/var-require shapes to their extractors
-function pureImportSource(node) {
+// A statement can load core-js through an ESM import, a bare require or any grouped declarator.
+function importsCoreJS(node, packages) {
+  function matches(source) {
+    return coreJSImportSubpath(source, packages) !== null;
+  }
   switch (node?.type) {
-    case 'ImportDeclaration': return node.source?.value?.toLowerCase() ?? null;
-    case 'ExpressionStatement': return requireCallSource(node.expression)?.toLowerCase() ?? null;
+    case 'ImportDeclaration': return matches(node.source?.value);
+    case 'ExpressionStatement': return matches(requireCallSource(node.expression));
     case 'VariableDeclaration':
-      for (const d of node.declarations) {
-        const src = requireCallSource(d.init);
-        if (src) return src.toLowerCase();
-      }
-      return null;
-    default: return null;
+      return node.declarations.some(declaration => matches(requireCallSource(declaration.init)));
+    default: return false;
   }
 }
 
@@ -144,12 +142,7 @@ function pureImportSource(node) {
 // no core-js import and isn't re-detected here; that path strands at most a missing side-effect
 // polyfill. Snapshot retention preserves that deferred work.
 export function hasCoreJSImport(ast, packages) {
-  for (const node of ast.body) {
-    const source = pureImportSource(node);
-    if (!source) continue;
-    if (coreJSImportSubpath(source, packages) !== null) return true;
-  }
-  return false;
+  return ast.body.some(node => importsCoreJS(node, packages));
 }
 
 // the bundlers this package supports: exactly the public entries (`<bundler>.js` / `.d.ts`, the

@@ -1,12 +1,13 @@
 import { traverse } from 'estree-toolkit';
+import { localEntryPrefix, renderLocalEntry } from '@core-js/polyfill-provider/detect-usage/entries';
 import {
-  extractIndirectRequireSEPrefix,
   peelSequenceTail,
   programPrologueEndIndex,
   unwrapRuntimeExpr,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { expressionStatement, renderInjectedImportNodes } from '@core-js/polyfill-provider/render';
+import { stampReplacementSpan } from './emit-shared.js';
 
 // Bind only removed entry statements carrying a comma prefix before body surgery. Plain entry
 // imports and direct requires need no scoped walk; decisions about observable reads stay shared.
@@ -21,7 +22,7 @@ export function extractEntrySideEffectPrefixes(program, removed, adapter, progra
   if (!candidates.size) return prefixes;
   function collect(path) {
     if (!candidates.has(path.node)) return;
-    prefixes.set(path.node, extractIndirectRequireSEPrefix(path.node, { scope: path.scope, adapter, path }));
+    prefixes.set(path.node, localEntryPrefix(path.node, { scope: path.scope, adapter, path }));
   }
   // The usage pre-pass still owns an intact tree here. All removed entries are body
   // statements, so their existing paths need neither another walk nor another scope crawl.
@@ -41,7 +42,7 @@ export function injectImportStatements({ program, modules, importStyle, pkg, abs
     globalModules: modules,
     pureEntries: [],
     importStyle,
-    resolve: subpath => resolveImportPath(pkg, subpath, absoluteImports),
+    resolve: subpath => resolveImportPath(pkg, subpath, absoluteImports, importStyle),
   }).map(entry => entry.node);
   program.body.splice(prologueEnd, 0, ...nodes);
 }
@@ -50,10 +51,14 @@ export function injectImportStatements({ program, modules, importStyle, pkg, abs
 // surgery - a removed entry vanishes (its observable indirect-require prefix survives as
 // standalone statements), a promotion-hazard slot becomes the `0;` terminator. seam ASI
 // needs no machinery here: the printer derives separators from structure
-export default function applyEntryProgram({ program, plan, modules, importStyle, pkg, absoluteImports, adapter, prepareScope }) {
+export default function applyEntryProgram({
+  program, plan, modules, importStyle, pkg, absoluteImports, adapter, prepareScope,
+}) {
   const removed = new Set(plan.toRemove);
   const nooped = new Set(plan.toReplaceWithNoop);
-  const prefixes = extractEntrySideEffectPrefixes(program, removed.union(nooped), adapter, null, prepareScope);
+  const local = plan.local ?? new Map();
+  const edits = removed.union(nooped).union(local);
+  const prefixes = extractEntrySideEffectPrefixes(program, edits, adapter, null, prepareScope);
   // the import anchor is computed on the ORIGINAL body: a removal can pull a
   // directive-shaped string up against the prologue, and an anchor computed on the rebuilt
   // body would slide past it - promoting it into a directive, exactly what the disposition
@@ -64,6 +69,16 @@ export default function applyEntryProgram({ program, plan, modules, importStyle,
   for (let idx = 0; idx < program.body.length; idx++) {
     if (idx === prologueEnd) body.push(anchor);
     const node = program.body[idx];
+    if (local.has(node)) {
+      const prefix = (prefixes.get(node) ?? []).map(expressionStatement);
+      const statements = [...prefix, ...renderLocalEntry(node, local.get(node), pkg, absoluteImports)];
+      const [first] = statements;
+      const last = statements.at(-1);
+      if (first !== last) stampReplacementSpan(first, { start: node.start, end: node.start });
+      stampReplacementSpan(last, node);
+      body.push(...statements);
+      continue;
+    }
     if (prefixes.get(node)?.length) {
       for (const element of prefixes.get(node)) body.push(expressionStatement(element));
       continue;
@@ -80,7 +95,7 @@ export default function applyEntryProgram({ program, plan, modules, importStyle,
     globalModules: modules,
     pureEntries: [],
     importStyle,
-    resolve: subpath => resolveImportPath(pkg, subpath, absoluteImports),
+    resolve: subpath => resolveImportPath(pkg, subpath, absoluteImports, importStyle),
   }).map(entry => entry.node);
   body.splice(anchorIndex, 1, ...nodes);
   program.body = body;

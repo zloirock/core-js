@@ -928,6 +928,7 @@ export function undefinableProxyRootValue(value, resolvePure, aliasCtx = null) {
     if (isMemberAccessNode(value)) {
       return proxyReceiverValueCanBeUndefined(value, resolvePure, aliasCtx, { observableRead: true });
     }
+    if (isCallShape(value) && value.optional && requireCallSource(value) !== null) return true;
     // a PROVEN inline call yields what its body navigates, and that is not the same as yielding a
     // DEFINED value: a body reaching the environment probe (`() => globalThis.window`) is undefined
     // off-window, so a `?.` over the call is load-bearing - erased, the collapse read the ponyfill
@@ -1336,14 +1337,14 @@ function isInteropDefaultCallee(callee, scope, adapter, path) {
   // no binding OBJECT: estree surfaces TSImportEquals only through the dedicated lookup
   if (!binding) {
     const tsNode = adapter.getTSImportEqualsNode?.({ scope, name: callee.name, path });
-    const tsSource = tsImportEqualsRequireSource(tsNode, adapter);
+    const tsSource = tsImportEqualsRequireSource(tsNode, adapter, path);
     return typeof tsSource === 'string' && INTEROP_HELPER_SOURCE.test(tsSource);
   }
   if (isReassignedBeyondDeclarator(binding)) return false;
   const source = binding.importSource
     ?? (binding.node?.type === 'VariableDeclarator'
       ? requireCallSource(binding.node.init, { adapter, scope: aliasDeclScope(binding, scope), path }) : null)
-    ?? tsImportEqualsRequireSource(binding.node, adapter);
+    ?? tsImportEqualsRequireSource(binding.node, adapter, path);
   return typeof source === 'string' && INTEROP_HELPER_SOURCE.test(source);
 }
 
@@ -1356,11 +1357,12 @@ function interopCallSource({ callNode, scope, adapter, path = null }) {
 
 // ... the same slot read by the helper's NAME convention alone: the half a census holding no
 // bindings can ask, for the interop wrapper module lowering leaves ahead of it
-export function inlineInteropCallSource(node) {
+export function inlineInteropCallSource(node, program) {
   const call = unwrapRuntimeExpr(node);
   if (call?.type !== 'CallExpression' || call.arguments?.length !== 1) return null;
   const callee = unwrapRuntimeExpr(call.callee);
-  return callee?.type === 'Identifier' && INTEROP_DEFAULT_CALLEE.test(callee.name) ? requireCallSource(call.arguments[0]) : null;
+  if (callee?.type !== 'Identifier' || !INTEROP_DEFAULT_CALLEE.test(callee.name)) return null;
+  return requireCallSource(call.arguments[0], undefined, program);
 }
 
 // The module source whose default value a node carries, through write-free aliases.
@@ -1556,7 +1558,7 @@ export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding 
   // surfaces the declaration node instead, mirroring the name-resolution canon's fallback
   if (!binding && adapter.getTSImportEqualsNode) {
     const tsImportNode = adapter.getTSImportEqualsNode({ scope, name: node.name, path });
-    const viaTsImport = tsImportNode && tsImportEqualsProxyName(tsImportNode, adapter, adapter.packages);
+    const viaTsImport = tsImportNode && tsImportEqualsProxyName(tsImportNode, adapter, adapter.packages, path);
     if (viaTsImport) return isPristineProxyGlobal(adapter, viaTsImport) ? viaTsImport : null;
   }
   // what a local binding HOLDS is the value canon's question, and the proxy surface is the only
@@ -1780,14 +1782,14 @@ function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usage
   // the TS require-import twin (`import g = require('.../global-this')`) binds the module
   // default the same way - babel's binding node IS the declaration
   if (bindingType === 'TSImportEqualsDeclaration') {
-    return tsImportEqualsProxyName(binding?.node, adapter, adapter.packages);
+    return tsImportEqualsProxyName(binding?.node, adapter, adapter.packages, path);
   }
   // estree-toolkit registers no binding for TSImportEquals at all - the adapter surfaces the
   // declaration node through a dedicated lookup instead (adapters with native bindings
   // resolve through the branch above and don't implement it)
   if (!bindingType && adapter.getTSImportEqualsNode) {
     const tsImportNode = adapter.getTSImportEqualsNode({ scope, name, path, read });
-    if (tsImportNode) return tsImportEqualsProxyName(tsImportNode, adapter, adapter.packages);
+    if (tsImportNode) return tsImportEqualsProxyName(tsImportNode, adapter, adapter.packages, path);
   }
   if (bindingType === 'VariableDeclarator') {
     return resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, path, usageNode, readNode });

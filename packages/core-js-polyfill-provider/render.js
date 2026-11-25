@@ -625,8 +625,9 @@ export function defaultImport(name, path) {
   };
 }
 
-export function bareRequire(path) {
-  return expressionStatement(callExpression(identifier('require'), [literal(path)]));
+export function bareRequire(path, optional = false) {
+  const call = callExpression(identifier('require'), [literal(path)], { optional });
+  return expressionStatement(optional ? chainExpression(call) : call);
 }
 
 export function varRequire(name, path) {

@@ -3,18 +3,34 @@
 // scans existing core-js imports in the file body so the resolver can dedup them against
 // plugin-injected ones
 import {
+  extractIndirectRequireSEPrefix,
+  peelSequenceTail,
   declaresRequireBinding,
   hostRequireCallLimit,
   tsImportEqualsRequireSource,
+  isTSRuntimeBindingDeclaration,
   unwrapExportedDeclaration,
   bindsModuleDefault,
   extractStaticString,
+  isAmbientTypeDeclaration,
+  isInitlessVarDecl,
+  isPlainModuleLoad,
+  isPrologueDirectiveStatement,
   isTypeOnlyImportKind,
+  performsNothing,
+  programPrologueEndIndex,
   pureImportSourceEntry,
   requireCallSource,
+  unwrapRuntimeExpr,
+  userRequireAt,
   unwrapTransparentSeq,
+  walkAstNodes,
+  walkPatternIdentifiers,
 } from '../helpers/ast-patterns.js';
-import { coreJSImportSubpath, matchEntrySubpath } from '../helpers/path-normalize.js';
+import { observablePrefixOperand } from './resolve.js';
+import { bareRequire, expressionStatement, identifier, logicalExpression, voidZero } from '../render.js';
+import { sortByPolyfillOrder } from '../plugin-options/inject.js';
+import { matchEntrySubpath, resolveImportPath } from '../helpers/path-normalize.js';
 
 export { matchEntrySubpath } from '../helpers/path-normalize.js';
 
@@ -22,10 +38,14 @@ export { matchEntrySubpath } from '../helpers/path-normalize.js';
 // covers both shapes: ImportExpression (`{type: 'ImportExpression', source}`) and the CallExpression
 // form some parsers emit (`{type: 'CallExpression', callee: {type: 'Import'}, arguments: [...]}`)
 function importExpressionSource(node, adapter, isDisabled) {
-  const inner = unwrapTransparentSeq(node);
-  if (!inner || isDisabled?.(inner)) return null;
+  let inner = unwrapRuntimeExpr(node);
+  while (inner?.type === 'SequenceExpression') {
+    if (inner.expressions.slice(0, -1).some(prefix => !performsNothing(prefix))) return null;
+    inner = unwrapRuntimeExpr(inner.expressions.at(-1));
+  }
+  if (!inner || !isPlainModuleLoad(inner) || isDisabled?.(inner)) return null;
   if (inner.type === 'ImportExpression') return isDisabled?.(inner.source) ? null : extractStaticString(inner.source, adapter);
-  if (inner.type === 'CallExpression' && inner.callee?.type === 'Import') {
+  if (inner.type === 'CallExpression' && inner.callee?.type === 'Import' && inner.arguments.length === 1) {
     const source = inner.arguments?.[0];
     return source && isDisabled?.(source) ? null : extractStaticString(source, adapter);
   }
@@ -54,7 +74,7 @@ export function getEntrySource(node, adapter, scope, isDisabled = null) {
   // import 'core-js/...' - but `import type {} from 'core-js/...'` (and Flow's `import typeof`)
   // erases before runtime, so it is NOT a runtime side-effect entry and must not expand
   if (node.type === 'ImportDeclaration' && node.specifiers?.length === 0
-    && !isTypeOnlyImportKind(node.importKind)) {
+    && isPlainModuleLoad(node) && !isTypeOnlyImportKind(node.importKind)) {
     return isDisabled?.(node.source) ? null : extractStaticString(node.source, adapter);
   }
   // TS `import X = require('core-js/...')` binds a value like `import X from` and `const X =
@@ -74,8 +94,89 @@ export function getEntrySource(node, adapter, scope, isDisabled = null) {
   // promise (unhandled rejection risk). `import(...).then(cb)` is also ignored - the user
   // explicitly opted into async runtime loading, so replacing the dynamic import with static
   // side-effect imports would erase that async shape; see fixture `audit-dynamic-import-then-skip`
-  if (expr?.type === 'AwaitExpression') return importExpressionSource(expr.argument, adapter, isDisabled);
+  if (expr?.type === 'AwaitExpression' && !localEntryPrefix(node).length) return importExpressionSource(expr.argument, adapter, isDisabled);
   return null;
+}
+
+// A direct require can join the generated prologue only while all earlier statements
+// are hoisted module declarations, directives or other loads in that same batch.
+function leadingEntryEnd(program, adapter, owns, isDisabled) {
+  const body = program.body ?? [];
+  let end = programPrologueEndIndex(body);
+  for (; end < body.length; end++) {
+    const node = body[end];
+    const declaration = unwrapExportedDeclaration(node);
+    if (node.type === 'ImportDeclaration' || (node.source && node.type.startsWith('Export'))
+      || declaration?.type === 'FunctionDeclaration' || isInitlessVarDecl(declaration) || isAmbientTypeDeclaration(declaration)
+      || (declaration?.type === 'TSModuleDeclaration' && !isTSRuntimeBindingDeclaration(declaration))) continue;
+    if (node.type !== 'ExpressionStatement' || isDisabled?.(node)) break;
+    const source = requireCallSource(node.expression, { adapter });
+    if (source === null || !owns(source) || entryCall(node).optional || localEntryPrefix(node).length) break;
+  }
+  return end;
+}
+
+// Both adapters expand the same statements and preserve synchronous loads past the same barrier.
+export function scanEntryLoads(program, { adapter, getCoreJSEntry, isDisabled }, visit) {
+  const end = leadingEntryEnd(program, adapter, source => getCoreJSEntry(source) !== null, isDisabled);
+  const limit = declaresRequireBinding(program) ? hostRequireCallLimit(program) : Infinity;
+  // A Babel visitor can insert additional module calls at the current statement.
+  for (const [index, node] of program.body.slice().entries()) {
+    if (!mayBeEntryStatement(node)) continue;
+    const source = getEntrySource(node, adapter, index >= limit ? REQUIRE_SHADOWED_SCOPE : null, isDisabled);
+    if (source === null) continue;
+    const entry = getCoreJSEntry(source);
+    if (entry === null) continue;
+    const local = index >= end && requireCallSource(node.expression, { adapter }) !== null;
+    if (!local || !userRequireAt(node, program)) visit({
+      source, entry, index, node, local, optional: local && !!entryCall(node).optional,
+    });
+  }
+}
+
+// Keep the observable operands in execution order. The initial scan has no scope yet.
+export function localEntryPrefix(node, ctx = null) {
+  return extractIndirectRequireSEPrefix(node, ctx, ctx ? observablePrefixOperand : expression => !performsNothing(expression));
+}
+
+// The call evaluated by a standalone entry or binding initializer, after transparent wrappers and comma prefixes.
+export function entryCall(node) {
+  return peelSequenceTail(unwrapRuntimeExpr(node.expression ?? node.init), { step: unwrapRuntimeExpr });
+}
+
+// Replace a synchronous entry at its original execution point, including its optional loader lookup.
+export function renderLocalEntry(node, modules, pkg, absoluteImports) {
+  const optional = !!entryCall(node).optional;
+  const ordered = sortByPolyfillOrder(modules);
+  // Even a filtered optional call reads its loader. A bare require would create a webpack context.
+  if (optional && !ordered.length) return [expressionStatement(logicalExpression('&&', identifier('require'), voidZero()))];
+  return ordered.map(name => bareRequire(resolveImportPath(pkg, `modules/${ name }`, absoluteImports, 'require'), optional));
+}
+
+// A reused spelling is emitted at other source positions. Reserve a fresh import if a
+// parameter, catch binding or local declaration can hide that spelling in this program.
+function repeatedBindingNames(program) {
+  const seen = new Set();
+  const repeated = new Set();
+  function add(id) {
+    if (seen.has(id.name)) repeated.add(id.name);
+    else seen.add(id.name);
+  }
+  walkAstNodes({ root: program, visit(node) {
+    if (node.id) walkPatternIdentifiers(node.id, add);
+    if (node.local && node.type.startsWith('Import')) add(node.local);
+    if (node.type === 'CatchClause') walkPatternIdentifiers(node.param, add);
+    for (const param of node.params ?? []) walkPatternIdentifiers(param.parameter ?? param, add);
+  } });
+  return repeated;
+}
+
+// The prefix runs immediately before this call, including when it is an optional call.
+export function entryRequireTail(node) {
+  const call = entryCall(node);
+  const callee = peelSequenceTail(unwrapRuntimeExpr(call.callee), { step: unwrapRuntimeExpr });
+  const expression = { type: call.type, callee, arguments: call.arguments, optional: call.optional };
+  return call.type === 'CallExpression' && call.optional ? { type: 'ChainExpression', expression } : expression;
 }
 
 function defaultSpecifierNames(node) {
@@ -108,8 +209,11 @@ export function scanExistingCoreJSImports(ast, {
   packages,
   pkg,
   mode,
+  importStyle,
+  previousImports = null,
   adapter,
   onGlobalImport,
+  onLocalRequire,
   onPureImport,
   isDisabled = null,
 }) {
@@ -117,12 +221,26 @@ export function scanExistingCoreJSImports(ast, {
   // still matches the user's source literal when they typed the lowercase canonical form
   const mainPkgs = pkg ? [pkg.toLowerCase()] : null;
   // All flavors carry type facts; the source flavor remains part of the dedup key.
-  function registerPureSource(source, name) {
-    const match = coreJSImportSubpath(source, mainPkgs) && matchEntrySubpath(source, mainPkgs, '');
-    const entry = pureImportSourceEntry(match?.entry);
-    const flavor = match?.entry.split('/', 1)[0];
-    if (entry && match.entry === `${ flavor }/${ entry }`) onPureImport(entry, name, flavor);
+  let repeated;
+  // An ESM dependency can call a hoisted export before any require initializer runs.
+  let requireBindingsReady = importStyle !== 'import';
+  function registerPureSource(source, name, requireNode = null) {
+    const previous = previousImports?.get(name);
+    const subpath = previous?.resolved === source && importStyle === (requireNode ? 'require' : 'import')
+      ? previous.source : matchEntrySubpath(source, mainPkgs, '', !requireNode, importStyle)?.entry;
+    const entry = pureImportSourceEntry(subpath);
+    const flavor = subpath?.split('/', 1)[0];
+    if (entry && subpath === `${ flavor }/${ entry }`) {
+      if (requireNode && userRequireAt(requireNode, ast)) return false;
+      // A skipped load cannot supply a polyfill for an independent use.
+      if (requireNode?.init && entryCall(requireNode)?.optional) return false;
+      repeated ??= repeatedBindingNames(ast);
+      onPureImport(entry, name, flavor, requireBindingsReady ? null : requireNode, repeated.has(name) ? ast : null);
+      return true;
+    }
+    return false;
   }
+  const end = leadingEntryEnd(ast, adapter, source => !!matchEntrySubpath(source, packages, 'modules/', false, importStyle), isDisabled);
   const requireShadowed = declaresRequireBinding(ast);
   // ... and the shadow is POSITIONAL wherever the host's own loader is what the name starts out
   // holding: inside the leading region an injection writes into, a `require('core-js/...')` is a
@@ -136,7 +254,14 @@ export function scanExistingCoreJSImports(ast, {
     // dedup target nor removed and re-emitted, so it stays exactly where the author wrote it. the
     // cost is deliberate - unknown to the injector, the module may be imported a second time beside
     // it, and that is the reading the file-level `core-js-disable-file` has always had
-    if (isDisabled?.(node)) continue;
+    const declaration = unwrapExportedDeclaration(node);
+    if (declaration?.type !== 'VariableDeclaration' && declaration?.type !== 'TSImportEqualsDeclaration'
+      && node.type !== 'ImportDeclaration' && !isPrologueDirectiveStatement(node)
+      && !(node.type.startsWith('Export') && node.source)) requireBindingsReady = false;
+    if (isDisabled?.(node)) {
+      requireBindingsReady = false;
+      continue;
+    }
     if (node.type === 'ImportDeclaration' && node.specifiers?.length) {
       if (!onPureImport || !mainPkgs || !mode) continue;
       // two shapes of type-only imports: `import type X from '...'` (Flow `import typeof X`) sets
@@ -146,7 +271,7 @@ export function scanExistingCoreJSImports(ast, {
       // (TS / Flow stripping), so dedup'ing against their names would route runtime calls through an
       // undefined binding. exportKind never lives on ImportDeclaration (it's an Export*Declaration
       // field) - only importKind is relevant here
-      if (isTypeOnlyImportKind(node.importKind)) continue;
+      if (!isPlainModuleLoad(node) || isTypeOnlyImportKind(node.importKind)) continue;
       const source = adapter.getStringValue(node.source);
       if (typeof source !== 'string') continue;
       const names = defaultSpecifierNames(node);
@@ -159,10 +284,9 @@ export function scanExistingCoreJSImports(ast, {
     // duplicate import. a binding import like `import X from` - exported or not, since neither the
     // wrapper nor the modifier changes the binding - and so never a global side-effect entry: a
     // non-pure one is left where the author wrote it, its binding intact
-    const declaration = unwrapExportedDeclaration(node);
     if (declaration?.type === 'TSImportEqualsDeclaration') {
-      const required = onPureImport && mainPkgs && mode ? tsImportEqualsRequireSource(declaration, adapter) : null;
-      if (typeof required === 'string') registerPureSource(required, declaration.id.name);
+      const required = onPureImport && mainPkgs && mode && !shadowScope ? tsImportEqualsRequireSource(declaration, adapter) : null;
+      if (typeof required === 'string' && !registerPureSource(required, declaration.id.name, declaration)) requireBindingsReady = false;
       continue;
     }
     // `var X = require('<pkg>/<mode>/...')` - the require import style emits this for pure
@@ -171,21 +295,28 @@ export function scanExistingCoreJSImports(ast, {
     // var is never a global side-effect entry (those are bare ExpressionStatements), so this
     // branch always `continue`s
     if (declaration?.type === 'VariableDeclaration') {
-      if (onPureImport && mainPkgs && mode) {
-        for (const decl of declaration.declarations ?? []) {
-          if (decl.id?.type !== 'Identifier') continue;
-          const required = requireCallSource(decl.init, { adapter, scope: shadowScope });
-          if (required === null) continue;
-          registerPureSource(required, decl.id.name);
+      if (!onPureImport || !mainPkgs || !mode) continue;
+      for (const decl of declaration.declarations ?? []) {
+        const required = requireCallSource(decl.init, { adapter, scope: shadowScope });
+        if (required === null) {
+          if (decl.init) requireBindingsReady = false;
+        } else {
+          // A prefix can call back into this module before the binding is initialized.
+          if (requireBindingsReady && localEntryPrefix(decl).length) requireBindingsReady = false;
+          if (decl.id?.type !== 'Identifier' || !registerPureSource(required, decl.id.name, decl)) requireBindingsReady = false;
         }
       }
       continue;
     }
     const source = getEntrySource(node, adapter, shadowScope, isDisabled);
     if (typeof source !== 'string') continue;
-    const mod = matchEntrySubpath(source, packages, 'modules/');
+    const localRequire = requireCallSource(node.expression, { adapter }) !== null;
+    const mod = matchEntrySubpath(source, packages, 'modules/', !localRequire, importStyle);
     // the PACKAGE travels with the module: this import is removed and re-emitted, and a user's
     // global polyfill re-emitted under the plugin's own (pure) package stops polyfilling anything
-    if (mod) onGlobalImport?.(mod.entry, node, mod.pkg);
+    if (!mod) continue;
+    if (position >= end && localRequire) {
+      if (onLocalRequire && localEntryPrefix(node).length && !userRequireAt(node, ast)) onLocalRequire(node);
+    } else onGlobalImport?.(mod.entry, node, mod.pkg);
   }
 }

@@ -285,15 +285,24 @@ const CHANNELS = [
 // only the array module while a widened one pulls the string one too. the channels live in the
 // provider, ahead of either emitter, so a flavor answering differently is itself the finding
 const FLAVORS = [
-  ['usage-pure', out => /array\/instance\/at/.test(out) ? 'local' : /instance\/at/.test(out) ? 'escapes' : 'no-polyfill'],
-  ['usage-global', out => /es\.array\.at/.test(out) ? (/es\.string\.at/.test(out) ? 'escapes' : 'local') : 'no-polyfill'],
+  ['usage-pure', ['@core-js/pure/actual/array/instance/at', '@core-js/pure/actual/instance/at', '@core-js/pure/actual/string/instance/at'],
+    ['no-polyfill', 'local', 'escapes']],
+  ['usage-global', ['core-js/modules/es.array.at', 'core-js/modules/es.string.at'], ['no-polyfill', 'local', null, 'escapes']],
 ];
+
+function readFamily(code, paths, verdicts) {
+  const modules = new Set(Array.from(code.matchAll(/["'](?<source>[^"']+)["']/g), match => match.groups.source));
+  const mask = paths.reduce((bits, path, index) => bits + (modules.has(path) ? 2 ** index : 0), 0);
+  return verdicts[mask] ?? 'unexpected family';
+}
 
 // the channels are decided in the provider, ahead of BOTH emitters and BOTH parsers. two of them
 // were found by a parser divergence rather than by reading the code - estree and babel disagree on
 // where a method's function sits and on whether a traversal visits its root - so each channel is
 // asked of both, and a disagreement is itself the finding
-for (const [method, read] of FLAVORS) {
+for (const [method, paths, verdicts] of FLAVORS) {
+  function read(code) { return readFamily(code, paths, verdicts); }
+  check(`${ method }/string-only discriminator`, read(`import '${ paths.at(-1) }'`), 'unexpected family');
   for (const [label, code, expected] of CHANNELS) {
     const { code: out } = await transformAsync(code, {
       configFile: false,

@@ -60,7 +60,6 @@ export default class ImportInjector extends ImportInjectorState {
     for (const [k, v] of snap.pure ?? EMPTY_MAP) this.pureImports.set(k, v);
     for (const n of snap.usedNames ?? EMPTY_ARR) this.usedNames.add(n);
     this.rehydrateUnusedSentinelNames(snap.unusedNames);
-    for (const [k, v] of snap.existingPure ?? EMPTY_MAP) this.existingPureImports.set(k, v);
     this.rehydrateSuffixState(snap.suffixState);
     this.rehydrateImportInfoByName(snap.importInfoByName);
     this.rehydrateReassignedBindings(snap.reassignedBindings);
@@ -77,15 +76,23 @@ export default class ImportInjector extends ImportInjectorState {
   // post resolves minted global aliases by their printed names, so stale allocation
   // spellings would transfer a constructor hint to a different receiver.
   snapshot() {
+    // Post rediscovers the author's bindings in the source it actually receives.
+    const importInfoByName = this.captureImportInfoByName(this.pureImports.values());
+    // A conditional export can resolve actual/array/from to an unrelated filename.
+    // Post can recognize the printed binding by checking the exact load it inherited.
+    if (this.absoluteImports) for (const [source, name] of this.pureImports) {
+      const info = importInfoByName.get(name);
+      if (info) info.resolved = resolveImportPath(this.pkg, source, true, this.importStyle);
+    }
     return {
+      importStyle: this.importStyle,
       globals: new Set(this.globalImports),
       globalPkgs: new Map(this.globalImportPackages),
       pure: new Map(this.pureImports),
       usedNames: new Set(this.usedNames),
       unusedNames: this.captureUnusedSentinelNames(),
-      existingPure: new Map(this.existingPureImports),
       suffixState: this.captureSuffixState(),
-      importInfoByName: this.captureImportInfoByName(),
+      importInfoByName,
       reassignedBindings: this.captureReassignedBindings(),
       globalAliases: this.captureGlobalAliases(),
     };
@@ -244,7 +251,7 @@ function dropOrphanedMemoDeclarations(program, census,
 // pure imports render behind the prologue and each ref declaration lands at its host's head
 export function flushIntoProgram({ injector, program, refNames = [], renameOnly = [], refOrder = [], memoReuseContext = null }) {
   function resolve(subpath, pkg) {
-    return resolveImportPath(pkg ?? injector.pkg, subpath, injector.absoluteImports);
+    return resolveImportPath(pkg ?? injector.pkg, subpath, injector.absoluteImports, injector.importStyle);
   }
   // `renameOnly` names carry no declaration of their own (a pattern sentinel), but they belong
   // to the same minted family and must renumber with it - a dropped one would strand its slot

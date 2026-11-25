@@ -291,7 +291,11 @@ export function extractStaticString(node, adapter) {
   // resolves a side-effect-free SE tail (`require((0, 'core-js/...'))`) to its literal on BOTH
   // parsers via the shared paren-unwrap, and a side-effecting prefix bails on both - detection
   // stays parser-symmetric without peeling SE at this layer
-  const inner = unwrapRuntimeExpr(node);
+  let inner = unwrapRuntimeExpr(node);
+  while (inner?.type === 'SequenceExpression') {
+    if (inner.expressions.slice(0, -1).some(prefix => !performsNothing(prefix))) return null;
+    inner = unwrapRuntimeExpr(inner.expressions.at(-1));
+  }
   if (inner?.type === 'TemplateLiteral') return singleQuasiString(inner);
   // adapter-less callers (the node-level census gates, which have no scope machinery) still get the
   // plain-literal answer - the adapter only adds const-folding on top
@@ -309,11 +313,10 @@ export function extractStaticString(node, adapter) {
 // detection / existing-import scan (entries.js), the proxy-import recognition in
 // `detect-usage/resolve.js`, the import-binding table below and every binding's own
 // require-declarator test read through it
-export function requireCallSource(node, aliasCtx = {}) {
+export function requireCallSource(node, aliasCtx = {}, program = null) {
   const { adapter = null, scope = null, path = null } = aliasCtx;
   // `var P = require?.('x')` wraps the call in a ChainExpression (estree / oxc); peel transparent
-  // wrappers at the top so the type-gate sees the (Optional)CallExpression instead of rejecting it
-  // and re-emitting a duplicate import for an already-provided module
+  // wrappers so the source is known on the branch where the call actually runs
   node = unwrapTransparentSeq(node);
   if ((node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression')
     || node.arguments?.length !== 1) return null;
@@ -324,7 +327,8 @@ export function requireCallSource(node, aliasCtx = {}) {
   const callee = peelSequenceTail(unwrapTransparentSeq(node.callee), { step: unwrapTransparentSeq });
   if (callee?.type !== 'Identifier' || callee.name !== 'require') return null;
   if (scope && adapter?.hasBinding?.({ scope, name: 'require', path, read: callee })) return null;
-  return extractStaticString(node.arguments[0], adapter);
+  const source = extractStaticString(node.arguments[0], adapter);
+  return source !== null && (program || path) && userRequireAt(node, program ?? path) ? null : source;
 }
 
 // leading-import-region statement: ImportDeclaration, `export ... from 'mod'` re-export,
@@ -384,6 +388,17 @@ function wouldPromoteDirectiveAfterRemoval({
   return isBareStringStatement(body[next]);
 }
 
+// Usage flush locates its insertion point after removing user modules. Keep a terminator
+// if recomputing that position would turn the following string into a directive.
+export function removedPrologueTerminator(body, removed) {
+  let last = null;
+  for (const node of body) {
+    if (removed.has(node)) last = node;
+    else if (!isDirectiveStatement(node)) return isBareStringStatement(node) ? last : null;
+  }
+  return null;
+}
+
 // partition `candidateIndices` (ascending body indices) into removable nodes vs nodes left as
 // `0;`. right-to-left walk: each decision sees later candidates' fates already resolved -
 // a later `0;` blocks promotion for earlier ones (the `0;` is a non-directive surviving in
@@ -434,17 +449,17 @@ export function leavingAnswerStatements(body, candidateIndices) {
 // expected. returns an empty array when the shape doesn't match OR every prefix slot is
 // side-effect-free. Scoped callers pass the source statement's read context so an accessor
 // reached through a local binding is preserved as well as an in-place accessor or a call.
-export function extractIndirectRequireSEPrefix(stmtNode, ctx = null) {
+export function extractIndirectRequireSEPrefix(stmtNode, ctx = null, observe = mayHaveSideEffects) {
   // `getEntrySource` detects + REMOVES the whole statement as an entry, so every observable side
   // effect it discards must be recovered here. it reaches the require call through the same wrapper
   // set peeled below (TS as/!/<>/satisfies + paren + chain) AND through an outer SE-free comma
   // sequence (`unwrapParens` peels the tail of `0, (spy(), require)('core-js/...')` to the call).
   // descend that outer sequence the same way, collecting SE-ful prefix elements so `spy()` survives
   const prefix = [];
-  const expression = peelSequenceTail(unwrapRuntimeExpr(stmtNode?.expression), {
+  const expression = peelSequenceTail(unwrapRuntimeExpr(stmtNode?.expression ?? stmtNode?.init), {
     step: unwrapRuntimeExpr,
     onPrefix: expressions => {
-      for (const e of expressions.slice(0, -1)) if (mayHaveSideEffects(e, ctx)) prefix.push(e);
+      for (const e of expressions.slice(0, -1)) if (observe(e, ctx)) prefix.push(e);
     },
   });
   // babel models `(spy(), require)?.('core-js/...')` as an OptionalCallExpression; oxc wraps a
@@ -459,7 +474,7 @@ export function extractIndirectRequireSEPrefix(stmtNode, ctx = null) {
   peelSequenceTail(unwrapRuntimeExpr(expression.callee), {
     step: unwrapRuntimeExpr,
     onPrefix: expressions => {
-      for (const e of expressions.slice(0, -1)) if (mayHaveSideEffects(e, ctx)) prefix.push(e);
+      for (const e of expressions.slice(0, -1)) if (observe(e, ctx)) prefix.push(e);
     },
   });
   return prefix;
@@ -8853,7 +8868,8 @@ export function importBindingView(bindingNode, bindingParent, shadowCtx = null) 
   return {
     isImportBinding,
     isRequireBinding,
-    importSource: isImportBinding ? bindingParent?.source?.value ?? null : requireSource,
+    importSource: isImportBinding
+      ? bindingParent && isPlainModuleLoad(bindingParent) ? bindingParent.source?.value ?? null : null : requireSource,
     importKind: isImportBinding ? importBindingKind(bindingNode, bindingParent) : null,
   };
 }
@@ -11432,19 +11448,20 @@ export function importBindingIsTypeOnly(binding) {
 // `export import g = require('.../global-this')` still hosts the global for a mutation / interop
 // receiver, so it must not gate the source read (a non-proxy source is dropped downstream anyway)
 // adapter-less callers (the scope-less census reducer) read the literal value directly
-export function tsImportEqualsRequireSource(node, adapter) {
+export function tsImportEqualsRequireSource(node, adapter, origin = null) {
   if (node?.type !== 'TSImportEqualsDeclaration' || node.importKind === 'type'
     || node.id?.type !== 'Identifier' || node.moduleReference?.type !== 'TSExternalModuleReference') return null;
   const source = adapter ? adapter.getStringValue(node.moduleReference.expression) : node.moduleReference.expression?.value;
-  return typeof source === 'string' ? source : null;
+  return typeof source === 'string' && !userRequireAt(node, origin) ? source : null;
 }
 
 // `import g = require('<pkg>/<mode>/global-this')` - the TS require-import shape. tsc /
 // esbuild emit it for CJS interop; `scanExistingCoreJSImports` already recognizes it as a
 // pure import for dedup, so the resolution canon must see the same binding or the write
 // channel goes blind to a receiver the import scan trusts
-export function tsImportEqualsProxyName(node, adapter, packages = null) {
-  return globalProxyNameFromImportSource(tsImportEqualsRequireSource(node, adapter), packages);
+export function tsImportEqualsProxyName(node, adapter, packages = null, origin = null) {
+  const proxy = globalProxyNameFromImportSource(tsImportEqualsRequireSource(node, adapter), packages);
+  return proxy && userRequireAt(node, origin) ? null : proxy;
 }
 
 // the proxy-global name an import BINDING stands for, or null when it is not such an import.
@@ -11470,7 +11487,7 @@ export function importedGlobalProxyName(binding, packages, adapter = null) {
 // import style leaves for a later pass) folded to nothing and stayed a raw read
 export function boundModuleDefaultSource(binding, adapter = null) {
   const node = binding?.node;
-  if (node?.type === 'TSImportEqualsDeclaration') return tsImportEqualsRequireSource(node, adapter);
+  if (node?.type === 'TSImportEqualsDeclaration') return tsImportEqualsRequireSource(node, adapter, binding.declarationPath);
   if (node?.type === 'VariableDeclarator') {
     return binding.importSource && node.id?.type === 'Identifier' && !isReassignedBeyondDeclarator(binding)
       ? binding.importSource : null;
@@ -11709,7 +11726,7 @@ function tsModuleIsInstantiated(node) {
 //    type-only namespace is elided by tsc, so it is NOT a runtime shadow
 // excludes ambient forms (`declare enum/namespace`, `import type X = require()`) - those
 // have no runtime emission, references resolve to the global, polyfill should fire
-function isTSRuntimeBindingDeclaration(node) {
+export function isTSRuntimeBindingDeclaration(node) {
   if (!node?.id) return false;
   if (node.type === 'TSImportEqualsDeclaration') return !isTypeOnlyImportEquals(node);
   if (node.type === 'TSEnumDeclaration') return !node.declare;
@@ -12705,14 +12722,14 @@ export function defaultImportSourcesOf(root) {
     // TS `import x = require('...')` - the CJS-interop spelling tsc and esbuild emit; the same
     // binding question, through the canon that reads that form
     if (decl?.type === 'TSImportEqualsDeclaration') {
-      const source = tsImportEqualsRequireSource(decl);
+      const source = tsImportEqualsRequireSource(decl, null, root);
       if (source !== null && !sources.has(decl.id.name)) sources.set(decl.id.name, source);
       continue;
     }
     if (decl?.type !== 'VariableDeclaration' || requireShadowed) continue;
     for (const declarator of decl.declarations) {
       if (declarator.id?.type !== 'Identifier' || sources.has(declarator.id.name)) continue;
-      const source = requireCallSource(declarator.init);
+      const source = requireCallSource(declarator.init, undefined, root);
       if (source !== null) sources.set(declarator.id.name, source);
     }
   }
@@ -13513,6 +13530,10 @@ export function zeroArgIifeSideEffectFree(node, ctx = null) {
     onPrefix: expressions => expressions.slice(0, -1).every(expression => exprSideEffectFree(expression, ctx)),
   });
   if (callee?.type !== 'ArrowFunctionExpression' && callee?.type !== 'FunctionExpression') return false;
+  // Binding a pattern can call getters or iterators, throw, or run a default before the body.
+  if (callee.params?.some(param => param.type !== 'Identifier'
+    && !(param.type === 'RestElement' && param.argument.type === 'Identifier')
+    && !(param.type === 'AssignmentPattern' && param.left.type === 'Identifier' && performsNothing(param.right)))) return false;
   const { body } = callee;
   if (body?.type !== 'BlockStatement') return exprSideEffectFree(body, ctx);
   const stmts = body.body ?? [];
@@ -15034,6 +15055,53 @@ export function hostRequireCallLimit(program) {
   return limit;
 }
 
+// The census may ask before the format has been published. A fresh format record starts
+// a new transform, so earlier loader facts cannot survive a reparse or a change in strictness.
+const requireRebindStarts = new WeakMap();
+
+// Earliest position where a load may see a user binding; Infinity means the host loader remains available.
+function possibleRequireRebindStart(program) {
+  const format = PROGRAM_FORMAT.get(program);
+  const cached = requireRebindStarts.get(program);
+  // The pre-format scan uses strict scopes. Sloppy Annex B can add shadows, so a
+  // file with no possible host write in that scan stays free of writes in either mode.
+  if (cached && (cached.format === format || !cached.format && cached.start === Infinity)) {
+    cached.format = format;
+    return cached.start;
+  }
+  const limit = declaresRequireBinding(program) ? hostRequireCallLimit(program) : Infinity;
+  let first = limit ? program.body.at(limit)?.start ?? Infinity : -Infinity;
+  let writes;
+  if (first !== -Infinity) {
+    const sloppy = format?.sourceType === 'script' && !nodeHasUseStrict(program);
+    writes = buildScopeReassignmentIndex(program, sloppy).get('require');
+    for (const write of writes ?? []) {
+      // A nested writer can run through an earlier call.
+      if (nestedWriteOwners.has(write)) {
+        first = 0;
+        break;
+      }
+      first = Math.min(first, write.start ?? write.range?.[0] ?? 0);
+    }
+  }
+  requireRebindStarts.set(program, { format, start: first, writes });
+  return first;
+}
+
+// A source can identify a module only when its loader still comes from the host.
+export function userRequireAt(node, origin) {
+  if (!origin) return false;
+  const program = origin.node ? rootProgramOf(origin) : origin;
+  if (program?.type !== 'Program') return false;
+  const first = possibleRequireRebindStart(program);
+  if (first === Infinity) return false;
+  if (first < (node.end ?? node.range?.[1] ?? Infinity)) return true;
+  // A closure or another iteration can read a later write; an immediate call or a completed loop cannot.
+  const record = requireRebindStarts.get(program);
+  const read = origin.node === node ? origin : syntheticNodeAncestry(program, node, record.paths ??= new Map());
+  return !read || readRunsDeferredWithin(read, program) || usageCrossesLoopBackEdgeReassign(read, record.writes);
+}
+
 // a top-level declaration that binds `require` itself (`var require = require('m')` - import-like by
 // shape, and the statement where the name stops holding what the host passed in)
 function statementBindsRequireName(stmt) {
@@ -15108,7 +15176,7 @@ const DEFINE_PROPERTY_KEYS = new Set(['defineProperty', 'defineProperties']);
 function definePropertyOnExportsRootName(expression) {
   if (expression?.type !== 'CallExpression' && expression?.type !== 'OptionalCallExpression') return null;
   const callee = unwrapExpr(expression.callee);
-  const definer = DEFINE_PROPERTY_KEYS.has(callee?.property?.name ?? '')
+  const definer = isMemberAccessNode(callee) && DEFINE_PROPERTY_KEYS.has(memberKeyName(callee))
     && (isNamedIdent(unwrapExpr(callee.object), 'Object') || isNamedIdent(unwrapExpr(callee.object), 'Reflect'));
   if (!definer) return null;
   const first = expression.arguments?.[0];
@@ -15286,12 +15354,17 @@ function moduleExtensionGoal(id) {
   return language?.script ? 'script' : language?.esm ? 'module' : null;
 }
 
+// Only ordinary evaluation with no import attributes can be replaced by the standard entry.
+export function isPlainModuleLoad(node) {
+  return !node.phase && !node.attributes?.length && !node.assertions?.length && !node.options;
+}
+
 // the one ESM statement a pass of ours takes away: a BARE side-effect import whose specifier names a
 // core-js entry, which `entry-global` replaces with the modules it expands to. A binding import, any
 // export and `import.meta` outlive every method, so the format owner asks only about this shape -
 // and only a caller that actually removes them hands the test in
 export function isConsumedEntryImport(node, getCoreJSEntry, isDisabled = null) {
-  return node.type === 'ImportDeclaration' && !node.specifiers?.length
+  return node.type === 'ImportDeclaration' && !node.specifiers?.length && isPlainModuleLoad(node)
     && !isDisabled?.(node) && !isDisabled?.(node.source)
     && getCoreJSEntry(node.source?.value ?? '') !== null;
 }
@@ -15884,7 +15957,7 @@ function isDeferredFieldValueNode(node, childNode) {
 export function isDeferredContextStep(node, child) {
   if (!node) return false;
   if (FUNCTION_LIKE_NODE_TYPES.has(node.type)) {
-    return !(FUSED_METHOD_TYPES.has(node.type) && (child.key === 'key' || child.listKey === 'decorators'));
+    return !(FUSED_METHOD_TYPES.has(node.type) && definitionTimeSlotOf(node, child?.node));
   }
   return isDeferredFieldValueNode(node, child?.node);
 }

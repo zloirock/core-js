@@ -730,7 +730,7 @@ export default class ImportInjector extends ImportInjectorState {
   }
 
   #resolvePath(subpath, pkg = null) {
-    return resolveImportPath(pkg ?? this.pkg, subpath, this.absoluteImports);
+    return resolveImportPath(pkg ?? this.pkg, subpath, this.absoluteImports, this.importStyle);
   }
 
   #buildNodes() {

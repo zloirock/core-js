@@ -248,6 +248,7 @@ export default class ImportInjectorState {
   importStyle;
 
   globalImports = new Set();
+  localEntryModules;
   globalImportPackages = new Map();
   pureImports = new Map(); // `${mode}/${entry}` -> binding name
   existingPureImports = new Map();
@@ -262,6 +263,8 @@ export default class ImportInjectorState {
   // Symbol.X polyfills via source-path); `hint` is the global class name so
   // `resolveSuperImportName` can map `class C extends MyPromise` back to `Promise`
   #importInfoByName = new Map();
+  #latePureImports;
+  #importUse;
   // Per-primary-record index for user-named aliases. Same-name destructuring aliases are common
   // in generated bundles; scanning every preceding scope on both registration and lookup makes
   // that shape quadratic. The WeakMap is built lazily per primary record.
@@ -292,6 +295,10 @@ export default class ImportInjectorState {
     const existing = this.existingPureImports.get(source) ?? this.pureImports.get(source)
       ?? (NARROW_ENTRY.test(entry) ? this.pureImports.get(source.replace(NARROW_ENTRY, '')) : null);
     if (existing) return existing;
+    const late = this.#latePureImports?.get(source);
+    const use = this.#importUse;
+    if (late && use && (!late.end || use.node.start >= late.end && findNearestVarScopeOwner(use)?.node.type === 'Program')
+      && (!late.home || bindingHomeNode(use.scope?.getBinding?.(late.name)) === late.home)) return late.name;
     const name = this.uniqueName(`_${ hint.replaceAll('.', '$') }`);
     this.pureImports.set(source, name);
     // store `entry` alongside hint - downstream type resolution (`resolveCallReturnType`'s
@@ -315,14 +322,16 @@ export default class ImportInjectorState {
     return name;
   }
 
-  // what this injector emits, in the vocabulary of the debug report: the side-effect modules and,
-  // for the pure package, the entries behind its minted bindings - read once the host is done with
-  // the file, after every dedup and prune, so the report describes the emission rather than the
-  // requests that led to it. the entries drop the mode their sources carry, the spelling the
-  // user configures them in
+  recordLocalEntry(modules) {
+    const local = this.localEntryModules ??= new Set();
+    for (const module of modules) local.add(module);
+  }
+
+  // Report the modules emitted at their original loads as well as the generated prologue.
   emittedPolyfills() {
     const entries = this.pureImports.keys().map(source => source.slice(this.mode.length + 1)).toArray();
-    return [...this.globalImports, ...entries];
+    const globals = this.localEntryModules ? this.globalImports.union(this.localEntryModules) : this.globalImports;
+    return [...globals, ...entries];
   }
 
   // Rehydration and incremental registration apply the same span ordering to the index.
@@ -401,33 +410,60 @@ export default class ImportInjectorState {
     // AST scope spans are nested or disjoint. If the rightmost registered span contains this
     // forward traversal's use, no earlier span can be a narrower containing scope.
     const { latest } = this.#importSpanIndex(primary);
-    if (latest?.scopeSpan && latest.scopeSpan.start <= useStart && useStart <= latest.scopeSpan.end) return latest;
+    if (latest?.scopeSpan && latest.scopeSpan.start <= useStart && useStart < latest.scopeSpan.end) return latest;
     const candidates = [primary, ...primary.siblings ?? []];
     let best = null;
     for (const record of candidates) {
       const span = record.scopeSpan;
-      if (span && !(span.start <= useStart && useStart <= span.end)) continue;
+      // A shadowed source import has an exact home and no positional fallback.
+      if (!span && record.home || span && !(span.start <= useStart && useStart < span.end)) continue;
       const size = span ? span.end - span.start : Infinity;
       if (!best || size < (best.scopeSpan ? best.scopeSpan.end - best.scopeSpan.start : Infinity)) best = record;
     }
     return best;
   }
 
-  registerUserPureImport(entry, name, { reassigned = false, mode = this.mode } = {}) {
+  dispatchPureUsage(meta, path, visit) {
+    if (!this.#latePureImports) return visit(meta, path);
+    const previous = this.#importUse;
+    this.#importUse = path;
+    try {
+      return visit(meta, path);
+    } finally {
+      this.#importUse = previous;
+    }
+  }
+
+  // A declaration in the reparsed program supersedes the source/name pair carried by pre.
+  forgetPureImport(source, name) {
+    if (this.pureImports.get(source) === name) this.pureImports.delete(source);
+    if (this.existingPureImports.get(source) === name) this.existingPureImports.delete(source);
+    const prior = this.#importInfoByName.get(name);
+    if (prior?.source === source && !prior.userNamed) this.#importInfoByName.delete(name);
+  }
+
+  registerUserPureImport(entry, name, { reassigned = false, mode = this.mode, initialized = null, shadowedHome = null } = {}) {
     this.usedNames.add(name);
     // a REASSIGNED user binding (`var _from = require(...); _from = other;`) is poisoned:
     // deduping onto it would substitute a value that is no longer the polyfill, and an info
     // record would mislead the same narrowing - the name only reserves its spelling, and the
     // plugin mints its own import for the entry
-    if (reassigned) return;
     const source = `${ mode }/${ entry }`;
+    // Post reparsed this binding. Its current scope and initializer supersede the snapshot.
+    if (reassigned || initialized || shadowedHome) this.forgetPureImport(source, name);
+    if (reassigned) return;
     // first-write-wins on existingPureImports - keeps dedup target stable when one
     // declaration mixes `import Def, { default as Alt }`. without it last-write-wins
     // would pick the alias as dedup target, asymmetric with `#importInfoByName` (also
     // first-write-wins via `#recordImportInfo`). hint feeds `resolveSuperImportName`
     // for `import MyPromise from '@core-js/pure/actual/promise'` -> `statics.Promise.try`
-    if (!this.existingPureImports.has(source)) this.existingPureImports.set(source, name);
-    this.#recordImportInfo(name, entry, { mode });
+    if (initialized || shadowedHome) {
+      const end = initialized ? initialized.end ?? initialized.range?.[1] ?? Infinity : null;
+      (this.#latePureImports ??= new Map()).set(source, { name, end, home: shadowedHome });
+    } else if (!this.existingPureImports.has(source)) this.existingPureImports.set(source, name);
+    // This binding still names a known module. Only borrowing its spelling for a new
+    // use has to wait for the original initializer.
+    this.#recordImportInfo(name, entry, { mode, userNamed: !!shadowedHome, home: shadowedHome });
   }
 
   // body-extract emits `let <localName> = _<Constructor>$<method>;` shadowing a destructure
@@ -535,7 +571,9 @@ export default class ImportInjectorState {
   }
 
   getPureImport(name) {
-    return this.#importInfoByName.get(name) ?? null;
+    const info = this.#importInfoByName.get(name);
+    // A name shared with another binding is available only to an exact scope lookup.
+    return info?.home && !info.scopeSpan ? null : info ?? null;
   }
 
   // BLIND alias registrations, name-keyed: a plugin-minted `_ref` receiver memo (unique name,
@@ -668,7 +706,7 @@ export default class ImportInjectorState {
       // positional: a use belongs to an entry only when the entry's hosting scope contains it -
       // a sole entry from ANOTHER function must not serve an outside use
       const containing = list.filter(e => e.scopeSpan
-        && e.scopeSpan.start <= useStart && useStart <= e.scopeSpan.end);
+        && e.scopeSpan.start <= useStart && useStart < e.scopeSpan.end);
       if (containing.length === 1) [alias] = containing;
     } else if (list.length === 1) [alias] = list;
     if (!alias) return null;
@@ -703,7 +741,7 @@ export default class ImportInjectorState {
     const list = this.#aliasEntriesByName.get(name);
     if (!list?.length) return false;
     if (useStart === null) return true;
-    return list.some(e => e.scopeSpan && e.scopeSpan.start <= useStart && useStart <= e.scopeSpan.end);
+    return list.some(e => e.scopeSpan && e.scopeSpan.start <= useStart && useStart < e.scopeSpan.end);
   }
 
   // the BINDING view: exact per-binding lookup for use sites that resolved their binding
@@ -798,10 +836,14 @@ export default class ImportInjectorState {
   // into `#importInfoByName`. a USER-named record stays behind: it is bound to a scope of this
   // tree, which post reparses after other plugins rewrote it - its span would sit over unrelated
   // code there, and post resolves the alias through the declaration itself (`from = _Array$from`)
-  captureImportInfoByName() {
+  captureImportInfoByName(names = this.#importInfoByName.keys()) {
     // cloned, so post-phase writes never reach back into pre's capture
-    return new Map(this.#importInfoByName.entries().filter(([, info]) => !info.userNamed)
-      .map(([name, info]) => [name, { ...info }]));
+    const captured = new Map();
+    for (const name of names) {
+      const info = this.#importInfoByName.get(name);
+      if (info && !info.userNamed) captured.set(name, { ...info });
+    }
+    return captured;
   }
   rehydrateImportInfoByName(captured) {
     if (captured) for (const [name, info] of captured) this.#importInfoByName.set(name, info);

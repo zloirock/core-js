@@ -1,8 +1,5 @@
-require("core-js/modules/es.object.to-string");
-require("core-js/modules/es.array.from");
-require("core-js/modules/es.string.iterator");
-// Removing an indirect entry load preserves getter reads reached through a local binding.
-// Outer and nested callee prefixes keep their source order; quiet data reads disappear.
+// Both getters run in source order before the expanded load. After these reads,
+// the binding has already been observed, so a subsequent property read stays in place.
 const log = [];
 const box = {
   get first() {
@@ -17,4 +14,11 @@ const box = {
 };
 box.first;
 box.second;
+require("core-js/modules/es.object.to-string");
+require("core-js/modules/es.array.from");
+require("core-js/modules/es.string.iterator");
+box.quiet;
+require("core-js/modules/es.object.to-string");
+require("core-js/modules/es.array.from");
+require("core-js/modules/es.string.iterator");
 log;

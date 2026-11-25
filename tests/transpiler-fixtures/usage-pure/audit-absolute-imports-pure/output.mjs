@@ -1,4 +1,3 @@
 import _Array$from from "<CWD>/packages/core-js-pure/actual/array/from.js";
-// `absoluteImports: true` resolves the bare specifier to an absolute file:// path via
-// `import.meta.resolve` - keeps imports working when the bundler can't resolve bare specifiers
+// Resolve the ponyfill from the project's working directory and emit an absolute specifier.
 _Array$from(x);

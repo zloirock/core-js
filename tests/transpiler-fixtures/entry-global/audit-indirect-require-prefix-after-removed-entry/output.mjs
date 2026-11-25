@@ -1,10 +1,6 @@
 require("core-js/modules/es.object.to-string");
 require("core-js/modules/es.array.at");
-require("core-js/modules/es.array.flat");
 require("core-js/modules/es.array.from");
-require("core-js/modules/es.array.of");
-require("core-js/modules/es.array.species");
-require("core-js/modules/es.array.unscopables.flat");
 require("core-js/modules/es.string.iterator");
 // a removed entry sits right between a `;`-less statement and an indirect-require entry whose
 // kept prefix starts on `(`: the two rewrites share one seam, and the `;` that separates
@@ -13,5 +9,9 @@ require("core-js/modules/es.string.iterator");
 function spy() {}
 var x = obj;
 (0, spy)();
+require("core-js/modules/es.array.of");
 var y = obj;
 (0, spy)();
+require("core-js/modules/es.array.flat");
+require("core-js/modules/es.array.species");
+require("core-js/modules/es.array.unscopables.flat");

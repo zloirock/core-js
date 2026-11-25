@@ -119,6 +119,7 @@ import './wrapper-peels.mjs';
 import './detect-syntax.mjs';
 import './syntax-set-measurement.mjs';
 import './module-format.mjs';
+import './entry-loaders.mjs';
 import './detect-usage.mjs';
 import './helpers.mjs';
 import './plugin-options.mjs';

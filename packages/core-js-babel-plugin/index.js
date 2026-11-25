@@ -5,7 +5,6 @@ import {
   deleteHostAboveChain,
   claimIsInert,
   detectCommonJS,
-  extractIndirectRequireSEPrefix,
   isAssignOrForXWriteTargetPath,
   claimDeleteOperand as isDeleteOperand,
   isDeleteTarget,
@@ -34,6 +33,7 @@ import {
   peelNestedSequenceExpressions,
   valueIsDroppedAt,
   unwrapRuntimeExpr,
+  removedPrologueTerminator,
   resolveBatchDirectivePromotionPolicy,
   leavingAnswerStatements,
   foldedOperandNeedsValue,
@@ -160,7 +160,13 @@ import {
   planLogicalSlotPatch,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import { isPolyfillableOptional, mutatedStaticLandingVerdict } from '@core-js/polyfill-provider/detect-usage/annotations';
-import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
+import {
+  entryRequireTail,
+  localEntryPrefix,
+  renderLocalEntry,
+  scanEntryLoads,
+  scanExistingCoreJSImports,
+} from '@core-js/polyfill-provider/detect-usage/entries';
 import { hasOwnStaticDefinition, hasStaticDefinitions, NARROW_ENTRY } from '@core-js/polyfill-provider';
 import createASTHelpers, {
   deoptionalizeAstNode,
@@ -187,7 +193,6 @@ import {
   USAGE_VISITORS_RELEASE_HANDLED,
   USAGE_VISITORS_RESET,
 } from './internals/detect-usage.js';
-import runEntryDetection from './internals/detect-entry.js';
 import createDestructureEmitter from './internals/destructure-emitter.js';
 import createSynthSwapEmitter from './internals/synth-swap-emitter.js';
 
@@ -1724,10 +1729,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         }
       }
 
-      function entryGlobalCallback(source, path) {
-        if (isDisabled(path.node)) return;
-        const entry = getCoreJSEntry(source);
-        if (entry === null) return;
+      function entryGlobalCallback({ source, entry, local }, path) {
         // synthesized-by-sibling imports lack `loc`; skip to avoid double-processing an
         // entry another plugin pre-injected (same user-facing entry -> duplicate module
         // side-effects). surface the skip through debug so users understand why an entry
@@ -1746,7 +1748,16 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         // the entry-global pass hands us every specifier-less import; mark only actual
         // core-js entries so `import 'lodash'` doesn't mask "entry not found"
         debugOutput?.markEntryFound();
-        entryModulesInjected += injectModulesForEntry(entry);
+        if (local) {
+          const modules = getModulesForEntry(entry);
+          injector.recordLocalEntry(modules);
+          const loads = renderLocalEntry(path.node, modules, injector.pkg, injector.absoluteImports);
+          if (loads.length) {
+            const prefix = localEntryPrefix(path.node, { adapter, scope: path.scope, path });
+            path.replaceWithMultiple([...prefix.map(value => t.expressionStatement(value)), ...loads.map(node => estreeToBabel(node))]);
+            return;
+          }
+        } else entryModulesInjected += injectModulesForEntry(entry);
         // DEFER the remove / `0;`-promotion decision to the pass-2 batch (below): the directive-
         // promotion view must be the file's TOTAL injected count, not the incremental subset visible
         // when THIS entry is processed left-to-right. module injection only REGISTERS (the body is
@@ -1780,7 +1791,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
           // passes detection via the SequenceExpression tail peel, but raw removal drops `spy()`. the
           // emitted prefix statements already break the prologue, so no `0;` placeholder is needed; a
           // side-effect-free prefix (`(0, require)(...)`) yields none and drops as expected
-          const sePrefix = extractIndirectRequireSEPrefix(node, { scope: path.scope, adapter, path });
+          const sePrefix = localEntryPrefix(node, { scope: path.scope, adapter, path });
           if (sePrefix.length) {
             path.replaceWithMultiple(sePrefix.map(e => t.expressionStatement(e)));
           } else if (replaceSet.has(node)) {
@@ -1804,7 +1815,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
           if (lateEscapeProgram && sourceGlobalUses.get(path.node) !== use) refreshLateCtorEscapes();
           else if (!lateEscapeProgram) sourceGlobalUses.set(path.node, use);
         }
-        return isPure ? usagePureCallback(meta, path) : usageGlobalCallback(meta, path);
+        return isPure ? injector.dispatchPureUsage(meta, path, usagePureCallback) : usageGlobalCallback(meta, path);
       }
       const commonVisitorOptions = {
         adapter,
@@ -2111,7 +2122,9 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         // entry-global handles re-emit through its own entry scan.
         if (!skipFile && method !== 'entry-global') {
           const removed = new Set();
+          const local = new Set();
           scanExistingCoreJSImports(path.node, {
+            importStyle,
             packages,
             pkg,
             mode,
@@ -2119,14 +2132,15 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
             isDisabled,
             // the user's global import is REMOVED here and re-emitted through
             // `addGlobalImport`, so nothing may suppress it as already-present
+            onLocalRequire: node => local.add(node),
             onGlobalImport: (mod, node, modPkg) => {
               injector.addGlobalImport(mod, modPkg);
               removed.add(node);
             },
             // a user binding the file WRITES through is poisoned as a dedup target - the
             // canonical binding view also sees TS-wrapped writes missed by Babel's tracker
-            onPureImport: (entry, name, sourceMode) => injector.registerUserPureImport(entry, name, {
-              mode: sourceMode,
+            onPureImport: (entry, name, sourceMode, initialized, shadowedHome) => injector.registerUserPureImport(entry, name, {
+              mode: sourceMode, initialized, shadowedHome,
               reassigned: !!adapter.getBinding({ scope: path.scope, name, path })?.constantViolations?.length,
             }),
           });
@@ -2139,21 +2153,27 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
             && ownOutputTests(injector).programMayHoldOwnOutput(path.node)) {
             injector.adoptUnusedNames(fileCensus.restSentinelNames);
           }
-          if (removed.size) {
+          if (removed.size || local.size) {
+            const terminator = removedPrologueTerminator(path.node.body, removed);
             for (const stmt of path.get('body')) {
-              if (!removed.has(stmt.node)) continue;
+              if (!removed.has(stmt.node) && !local.has(stmt.node)) continue;
               // an indirect-require removal keeps its side-effect prefix (callee's AND an outer comma
               // sequence's - `0, (spy(), require)('core-js/X')` keeps `spy()`), same helper the entry path
               // uses; the emitted prefix statements stay VISITED so a polyfillable use inside them
               // (`(arr.includes(1), require)(...)`) still injects. a side-effect-free prefix drops whole
-              const sePrefix = extractIndirectRequireSEPrefix(stmt.node, { scope: stmt.scope, adapter, path: stmt });
+              const sePrefix = localEntryPrefix(stmt.node, { scope: stmt.scope, adapter, path: stmt });
+              if (local.has(stmt.node)) sePrefix.push(entryRequireTail(stmt.node));
               if (sePrefix.length) stmt.replaceWithMultiple(sePrefix.map(e => t.expressionStatement(e)));
-              else stmt.remove();
+              else if (stmt.node === terminator) stmt.replaceWith(t.expressionStatement(t.numericLiteral(0)));
+              else {
+                if (path.node.body.length === 1) t.inheritsComments(path.node, stmt.node);
+                stmt.remove();
+              }
             }
           }
           // Body surgery can reparent a retained require prefix. Rebind only the host lane;
           // mutation classification stays the source verdict collected before import registration.
-          if (removed.size && prePassSites.length) {
+          if ((removed.size || local.size) && prePassSites.length) {
             prePassSites = collectPrePassSites(path, adapter, fileCensus, null, {
               collectMutations: false, collectDestructures: true,
             }).sites;
@@ -2786,10 +2806,9 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
             // PREVIOUS file's, and flushing it emits into a program it does not belong to
             if (!beginFile(this.file.path)) return;
             if (!skipFile) {
-              // `runEntryDetection` unifies the dual dispatch (ExpressionStatement body
-              // scan + ImportDeclaration traversal) so the caller doesn't thread a visitor
-              // object through manual pre-call + filtered traverse
-              runEntryDetection(this.file.path, entryGlobalCallback, isDisabled);
+              const paths = this.file.path.get('body');
+              scanEntryLoads(this.file.path.node, { adapter, getCoreJSEntry, isDisabled },
+                entry => entryGlobalCallback(entry, paths[entry.index]));
               applyEntryDirectivePromotions(this.file.path);
             }
             // entry-global reprints the file like every babel mode but runs no usage traversal, so

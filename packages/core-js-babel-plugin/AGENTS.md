@@ -9,7 +9,7 @@ Build-time only, ESM. Node `^22.18.0 || >=24.11.0`; Babel 7 and 8. Keep `@core-j
 ## Layout
 
 - `index.js`: plugin lifecycle, options, visitors and method dispatch.
-- `internals/detect-entry.js`, `internals/detect-usage.js`: Babel adapters for shared detection.
+- `internals/detect-usage.js`: Babel adapter for shared detection. Entry recognition uses the provider's program-body scan.
 - `internals/import-injector.js`: imports, directives, generated names and scope bookkeeping.
 - `internals/estree-to-babel.js`: insertion-boundary conversion, total over the provider's builder vocabulary, not arbitrary source ASTs.
 - `internals/babel-compat.js`: Babel AST operations. The Babel 7/8 scope-bag differences belong to the import injector.

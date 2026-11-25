@@ -1,6 +1,3 @@
-require("core-js/modules/es.object.to-string");
-require("core-js/modules/es.array.from");
-require("core-js/modules/es.string.iterator");
 // outer ParenthesizedExpression wrap on the callee (oxc preserves explicit parens; babel
 // usually strips them at parse time, but reparses from source can surface them again).
 // the peel loop walks through any layers of paren wrapping until the SequenceExpression
@@ -9,3 +6,6 @@ function spy() {
   return 1;
 }
 spy();
+require("core-js/modules/es.object.to-string");
+require("core-js/modules/es.array.from");
+require("core-js/modules/es.string.iterator");

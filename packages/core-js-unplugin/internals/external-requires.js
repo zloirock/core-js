@@ -1,5 +1,6 @@
 import { parseSync } from 'oxc-parser';
 import { dirname } from 'node:path';
+import { declaratorBindsName } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { brand } from '@core-js/polyfill-provider/helpers/error-tag';
 
 // A user-provided loader in an ESM banner makes synchronous external requires intentional.
@@ -12,7 +13,7 @@ function bannerProvidesRequire(banner) {
   return parsed.program.body.some(statement => {
     const node = statement.declaration ?? statement;
     return node.type === 'VariableDeclaration'
-      ? node.declarations.some(declaration => declaration.id.type === 'Identifier' && declaration.id.name === 'require' && declaration.init)
+      ? node.declarations.some(declaration => declaration.init && declaratorBindsName(declaration, 'require'))
       : node.type === 'FunctionDeclaration' ? node.id?.name === 'require'
         : node.type === 'ImportDeclaration' && node.specifiers.some(specifier => specifier.local.name === 'require');
   });
@@ -26,12 +27,17 @@ function externalRequireError(source, importer, host) {
     + '(createRequire for Node ESM; node-commonjs in webpack/rspack).'));
 }
 
+// A neutral bundle defaults to ESM even when the caller leaves the format unspecified.
+export function esbuildEmitsESM({ format, bundle, platform }) {
+  return format === 'esm' || (format === undefined && bundle && platform === 'neutral');
+}
+
 // Ask esbuild's resolver, including aliases and sibling plugins. A declaration in the user's
 // banner is their explicit loader; platform: node alone does not provide require in ESM.
-export async function validateEsbuildRequires(build, requires, importer) {
-  if (!requires?.length || build.initialOptions.format !== 'esm' || bannerProvidesRequire(build.initialOptions.banner?.js)) return;
+export async function validateEsbuildRequires(build, requires, importer, namespace = 'file') {
+  if (!requires?.length || !esbuildEmitsESM(build.initialOptions) || bannerProvidesRequire(build.initialOptions.banner?.js)) return;
   for (const [source] of requires) {
-    const resolved = await build.resolve(source, { importer, resolveDir: dirname(importer), kind: 'require-call' });
+    const resolved = await build.resolve(source, { importer, namespace, resolveDir: dirname(importer), kind: 'require-call' });
     if (resolved.external) throw externalRequireError(source, importer, 'esbuild');
   }
 }

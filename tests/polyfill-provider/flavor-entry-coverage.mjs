@@ -401,6 +401,12 @@ for (const [emitter, imports] of [
   check(`${ emitter }: returned loop receiver does not expose other statics`, imports.has('core-js/modules/es.array.of'), false);
   check(`${ emitter }: returned loop receiver does not expose instance methods`, imports.has('core-js/modules/es.array.at'), false);
 }
+// for-of itself can request Array.from. A different static witnesses the receiver claim independently.
+const returnedLoopOf = returnedLoopReceiver.replaceAll('from', 'of');
+for (const [emitter, imports] of [
+  ['babel', await babelImports(returnedLoopOf, GLOBAL)],
+  ['unplugin', unpluginImports(returnedLoopOf, GLOBAL)],
+]) check(`${ emitter }: returned loop receiver needs of`, imports.has('core-js/modules/es.array.of'), true);
 for (const [emitter, imports] of [
   ['babel', await babelImports(returnedLoopReceiver, PURE)],
   ['unplugin', unpluginImports(returnedLoopReceiver, PURE)],
@@ -664,6 +670,10 @@ for (const [label, source, entry, statics, filename] of [
     ['babel', await babelImports(source, PURE, filename)],
     ['unplugin', unpluginImports(source, PURE, filename)],
   ]) {
+    if (statics?.length === 1) {
+      check(`folded key/${ label } [${ emitter }]: standalone static`, imports.has(`@core-js/pure/actual/${ entry }/${ statics[0] }`), true);
+      check(`folded key/${ label } [${ emitter }]: narrow constructor`, imports.has(`@core-js/pure/actual/${ entry }/constructor`), false);
+    }
     check(`folded key/${ label } [${ emitter }]: pure namespace`, imports.has(`@core-js/pure/actual/${ entry }`), !statics || statics.length > 1);
   }
 }
@@ -774,6 +784,19 @@ const [{ allSettled }] = rows; use(allSettled);`],
 ]) {
   check(`independent positional static/${ label } [${ emitter }]: separate static`, imports.has('@core-js/pure/actual/promise/race'), false);
   check(`independent positional static/${ label } [${ emitter }]: retained namespace`, imports.has('@core-js/pure/actual/promise'), true);
+  const options = { ...PURE, importStyle: 'require' };
+  const code = emitter === 'babel'
+    ? (await transformAsync(source, { babelrc: false, configFile: false, plugins: [['@core-js', options]] })).code
+    : createUnplugin(options).transform(source, 'positional.cjs').code;
+  const calls = [];
+  Function('require', 'use', code)(id => {
+    if (id !== '@core-js/pure/actual/promise') throw new Error(id);
+    return { race: 1, get allSettled() {
+      calls.push('get');
+      return 2;
+    } };
+  }, value => calls.push(value));
+  check(`independent positional static/${ label } [${ emitter }]: both reads`, JSON.stringify(calls), '[1,"get",2]');
 }
 
 finish();

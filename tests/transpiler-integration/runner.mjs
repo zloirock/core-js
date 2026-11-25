@@ -4,7 +4,7 @@ import { censusWalkTruncations } from '@core-js/polyfill-provider/detect-usage/m
 import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import './runtime-tests.mjs';
-import { withTmpDir, verifyInNode, verifyPhases, verifyDynamic } from './runtime.mjs';
+import { withTmpDir, verifyInNode, verifyPhases, verifyDynamic, verifySplitDynamic } from './runtime.mjs';
 import { viteHandoff } from './vite-handoff.mjs';
 import { hostBoundaries } from './host-boundaries.mjs';
 import { assetExternals } from './asset-externals.mjs';
@@ -91,13 +91,11 @@ async function webpackLikeBundle(compiler, input, plugin, extra = {}) {
   return withTmpDir(async dir => {
     const filename = 'out.mjs';
     const plugins = [...extra.siblings ?? [], plugin];
-    // the dynamic-import leg must stay a single node-loadable file - fold async chunks back in
-    if (extra.inlineDynamic) plugins.push(new compiler.optimize.LimitChunkCountPlugin({ maxChunks: 1 }));
     const instance = compiler({
       mode: 'production',
       devtool: false,
       entry: input,
-      output: { path: dir, filename, module: true, library: { type: 'module' } },
+      output: { path: dir, filename, module: true, library: { type: 'module' }, ...extra.splitDynamic && { chunkLoading: 'import' } },
       experiments: { outputModule: true },
       optimization: { minimize: false },
       plugins,
@@ -108,6 +106,7 @@ async function webpackLikeBundle(compiler, input, plugin, extra = {}) {
     } finally {
       await promisify(instance.close.bind(instance))();
     }
+    if (extra.splitDynamic) await verifySplitDynamic(dir, filename, 'module');
     return { code: await readFile(join(dir, filename), 'utf8') };
   });
 }
@@ -246,22 +245,19 @@ const builders = {
             minify: false,
             sourceMap: false,
           },
-          performance: { chunkSplit: { strategy: 'all-in-one' } },
+          ...!extra.splitDynamic && { performance: { chunkSplit: { strategy: 'all-in-one' } } },
           tools: {
             rspack: async config => {
               config.output = { ...config.output, module: true, library: { type: 'module' } };
               config.experiments = { ...config.experiments, outputModule: true };
-              // the dynamic-import leg must stay a single node-loadable file
-              if (extra.inlineDynamic) {
-                const { rspack } = await import('@rspack/core');
-                config.plugins.push(new rspack.optimize.LimitChunkCountPlugin({ maxChunks: 1 }));
-              }
+              if (extra.splitDynamic) config.output.chunkLoading = 'import';
               return config;
             },
           },
         },
       });
       await rsbuild.build();
+      if (extra.splitDynamic) await verifySplitDynamic(dir, 'index.js', 'module');
       return { code: await readFile(join(dir, 'index.js'), 'utf8') };
     });
   },
@@ -304,10 +300,11 @@ const builders = {
           lazyCompilation: false,
           persistentCache: false,
           // force single-file output - otherwise farm splits into __farm_runtime.js + chunks
-          partialBundling: { enforceResources: [{ name: 'index', test: ['.+'] }] },
+          ...!extra.splitDynamic && { partialBundling: { enforceResources: [{ name: 'index', test: ['.+'] }] } },
         },
         server: { hmr: false },
       });
+      if (extra.splitDynamic) await verifySplitDynamic(dir, 'index.js', 'commonjs');
       // farm emits .js but test dir has `"type": "module"` - force CJS via .cjs extension
       return { code: await readFile(join(dir, 'index.js'), 'utf8'), ext: '.cjs' };
     });
@@ -469,9 +466,10 @@ for (const name of ['esbuild', 'rollup', 'rolldown', 'vite', 'webpack', 'rspack'
   const label = `${ name }/usage-global/dynamic-import`;
   try {
     await runLeg(name, async () => {
+      const splitDynamic = ['webpack', 'rspack', 'rsbuild', 'farm'].includes(name);
       const { code, ext } = await builders[name](dynamicInput, 'usage-global', undefined,
-        { inlineDynamic: true });
-      await verifyDynamic(code, label, ext);
+        { splitDynamic, inlineDynamic: !splitDynamic });
+      if (!splitDynamic) await verifyDynamic(code, label, ext);
     });
     echo(`${ cyan(label) } ${ green('passed') }`);
   } catch (error) {

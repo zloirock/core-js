@@ -1,7 +1,3 @@
-require("core-js/modules/es.object.to-string");
-require("core-js/modules/es.array.from");
-require("core-js/modules/es.array.of");
-require("core-js/modules/es.string.iterator");
 // An indirect-require SE prefix whose REWRITTEN first char fuses into a `;`-less prev statement. A
 // postfix `++` / `--` prev ASI-splits from the detected node's ORIGINAL leading `(` (the spec bans
 // `UpdateExpression Arguments`), but the rewritten prefix re-roots the line: `/re/.test(spy())` starts on
@@ -10,5 +6,9 @@ require("core-js/modules/es.string.iterator");
 function spy() {}
 i++;
 /re/.test(spy());
+require("core-js/modules/es.object.to-string");
+require("core-js/modules/es.array.from");
+require("core-js/modules/es.string.iterator");
 n--;
 +spy();
+require("core-js/modules/es.array.of");

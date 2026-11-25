@@ -1,8 +1,5 @@
-// an indirect-require core-js entry (`(prefix, require)('core-js/...')`) under a package the plugin
-// manages keeps its observable prefix as statements, and the prefix is still LIVE for the usage
-// sweep: the `at` calls inside it are polyfilled (a memo ref for the literal receiver included).
-// the kept prefix stays live in the tree, which is what lets those rewrites land instead
-// of being discarded with the require call
+// Calls in each require prefix need their own ponyfill, including the literal receivers.
+// Each user-written module load must follow that prefix.
 let arr = [1];
 (arr.at(0), require)("core-js/modules/es.array.includes");
 ([1].at(0), require)("core-js/modules/es.array.from");

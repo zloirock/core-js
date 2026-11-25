@@ -11,6 +11,7 @@
 // Read through the emitters (both of them, since the caches live in the shared resolver and a
 // single emitter's fixtures cannot see a provider-level regression) rather than at resolver level:
 // the helper name is the only place the resolved family becomes observable.
+import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { createChecker, scenarioSource } from './harness.mjs';
 import { TS_NUMBER_TYPE, TS_UNKNOWN_TYPE } from '../../packages/core-js-polyfill-provider/resolve-node-type/ast-shapes.js';
@@ -186,17 +187,23 @@ await checkBoth('synth class ref: two members of one class', `
 // two emissions in one process must agree, and the relative form must not be served from it
 {
   const source = 'export const a = [1].at(0);\nexport const b = "x".at(0);\n';
+  const expected = BOTH.map(id => {
+    const url = import.meta.resolve(id);
+    const path = fileURLToPath(url);
+    return process.platform === 'win32' || /[#%?]/u.test(path) ? url : path;
+  }).sort();
   const first = await babel(source, { absoluteImports: true }, 'input.mjs');
   check('absolute imports: stable across transforms in one process [babel]',
     await babel(source, { absoluteImports: true }, 'input.mjs'), first);
-  // `isAbsolute` rather than a leading-slash test: the emitted form is forward-slash normalized
-  // but keeps the Windows drive letter (`D:/core-js/...`), which no leading-`/` test recognizes.
-  // still discriminating - a resolution failure falls back to the bare specifier, absolute nowhere
-  check('absolute imports: both variants resolved absolute [babel]',
-    imports(first).length === 2 && imports(first).every(specifier => path.isAbsolute(specifier)), true);
+  checkDeep('absolute imports: exact targets [babel]', imports(first), expected);
   const firstUnplugin = unplugin(source, { absoluteImports: true }, 'input.mjs');
   check('absolute imports: stable across transforms in one process [unplugin]',
     unplugin(source, { absoluteImports: true }, 'input.mjs'), firstUnplugin);
+  checkDeep('absolute imports: exact targets [unplugin]', imports(firstUnplugin), expected);
+  for (const absolute of [false, true]) {
+    checkDeep(`unplugin absoluteImports=${ absolute } after switching`,
+      imports(unplugin(source, { absoluteImports: absolute }, 'input.mjs')), absolute ? expected : BOTH);
+  }
   checkDeep('absolute imports: the relative form is not served from the absolute memo [babel]',
     imports(await babel(source, { absoluteImports: false }, 'input.mjs')), BOTH);
 }

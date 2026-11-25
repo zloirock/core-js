@@ -162,7 +162,7 @@ Configuration example:
 | `include` | `(string \| RegExp)[]` | `[]` | Force include polyfill modules (e.g. `'es.array.at'`) or patterns. String patterns are **raw regex syntax** anchored to start/end (NOT globs) — a leading `es.` matches any submodule, `*` is a regex quantifier |
 | `exclude` | `(string \| RegExp)[]` | `[]` | Force exclude polyfill modules — same pattern semantics as `include` |
 | `shouldInjectPolyfill` | `function` | `undefined` | Custom callback `(name, defaultShouldInject) => boolean` |
-| `importStyle` | `string` | auto | `'import'` or `'require'`, auto-detected from `sourceType` |
+| `importStyle` | `string` | auto | `'import'` or `'require'`, auto-detected from surviving ESM syntax and the source file format |
 | `configPath` | `string` | auto | Directory to search for browserslist config (for monorepos) |
 | `browserslistEnv` | `string` | auto | Browserslist env name (falls back to `production` / `defaults`) |
 | `ignoreBrowserslistConfig` | `boolean` | `false` | Do not use browserslist config |
@@ -224,7 +224,7 @@ export default {
 ### Webpack
 ```ts
 // webpack.config.js
-const coreJS = require('@core-js/unplugin/webpack');
+const coreJS = require('@core-js/unplugin/webpack').default;
 
 module.exports = {
   plugins: [coreJS({
@@ -266,7 +266,7 @@ await esbuild.build({
 ### Rspack
 ```ts
 // rspack.config.js
-const coreJS = require('@core-js/unplugin/rspack');
+const coreJS = require('@core-js/unplugin/rspack').default;
 
 module.exports = {
   plugins: [coreJS({
@@ -335,7 +335,7 @@ await Bun.build({
 | `include` | `(string \| RegExp)[]` | `[]` | Force include polyfill modules or patterns. String patterns are **raw regex syntax** anchored to start/end (NOT globs) |
 | `exclude` | `(string \| RegExp)[]` | `[]` | Force exclude polyfill modules — same pattern semantics as `include` |
 | `shouldInjectPolyfill` | `function` | `undefined` | Custom callback `(name, defaultShouldInject) => boolean` |
-| `importStyle` | `string` | auto | `'import'` or `'require'`, auto-detected from source type |
+| `importStyle` | `string` | auto | `'import'` or `'require'`, auto-detected from surviving ESM syntax and the source file format |
 | `configPath` | `string` | auto | Directory to search for browserslist config (for monorepos) |
 | `browserslistEnv` | `string` | auto | Browserslist env name (falls back to `production` / `defaults`) |
 | `ignoreBrowserslistConfig` | `boolean` | `false` | Do not use browserslist config |

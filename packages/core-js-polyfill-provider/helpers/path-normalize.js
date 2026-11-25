@@ -1,5 +1,7 @@
+import { statSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { resolve } from 'node:path';
+import { isAbsolute, resolve, sep } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import entriesMap from '@core-js/compat/entries' with { type: 'json' };
 import { wrapWithCause } from './error-tag.js';
 
@@ -86,17 +88,39 @@ export function canonicalisePackage(name) {
 // mutate their package layout; include the directory in the key so another project in this
 // process cannot inherit its paths. Only successful resolutions are retained.
 const absoluteImportCache = new Map();
+let acceptsImportParent;
 
-export function resolveImportPath(pkg, subpath, absoluteImports) {
+export function resolveImportPath(pkg, subpath, absoluteImports, importStyle = 'require') {
   const source = `${ pkg }/${ subpath }`;
   if (!absoluteImports) return source;
   const directory = process.cwd();
-  const key = `${ directory }\0${ source }`;
+  const key = `${ directory }\0${ importStyle }\0${ source }`;
   const cached = absoluteImportCache.get(key);
   if (cached !== undefined) return cached;
   let result;
   try {
-    result = createRequire(resolve(directory, 'package.json')).resolve(source).replaceAll('\\', '/');
+    const parent = resolve(directory, 'package.json');
+    if (importStyle === 'import') {
+      if (acceptsImportParent === undefined) {
+        // Without --experimental-import-meta-resolve Node ignores the parent URL.
+        const manifest = new URL('../package.json', import.meta.url).href;
+        try {
+          acceptsImportParent = import.meta.resolve?.('./package.json', manifest) === manifest;
+        } catch {
+          // A strict loader can reject the missing helpers/package.json when Node ignores the parent.
+          acceptsImportParent = false;
+        }
+      }
+      // Bun resolves a package relative to a filename. Passing an encoded parent URL loses the project.
+      const url = acceptsImportParent
+        ? new URL(import.meta.resolve(source, process.versions.bun ? parent : pathToFileURL(parent).href))
+        : pathToFileURL(createRequire(parent).resolve(source));
+      // import.meta.resolve can return a file URL for a missing target or a directory.
+      // eslint-disable-next-line node/no-sync -- both plugins resolve imports during the synchronous transform
+      if (acceptsImportParent && !statSync(url).isFile()) throw new Error(`not a file: ${ url.href }`);
+      const path = fileURLToPath(url);
+      result = path.startsWith('/') && new URL(path, url).href === url.href ? path : url.href;
+    } else result = createRequire(parent).resolve(source).split(sep).join('/');
   } catch (error) {
     throw wrapWithCause(`cannot resolve ${ JSON.stringify(source) } from ${ JSON.stringify(directory) }`, error);
   }
@@ -110,8 +134,8 @@ export function resolveImportPath(pkg, subpath, absoluteImports) {
 // normalized like every other specifier, or null when the package does not resolve at all
 const packageRootCache = new Map();
 
-export function packageRootPrefix(pkg) {
-  const key = `${ process.cwd() }\0${ pkg }`;
+export function packageRootPrefix(pkg, fileURL = false) {
+  const key = `${ process.cwd() }\0${ fileURL }\0${ pkg }`;
   if (packageRootCache.has(key)) return packageRootCache.get(key);
   let resolved;
   try {
@@ -123,7 +147,7 @@ export function packageRootPrefix(pkg) {
   const marker = '/package.json';
   // Recognition also asks about optional packages; absence is no provenance proof.
   const root = resolved.endsWith(marker)
-    ? normalizeImportSource(resolved.slice(0, -marker.length + 1)) : null;
+    ? normalizeImportSource((fileURL ? pathToFileURL(resolved).href : resolved).slice(0, -marker.length + 1)) : null;
   packageRootCache.set(key, root);
   return root;
 }
@@ -144,11 +168,20 @@ export function canonicalizeEntrySubpath(s) {
 // itself be called `core-js` and contain a different polyfill package. The package travels
 // with the entry because a recognised import is re-emitted, and re-emitting it under the plugin's
 // own package would silently retarget a user's polyfill at another one
-export function matchEntrySubpath(source, pkgs, subPrefix) {
+export function matchEntrySubpath(source, pkgs, subPrefix, esm = null, importStyle = null) {
+  if (isAssetImport(source)) return null;
   const clean = normalizeImportSource(source);
+  const fileURL = clean.startsWith('file:/');
+  const absoluteId = clean.startsWith('/') || /^(?:[a-z]:|file:)\//.test(clean);
+  const absolute = isAbsolute(source) && !/^\/@(?:fs|id)\//.test(source);
+  const absoluteESM = absolute && esm !== false && source.startsWith('/');
+  const reserved = absoluteESM && /[#%?]/.test(source);
+  let physical;
   let match = null;
   let length = Infinity;
   for (const pkg of pkgs) {
+    // Package segments inside a relative path belong to the author's module.
+    if (!absoluteId && !clean.startsWith(`${ pkg }/`)) continue;
     const afterPkg = subpathAfterPackage(clean, pkg);
     // `continue`, not `return null`: when an earlier package is a path-prefix of `source` but
     // the sub-prefix doesn't match (`a/` matches but `a/stable/x` isn't under `modules/`), a
@@ -157,10 +190,43 @@ export function matchEntrySubpath(source, pkgs, subPrefix) {
     if (afterPkg === null || !afterPkg.startsWith(subPrefix)) continue;
     const entry = canonicalizeEntrySubpath(afterPkg.slice(subPrefix.length)) || null;
     if (entry && afterPkg.length < length) {
+      // A physical ESM import names a module instance, including its query and fragment.
+      // Bare bundler ids can still use cache-busting suffixes.
+      // A raw path with reserved characters can also be a CommonJS filename when the load kind is unknown.
+      const projectFile = absoluteESM && (esm || !reserved) && clean.slice(0, -afterPkg.length) === packageRootPrefix(pkg);
+      // A second physical copy can have the same package segments. Only the resolver can establish identity.
+      if (absolute && !projectFile && physical === undefined) {
+        try {
+          physical = createRequire(import.meta.url).resolve(source).split(sep).join('/');
+        } catch {
+          physical = null; // Virtual bundler ids can still be recognized by their layout.
+        }
+      }
+      if (physical && (!absoluteESM || (esm === null && reserved))) {
+        try {
+          if (physical !== resolveImportPath(pkg, subPrefix + entry, true)) continue;
+        } catch {
+          continue;
+        }
+      } else if (fileURL || projectFile || (absoluteESM && (physical || reserved))) {
+        let target;
+        try {
+          target = resolveImportPath(pkg, subPrefix + entry, true, 'import');
+          const expected = new URL(target, 'file:///').href;
+          const authored = new URL(source, 'file:///').href;
+          if (authored !== expected && import.meta.resolve(authored) !== expected) continue;
+        } catch {
+          // A bundler can supply an absolute id for an alias outside Node's package tree.
+          if (fileURL || physical || target || packageRootPrefix(pkg)) continue;
+        }
+      }
       match = { entry, pkg };
       length = afterPkg.length;
     }
   }
+  // The shipped packages export the same files to both loaders. A fork can export two
+  // different modules at one subpath, so its authored load must keep its original kind.
+  if (match && importStyle && importStyle !== (esm ? 'import' : 'require') && !CORE_JS_PACKAGES.includes(match.pkg)) return null;
   return match;
 }
 
@@ -171,7 +237,7 @@ export function matchEntrySubpath(source, pkgs, subPrefix) {
 function subpathAfterPackage(clean, pkg) {
   const pkgPrefix = `${ pkg }/`;
   if (clean.startsWith(pkgPrefix)) return clean.slice(pkgPrefix.length);
-  const root = packageRootPrefix(pkg);
+  const root = packageRootPrefix(pkg, clean.startsWith('file:/'));
   if (root && clean.startsWith(root)) return clean.slice(root.length);
   const segment = clean.lastIndexOf(`/${ pkgPrefix }`);
   if (segment !== -1) return clean.slice(segment + 1 + pkgPrefix.length).replace(PACKAGE_CACHE_VERSION, '');
@@ -188,13 +254,24 @@ const CORE_JS_PACKAGES = ['core-js', 'core-js-pure', '@core-js/pure'];
 
 // A source specifier must name a known package or its resolved absolute tree. Relative
 // lookalikes are user modules; flavor segments alone never prove package ownership.
-export function coreJSImportSubpath(source, packages = null) {
+export function coreJSImportSubpath(source, packages = null, esm = null) {
   if (typeof source !== 'string') return null;
-  const clean = normalizeImportSource(source);
-  const absolute = clean.startsWith('/') || /^(?:[a-z]:|file:)\//.test(clean);
-  if (!absolute && !packages?.some(pkg => clean.startsWith(`${ pkg }/`))
-    && CORE_JS_PACKAGES.every(pkg => !clean.startsWith(`${ pkg }/`))) return null;
-  return matchEntrySubpath(clean, packages ? [...packages, ...CORE_JS_PACKAGES] : CORE_JS_PACKAGES, '')?.entry ?? null;
+  return matchEntrySubpath(source, packages ? [...packages, ...CORE_JS_PACKAGES] : CORE_JS_PACKAGES, '', esm)?.entry ?? null;
+}
+
+const ASSET_EXPORT_KEYS = new Set(['raw', 'url', 'inline', 'worker', 'sharedworker']);
+
+// Vite asset queries change the export itself. A cache-busting query still names the module.
+export function isAssetImport(source) {
+  const query = source.indexOf('?');
+  if (query === -1) return false;
+  const end = stripQueryHash(source).length;
+  if (source[end] !== '?') return false;
+  const hash = source.indexOf('#', end + 1);
+  for (const name of new URLSearchParams(source.slice(end + 1, hash === -1 ? undefined : hash)).keys()) {
+    if (ASSET_EXPORT_KEYS.has(name.toLowerCase())) return true;
+  }
+  return false;
 }
 
 const PURE_IMPORT_FLAVOR_SEGMENTS = new Set(['actual', 'es', 'features', 'full', 'stable']);
@@ -202,7 +279,7 @@ const PURE_IMPORT_FLAVOR_SEGMENTS = new Set(['actual', 'es', 'features', 'full',
 // when no flavor segment with an entry tail is present. This extracts a trusted subpath;
 // callers reading source specifiers first prove package ownership with coreJSImportSubpath.
 export function pureImportSourceEntry(source) {
-  if (typeof source !== 'string') return null;
+  if (typeof source !== 'string' || isAssetImport(source)) return null;
   const segments = canonicalizeEntrySubpath(normalizeImportSource(source)).split('/');
   const at = segments.findIndex(segment => PURE_IMPORT_FLAVOR_SEGMENTS.has(segment));
   return at === -1 || at === segments.length - 1 ? null : segments.slice(at + 1).join('/');

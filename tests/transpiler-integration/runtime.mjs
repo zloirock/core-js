@@ -1,8 +1,8 @@
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
-import { deepEqual } from 'node:assert/strict';
+import { deepEqual, ok } from 'node:assert/strict';
 import { parse } from '@babel/parser';
 import { traverse } from '@babel/core';
 import { runInWorker } from '../transpiler-differential/realm-runner.mjs';
@@ -64,6 +64,29 @@ export async function verifyPhases(code, label, ext = '.mjs') {
 }
 
 // The lazy body must run through the bundler's loader and own its polyfills without natives.
+// Run against the actual output tree so relative chunk URLs, including Farm's runtime, survive.
+export async function verifySplitDynamic(dir, filename, type) {
+  const entry = join(dir, filename);
+  const files = (await readdir(dir, { recursive: true })).filter(name => /\.[cm]?js$/u.test(name));
+  const chunks = [];
+  for (const name of files) {
+    const code = await readFile(join(dir, name), 'utf8');
+    assertRefsDeclared(code, name);
+    if (code.includes('core-js lazy chunk witness')) chunks.push(name);
+  }
+  ok(chunks.length === 1 && chunks[0] !== filename, `expected the lazy body in a separate chunk: ${ chunks }`);
+  await writeFile(join(dir, 'package.json'), JSON.stringify({ type }));
+  const probe = join(dir, 'verify-dynamic.mjs');
+  for (const strip of [false, true]) {
+    await writeFile(probe, `${ strip ? 'delete Promise.all;' : '' }
+      const mod = await import(${ JSON.stringify(pathToFileURL(entry).href) });
+      const { results } = mod.default ?? mod;
+      export const r = [await results.lazy, results.control, typeof Promise.all];
+      export const effects = [];`);
+    deepEqual(await runInWorker(probe, { strip, stripGlobals: [], nativeAlias: false }), 'OK|[2,4,"function"]|[]');
+  }
+}
+
 export async function verifyDynamic(code, label, ext = '.mjs') {
   await verifyResult(code, label, '[await results.lazy, results.control]', [2, 4], ext);
   return verifyResult(code, label, '[await results.lazy, results.control]', [2, 4], ext, true);

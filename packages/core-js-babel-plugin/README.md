@@ -271,6 +271,8 @@ When `true`, the plugin will not read any browserslist config files. Only the ex
 
 When `true`, injected `core-js` imports will use absolute filesystem paths instead of package names. The configured package is resolved from the project working directory, so all files use that installation. A missing package or entry raises an error instead of falling back to a bare import. With an explicit `version` and `absoluteImports: false`, the package need not be installed while transforming.
 
+If a custom `package` has separate ESM and CommonJS exports or an import-only entry, start Node with `--experimental-import-meta-resolve` to select its ESM target for an absolute `import`. By default the plugins use the project's `require` conditions for absolute paths.
+
 ### `importStyle`
 
 Controls the syntax of injected polyfill imports: `'import'` for ESM `import` statements, `'require'` for CJS `require()` calls. When not set, surviving ESM imports or exports select `import`; otherwise the source format (including the filename and explicit parse goal) determines the style. Setting this option changes injection syntax only, not the source language.

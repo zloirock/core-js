@@ -10,6 +10,8 @@ const requires = [[request, true]];
 for (const [banner, loader] of [
   ['', false], ['// const require = loader;', false], ['function nested() { const require = loader; }', false],
   ['const require;', false], ['const require = loader;', true], ['function require(id) { return loader(id); }', true],
+  ['const { load: require } = host;', true], ['const [{ require }] = loaders;', true],
+  ['function f() { const { require } = host; }', false], ['const { require: other } = host;', false],
   ['import require from "loader";', true], ['export const require = loader;', true],
 ]) {
   let resolved = 0;
@@ -18,6 +20,7 @@ for (const [banner, loader] of [
     async resolve(source, context) {
       assert.equal(source, request);
       assert.equal(context.kind, 'require-call');
+      assert.equal(context.namespace, 'file');
       resolved++;
       return { external: true };
     },

@@ -36,6 +36,7 @@ import {
   resolveModuleFormat,
   moduleFormatReducer,
   usableAliasInfo,
+  removedPrologueTerminator,
   walkAstNodes,
   nodePositionKey,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -79,7 +80,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { resolveKey as sharedResolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { minifierSequenceReducer, planMinifierSequenceSplit } from '@core-js/polyfill-provider/destructure-host-shape';
-import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
+import { entryCall, entryRequireTail, scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
 import { nodeType, types } from './estree-compat.js';
 import { planEntries } from './detect-entry.js';
 import applyEntryProgram, { extractEntrySideEffectPrefixes, injectImportStatements } from './entry.js';
@@ -90,7 +91,13 @@ import createAstDestructureEmitter from './destructure.js';
 import createAstUsagePureCallback from './usage-pure.js';
 import { markSubtreeSkipped } from './nav-spine.js';
 import { stampReplacementSpan } from './emit-shared.js';
-import { cloneNode, literal, restoreNamespacePatternExports, sequenceExpression } from '@core-js/polyfill-provider/render';
+import {
+  cloneNode,
+  expressionStatement,
+  literal,
+  restoreNamespacePatternExports,
+  sequenceExpression,
+} from '@core-js/polyfill-provider/render';
 import {
   closestVisibleNativeBinding,
   withoutPhantomDeclarationViolations,
@@ -953,8 +960,11 @@ export default function createPlugin(options) {
       let deferredImportSyntax;
       if (method !== 'entry-global') {
         const removed = new Set();
+        const local = new Set();
         scanExistingCoreJSImports(ast, {
           adapter: estreeAdapter,
+          importStyle,
+          previousImports: absoluteImports && inherit?.importStyle === importStyle ? inherit.importInfoByName : null,
           isDisabled,
           mode,
           // the user's global import is REMOVED here and re-emitted through `addGlobalImport`,
@@ -962,6 +972,7 @@ export default function createPlugin(options) {
           // imports COMPLETELY alone (no removal, no registration): its own emission is
           // deferred to post, so removing here would strand the file import-less if the post
           // pass never lands (evicted snapshot / sibling bail / watch-mode re-run)
+          onLocalRequire: node => local.add(node),
           onGlobalImport: (mod, node, modPkg) => {
             if (deferImports) {
               // Post consumes this statement. Its load syntax is not a usage, but
@@ -980,30 +991,40 @@ export default function createPlugin(options) {
           // a user binding the file WRITES through is poisoned as a dedup target - the
           // census' assignedNames is the reassignment fact this leg has (babel reads its
           // scope's constantViolations for the same gate)
-          onPureImport: (entry, name, sourceMode) => injector.registerUserPureImport(entry, name, {
+          onPureImport: (entry, name, sourceMode, initialized, shadowedHome) => injector.registerUserPureImport(entry, name, {
             mode: sourceMode,
+            initialized,
+            shadowedHome,
             reassigned: fileCensus.assignedNames?.has(name) ?? false,
           }),
           packages,
           pkg,
         });
-        if (removed.size) {
+        if (removed.size || local.size) {
           // a plain import / require splices from the AST too - `await import(...)` would otherwise drag
           // Promise polyfills via the syntax visitor after its statement is gone from output. an indirect-
           // require (`0, (spy(), require)('core-js/X')`) keeps its side-effect prefix (outer sequence AND
           // callee) as bare statements via the same rewriter the entry path uses; the node STAYS in the
           // AST re-pointed at that prefix, so the syntax visitor still polyfills any usage inside the kept
           // prefix (`(arr.includes(1), require)(...)` -> `es.array.includes` injected)
-          const kept = new Set();
-          const prefixes = extractEntrySideEffectPrefixes(ast, removed, estreeAdapter, prePass?.programPath);
-          for (const node of removed) {
-            const sePrefix = prefixes.get(node);
-            if (!sePrefix?.length) continue;
-            kept.add(node);
-            node.expression = sePrefix.length === 1 ? sePrefix[0] : { type: 'SequenceExpression', expressions: sePrefix };
+          const replacements = new Map();
+          const terminator = removedPrologueTerminator(ast.body, removed);
+          const edits = removed.union(local);
+          const prefixes = extractEntrySideEffectPrefixes(ast, edits, estreeAdapter, prePass?.programPath);
+          for (const node of edits) {
+            const sePrefix = prefixes.get(node) ?? [];
+            if (local.has(node)) sePrefix.push(entryRequireTail(node));
+            if (sePrefix.length) {
+              const [first, ...rest] = sePrefix;
+              node.expression = first;
+              replacements.set(node, [node, ...rest.map(expressionStatement)]);
+            } else if (node === terminator) {
+              node.expression = literal(0);
+              replacements.set(node, [node]);
+            }
           }
           astSweptImports = true;
-          ast.body = ast.body.filter(n => !removed.has(n) || kept.has(n));
+          ast.body = ast.body.flatMap(node => edits.has(node) ? replacements.get(node) ?? [] : [node]);
         }
       }
       // the one report of a `pre+post` file goes out at post, off a collector of its own: every note
@@ -1097,7 +1118,7 @@ export default function createPlugin(options) {
       // surgery and printed. the debug report emits once per file (single pass), after the
       // surgery, so it lists the module set that landed
       function runEntryGlobal() {
-        const plan = planEntries(ast, { adapter: estreeAdapter, getCoreJSEntry, injectModulesForEntry, isDisabled });
+        const plan = planEntries(ast, { adapter: estreeAdapter, getCoreJSEntry, getModulesForEntry, injectModulesForEntry, isDisabled });
         // `found` mirrors babel's answer: a module-import input re-expands to itself -
         // this engine reprints like babel does, and the structural gate holds it to that
         // baseline rather than bailing to the untouched bytes
@@ -1106,6 +1127,15 @@ export default function createPlugin(options) {
           return surgeryChanged ? finalizeAst() : null;
         }
         debugOutput?.markEntryFound();
+        const required = hostOptions.onRequire && new Set();
+        for (const [node, modules] of plan.local) {
+          injector.recordLocalEntry(modules);
+          // The host decides whether an optional require is a dependency or a runtime call.
+          if (required && !entryCall(node).optional) for (const name of modules) required.add(name);
+        }
+        for (const name of required ?? []) {
+          hostOptions.onRequire(resolveImportPath(injector.pkg, `modules/${ name }`, injector.absoluteImports, 'require'), false);
+        }
         applyEntryProgram({
           program: ast,
           plan,
@@ -1521,7 +1551,10 @@ export default function createPlugin(options) {
           CatchClause(path) { destructureEmit.extractCatchClause(path); },
           ForOfStatement(path) { destructureEmit.extractLoopLeft(path); },
           ForInStatement(path) { destructureEmit.extractLoopLeft(path); },
-        }, completedClaims), createUsageVisitors({ ...usageVisitorOptions, onUsage: callback }));
+        }, completedClaims), createUsageVisitors({
+          ...usageVisitorOptions,
+          onUsage: (meta, path) => injector.dispatchPureUsage(meta, path, callback),
+        }));
         // Usage handlers own descendants only; the traversal adds its root setup without
         // re-merging every descendant handler. A pure walk keeps only rewrite-safe facts.
         withTraversalCaches(false, () => walkUsage({
@@ -1529,6 +1562,13 @@ export default function createPlugin(options) {
           $: { scope: true },
           Program(path) {
             injector.rootScope = path.scope;
+            // A sibling can replace a pre-emitted import while keeping its name.
+            // Only restore a missing declaration. An occupied name belongs to post's source.
+            if (inherit?.pure) for (const [source, name] of inherit.pure) {
+              if (injector.pureImports.get(source) === name && !injector.existingPureImports.has(source) && path.scope.hasBinding(name)) {
+                injector.forgetPureImport(source, name);
+              }
+            }
             memoProgramPath = path;
           },
         }), { pathsKeepParent: true, stableParameterProperties: true });

@@ -27242,6 +27242,19 @@ function * generateTagLookupOrder() {
   })()`);
 }
 
+function * generateComputedEntryKeyDefaults() {
+  for (const [name, parameters] of [
+    ['unused', "unused = log.push('default')"],
+    ['throw', "unused = (() => { log.push('throw'); throw new RangeError(); })()"],
+    ['destructure', "{ x = log.push('nested') } = {}"],
+  ]) {
+    yield snippet(`computed-entry-key-default/${ name }`, `(() => {
+      try { return typeof globalThis[((${ parameters }) => 'Set')()].prototype.add; }
+      catch (error) { return error.name; }
+    })()`);
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -29088,4 +29101,5 @@ export function * generate() {
   yield * generatePatternScopeReads();
   yield * generatePriorOutputReads();
   yield * generateTagLookupOrder();
+  yield * generateComputedEntryKeyDefaults();
 }

@@ -1,8 +1,3 @@
-// guarded `module?.exports` read with subsequent CJS write - the optional-chain
-// covers tooling that emits `module?.exports` for environments without a guaranteed
-// `module` global (UMD bundles). CJS detection walks both plain and optional member
-// access rooted at module/exports so the file is correctly classified
+// The optional read is the only CommonJS marker. Both polyfills must use require.
 const guard = module?.exports;
-module.exports.bar = [1, 2, 3].flat();
-module.exports.baz = ['a', 'b'].at(0);
-console.log(guard);
+consume(guard, [1, 2, 3].flat(), ['a', 'b'].at(0));

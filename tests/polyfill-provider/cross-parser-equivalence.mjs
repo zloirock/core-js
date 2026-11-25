@@ -4,9 +4,10 @@
 // import sets are IDENTICAL. isolates polyfill-set decisions from output formatting -
 // the existing fixture suite catches output regressions but couldn't easily surface
 // "two parsers picked different polyfill sets on the same source"
+import { parse } from '@babel/parser';
 import { transformAsync } from '@babel/core';
 import createUnplugin from '../../packages/core-js-unplugin/internals/plugin.js';
-import { createChecker, expectError, scenarioSource } from './harness.mjs';
+import { createChecker, expectError, findNode, scenarioSource } from './harness.mjs';
 
 const { fail, finish, pass } = createChecker('cross-parser-equivalence');
 
@@ -61,6 +62,7 @@ function reportMismatch(label, babelImports, unpluginImports) {
 async function runEquivalence(label, source, pluginOptions, {
   parserPlugins = ['typescript'],
   expectEmpty = false,
+  inspect = null,
   // forwarded to babel's parser to let scenarios opt in to `createParenthesizedExpressions:true`
   // and other parse-time controls that the unplugin (oxc) doesn't have a switch for. oxc keeps
   // its native node shape regardless; the asymmetry IS the point - both walkers must agree
@@ -82,14 +84,18 @@ async function runEquivalence(label, source, pluginOptions, {
   };
   let babelImports, unpluginImports;
   try {
-    babelImports = extractPolyfillImports((await transformAsync(source, babelOptions))?.code ?? '');
+    const code = (await transformAsync(source, babelOptions))?.code ?? '';
+    if (inspect && !inspect(code)) return fail(label, 'babel output missed the required substitution');
+    babelImports = extractPolyfillImports(code);
   } catch (error) {
     return fail(label, `babel threw: ${ error.message }`);
   }
   // unplugin side: direct createPlugin call mirrors how the unplugin runner invokes it
   try {
     const result = createUnplugin(pluginOptions).transform(source, testId);
-    unpluginImports = extractPolyfillImports(result?.code ?? source);
+    const code = result?.code ?? source;
+    if (inspect && !inspect(code)) return fail(label, 'unplugin output missed the required substitution');
+    unpluginImports = extractPolyfillImports(code);
   } catch (error) {
     return fail(label, `unplugin threw: ${ error.message }`);
   }
@@ -415,7 +421,14 @@ await runEquivalence('anchored symbol leaf: identifier default keeps key-swap',
 // An existing pure import is still a source receiver: quiet hops retain their symbol-default route.
 await runEquivalence('anchored symbol leaf: imported receiver keeps key-swap',
   'import realm from "@core-js/pure/actual/global-this"; let itD;\n'
-  + 'export const { entries } = (({ WeakMap: { [Symbol.iterator]: itD = null } } = realm), Object);\nexport const r = [itD, entries];', USAGE_PURE);
+  + 'export const { entries } = (({ WeakMap: { [Symbol.iterator]: itD = null } } = realm), Object);\nexport const r = [itD, entries];', USAGE_PURE, {
+    inspect(code) {
+      const ast = parse(code, { sourceType: 'module' });
+      const key = ast.program.body.find(node => node.source?.value === '@core-js/pure/actual/symbol/iterator')?.specifiers[0]?.local.name;
+      return !!key && !!findNode(ast, node => node.type === 'ObjectProperty' && node.computed
+        && node.key.name === key && node.value.left?.name === 'itD');
+    },
+  });
 await runEquivalence('anchored symbol leaf: pattern default keeps key-swap',
   'const { Promise: { [Symbol.iterator]: { bind: bnd } = {} } } = globalThis;\nexport const r = bnd;', USAGE_PURE);
 // a scope-shadowed `Symbol` keeps the user's own key verbatim (no iterator-helper import)

@@ -5,6 +5,7 @@ import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from 'node
 import { tmpdir } from 'node:os';
 import { join, resolve as resolvePath } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { runInNewContext } from 'node:vm';
 import unplugin from '../../packages/core-js-unplugin/index.js';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
 import { runInWorker } from '../transpiler-differential/realm-runner.mjs';
@@ -20,10 +21,10 @@ const banner = 'import { createRequire } from "node:module"; const require = cre
 
 async function compileWebpack(compiler) {
   try {
-    await new Promise((resolve, reject) => compiler.run((error, stats) => {
+    return await new Promise((resolve, reject) => compiler.run((error, stats) => {
       if (error) reject(error);
       else if (stats.hasErrors()) reject(new Error(stats.toString({ all: false, errors: true })));
-      else resolve();
+      else resolve(stats);
     }));
   } finally {
     await new Promise((resolve, reject) => compiler.close(error => error ? reject(error) : resolve()));
@@ -41,6 +42,79 @@ export async function assetExternals(run) {
     const compilers = { webpack: require('webpack'), rspack: require('@rspack/core') };
     await writeFile(join(dir, 'legacy.cjs'), 'module.exports = xs => xs.at(-1);');
     await writeFile(join(dir, 'entry.mjs'), 'import read from "./legacy.cjs"; export const r = read([1, 2]); export const effects = [];');
+    const modules = ['es.object.to-string', 'es.array.from', 'es.string.iterator'];
+    const fixture = join(root, 'tests/transpiler-fixtures/entry-global/audit-entry-optional-call-require/input.mjs');
+    const optionalEntry = await readFile(fixture, 'utf8');
+    const entryOptions = options('entry-global');
+    async function babelEntry(input, opts) {
+      return (await transformAsync(input, { filename: fixture, configFile: false, babelrc: false, plugins: [[babelPlugin, opts]] })).code;
+    }
+    await run('esbuild/optional entry preserves the host loader', async () => {
+      const input = join(dir, 'optional.cjs');
+      const buildOptions = { entryPoints: [input], bundle: true, platform: 'browser', format: 'iife', write: false, metafile: true, logLevel: 'silent' };
+      // The original call establishes whether this esbuild links optional dependencies in a browser build.
+      let linksOptional;
+      for (const adapter of ['source', 'babel', 'unplugin']) for (const kind of ['optional', 'required', 'filtered']) {
+        if (adapter === 'source' && kind === 'filtered') continue;
+        const source = kind === 'required' ? optionalEntry.replace('require?.(', 'require(') : optionalEntry;
+        const opts = kind === 'filtered' ? { ...entryOptions, exclude: modules } : entryOptions;
+        await writeFile(input, adapter === 'babel' ? await babelEntry(source, opts) : source);
+        const plugins = adapter === 'unplugin' ? [unplugin.esbuild(opts)] : [];
+        const { metafile, outputFiles } = await esbuild.build({ ...buildOptions, plugins });
+        const inputs = Object.keys(metafile.inputs);
+        function linked(name) { return inputs.some(id => id.endsWith(`/modules/${ name }.js`)); }
+        if (adapter === 'source' && kind === 'optional') linksOptional = linked('es.array.from');
+        const bundled = kind === 'required' || kind === 'optional' && linksOptional;
+        for (const name of modules) assert.equal(linked(name), bundled, `${ adapter }/${ kind }/${ name }`);
+        const code = `delete Array.from;\n${ outputFiles[0].text }\nArray.from?.([7])?.[0]`;
+        const calls = [];
+        assert.equal(runInNewContext(code, { require: id => calls.push(id) }), bundled ? 7 : undefined);
+        const delegated = adapter === 'source' ? ['core-js/actual/array/from'] : modules.map(name => `core-js/modules/${ name }`);
+        assert.deepEqual(calls, kind === 'optional' && !bundled ? delegated : []);
+        assert.equal(runInNewContext(code, { require: null }), bundled ? 7 : undefined);
+        if (kind === 'optional' && !bundled) assert.throws(() => runInNewContext(code), { name: 'ReferenceError' });
+        if (adapter === 'unplugin' && kind !== 'filtered') {
+          const externalOptions = { ...buildOptions, format: 'esm', external: ['core-js/*'], plugins };
+          if (kind === 'required') await assert.rejects(() => esbuild.build(externalOptions), /injected require/u);
+          else await esbuild.build(externalOptions);
+        }
+      }
+    });
+    for (const host of ['webpack', 'rspack']) for (const filtered of [false, true]) {
+      await run(`${ host }/Babel optional entry/${ filtered ? 'filtered' : 'linked' }`, async () => {
+        const code = await babelEntry(optionalEntry, filtered ? { ...entryOptions, exclude: modules } : entryOptions);
+        const read = filtered ? 'typeof Array.from' : 'Array.from([7])[0]';
+        const filename = `babel-optional-${ host }.mjs`;
+        const entry = join(dir, 'babel-optional-entry.mjs');
+        await writeFile(join(dir, 'babel-optional.cjs'), `${ code }\nmodule.exports = ${ read };`);
+        await writeFile(entry, 'export { default as r } from "./babel-optional.cjs"; export const effects = [];');
+        const stats = await compileWebpack(compilers[host]({
+          mode: 'development', devtool: false, target: 'web', entry, experiments: { outputModule: true },
+          output: { path: dir, filename, module: true, library: { type: 'module' } },
+        }));
+        assert.doesNotMatch(stats.toString({ all: false, warnings: true }), /Critical dependency: require function/);
+        assert.equal(await runInWorker(join(dir, filename), { strip: true, stripGlobals: [] }), filtered ? 'OK|"undefined"|[]' : 'OK|7|[]');
+      });
+    }
+    for (const compatible of [false, true]) {
+      await run(`esbuild/implicit neutral ESM/file namespace/${ compatible ? 'loader' : 'refused' }`, async () => {
+        const file = join(dir, 'neutral.mjs');
+        function compile() {
+          return esbuild.build({
+            entryPoints: [join(dir, 'entry.mjs')], bundle: true, platform: 'neutral', outfile: file, logLevel: 'silent',
+            banner: compatible ? { js: 'import { createRequire } from "node:module"; const { load: require } = { load: createRequire(import.meta.url) };' } : undefined,
+            plugins: [unplugin.esbuild(options('usage-pure')), { name: 'external-from-file', setup(build) {
+              build.onResolve({ filter: external, namespace: 'file' }, ({ path }) => ({ path, external: true }));
+            } }],
+          });
+        }
+        if (!compatible) await assert.rejects(compile, /\[core-js\].*injected require/u);
+        else {
+          await compile();
+          assert.equal(await runInWorker(file, { strip: true, stripGlobals: [] }), 'OK|2|[]');
+        }
+      });
+    }
     for (const host of ['esbuild', 'rolldown', 'vite', 'webpack', 'rspack']) {
       for (const method of ['usage-global', 'usage-pure']) {
         for (const compatible of [false, true]) {

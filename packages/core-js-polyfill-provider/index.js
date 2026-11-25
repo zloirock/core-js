@@ -7,7 +7,7 @@ import { HELPER_CANON_ENTRIES } from './detect-usage/globals.js';
 import { POSSIBLE_GLOBAL_OBJECTS } from './helpers/ast-patterns.js';
 import { brand, wrapWithCause } from './helpers/error-tag.js';
 import { isEntryPattern, isModulePattern, patternToRegExp, safeErrorMessage, validatePatternList } from './helpers/pattern-matching.js';
-import { WINDOWS_UNC_PREFIX_RE, canonicalisePackage, resolveImportPath, stripQueryHash } from './helpers/path-normalize.js';
+import { WINDOWS_UNC_PREFIX_RE, canonicalisePackage, isAssetImport, resolveImportPath, stripQueryHash } from './helpers/path-normalize.js';
 import { VALID_MODES, expectEnum, validatePackageShape } from './plugin-options/validate.js';
 
 const { hasOwn } = Object;
@@ -84,7 +84,7 @@ function stripLeadingPrefix(p) {
 // remaining UNC/slash-collapse/lowercase pass: slash-collapse must run AFTER stripLeadingPrefix
 // because `file://` would otherwise collapse to `file:/` and miss the prefix matcher
 function normalizeImportPath(path) {
-  if (typeof path != 'string') return null;
+  if (typeof path != 'string' || isAssetImport(path)) return null;
   const queryless = stripQueryHash(path).replaceAll('\\', '/');
   const stripped = stripLeadingPrefix(queryless);
   const canonical = stripped.replace(WINDOWS_UNC_PREFIX_RE, '').replaceAll(/\/{2,}/g, '/').toLowerCase();

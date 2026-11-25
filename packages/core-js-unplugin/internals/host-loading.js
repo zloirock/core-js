@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { dirname, extname } from 'node:path';
 import { moduleIdLanguage } from '@core-js/polyfill-provider/helpers/path-normalize';
-import { validateEsbuildRequires } from './external-requires.js';
+import { esbuildEmitsESM, validateEsbuildRequires } from './external-requires.js';
 
 // esbuild's onLoad is first-wins, including when a transform declines. Own only file loads
 // whose transformed result we actually return; foreign namespaces and raw components stay
@@ -24,7 +24,8 @@ export function esbuildSetup(include, transform) {
       const result = await transform.call({ warn: warning => warnings.push({ text: String(warning) }) },
         await readFile(args.path, 'utf8'), id, {
           loader,
-          validateRequires: build.initialOptions.format === 'esm' ? requires => validateEsbuildRequires(build, requires, args.path) : null,
+          validateRequires: esbuildEmitsESM(build.initialOptions)
+            ? requires => validateEsbuildRequires(build, requires, args.path, args.namespace) : null,
         });
       if (!result) return;
       let contents = result.code;
