@@ -1,4 +1,5 @@
-import { STRICT } from '../helpers/constants.js';
+import { DESCRIPTORS, PROTO, STRICT } from '../helpers/constants.js';
+import { createSpeciesShrinkingArray } from '../helpers/helpers.js';
 
 import Symbol from 'core-js-pure/es/symbol';
 import filter from 'core-js-pure/es/array/filter';
@@ -25,4 +26,7 @@ QUnit.test('Array#filter', assert => {
     return { foo: 1 };
   } };
   assert.same(filter(array, Boolean).foo, 1, '@@species');
+  if (DESCRIPTORS && PROTO) {
+    assert.deepEqual(filter(createSpeciesShrinkingArray(), Boolean), [1, 'inherited'], 'visits inherited elements after species lookup');
+  }
 });

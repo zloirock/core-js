@@ -1,3 +1,4 @@
+await $`node tests/unit-node/array-filter.js`;
 await $`node tests/unit-node/structured-clone.mjs`;
 
 await Promise.all([

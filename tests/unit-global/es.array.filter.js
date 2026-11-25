@@ -1,4 +1,5 @@
-import { STRICT } from '../helpers/constants.js';
+import { DESCRIPTORS, PROTO, STRICT } from '../helpers/constants.js';
+import { createSpeciesShrinkingArray } from '../helpers/helpers.js';
 
 QUnit.test('Array#filter', assert => {
   const { filter } = Array.prototype;
@@ -28,4 +29,7 @@ QUnit.test('Array#filter', assert => {
   } };
   // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
   assert.same(array.filter(Boolean).foo, 1, '@@species');
+  if (DESCRIPTORS && PROTO) {
+    assert.deepEqual(createSpeciesShrinkingArray().filter(Boolean), [1, 'inherited'], 'visits inherited elements after species lookup');
+  }
 });
