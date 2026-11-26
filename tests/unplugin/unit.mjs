@@ -73,7 +73,7 @@ import {
   stripLeadingBOMs,
 } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
 import unpluginPackage from '../../packages/core-js-unplugin/package.json' with { type: 'json' };
-import { captureLogs, importedPolyfills, reportCount, reportedPolyfills } from '../polyfill-provider/debug-report.mjs';
+import { captureLogs, importedPolyfills, isDebugReport, reportCount, reportedPolyfills } from '../polyfill-provider/debug-report.mjs';
 import {
   findNodeSlot,
   isCalleeReference,
@@ -3988,7 +3988,7 @@ function checkDebugReportIsTheEmission() {
   const single = transformWithReport(noted, notedSource, '/src/debug-note-single.js', ['single']);
   const twoPass = transformWithReport(noted, notedSource, '/src/debug-note-two.js', ['pre', 'post']);
   function noteOf(logs) {
-    return logs.find(line => line.includes('DEBUG'))?.split('Warnings:', 2)[1]?.trim() ?? null;
+    return logs.find(isDebugReport)?.split('Warnings:', 2)[1]?.trim() ?? null;
   }
   check('debug report/control - the single pass notes the deopted slot', noteOf(single.logs) !== null, true);
   check('debug report/the post report of a pre+post file carries the same notes as a single pass', noteOf(twoPass.logs), noteOf(single.logs));

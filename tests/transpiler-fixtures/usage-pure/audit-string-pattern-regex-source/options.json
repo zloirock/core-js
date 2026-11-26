@@ -6,7 +6,7 @@
         "method": "usage-pure",
         "version": "4.0",
         "targets": {
-          "ie": 11
+          "node": 24
         },
         "include": [
           "es\\.(array|string)\\.at"

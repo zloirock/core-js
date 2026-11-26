@@ -90,7 +90,7 @@ vite({ method: 'usage-global', include: ['es.array.push', /^es\.promise\./] });
 vite({ method: 'usage-global', exclude: [/^es\.array\./] });
 
 vite({ method: 'usage-global', debug: true });
-vite({ method: 'usage-global', shouldInjectPolyfill: (name, shouldInject) => shouldInject });
+vite({ method: 'usage-global', include: [], exclude: [], shouldInjectPolyfill: (name, shouldInject) => shouldInject });
 vite({ method: 'usage-global', absoluteImports: true });
 vite({ method: 'usage-global', configPath: '.' });
 vite({ method: 'usage-global', ignoreBrowserslistConfig: true });
@@ -106,7 +106,7 @@ vite({ method: 'entry-global', phase: 'pre' });
 // phase: null on entry-global mirrors the conditional-spread idiom at runtime
 vite({ method: 'entry-global', phase: null });
 
-// all options combined
+// options with include and exclude
 vite({
   method: 'usage-global',
   version: '4.0',
@@ -117,7 +117,6 @@ vite({
   include: ['es.array.push'],
   exclude: [/^web\./],
   debug: true,
-  shouldInjectPolyfill: (name, shouldInject) => shouldInject,
   absoluteImports: false,
   configPath: '.',
   ignoreBrowserslistConfig: false,

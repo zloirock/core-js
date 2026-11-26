@@ -1,3 +1,2 @@
-// the user-supplied `shouldInjectPolyfill` callback receives the base polyfill name,
-// not a transformed alias - parity with how compat data exposes module identifiers.
-import "core-js/modules/es.array.at";
+// Chrome 100 has Array.prototype.at. Both math methods need a polyfill, and the callback excludes sumPrecise.
+import "core-js/modules/es.math.f16round";

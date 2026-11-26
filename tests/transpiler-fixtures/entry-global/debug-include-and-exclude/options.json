@@ -12,7 +12,7 @@
           "es.object.has-own"
         ],
         "exclude": [
-          "es.array.at"
+          "es.math.sum-precise"
         ],
         "debug": true
       }

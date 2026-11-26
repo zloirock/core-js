@@ -12,16 +12,22 @@ export function captureLogs(run) {
   }
 }
 
+export function isDebugReport(line) {
+  return line.startsWith('core-js@4: `DEBUG` option\n');
+}
+
 // the polyfills a report lists, sorted; null without a report, and the report's own one-line
 // verdict when it lists none (`did not add`, `has not been found`)
 export function reportedPolyfills(logs) {
-  const report = logs.find(line => line.includes('DEBUG'));
+  const report = logs.find(isDebugReport);
   if (!report) return null;
   const lines = report.split('\n');
-  const start = lines.findIndex(line => line.endsWith('the following polyfills:'));
-  if (start === -1) return lines.find(line => line.startsWith('The entry point') || line.startsWith('Based on')) ?? [];
+  const heading = lines.findIndex(line => line.startsWith('Using polyfills with `'));
+  if (heading === -1) throw new Error('Missing polyfill report heading');
+  const verdict = lines[heading + 1];
+  if (!verdict.endsWith('the following polyfills:')) return verdict;
   const listed = [];
-  for (const line of lines.slice(start + 1)) {
+  for (const line of lines.slice(heading + 2)) {
     if (!line.startsWith('  ')) break;
     listed.push(line.trim().split(' ', 1)[0]);
   }
@@ -35,5 +41,5 @@ export function importedPolyfills(code) {
 }
 
 export function reportCount(logs) {
-  return logs.filter(line => line.includes('DEBUG')).length;
+  return logs.filter(isDebugReport).length;
 }

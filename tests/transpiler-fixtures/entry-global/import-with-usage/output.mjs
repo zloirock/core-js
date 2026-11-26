@@ -4,3 +4,4 @@ import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
 obj[Symbol.iterator];
+[1].at(0);

@@ -13,7 +13,11 @@ An alternative to [`@core-js/babel-plugin`](https://www.npmjs.com/package/@core-
 ## Installation
 
 ```sh
-npm install @core-js/unplugin
+npm install --save-dev @core-js/unplugin@4.0.0-alpha.1
+# For entry-global or usage-global:
+npm install core-js@4.0.0-alpha.1
+# Or, for usage-pure:
+npm install @core-js/pure@4.0.0-alpha.1
 ```
 
 ## Usage
@@ -168,7 +172,7 @@ Like `usage-global`, but replaces usage of standard library features with import
 | `additionalPackages` | `string[]` | `[]` | Additional package names to recognize as `core-js` |
 | `include` | `(string \| RegExp)[]` | `[]` | Force include polyfill modules or patterns. String patterns are **raw regex syntax** anchored to start/end (NOT globs) |
 | `exclude` | `(string \| RegExp)[]` | `[]` | Force exclude polyfill modules - same pattern semantics as `include` |
-| `shouldInjectPolyfill` | `function` | `undefined` | Custom function to decide whether to inject a polyfill |
+| `shouldInjectPolyfill` | `function` | `undefined` | Return the same boolean for a given `(name, defaultShouldInject)` pair across files using this configuration. Results may be reused. Nonempty `include` or `exclude` lists are incompatible with this callback. |
 | `configPath` | `string` | auto | Directory to search for browserslist config (for monorepos) |
 | `browserslistEnv` | `string` | auto | Browserslist env name (falls back to `production` / `defaults`) |
 | `ignoreBrowserslistConfig` | `boolean` | `false` | Do not use browserslist config |

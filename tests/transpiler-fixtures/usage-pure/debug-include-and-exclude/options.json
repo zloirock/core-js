@@ -6,14 +6,13 @@
         "method": "usage-pure",
         "version": "4.0",
         "targets": {
-          "chrome": 135
+          "chrome": 100
         },
         "include": [
           "es.string.at"
         ],
         "exclude": [
-          "es.array.includes",
-          "es.string.includes"
+          "es.array.to-sorted"
         ],
         "debug": true
       }

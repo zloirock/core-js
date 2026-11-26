@@ -1,6 +1,4 @@
-// `using` declaration - stage-4 explicit resource management. A VariableDeclaration with
-// kind === 'using' injects a symbol/dispose entry via the syntax-only dispatch path
-// (no global identifier triggers symbol/dispose by itself).
+// The explicit Symbol.dispose key requests the pure import. The using declaration stays intact.
 function makeResource() {
   return {
     [Symbol.dispose]() { /* cleanup */ },

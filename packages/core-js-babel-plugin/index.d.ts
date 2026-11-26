@@ -14,7 +14,7 @@ type Targets = CompatOptions["targets"];
 type Options = {
   /** polyfilling method: 'entry-global', 'usage-global' or 'usage-pure' */
   method: Method,
-  /** browserslist targets */
+  /** explicit targets take precedence over Babel targets and the project Browserslist config */
   targets?: Targets | null,
   /** used `core-js` version. Special values: `'node_modules'` (default; auto-detect the configured package from the project working directory); `'package.json'` (read the configured package from CWD `package.json`'s `dependencies` / `devDependencies` / `peerDependencies`). When specified as an explicit SemVer string, the minor component is required, e.g. `'4.1'` */
   version?: string | null,
@@ -33,7 +33,8 @@ type Options = {
   exclude?: readonly (string | RegExp)[] | null,
   /** enable debug output */
   debug?: boolean | null,
-  /** custom function to decide whether to inject a polyfill */
+  /** The decision for a given module name and default must be stable across files using this configuration.
+   *  Nonempty `include` or `exclude` lists are incompatible with this callback. */
   shouldInjectPolyfill?: ((name: string, defaultShouldInject: boolean) => boolean) | null,
   /** resolve injected imports from the project working directory; missing entries throw */
   absoluteImports?: boolean | null,
@@ -41,7 +42,7 @@ type Options = {
   configPath?: string | null,
   /** browserslist env name (falls back to `production` / `defaults`) */
   browserslistEnv?: string | null,
-  /** do not use browserslist config, only explicit `targets` */
+  /** skip the plugin's Browserslist lookup; targets supplied by Babel still apply */
   ignoreBrowserslistConfig?: boolean | null,
   /** import style for injected polyfills: 'import' (ESM) or 'require' (CJS), by default auto-detected from surviving ESM syntax and source format */
   importStyle?: 'import' | 'require' | null,

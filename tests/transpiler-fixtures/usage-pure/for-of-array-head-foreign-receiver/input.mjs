@@ -1,7 +1,4 @@
-// a for-of ARRAY head over a receiver foreign to the host - a bound container, a call yielding one -
-// mirrors the whole array level in place of the element, as an inline literal mirrors its slot: a
-// bound sibling reads its element off the container by index, a hole stays a hole, a nested level
-// mirrors on its own, a call keeps running ahead of the literal that stands in for its value
+// Bound and inline array elements keep their native patterns, including siblings, holes and nested keys.
 const held = [Math];
 for (const [{ trunc: viaAlias }] of [held]) use(viaAlias(1.5));
 const pair = [Math, 1];
@@ -11,6 +8,7 @@ const deep = [[Math]];
 for (const [[{ log10: viaDeep }]] of [deep]) use(viaDeep(100));
 const keyed = [{ k: Math }];
 for (const [{ k: { log2: viaKeyed } }] of [keyed]) use(viaKeyed(8));
+// The three factory calls run once each and supply the corresponding pure Math method.
 const build = () => [Math];
 for (const [{ hypot: viaCall }] of [build()]) use(viaCall(3, 4));
 let count = 0;

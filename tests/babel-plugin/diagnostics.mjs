@@ -60,7 +60,7 @@ function transform(code, options, filename = 'input.mjs') {
 {
   const { logs } = transform('export const n = 1;\n', { method: 'usage-global' });
   check('debug report/nothing emitted: one report', reportCount(logs), 1);
-  checkTruthy('debug report/nothing emitted: says so', logs[0].includes('did not add any polyfill'));
+  check('debug report/nothing emitted: says so', reportedPolyfills(logs), 'The core-js@4 polyfill did not add any polyfill.');
 }
 
 // entry-global: the report lists the modules the entry became, after the surgery; a file without

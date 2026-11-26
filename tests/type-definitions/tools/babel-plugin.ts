@@ -80,7 +80,7 @@ plugin({}, { method: 'usage-global', exclude: [/^es\.array\./] }, '/path');
 
 plugin({}, { method: 'usage-global', debug: true }, '/path');
 plugin({}, { method: 'usage-global', debug: false }, '/path');
-plugin({}, { method: 'usage-global', shouldInjectPolyfill: (name, shouldInject) => shouldInject }, '/path');
+plugin({}, { method: 'usage-global', include: [], exclude: [], shouldInjectPolyfill: (name, shouldInject) => shouldInject }, '/path');
 plugin({}, { method: 'usage-global', shouldInjectPolyfill: (_name: string, _default: boolean) => true }, '/path');
 plugin({}, { method: 'usage-global', absoluteImports: true }, '/path');
 plugin({}, { method: 'usage-global', absoluteImports: false }, '/path');
@@ -91,7 +91,7 @@ plugin({}, { method: 'usage-global', importStyle: 'import' }, '/path');
 plugin({}, { method: 'usage-global', importStyle: 'require' }, '/path');
 plugin({}, { method: 'usage-global', browserslistEnv: 'production' }, '/path');
 
-// all options combined
+// options with include and exclude
 plugin({}, {
   method: 'usage-global',
   version: '4.0',
@@ -107,7 +107,6 @@ plugin({}, {
   include: ['es.array.push'],
   exclude: [/^web\./],
   debug: true,
-  shouldInjectPolyfill: (name, shouldInject) => shouldInject,
   absoluteImports: false,
   configPath: '.',
   importStyle: 'import',

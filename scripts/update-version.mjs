@@ -18,8 +18,10 @@ const NEW_VERSION_MINOR = getMinorVersion(NEW_VERSION);
 const CHANGELOG = 'CHANGELOG.md';
 const LICENSE = 'LICENSE';
 const README = 'README.md';
+const README_BABEL_PLUGIN = 'packages/core-js-babel-plugin/README.md';
 const README_COMPAT = 'packages/core-js-compat/README.md';
 const README_TYPES = 'packages/core-js-types/README.md';
+const README_UNPLUGIN = 'packages/core-js-unplugin/README.md';
 const SHARED = 'packages/core-js/internals/shared-store.js';
 const BUILDER_CONFIG = 'packages/core-js-builder/config.js';
 const DOCS_USAGE = 'docs/web/docs/usage.md';
@@ -31,22 +33,24 @@ const license = await readFile(LICENSE, 'utf8');
 const OLD_YEAR = +license.match(/2025–(?<year>\d{4}) C/).groups.year;
 await writeFile(LICENSE, license.replaceAll(OLD_YEAR, CURRENT_YEAR));
 
-const readme = await readFile(README, 'utf8');
-await writeFile(README, readme.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(PREV_VERSION_MINOR, NEW_VERSION_MINOR));
-
-const readmeCompat = await readFile(README_COMPAT, 'utf8');
-await writeFile(README_COMPAT, readmeCompat.replaceAll(PREV_VERSION_MINOR, NEW_VERSION_MINOR));
-
 const npmInstall = /^[\t ]*npm[\t ]+(?:i|install)(?=[\t ])[^\n\r#&;|]*/gm;
-const typesArgument = /(?<=\s)(?<quote>["']?)@core-js\/types@(?<version>[^\s"']+)\k<quote>(?!\S)/g;
-function updateTypesArgument(specifier, quote, version) {
-  return valid(version) ? `${ quote }@core-js/types@${ NEW_VERSION }${ quote }` : specifier;
+const packageArgument = /(?<=\s)(?<quote>["']?)(?<name>core-js|@core-js\/(?:bundle|pure|types|unplugin))@(?<version>[^\s"']+)\k<quote>(?!\S)/g;
+function updateInstallArgument(specifier, quote, name, version) {
+  if (version === PREV_VERSION || name === '@core-js/types' && valid(version)) return `${ quote }${ name }@${ NEW_VERSION }${ quote }`;
+  return specifier;
 }
 
-for (const file of [README_TYPES, DOCS_TYPES]) {
-  const text = await readFile(file, 'utf8');
-  const updated = text.replaceAll(npmInstall, command => command.replaceAll(typesArgument, updateTypesArgument));
-  await writeFile(file, updated);
+const versionDocs = new Set([README, README_BABEL_PLUGIN, README_COMPAT, README_UNPLUGIN, DOCS_USAGE]);
+const minorExample = /(?<prefix>`|\bversion["']?\s*:\s*|get(?:Entries|Modules)ListForTargetVersion\()(?<quote>["'])(?<minor>\d+\.\d+)\k<quote>/g;
+function updateMinorExample(match, prefix, quote, minor) {
+  return minor === PREV_VERSION_MINOR ? `${ prefix }${ quote }${ NEW_VERSION_MINOR }${ quote }` : match;
+}
+
+for (const file of [...versionDocs, README_TYPES, DOCS_TYPES]) {
+  let text = await readFile(file, 'utf8');
+  text = text.replaceAll(npmInstall, command => command.replaceAll(packageArgument, updateInstallArgument));
+  if (versionDocs.has(file)) text = text.replaceAll(minorExample, updateMinorExample);
+  await writeFile(file, text);
 }
 
 const shared = await readFile(SHARED, 'utf8');
@@ -54,9 +58,6 @@ await writeFile(SHARED, shared.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(
 
 const builderConfig = await readFile(BUILDER_CONFIG, 'utf8');
 await writeFile(BUILDER_CONFIG, builderConfig.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(OLD_YEAR, CURRENT_YEAR));
-
-const docsUsage = await readFile(DOCS_USAGE, 'utf8');
-await writeFile(DOCS_USAGE, docsUsage.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(PREV_VERSION_MINOR, NEW_VERSION_MINOR));
 
 const packages = await Promise.all((await glob('packages/*/package?(.tpl).json')).map(async path => {
   const pkg = await readJson(path, 'utf8');

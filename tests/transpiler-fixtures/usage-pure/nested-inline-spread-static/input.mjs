@@ -1,5 +1,5 @@
 // Nested literal spreads retain exact positions, including empty arrays and holes.
-// Both destructuring and caller arguments must select their own static receiver.
+// Declarations keep their native patterns. The call and for-of resolve Object.entries and Array.of.
 const [{ values }] = [...[...[Object]]];
 const [, { from }] = [...[...[], , ...[Array]]];
 const entries = (({ entries: read }) => read)(...[...[Object]]);

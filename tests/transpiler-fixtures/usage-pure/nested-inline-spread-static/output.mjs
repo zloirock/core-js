@@ -1,7 +1,7 @@
 import _Array$of from "@core-js/pure/actual/array/of";
 import _Object$entries from "@core-js/pure/actual/object/entries";
 // Nested literal spreads retain exact positions, including empty arrays and holes.
-// Both destructuring and caller arguments must select their own static receiver.
+// Declarations keep their native patterns. The call and for-of resolve Object.entries and Array.of.
 const [{
   values
 }] = [...[...[Object]]];

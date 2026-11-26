@@ -88,7 +88,7 @@ Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // =>
 The plugin supports three injection methods: `entry-global`, `usage-global`, and `usage-pure`.
 
 > [!IMPORTANT]
-> You should specify the used minor `core-js` version, like `version: '4.1'`, instead of `version: '4'`.
+> The plugin detects the installed runtime version by default. When setting `version` explicitly, include the minor version, for example `'4.1'`.
 
 ---
 
@@ -154,18 +154,18 @@ Configuration example:
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `method` | `string` | **required** | `'entry-global'`, `'usage-global'`, or `'usage-pure'` |
-| `version` | `string` | `'node_modules'` | Used `core-js` version, auto-detected from installed `core-js` by default. Can be a semver string with minor component like `'4.1'`. Special values: `'node_modules'` reads the version from the installed `core-js` package, `'package.json'` reads the version range from the project's `package.json` dependencies |
-| `targets` | `string` \| `object` | from project browserslist config if present | Browserslist query or an object of minimum environment versions, same as [`@core-js/compat`](https://github.com/zloirock/core-js/tree/v4/packages/core-js-compat) |
+| `version` | `string` | `'node_modules'` | Version of the configured `package` (`core-js` for global methods, `@core-js/pure` for pure by default). Use an explicit minor such as `'4.1'`, `'node_modules'` for the installed version, or `'package.json'` for the range in the project manifest (first of `dependencies`, `devDependencies`, `peerDependencies`). |
+| `targets` | `string` \| `string[]` \| `object` | Babel targets, then project Browserslist config | A query, a list of queries such as `['ie 11', 'chrome 135']`, or an object of minimum environment versions, same as [`@core-js/compat`](https://github.com/zloirock/core-js/tree/v4/packages/core-js-compat) |
 | `mode` | `string` | `'actual'` | Entry point layer: `'es'`, `'stable'`, `'actual'`, or `'full'` |
 | `package` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths (defaults depend on `method`) |
 | `additionalPackages` | `string[]` | `[]` | Additional package names to recognize as `core-js` (for `entry-global`) |
-| `include` | `(string \| RegExp)[]` | `[]` | Force include polyfill modules (e.g. `'es.array.at'`) or patterns. String patterns are **raw regex syntax** anchored to start/end (NOT globs) — a leading `es.` matches any submodule, `*` is a regex quantifier |
+| `include` | `(string \| RegExp)[]` | `[]` | Force include polyfill modules (e.g. `'es.array.at'`) or patterns. String patterns match the entire module name. The JavaScript string `'es\\..*'` matches all `es.` modules |
 | `exclude` | `(string \| RegExp)[]` | `[]` | Force exclude polyfill modules — same pattern semantics as `include` |
-| `shouldInjectPolyfill` | `function` | `undefined` | Custom callback `(name, defaultShouldInject) => boolean` |
+| `shouldInjectPolyfill` | `function` | `undefined` | Return the same boolean for a given `(name, defaultShouldInject)` pair across files using this configuration. Results may be reused. Nonempty `include` or `exclude` lists are incompatible with this callback. |
 | `importStyle` | `string` | auto | `'import'` or `'require'`, auto-detected from surviving ESM syntax and the source file format |
 | `configPath` | `string` | auto | Directory to search for browserslist config (for monorepos) |
 | `browserslistEnv` | `string` | auto | Browserslist env name (falls back to `production` / `defaults`) |
-| `ignoreBrowserslistConfig` | `boolean` | `false` | Do not use browserslist config |
+| `ignoreBrowserslistConfig` | `boolean` | `false` | Skip the plugin's Browserslist lookup. Targets supplied by Babel still apply |
 | `absoluteImports` | `boolean` | `false` | Use absolute paths for injected imports |
 | `debug` | `boolean` | `false` | Print injected polyfills to console |
 
@@ -176,7 +176,7 @@ You can use comments to disable polyfill injection for specific lines or entire 
 ```ts
 // core-js-disable-file
 ```
-Disables polyfill injection for the entire file. Must appear before the first statement (file head); a directive after code is ignored.
+Disables polyfill injection for the entire file. Place the comment before the first non-directive statement. It can follow a directive such as `"use strict"`.
 
 ```ts
 arr.includes(x); // core-js-disable-line
@@ -204,7 +204,11 @@ arr.includes(x);
 It supports the same three methods (`entry-global`, `usage-global`, `usage-pure`), the same options, and the same disable comments as `@core-js/babel-plugin`. Uses [oxc-parser](https://oxc.rs/docs/guide/usage/parser) for fast parsing with native TypeScript support.
 
 ```sh
-npm install @core-js/unplugin
+npm install --save-dev @core-js/unplugin@4.0.0-alpha.1
+# For entry-global or usage-global:
+npm install core-js@4.0.0-alpha.1
+# Or, for usage-pure:
+npm install @core-js/pure@4.0.0-alpha.1
 ```
 
 ### Vite
@@ -327,14 +331,14 @@ await Bun.build({
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `method` | `string` | **required** | `'entry-global'`, `'usage-global'`, or `'usage-pure'` |
-| `version` | `string` | `'node_modules'` | Used `core-js` version, auto-detected from installed `core-js` by default. Can be a semver string with minor component like `'4.1'`. Special values: `'node_modules'`, `'package.json'` |
+| `version` | `string` | `'node_modules'` | Version of the configured `package` (`core-js` for global methods, `@core-js/pure` for pure by default). Use an explicit minor such as `'4.1'`, `'node_modules'` for the installed version, or `'package.json'` for the range in the project manifest (first of `dependencies`, `devDependencies`, `peerDependencies`). |
 | `targets` | `string` \| `string[]` \| `object` | from project browserslist config if present | Browserslist targets |
 | `mode` | `string` | `'actual'` | Entry point layer: `'es'`, `'stable'`, `'actual'`, or `'full'` |
 | `package` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths |
 | `additionalPackages` | `string[]` | `[]` | Additional package names to recognize as `core-js` |
 | `include` | `(string \| RegExp)[]` | `[]` | Force include polyfill modules or patterns. String patterns are **raw regex syntax** anchored to start/end (NOT globs) |
 | `exclude` | `(string \| RegExp)[]` | `[]` | Force exclude polyfill modules — same pattern semantics as `include` |
-| `shouldInjectPolyfill` | `function` | `undefined` | Custom callback `(name, defaultShouldInject) => boolean` |
+| `shouldInjectPolyfill` | `function` | `undefined` | Return the same boolean for a given `(name, defaultShouldInject)` pair across files using this configuration. Results may be reused. Nonempty `include` or `exclude` lists are incompatible with this callback. |
 | `importStyle` | `string` | auto | `'import'` or `'require'`, auto-detected from surviving ESM syntax and the source file format |
 | `configPath` | `string` | auto | Directory to search for browserslist config (for monorepos) |
 | `browserslistEnv` | `string` | auto | Browserslist env name (falls back to `production` / `defaults`) |
@@ -354,10 +358,9 @@ await Bun.build({
 > [!NOTE]
 > `useBuiltIns` and `corejs` options described below are available only in Babel 7; in Babel 8, they were replaced with [`babel-plugin-polyfill-corejs3`](#h-babel-plugin-polyfill-corejs3). These options and `babel-plugin-polyfill-corejs3` are deprecated in favor of [`@core-js/babel-plugin`](#h-core-jsbabel-plugin).
 
-[`@babel/preset-env`](https://github.com/babel/babel/tree/master/packages/babel-preset-env) has `useBuiltIns` option, which optimizes the use of the global version of `core-js`. With `useBuiltIns` option, you should also set `corejs` option to the used version of `core-js`, like `corejs: '4.1'`.
+Babel 7's [`@babel/preset-env`](https://github.com/babel/babel/tree/master/packages/babel-preset-env) accepts `core-js@2` and `core-js@3` with `useBuiltIns`. For `core-js@3`, specify the installed minor version, for example `corejs: '3.51'`. A bare `3` selects the modules available in 3.0.
 
-> [!IMPORTANT]
-> It is recommended to specify the used minor `core-js` version, like `corejs: '4.1'`, instead of `corejs: 4`, since with `corejs: 4`, modules added in minor `core-js` releases will not be injected.
+For `core-js@4`, use `["@core-js", { "method": "entry-global" }]` in Babel's `plugins` array to replace entry imports, or choose `"usage-global"` to inject imports at use sites.
 
 ---
 
@@ -367,10 +370,9 @@ import 'core-js/stable';
 ```
 with `chrome 71` target will be replaced just to:
 ```ts
-import 'core-js/modules/es.array.unscopables.flat';
-import 'core-js/modules/es.array.unscopables.flat-map';
-import 'core-js/modules/es.object.from-entries';
-import 'core-js/modules/web.set-immediate';
+import 'core-js/modules/es.array.unscopables.flat.js';
+import 'core-js/modules/es.array.unscopables.flat-map.js';
+import 'core-js/modules/es.object.from-entries.js';
 // ...and the rest of the modules not yet supported by Chrome 71
 ```
 It works for all entry points of global version of `core-js` and their combinations, for example for
@@ -381,17 +383,17 @@ import 'core-js/full/string/dedent';
 ```
 with `chrome 71` target you will have as the result:
 ```ts
-import 'core-js/modules/es.array.unscopables.flat';
-import 'core-js/modules/es.array.unscopables.flat-map';
-import 'core-js/modules/es.object.from-entries';
-import 'core-js/modules/es.set.difference';
-import 'core-js/modules/es.set.intersection';
-import 'core-js/modules/es.set.is-disjoint-from';
-import 'core-js/modules/es.set.is-subset-of';
-import 'core-js/modules/es.set.is-superset-of';
-import 'core-js/modules/es.set.symmetric-difference';
-import 'core-js/modules/es.set.union';
-import 'core-js/modules/esnext.string.dedent';
+import 'core-js/modules/es.array.unscopables.flat.js';
+import 'core-js/modules/es.array.unscopables.flat-map.js';
+import 'core-js/modules/es.object.from-entries.js';
+import 'core-js/modules/es.set.difference.v2.js';
+import 'core-js/modules/es.set.intersection.v2.js';
+import 'core-js/modules/es.set.is-disjoint-from.v2.js';
+import 'core-js/modules/es.set.is-subset-of.v2.js';
+import 'core-js/modules/es.set.is-superset-of.v2.js';
+import 'core-js/modules/es.set.symmetric-difference.v2.js';
+import 'core-js/modules/es.set.union.v2.js';
+import 'core-js/modules/esnext.string.dedent.js';
 // ...and the rest of the modules not yet supported by Chrome 71
 ```
 
@@ -407,20 +409,21 @@ let array = Array.of(1, 2, 3);
 if the target contains an old environment like `IE 11` we will have something like:
 ```ts
 // first file:
-import 'core-js/modules/es.array.iterator';
-import 'core-js/modules/es.object.to-string';
-import 'core-js/modules/es.set.constructor';
+import 'core-js/modules/es.array.iterator.js';
+import 'core-js/modules/es.object.to-string.js';
+import 'core-js/modules/es.set.js';
+// ...other Set and iterator dependencies
 
 var set = new Set([1, 2, 3]);
 ```
 ```ts
 // second file:
-import 'core-js/modules/es.array.of';
+import 'core-js/modules/es.array.of.js';
 
 var array = Array.of(1, 2, 3);
 ```
 
-By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfills stable features, but you can enable polyfilling of proposals by the `proposals` option, as `corejs: { version: 'node_modules', proposals: true }`.
+By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfills stable features, but you can enable polyfilling of proposals by the `proposals` option, as `corejs: { version: '3.51', proposals: true }`.
 
 > [!IMPORTANT]
 > In the case of `useBuiltIns: 'usage'`, you should not add `core-js` imports by yourself, they will be added automatically.
@@ -430,15 +433,16 @@ By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfill
 > [!TIP]
 > [`@core-js/babel-plugin`](#h-core-jsbabel-plugin) with `method: 'usage-pure'` is recommended over `@babel/runtime` for `core-js` polyfill injection.
 
-[`@babel/plugin-transform-runtime`](https://babeljs.io/docs/babel-plugin-transform-runtime) with `corejs: 4` option simplifies work with the `@core-js/pure`. It automatically replaces the usage of modern features from the JS standard library to imports from the version of `core-js` without global namespace pollution, so instead of:
+Babel 7's [`@babel/plugin-transform-runtime`](https://babeljs.io/docs/babel-plugin-transform-runtime) with `corejs: 3` imports pure helpers from `@babel/runtime-corejs3`. Install that package as a runtime dependency. For `core-js@4`, install `@core-js/pure` and use `["@core-js", { "method": "usage-pure" }]` in Babel's `plugins` array. With Babel 7's runtime plugin, instead of:
 ```ts
-import from from '@core-js/pure/stable/array/from';
-import flat from '@core-js/pure/stable/array/flat';
-import Set from '@core-js/pure/stable/set';
-import Promise from '@core-js/pure/stable/promise';
+import from from '@babel/runtime-corejs3/core-js-stable/array/from';
+import getFlat from '@babel/runtime-corejs3/core-js-stable/instance/flat';
+import Set from '@babel/runtime-corejs3/core-js-stable/set';
+import Promise from '@babel/runtime-corejs3/core-js-stable/promise';
 
 from(new Set([1, 2, 3, 2, 1]));
-flat([1, [2, 3], [4, [5]]], 2);
+const array = [1, [2, 3], [4, [5]]];
+getFlat(array).call(array, 2);
 Promise.resolve(32).then(x => console.log(x));
 ```
 you can write just:
@@ -448,7 +452,7 @@ Array.from(new Set([1, 2, 3, 2, 1]));
 Promise.resolve(32).then(x => console.log(x));
 ```
 
-By default, `@babel/plugin-transform-runtime` only polyfills stable features, but like in `@babel/preset-env`, you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: 4, proposals: true }`.
+By default, `@babel/plugin-transform-runtime` only polyfills stable features, but like in `@babel/preset-env`, you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: 3, proposals: true }`.
 
 > [!WARNING]
 > If you use `@babel/preset-env` and `@babel/plugin-transform-runtime` together, use `corejs` option only in one place since it's duplicate functionality and will cause conflicts.

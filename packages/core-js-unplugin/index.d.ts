@@ -31,7 +31,8 @@ interface BaseOptions {
   exclude?: readonly (string | RegExp)[] | null;
   /** enable debug output */
   debug?: boolean | null;
-  /** custom function to decide whether to inject a polyfill */
+  /** The decision for a given module name and default must be stable across files using this configuration.
+   *  Nonempty `include` or `exclude` lists are incompatible with this callback. */
   shouldInjectPolyfill?: ((name: string, defaultShouldInject: boolean) => boolean) | null;
   /** resolve injected imports from the project working directory; missing entries throw */
   absoluteImports?: boolean | null;

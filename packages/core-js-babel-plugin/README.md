@@ -104,7 +104,7 @@ Array.from(items);
 |--------|------|---------|-------------|
 | `method` | `string` | **required** | `'entry-global'`, `'usage-global'`, or `'usage-pure'` |
 | `version` | `string` | `'node_modules'` | Used `core-js` version, auto-detected from the configured `package` in the project working directory by default. Can be a semver string with minor component like `'4.1'`. Special values: `'node_modules'`, `'package.json'` |
-| `targets` | `string` \| `string[]` \| `object` | from project browserslist config if present | Browserslist query or an object of minimum environment versions, same as [`@core-js/compat`](https://github.com/zloirock/core-js/tree/v4/packages/core-js-compat) |
+| `targets` | `string` \| `string[]` \| `object` | Babel targets, then project Browserslist config | Browserslist query, list of queries or an object of minimum environment versions, same as [`@core-js/compat`](https://github.com/zloirock/core-js/tree/v4/packages/core-js-compat) |
 | `mode` | `string` | `'actual'` | Entry point layer: `'es'`, `'stable'`, `'actual'`, or `'full'` (makes no sense for `entry-global`) |
 | `package` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths (defaults depend on `method`) |
 | `additionalPackages` | `string[]` | `[]` | Additional package names to recognize as `core-js` |
@@ -113,7 +113,7 @@ Array.from(items);
 | `shouldInjectPolyfill` | `function` | `undefined` | Custom function to decide whether to inject a polyfill |
 | `configPath` | `string` | auto | Directory to search for browserslist config (for monorepos) |
 | `browserslistEnv` | `string` | auto | Browserslist env name (falls back to `production` / `defaults`) |
-| `ignoreBrowserslistConfig` | `boolean` | `false` | Do not use browserslist config, only explicit `targets` |
+| `ignoreBrowserslistConfig` | `boolean` | `false` | Skip the plugin's Browserslist lookup. Targets supplied by Babel still apply |
 | `absoluteImports` | `boolean` | `false` | Resolve injected imports from the project working directory; missing entries throw |
 | `importStyle` | `string` | auto | Import style for injected polyfills: `'import'` or `'require'`, auto-detected from surviving ESM syntax and source format if not set |
 | `debug` | `boolean` | `false` | Print injected polyfills to console |
@@ -190,7 +190,7 @@ Controls which features are available:
 
 ### `targets`
 
-When `targets` is not specified, the plugin looks for a browserslist config in the project (`.browserslistrc`, `browserslist` field in `package.json`, or `BROWSERSLIST` env variable). If a config file is found, its targets are used; otherwise all engines are assumed and all polyfills will be injected. In Babel, targets can also be resolved automatically via `@babel/preset-env`. Use `configPath` to specify a custom config directory, or `ignoreBrowserslistConfig` to disable config auto-detection.
+Explicit plugin `targets` take priority. Otherwise the plugin uses Babel's targets from `api.targets()` when they name at least one engine. If Babel supplies none, the plugin reads the project's Browserslist config. Use `configPath` to choose the directory for that lookup. With no configured targets, every used feature is eligible for injection.
 
 ```json
 {
@@ -204,7 +204,7 @@ When `targets` is not specified, the plugin looks for a browserslist config in t
 
 ### `include` / `exclude`
 
-Force include or exclude specific polyfills regardless of target environment. Accepts module names (like `es.array.from`), entry point paths (for pure version, like `array/from`), or regular expressions. Entry point paths are automatically expanded to the corresponding module names. Cannot be used together with `shouldInjectPolyfill`.
+Force include or exclude specific polyfills regardless of target environment. Accepts module names (like `es.array.from`), entry point paths (for pure version, like `array/from`), or regular expressions. Entry point paths are automatically expanded to the corresponding module names. Nonempty lists cannot be used with `shouldInjectPolyfill`.
 
 ```json
 {
@@ -232,7 +232,7 @@ Force include or exclude specific polyfills regardless of target environment. Ac
 
 ### `shouldInjectPolyfill`
 
-A callback that gives full control over which polyfills are injected. It receives the polyfill module name and a boolean indicating whether it would be injected by default (based on targets), and returns a boolean. Cannot be used together with `include` / `exclude`.
+The callback receives the module name and the default decision for the targets. Return the same boolean for those inputs across files using this configuration. Results may be reused. Nonempty `include` or `exclude` lists are incompatible with this callback.
 
 ```js
 // babel.config.js
@@ -265,7 +265,7 @@ Directory path to search for a browserslist config file. By default, the config 
 
 ### `ignoreBrowserslistConfig`
 
-When `true`, the plugin will not read any browserslist config files. Only the explicitly provided `targets` will be used. If no `targets` are provided either, the target is assumed to be all engines - all polyfills will be injected.
+Skips the plugin's own Browserslist lookup. Explicit plugin targets and targets already resolved by Babel still apply, including any project configuration Babel read.
 
 ### `absoluteImports`
 
@@ -304,7 +304,7 @@ You can use comments to disable polyfill injection for specific lines or entire 
 ```js
 // core-js-disable-file
 ```
-Disables polyfill injection for the entire file. Must appear before the first statement (file head); a directive after code is ignored.
+Disables polyfill injection for the entire file. Place the comment before the first non-directive statement. It can follow a directive such as `"use strict"`.
 
 ```js
 arr.includes(x); // core-js-disable-line

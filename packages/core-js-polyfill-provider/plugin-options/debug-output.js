@@ -40,8 +40,7 @@ export function createDebugOutputFactory({ method, parsedTargets }) {
         if (method === 'entry-global' && !entryFound) {
           result = 'The entry point for the core-js@4 polyfill has not been found.';
         } else if (items.length === 0) {
-          const scope = method === 'entry-global' ? 'your targets' : 'your code and targets';
-          result = `Based on ${ scope }, the core-js@4 polyfill did not add any polyfill.`;
+          result = 'The core-js@4 polyfill did not add any polyfill.';
         } else {
           const verb = method === 'entry-global' ? 'entry has been replaced with' : 'added';
           const polyfillLines = items.map(item => isPolyfillModule(item)

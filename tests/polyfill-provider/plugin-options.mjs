@@ -25,6 +25,7 @@ import { createPolyfillContext } from '../../packages/core-js-polyfill-provider/
 import knownBuiltInReturnTypes from '../../packages/core-js-compat/known-built-in-return-types.json' with { type: 'json' };
 import builtInDefinitions from '../../packages/core-js-compat/built-in-definitions.json' with { type: 'json' };
 import compatEntries from '../../packages/core-js-compat/entries.json' with { type: 'json' };
+import { reportCount, reportedPolyfills } from './debug-report.mjs';
 import { createChecker } from './harness.mjs';
 
 const { check, checkDeep, checkTruthy, doesNotThrow, finish, throwsWith } = createChecker('plugin-options');
@@ -991,11 +992,15 @@ check('formatTargets/multi', formatTargets({ ie: '11', chrome: '60' }),
     `es.array.at ${ formatTargets(getUnsupportedTargets('es.array.at', parsed)) }`);
 }
 
-// empty modules + usage-global -> "did not add any polyfill"
-{
-  const factory = createDebugOutputFactory({ method: 'usage-global', parsedTargets: null });
-  const out = factory().format([]);
-  checkTruthy('debugOutput/empty usage-global', out.includes('did not add any polyfill'));
+// A filter can suppress even a module that the targets require.
+for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
+  const collector = createDebugOutputFactory({ method, parsedTargets: new Map([['ie', '11']]) })();
+  collector.markEntryFound();
+  collector.warn('the following polyfills:');
+  const logs = ['compiler: DEBUG enabled', collector.format([])];
+  check(`debugOutput/one ${ method } report among compiler logs`, reportCount(logs), 1);
+  check(`debugOutput/empty ${ method } before warnings`, reportedPolyfills(logs),
+    'The core-js@4 polyfill did not add any polyfill.');
 }
 
 // entry-global without markEntryFound -> "entry point not found"

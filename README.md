@@ -302,10 +302,9 @@ import 'regenerator-runtime/runtime';
 
 #### `@babel/preset-env`[⬆](#index)
 
-[`@babel/preset-env`](https://github.com/babel/babel/tree/master/packages/babel-preset-env) has `useBuiltIns` option, which optimizes the use of the global version of `core-js`. With `useBuiltIns` option, you should also set `corejs` option to the used version of `core-js`, like `corejs: '4.1'`.
+Babel 7's [`@babel/preset-env`](https://github.com/babel/babel/tree/master/packages/babel-preset-env) accepts `core-js@2` and `core-js@3` with `useBuiltIns`. For `core-js@3`, specify the installed minor version, for example `corejs: '3.51'`. A bare `3` selects the modules available in 3.0.
 
-> [!IMPORTANT]
-> It is recommended to specify the used minor `core-js` version, like `corejs: '4.1'`, instead of `corejs: 4`, since with `corejs: 4`, modules added in minor `core-js` releases will not be injected.
+For `core-js@4`, use `["@core-js", { "method": "entry-global" }]` in Babel's `plugins` array to replace entry imports, or choose `"usage-global"` to inject imports at use sites.
 
 ---
 
@@ -315,10 +314,9 @@ import 'core-js/stable';
 ```
 with `chrome 71` target will be replaced just to:
 ```js
-import 'core-js/modules/es.array.unscopables.flat';
-import 'core-js/modules/es.array.unscopables.flat-map';
-import 'core-js/modules/es.object.from-entries';
-import 'core-js/modules/web.set-immediate';
+import 'core-js/modules/es.array.unscopables.flat.js';
+import 'core-js/modules/es.array.unscopables.flat-map.js';
+import 'core-js/modules/es.object.from-entries.js';
 // ...and the rest of the modules not yet supported by Chrome 71
 ```
 It works for all entry points of global version of `core-js` and their combinations, for example for
@@ -329,17 +327,17 @@ import 'core-js/full/string/dedent';
 ```
 with `chrome 71` target you will have as the result:
 ```js
-import 'core-js/modules/es.array.unscopables.flat';
-import 'core-js/modules/es.array.unscopables.flat-map';
-import 'core-js/modules/es.object.from-entries';
-import 'core-js/modules/es.set.difference';
-import 'core-js/modules/es.set.intersection';
-import 'core-js/modules/es.set.is-disjoint-from';
-import 'core-js/modules/es.set.is-subset-of';
-import 'core-js/modules/es.set.is-superset-of';
-import 'core-js/modules/es.set.symmetric-difference';
-import 'core-js/modules/es.set.union';
-import 'core-js/modules/esnext.string.dedent';
+import 'core-js/modules/es.array.unscopables.flat.js';
+import 'core-js/modules/es.array.unscopables.flat-map.js';
+import 'core-js/modules/es.object.from-entries.js';
+import 'core-js/modules/es.set.difference.v2.js';
+import 'core-js/modules/es.set.intersection.v2.js';
+import 'core-js/modules/es.set.is-disjoint-from.v2.js';
+import 'core-js/modules/es.set.is-subset-of.v2.js';
+import 'core-js/modules/es.set.is-superset-of.v2.js';
+import 'core-js/modules/es.set.symmetric-difference.v2.js';
+import 'core-js/modules/es.set.union.v2.js';
+import 'core-js/modules/esnext.string.dedent.js';
 // ...and the rest of the modules not yet supported by Chrome 71
 ```
 
@@ -355,36 +353,38 @@ let array = Array.of(1, 2, 3);
 if the target contains an old environment like `IE 11` we will have something like:
 ```js
 // first file:
-import 'core-js/modules/es.array.iterator';
-import 'core-js/modules/es.object.to-string';
-import 'core-js/modules/es.set.constructor';
+import 'core-js/modules/es.array.iterator.js';
+import 'core-js/modules/es.object.to-string.js';
+import 'core-js/modules/es.set.js';
+// ...other Set and iterator dependencies
 
 var set = new Set([1, 2, 3]);
 ```
 ```js
 // second file:
-import 'core-js/modules/es.array.of';
+import 'core-js/modules/es.array.of.js';
 
 var array = Array.of(1, 2, 3);
 ```
 
-By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfills stable features, but you can enable polyfilling of proposals by the `proposals` option, as `corejs: { version: '4.0', proposals: true }`.
+By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfills stable features, but you can enable polyfilling of proposals by the `proposals` option, as `corejs: { version: '3.51', proposals: true }`.
 
 > [!IMPORTANT]
 > In the case of `useBuiltIns: 'usage'`, you should not add `core-js` imports by yourself, they will be added automatically.
 
 #### `@babel/runtime`[⬆](#index)
 
-[`@babel/plugin-transform-runtime`](https://babeljs.io/docs/babel-plugin-transform-runtime) with `corejs: 4` option simplifies work with the `@core-js/pure`. It automatically replaces the usage of modern features from the JS standard library to imports from the version of `core-js` without global namespace pollution, so instead of:
+Babel 7's [`@babel/plugin-transform-runtime`](https://babeljs.io/docs/babel-plugin-transform-runtime) with `corejs: 3` imports pure helpers from `@babel/runtime-corejs3`. Install that package as a runtime dependency. For `core-js@4`, install `@core-js/pure` and use `["@core-js", { "method": "usage-pure" }]` in Babel's `plugins` array. With Babel 7's runtime plugin, instead of:
 
 ```js
-import from from '@core-js/pure/stable/array/from';
-import flat from '@core-js/pure/stable/array/flat';
-import Set from '@core-js/pure/stable/set';
-import Promise from '@core-js/pure/stable/promise';
+import from from '@babel/runtime-corejs3/core-js-stable/array/from';
+import getFlat from '@babel/runtime-corejs3/core-js-stable/instance/flat';
+import Set from '@babel/runtime-corejs3/core-js-stable/set';
+import Promise from '@babel/runtime-corejs3/core-js-stable/promise';
 
 from(new Set([1, 2, 3, 2, 1]));
-flat([1, [2, 3], [4, [5]]], 2);
+const array = [1, [2, 3], [4, [5]]];
+getFlat(array).call(array, 2);
 Promise.resolve(32).then(x => console.log(x));
 ```
 you can write just:
@@ -394,7 +394,7 @@ Array.from(new Set([1, 2, 3, 2, 1]));
 Promise.resolve(32).then(x => console.log(x));
 ```
 
-By default, `@babel/plugin-transform-runtime` only polyfills stable features, but like in `@babel/preset-env`, you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: 4, proposals: true }`.
+By default, `@babel/plugin-transform-runtime` only polyfills stable features, but like in `@babel/preset-env`, you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: 3, proposals: true }`.
 
 > [!WARNING]
 > If you use `@babel/preset-env` and `@babel/plugin-transform-runtime` together, use `corejs` option only in one place since it's duplicate functionality and will cause conflicts.
