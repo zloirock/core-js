@@ -5,6 +5,7 @@ import { ps } from 'zx';
 
 // On POSIX a process group survives the exercise process and can still be stopped.
 const windows = process.platform === 'win32';
+const execFileAsync = promisify(execFile);
 const child = fork(new URL('./deadline-exercise.mjs', import.meta.url), {
   detached: !windows,
   execArgv: [],
@@ -21,7 +22,7 @@ function killPid(pid) {
 
 async function stopWindowsTree(pid) {
   try {
-    await promisify(execFile)('taskkill', ['/pid', String(pid), '/t', '/f']);
+    await execFileAsync('taskkill.exe', ['/pid', String(pid), '/t', '/f'], { windowsHide: true });
     return true;
   } catch (error) {
     try {
@@ -40,8 +41,13 @@ async function stopExercise() {
     if (windows) {
       if (running && await stopWindowsTree(child.pid)) return;
       // Windows retains the creator PID after exit. Terminate surviving branches.
-      const branches = await ps.tree({ pid: child.pid });
-      await Promise.all(branches.map(branch => stopWindowsTree(Number(branch.pid))));
+      // Filter on the creator PID directly, without parsing process command lines.
+      const { stdout } = await execFileAsync('powershell.exe', [
+        '-NoProfile', '-NonInteractive', '-Command',
+        `$ErrorActionPreference = 'Stop'; Get-CimInstance Win32_Process -Filter 'ParentProcessId = ${ child.pid }' | Select-Object -ExpandProperty ProcessId`,
+      ], { windowsHide: true });
+      const descendants = stdout.trim().split(/\s+/u).filter(Boolean).map(Number);
+      await Promise.all(descendants.map(stopWindowsTree));
     } else {
       try {
         // A detached descendant leaves the process group. Find it while its parent lives.
