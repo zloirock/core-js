@@ -4,6 +4,7 @@ import { runWithDeadline } from './deadline.mjs';
 import { captureChecks, checkResultProblem, checkRows, renderDifference } from './diagnostics.mjs';
 import { cachedProjection, collectionInfo, collectionValues, deepEqual, enumerableKeys, isEmulatedSymbol } from './exercises/checks.mjs';
 
+const arrayKind = Symbol('array');
 const collectionKind = Symbol('collection kind');
 const RUN_DEADLINE_MS = 60_000;
 
@@ -46,13 +47,17 @@ function snapshotValue(raw, copies = new WeakMap(), project = cachedProjection()
   if (copies.has(value)) return copies.get(value);
   const array = Array.isArray(value);
   const length = array ? value.length : undefined;
-  const properties = array ? new Array(length) : Object.create(null);
+  const properties = Object.create(null);
   const collection = !array && collectionInfo(value);
   const entries = collection ? [] : null;
   // Keep ordered contents separate from the collection's own enumerable properties.
   const copy = entries ? { [collectionKind]: collection.isMap ? 'Map' : 'Set', entries, properties } : properties;
   copies.set(value, copy);
   if (array) {
+    // A proxy can report a length below one of its enumerable indices. An Array
+    // copy would grow while recording that key and lose the observed length.
+    properties[arrayKind] = true;
+    properties.length = length;
     for (let i = 0; i < length; i++) if (Object.hasOwn(value, i)) copy[i] = snapshotValue(value[i], copies, project);
   }
   if (entries) {

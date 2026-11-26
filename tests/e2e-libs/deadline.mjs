@@ -32,12 +32,12 @@ export async function runWithDeadline(module, method, args, { ms, what }) {
     stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
   });
   const exited = new Promise(resolve => {
-    child.once('exit', () => resolve());
-    child.once('error', () => resolve());
+    child.once('exit', (code, signal) => resolve({ code, signal }));
+    child.once('error', error => resolve({ error }));
   });
   let timer;
   let result;
-  let reaped;
+  let failure;
   try {
     result = await new Promise((resolve, reject) => {
       function exitError(code, signal) {
@@ -66,13 +66,22 @@ export async function runWithDeadline(module, method, args, { ms, what }) {
       child.once('close', (code, signal) => reject(exitError(code, signal)));
       child.send({ module, method, args }, error => { if (error) reject(error); });
     });
+  } catch (error) {
+    failure = error;
   } finally {
     clearTimeout(timer);
-    // The supervisor can stop the process tree even when the exercise never yields.
     if (child.connected) child.disconnect();
-    reaped = await waitWithin(exited, CHILD_STOP_TIMEOUT_MS) !== null;
-    if (!reaped) releaseChild(child);
   }
-  if (!reaped) throw new Error(`could not reap the child for ${ what }`);
+  // The exercise verdict arrives over IPC. The supervisor's exit reports cleanup.
+  const stopped = await waitWithin(exited, CHILD_STOP_TIMEOUT_MS);
+  if (!stopped) {
+    releaseChild(child);
+    throw new Error(`could not reap the child for ${ what }`, { cause: failure });
+  }
+  if (stopped.error) throw stopped.error;
+  if (stopped.code !== 0) {
+    throw new Error(`could not stop the exercise process tree for ${ what } (supervisor ${ stopped.signal ?? stopped.code })`, { cause: failure });
+  }
+  if (failure) throw failure;
   return result;
 }

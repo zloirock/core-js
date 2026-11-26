@@ -62,6 +62,15 @@ try {
     const { check } = checker();
     throws(() => check('set', new RealmSet([1]), new RealmSet([2])), /observeRealm/u);
     throws(() => check('map', new RealmMap([[1, 1]]), new RealmMap([[1, 2]])), /observeRealm/u);
+    for (const [Constructor, first, second] of [[RealmSet, [1], [2]], [RealmMap, [[1, 1]], [[1, 2]]]]) {
+      const descriptor = Object.getOwnPropertyDescriptor(Constructor.prototype, 'forEach');
+      delete Constructor.prototype.forEach;
+      try {
+        throws(() => exerciseEqual(new Constructor(first), new Constructor(second)), /observeRealm/u);
+      } finally {
+        Object.defineProperty(Constructor.prototype, 'forEach', descriptor);
+      }
+    }
   }
   releaseRealms.push(observeRealm(nativeRealm), observeRealm(legacyRealm));
   for (const { checks } of [foreign, legacy]) {

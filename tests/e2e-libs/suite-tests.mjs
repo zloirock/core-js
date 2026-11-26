@@ -795,10 +795,11 @@ const strippedModule = new URL('./stripped-realm.mjs', import.meta.url).href;
 const rawModule = new URL('./raw-exercise.mjs', import.meta.url).href;
 const highlightModule = new URL('./exercises/highlight.mjs', import.meta.url).href;
 const probe = `
-  import { deepEqual, match, rejects } from 'node:assert/strict';
+  import { deepEqual, match, rejects, throws } from 'node:assert/strict';
   import { fork } from 'node:child_process';
   import { once } from 'node:events';
-  import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+  import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+  import { createServer } from 'node:net';
   import { createRequire } from 'node:module';
   import { tmpdir } from 'node:os';
   import { join } from 'node:path';
@@ -859,7 +860,8 @@ const probe = `
       exercisePid = await waitWithin(waiting, 5000);
       if (!exercisePid) throw new Error('exercise never entered the blocking call');
       supervised.disconnect();
-      deepEqual(await waitWithin(exited, 5000), [1, null]);
+      deepEqual(await waitWithin(exited, 10000), [0, null]);
+      throws(() => process.kill(exercisePid, 0), { code: 'ESRCH' });
     } finally {
       if (supervised.exitCode === null && supervised.signalCode === null) {
         supervised.kill('SIGKILL');
@@ -875,6 +877,10 @@ const probe = `
       + ' get(target, key) { if (key === "length" && ++reads > 1) throw Error("read length twice"); return target[key]; }'
       + ' }); return { checks: [{ label: "array", pass: true, actual }] }; }');
     deepEqual(await rawChecks(observed, { repeat: true }), [{ label: 'array', pass: true, failure: null }]);
+    await writeFile(observed, 'let length = 0; export function run() { const observedLength = length++;'
+      + 'const actual = new Proxy([42], { get(target, key) { return key === "length" ? observedLength : target[key]; } });'
+      + 'return { checks: [{ label: "array", pass: true, actual }] }; }');
+    await rejects(rawChecks(observed, { repeat: true }), /at .*length.*0 on the first run and at .*length.*1 on the second/);
     const mutating = join(scratch, 'mutating.mjs');
     await writeFile(mutating, 'const check = { label: "ok", pass: true, actual: { n: 0 } };'
       + 'export function run() { check.actual.n++; return { checks: [check] }; }');
@@ -938,33 +944,56 @@ const probe = `
       + 'return { checks: [{ label: "ok", pass: true }] }; }');
     deepEqual(await rawChecks(twice, { repeat: true, timeout: 700 }), [{ label: 'ok', pass: true, failure: null }]);
     const blocked = join(scratch, 'blocked.mjs');
-    const marker = join(scratch, 'started');
-    const completed = join(scratch, 'completed');
-    const release = join(scratch, 'release');
-    const finish = 'const fs = require("node:fs"); fs.writeFileSync(' + JSON.stringify(marker) + ', "started");'
-      + 'const timer = setInterval(() => { if (fs.existsSync(' + JSON.stringify(release) + ')) {'
-      + 'fs.writeFileSync(' + JSON.stringify(completed) + ', "done"); clearInterval(timer); } }, 10);'
-      + 'setTimeout(() => clearInterval(timer), 5000).unref();';
     const nested = join(scratch, 'nested.cjs');
-    await writeFile(nested, finish + 'process.send("ready");');
-    const launch = 'import { fork } from "node:child_process"; import { once } from "node:events";'
-      + 'const child = fork(' + JSON.stringify(nested) + ', [], { execArgv: [] });'
-      + 'await once(child, "message");';
-    for (const [body, problem] of [
-      ['Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0);', /did not finish within 500ms/],
-      ['process.exit(23);', /exited with code 23 without a result/],
-      ['return "done";', null],
-    ]) {
-      await writeFile(blocked, launch + 'export function run() { ' + body + ' }');
-      const result = runWithDeadline(pathToFileURL(blocked).href, 'run', [], { ms: 500, what: 'nested command' });
-      if (problem) await rejects(result, problem);
-      else deepEqual(await result, 'done');
-      deepEqual(await readFile(marker, 'utf8'), 'started');
-      await writeFile(release, 'release');
-      await new Promise(resolve => setTimeout(resolve, 250));
-      await rejects(access(completed), { code: 'ENOENT' }, 'nested process survived: ' + body);
-      await rm(release);
-      await rm(marker);
+    // The socket closes on process exit. If the test dies, the peer disconnects and the helper exits.
+    await writeFile(nested, 'const socket = require("node:net").connect(Number(process.argv[2]), "127.0.0.1",'
+      + ' () => process.send("ready")); socket.on("close", () => process.exit());');
+    const server = createServer();
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    try {
+      for (const [body, problem, detached] of [
+        ['Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0);', /did not finish within 500ms/, true],
+        ['process.exit(23);', /exited with code 23 without a result/, process.platform === 'win32'],
+        ['return "done";', null, true],
+      ]) {
+        const launch = 'import { fork } from "node:child_process"; import { once } from "node:events";'
+          + 'const child = fork(' + JSON.stringify(nested) + ', [' + JSON.stringify(String(server.address().port)) + '],'
+          + ' { execArgv: [], detached: ' + detached + ' }); await once(child, "message");';
+        await writeFile(blocked, launch + 'export function run() { ' + body + ' }');
+        let peer;
+        const connected = once(server, 'connection').then(([socket]) => {
+          peer = socket;
+          // Forced process termination may reset the socket on Windows. Its close is the observation.
+          socket.on('error', () => {});
+          return { closed: new Promise(resolve => socket.once('close', resolve)) };
+        });
+        try {
+          const result = runWithDeadline(pathToFileURL(blocked).href, 'run', [], { ms: 500, what: 'nested command' });
+          if (problem) await rejects(result, problem);
+          else deepEqual(await result, 'done');
+          const connection = await waitWithin(connected, 5000);
+          if (!connection) throw new Error('nested process did not connect');
+          if (await waitWithin(connection.closed, 5000) === null) throw new Error('nested process survived: ' + body);
+        } finally {
+          peer?.destroy();
+        }
+      }
+    } finally {
+      server.close();
+    }
+    const preload = join(scratch, 'cleanup-failure.mjs');
+    await writeFile(preload, 'import { ps } from ' + JSON.stringify(${ JSON.stringify(import.meta.resolve('zx')) }) + ';'
+      + 'import childProcess from "node:child_process"; import { syncBuiltinESMExports } from "node:module";'
+      + 'ps.tree = async () => { throw new Error("process lookup failed"); };'
+      + 'childProcess.execFile = (...args) => args.at(-1)(new Error("taskkill failed")); syncBuiltinESMExports();');
+    const options = process.env.NODE_OPTIONS;
+    try {
+      process.env.NODE_OPTIONS = ((options || '') + ' --import=' + pathToFileURL(preload).href).trim();
+      await rejects(rawChecks(progress), /could not stop the exercise process tree for progress.mjs/);
+    } finally {
+      if (options === undefined) delete process.env.NODE_OPTIONS;
+      else process.env.NODE_OPTIONS = options;
     }
   } finally {
     try {

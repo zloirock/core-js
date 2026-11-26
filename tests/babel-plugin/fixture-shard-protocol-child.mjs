@@ -28,7 +28,9 @@ if (process.env.SHARD_PROTOCOL_ORDER) {
 }
 
 if (process.env.SHARD_PROTOCOL_HELD_PIPE) {
+  // Windows closes the shard's job on exit. The writer must outlive it to exercise the inherited pipe.
   spawn(process.execPath, ['-e', 'setTimeout(() => process.stdout.write("pipe drained"), 6000)'], {
+    detached: true,
     stdio: ['ignore', 'inherit', 'ignore'],
   }).unref();
 }

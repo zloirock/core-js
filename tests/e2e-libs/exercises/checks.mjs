@@ -234,7 +234,7 @@ export function collectionInfo(value) {
   // surface cannot stand in for its contents when the host omitted its realm.
   if (realms.some(realm => Object.prototype.isPrototypeOf.call(realm.Object.prototype, value))) return undefined;
   const prototype = collectionPrototype(value);
-  if (prototype && hasOwnProperty.call(prototype, 'forEach') && hasCollectionTag(prototype)) {
+  if (prototype && hasCollectionTag(prototype)) {
     throw new TypeError('Cannot inspect foreign collection: register its source with observeRealm()');
   }
   return undefined;
