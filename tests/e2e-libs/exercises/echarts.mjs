@@ -254,8 +254,8 @@ export function run() {
 
   // --- the bars: one per datum, and their heights ARE the data
   const bars = seriesOf(elements, 0);
-  check('bars: a shape per datum', bars.length, VALUES.length);
   const boxes = VALUES.map((value, index) => boxAt(bars, index));
+  check('bars: a shape per datum', bars.length === VALUES.length && boxes.every(box => box.right > box.left), true);
   const ratios = boxes.map((box, index) => (box.bottom - box.top) / VALUES[index]);
   check('bars: height is proportional to value',
     ratios.every(ratio => near(ratio, ratios[0], 0.01)), true);

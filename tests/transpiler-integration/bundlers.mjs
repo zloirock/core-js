@@ -8,13 +8,11 @@
 //
 //   in   input    string entry path, or - esbuild only - the esbuild input option itself
 //        plugins  registered as given, in order
-//        extra    { inlineDynamic?: boolean }, taken by every adapter EXCEPT esbuild and farm, whose
-//                 output is single-file by construction - the dynamic leg sends the flag to all of
-//                 them, and for those two it is already true rather than dropped
+//        extra    inlineDynamic for single-file cells, or splitDynamic for real chunk loaders
 //   out  code     the bundle, as text                         (every adapter)
 //        ext      the extension the runner must write it under (esbuild, farm - both emit CommonJS)
 //        map      the output sourcemap                         (rollup, vite - `assertMapShape` reads it)
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -33,6 +31,17 @@ async function withTmpDir(fn) {
       console.warn(`could not remove ${ dir } - ${ error.message } (left behind on purpose)`);
     }
   }
+}
+
+async function readBundle(directory, entry, ext, splitDynamic) {
+  const code = await readFile(join(directory, entry), 'utf8');
+  if (!splitDynamic) return { code, ext };
+  const files = await readdir(directory, { recursive: true });
+  const chunks = await Promise.all(files.filter(name => name !== entry && /\.[cm]?js$/u.test(name)).map(async name => ({
+    fileName: name,
+    code: await readFile(join(directory, name), 'utf8'),
+  })));
+  return { code, ext, chunks };
 }
 
 // esbuild and the webpack family reject unresolved imports themselves. Print other warnings
@@ -61,7 +70,7 @@ export function makeBundlers({
   if (!unpluginName) throw new Error('makeBundlers: `unpluginName` is required');
   const strictWarn = makeStrictWarn(unpluginName);
 
-  async function webpackLike(name, compiler, input, plugins, { inlineDynamic } = {}) {
+  async function webpackLike(name, compiler, input, plugins, { inlineDynamic, splitDynamic } = {}) {
     return withTmpDir(async dir => {
       const filename = 'out.mjs';
       const all = [...plugins];
@@ -71,7 +80,8 @@ export function makeBundlers({
         mode: 'production',
         devtool: false,
         entry: input,
-        output: { path: dir, filename, module: true, library: { type: 'module' } },
+        output: { path: dir, filename, module: true, library: { type: 'module' },
+          ...splitDynamic && { chunkFilename: 'chunk-[id].mjs', chunkLoading: 'import' } },
         experiments: { outputModule: true },
         optimization: { minimize: false },
         plugins: all,
@@ -87,7 +97,7 @@ export function makeBundlers({
           console.warn(`could not close ${ name } compiler: ${ error.message }`);
         }
       }
-      return { code: await readFile(join(dir, filename), 'utf8') };
+      return readBundle(dir, filename, '.mjs', splitDynamic);
     });
   }
 
@@ -181,7 +191,7 @@ export function makeBundlers({
 
     // rsbuild drives rspack: same chunk-loader semantics, plugin passed through unplugin's rsbuild
     // adapter. environments-based config keeps the output a single node-loadable file
-    async rsbuild(input, plugins = [], { inlineDynamic } = {}) {
+    async rsbuild(input, plugins = [], { inlineDynamic, splitDynamic } = {}) {
       const { createRsbuild } = await import('@rsbuild/core');
       return withTmpDir(async dir => {
         const rsbuild = await createRsbuild({
@@ -202,6 +212,7 @@ export function makeBundlers({
             tools: {
               rspack: async config => {
                 config.output = { ...config.output, module: true, library: { type: 'module' } };
+                if (splitDynamic) Object.assign(config.output, { chunkFilename: 'chunk-[id].mjs', chunkLoading: 'import' });
                 config.experiments = { ...config.experiments, outputModule: true };
                 // the dynamic-import leg must stay a single node-loadable file
                 if (inlineDynamic) {
@@ -214,7 +225,7 @@ export function makeBundlers({
           },
         });
         await rsbuild.build();
-        return { code: await readFile(join(dir, 'index.js'), 'utf8') };
+        return readBundle(dir, 'index.js', '.mjs', splitDynamic);
       });
     },
 
@@ -239,9 +250,7 @@ export function makeBundlers({
       });
     },
 
-    // No `extra`, for esbuild's reason: `partialBundling` below forces one file for any input, so
-    // `inlineDynamic` is already true of the output
-    async farm(input, plugins = []) {
+    async farm(input, plugins = [], { splitDynamic } = {}) {
       const { build, NoopLogger } = await import('@farmfe/core');
       // farm's own logger for tests: silences the progress chatter like a hand-nulled `Logger`,
       // but THROWS a build error where the real one prints it and calls `process.exit`
@@ -258,13 +267,13 @@ export function makeBundlers({
             sourcemap: false,
             lazyCompilation: false,
             persistentCache: false,
-            // force single-file output - otherwise farm splits into __farm_runtime.js + chunks
-            partialBundling: { enforceResources: [{ name: 'index', test: ['.+'] }] },
+            // Force a single file for cells that do not test the chunk loader.
+            ...!splitDynamic && { partialBundling: { enforceResources: [{ name: 'index', test: ['.+'] }] } },
           },
           server: { hmr: false },
         });
         // Farm emits CommonJS in index.js. Use .cjs so Node selects the correct loader.
-        return { code: await readFile(join(dir, 'index.js'), 'utf8'), ext: '.cjs' };
+        return readBundle(dir, 'index.js', '.cjs', splitDynamic);
       });
     },
   };

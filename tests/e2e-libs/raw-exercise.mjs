@@ -6,6 +6,7 @@ import { cachedProjection, collectionInfo, collectionValues, deepEqual, enumerab
 
 const arrayKind = Symbol('array');
 const collectionKind = Symbol('collection kind');
+const inaccessibleTag = Symbol('unreadable toStringTag');
 const RUN_DEADLINE_MS = 60_000;
 
 export function rawChecks(target, { repeat = false, timeout = RUN_DEADLINE_MS } = {}) {
@@ -58,13 +59,25 @@ function snapshotValue(raw, copies = new WeakMap(), project = cachedProjection()
     // copy would grow while recording that key and lose the observed length.
     properties[arrayKind] = true;
     properties.length = length;
-    for (let i = 0; i < length; i++) if (Object.hasOwn(value, i)) copy[i] = snapshotValue(value[i], copies, project);
+    // Proxies can list indices out of order. Preserve the order of numeric reads.
+    const indices = Object.getOwnPropertyNames(value).filter(key => String(key >>> 0) === key && +key < length);
+    for (const key of indices.sort((left, right) => left - right)) {
+      if (Object.hasOwn(value, key)) copy[key] = snapshotValue(value[key], copies, project);
+    }
   }
   if (entries) {
     for (const entry of collectionValues(collection)) entries.push(snapshotValue(entry, copies, project));
   }
   for (const key of enumerableKeys(value, length)) {
-    Object.defineProperty(properties, key, { enumerable: true, value: snapshotValue(value[key], copies, project) });
+    let field;
+    try {
+      field = value[key];
+    } catch (error) {
+      // A tag that cannot describe its object must not replace the check's original diagnostic.
+      if (key !== Symbol.toStringTag) throw error;
+      field = inaccessibleTag;
+    }
+    Object.defineProperty(properties, key, { enumerable: true, value: snapshotValue(field, copies, project) });
   }
   return copy;
 }

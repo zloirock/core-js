@@ -6,6 +6,7 @@ import { ps } from 'zx';
 // On POSIX a process group survives the exercise process and can still be stopped.
 const windows = process.platform === 'win32';
 const execFileAsync = promisify(execFile);
+const launchedAt = Date.now();
 const child = fork(new URL('./deadline-exercise.mjs', import.meta.url), {
   detached: !windows,
   execArgv: [],
@@ -40,14 +41,36 @@ async function stopExercise() {
   try {
     if (windows) {
       if (running && await stopWindowsTree(child.pid)) return;
-      // Windows retains the creator PID after exit. Terminate surviving branches.
-      // Filter on the creator PID directly, without parsing process command lines.
+      // Windows retains creator PIDs after exit. Keep the links in case a
+      // branch root disappears between this snapshot and taskkill.
       const { stdout } = await execFileAsync('powershell.exe', [
         '-NoProfile', '-NonInteractive', '-Command',
-        `$ErrorActionPreference = 'Stop'; Get-CimInstance Win32_Process -Filter 'ParentProcessId = ${ child.pid }' | Select-Object -ExpandProperty ProcessId`,
+        "$ErrorActionPreference = 'Stop'; Get-CimInstance Win32_Process | Where-Object { $_.CreationDate }"
+          + " | ForEach-Object { '{0} {1} {2}' -f $_.ParentProcessId, $_.ProcessId, ([DateTimeOffset]$_.CreationDate).ToUnixTimeMilliseconds() }",
       ], { windowsHide: true });
-      const descendants = stdout.trim().split(/\s+/u).filter(Boolean).map(Number);
-      await Promise.all(descendants.map(stopWindowsTree));
+      const children = new Map();
+      let rootReplacement = Infinity;
+      for (const line of stdout.trim().split(/\r?\n/u)) {
+        const [parent, pid, createdAt] = line.trim().split(/\s+/u).map(Number);
+        if (!pid || !(createdAt >= launchedAt)) continue;
+        // The original root is gone. This row, if present, belongs to a new process.
+        if (pid === child.pid) {
+          rootReplacement = createdAt;
+          continue;
+        }
+        if (!children.has(parent)) children.set(parent, []);
+        children.get(parent).push({ pid, createdAt });
+      }
+      const visited = new Set([child.pid]);
+      async function stopBranches(parent, parentCreatedAt) {
+        await Promise.all((children.get(parent) || []).map(async ({ pid, createdAt }) => {
+          // A creator PID may have been reused. An older child cannot belong to a newer parent.
+          if (visited.has(pid) || createdAt < parentCreatedAt || (parent === child.pid && createdAt >= rootReplacement)) return;
+          visited.add(pid);
+          if (!await stopWindowsTree(pid)) await stopBranches(pid, createdAt);
+        }));
+      }
+      await stopBranches(child.pid, launchedAt);
     } else {
       try {
         // A detached descendant leaves the process group. Find it while its parent lives.
@@ -75,10 +98,17 @@ function stop() {
 process.once('disconnect', stop);
 process.once('message', request => { if (child.connected) child.send(request); });
 child.on('message', reply => { if (process.connected) process.send(reply, () => { /* The caller can disconnect before the relay completes. */ }); });
-child.on('exit', (code, signal) => {
-  // Report the exercise exit before tree cleanup can consume its remaining deadline.
-  if (process.connected) process.send({ type: 'e2e-libs:exit', code, signal }, () => {
+function reportEnd(message) {
+  // Report the exercise failure before tree cleanup can consume its remaining deadline.
+  if (process.connected) process.send(message, () => {
     if (process.connected) process.disconnect();
   });
   return stop();
+}
+child.once('error', error => reportEnd({
+  type: 'e2e-libs:spawn-error',
+  message: error.message, code: error.code, path: error.path, syscall: error.syscall,
+}));
+child.on('exit', (code, signal) => {
+  return reportEnd({ type: 'e2e-libs:exit', code, signal });
 });

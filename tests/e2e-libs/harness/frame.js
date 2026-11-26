@@ -17,9 +17,11 @@
     return;
   }
   setTimeout(function () {
+    if (sent) return;
+    cancel();
     send(null, 'run() did not settle within ' + CELL.timeout + 'ms');
   }, CELL.timeout);
-  window.e2eRun(function (checks) {
+  var cancel = window.e2eRun(function (checks) {
     send(checks, null);
   }, function (err) {
     send(null, 'run() threw - ' + window.e2eReason(err));

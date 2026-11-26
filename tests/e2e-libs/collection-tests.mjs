@@ -110,5 +110,9 @@ try {
   }
 } finally {
   for (const release of releaseRealms) release();
-  await rm(collectionDir, { recursive: true, force: true });
+  try {
+    await rm(collectionDir, { recursive: true, force: true });
+  } catch (error) {
+    console.warn(`could not remove ${ collectionDir }: ${ error.message }`);
+  }
 }

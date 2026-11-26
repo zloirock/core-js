@@ -114,8 +114,8 @@ export function checkResultProblem(checks, expected) {
     const label = check?.label;
     if (expected && index >= expected.length) return `unexpected check ${ renderValue(label) } at #${ index + 1 }`;
     if (expected && label !== expected[index]) {
-      const actual = index < checks.length ? renderValue(label) : 'no check';
-      return `check #${ index + 1 } expected ${ renderValue(expected[index]) } from the raw exercise, got ${ actual }`;
+      const [wanted, actual] = index < checks.length ? renderValues(expected[index], label) : [renderValue(expected[index]), 'no check'];
+      return `check #${ index + 1 } expected ${ wanted } from the raw exercise, got ${ actual }`;
     }
     if (typeof label !== 'string' || typeof check.pass !== 'boolean') {
       return `run() returned a malformed check at index ${ index }`;

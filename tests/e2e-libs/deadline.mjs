@@ -57,6 +57,11 @@ export async function runWithDeadline(module, method, args, { ms, what }) {
         switch (message?.type) {
           case 'e2e-libs:ready':
           case 'e2e-libs:repeat': arm(ms); break;
+          case 'e2e-libs:spawn-error': {
+            const { message: reason, code, path, syscall } = message;
+            reject(Object.assign(new Error(reason), { code, path, syscall }));
+            break;
+          }
           case 'e2e-libs:exit': reject(exitError(message.code, message.signal)); break;
           case 'e2e-libs:failure': reject(new ChildExerciseError(message.error)); break;
           case 'e2e-libs:result': resolve(message.result); break;

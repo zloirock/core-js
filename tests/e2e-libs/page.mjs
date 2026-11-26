@@ -28,8 +28,8 @@ export function cellScript(label, expectedLabels) {
 
 // every page inlines the same program, only the cell script above it differs
 const TRAP = await readFile(join(HARNESS, 'trap.js'), 'utf8');
-const BANNER = (await Promise.all(['shared.js', 'banner.js']
-  .map(name => readFile(join(HARNESS, name), 'utf8')))).join('\n');
+const SHARED = await readFile(join(HARNESS, 'shared.js'), 'utf8');
+const BANNER = await readFile(join(HARNESS, 'banner.js'), 'utf8');
 
 // the class and the table's keys are one set; `entities.escapeUTF8` next door is the same five
 // characters, but it is a SUBJECT of this suite - `escape_utf8` is one of htmlparser2's checks
@@ -62,7 +62,7 @@ function html(cell, checks, script) {
   <div id="${ PAGE.banner }">running...</div>
   <p>Pre-flight in node recorded ${ checks.length - failing }/${ checks.length } passing. This page reruns the same checks in <em>this</em> browser.</p>
   <table id="${ PAGE.table }"><thead><tr><th>check</th><th>result</th></tr></thead><tbody>${ rows }</tbody></table>
-  <script>${ TRAP }</script>
+  <script>${ TRAP }\n${ SHARED }</script>
   <script src="bundle.js"></script>
   <script>${ script }</script>
   <script>${ BANNER }</script>
@@ -80,9 +80,9 @@ function frameHtml(segments) {
   return `<!doctype html>
 <html><head><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta charset="utf-8"></head><body>
   <script src="${ harness }/trap.js"></script>
+  <script src="${ harness }/shared.js"></script>
   <script src="bundle.js"></script>
   <script src="cell.js"></script>
-  <script src="${ harness }/shared.js"></script>
   <script src="${ harness }/frame.js"></script>
 </body></html>
 `;

@@ -99,8 +99,6 @@ function firstDiff(actual, expected) {
   return '';
 }
 
-// max lines to probe in mappings before giving up. 200 covers typed-array bundles (30+
-// import prefix, user code after) with margin; bigger inputs would slow the test loop
 // reject helper factory: keeps reject closure local without re-allocating per check
 function rejectMap(directory, msg) {
   counts.failed++;

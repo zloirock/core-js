@@ -28,20 +28,29 @@ if (process.env.SHARD_PROTOCOL_ORDER) {
 }
 
 if (process.env.SHARD_PROTOCOL_HELD_PIPE) {
-  // Windows closes the shard's job on exit. The writer must outlive it to exercise the inherited pipe.
-  const marker = process.env.SHARD_PROTOCOL_HELD_PIPE;
-  spawn(process.execPath, ['--input-type=module', '-e', [
-    'import { existsSync } from "node:fs";',
-    'import { setTimeout } from "node:timers/promises";',
-    'const deadline = Date.now() + 30000;',
-    'while (!existsSync(process.argv[1]) && Date.now() < deadline) await setTimeout(20);',
-    'if (existsSync(process.argv[1])) process.stdout.write("pipe drained");',
-  ].join('\n'), marker], {
-    detached: true,
-    stdio: ['ignore', 'inherit', 'ignore'],
-  }).unref();
+  if (index === '0') {
+    // Windows closes the shard's job on exit. The writer must outlive it to exercise the inherited pipe.
+    const marker = process.env.SHARD_PROTOCOL_HELD_PIPE;
+    spawn(process.execPath, ['--input-type=module', '-e', [
+      'import { existsSync } from "node:fs";',
+      'import { setTimeout } from "node:timers/promises";',
+      'const deadline = Date.now() + 120000;',
+      'while (!existsSync(process.argv[1]) && Date.now() < deadline) await setTimeout(20);',
+      'if (existsSync(process.argv[1])) process.stdout.write("pipe drained");',
+    ].join('\n'), marker], {
+      detached: true,
+      stdio: ['ignore', 'inherit', 'ignore'],
+    }).unref();
+  } else {
+    // Keep the peer alive past the runner deadline so only cancellation can release the writer.
+    await setTimeout(120_000);
+  }
 }
 if (process.env.SHARD_PROTOCOL_HANG) await setTimeout(30_000);
+if (process.env.SHARD_PROTOCOL_DISCONNECT) {
+  process.disconnect();
+  await setTimeout(30_000);
+}
 if (process.env.SHARD_PROTOCOL_FAIL_FAST) {
   const marker = process.env.SHARD_PROTOCOL_FAIL_FAST;
   if (index === '0') {
@@ -55,9 +64,12 @@ if (process.env.SHARD_PROTOCOL_FAIL_FAST) {
   } else {
     if (process.env.SHARD_PROTOCOL_DESCENDANT) {
       spawn(process.execPath, ['-e', [
-        'require("node:fs").writeFileSync(process.argv[1], "started");',
-        'setTimeout(() => process.stdout.write("descendant finished"), 6500);',
-      ].join('\n'), marker], { stdio: ['ignore', 'inherit', 'inherit'] }).unref();
+        'const socket = require("node:net").connect(+process.argv[2], "127.0.0.1", () => {',
+        '  require("node:fs").writeFileSync(process.argv[1], "started");',
+        '});',
+        'const timer = setTimeout(() => { process.stdout.write("descendant finished"); socket.destroy(); }, 120000);',
+        'socket.on("close", () => clearTimeout(timer));',
+      ].join('\n'), marker, process.env.SHARD_PROTOCOL_DESCENDANT], { stdio: ['ignore', 'inherit', 'inherit'] }).unref();
     } else await fs.writeFile(marker, '');
     await setTimeout(30_000);
     process.stdout.write('slow shard finished');

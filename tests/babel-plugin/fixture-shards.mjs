@@ -164,6 +164,7 @@ export async function runShards({ script, shards, extraEnv = {}, print = echo, t
       }
       active.add(child);
       let payload;
+      let disconnectDeadline;
       child.stdout.setEncoding('utf8');
       child.stdout.on('data', data => { output[index] += data; });
       child.on('message', message => {
@@ -190,14 +191,23 @@ export async function runShards({ script, shards, extraEnv = {}, print = echo, t
       // A descendant can keep stdout open after the shard has already failed.
       function checkExit(code, signal) {
         if (code === null && signal === null) return;
+        clearTimeout(disconnectDeadline);
         // A clean exit needs the final IPC message before it can be called silent.
         if (code === 0 && child.connected) return;
         if (payload === undefined) fail(new Error(`${ shard } produced no result (code ${ code }, signal ${ signal })`));
         else if (code !== 0) fail(new Error(`${ shard } failed after reporting (code ${ code }, signal ${ signal })`));
       }
       child.once('exit', checkExit);
-      child.once('disconnect', () => checkExit(child.exitCode, child.signalCode));
+      child.once('disconnect', () => {
+        if (!running(child)) checkExit(child.exitCode, child.signalCode);
+        else if (payload === undefined && !failure) {
+          // IPC can close during normal process teardown. Give exit a chance to provide the cause.
+          disconnectDeadline = setTimeout(() => fail(new Error(`${ shard } disconnected without a result`)), 1000);
+          disconnectDeadline.unref();
+        }
+      });
       child.once('close', () => {
+        clearTimeout(disconnectDeadline);
         active.delete(child);
         resolve(payload);
       });

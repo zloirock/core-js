@@ -38,7 +38,7 @@ function inputOf(method) {
 // stops yielding prints the same final line and exits 0 (measured: 19 cells instead of 93).
 // Missing or outdated Bun skips its seven cells; every other cell remains required.
 let cells = 0;
-const CELL_FLOOR = 237;
+const CELL_FLOOR = 238;
 
 const expected = {
   clamp: 4,
@@ -164,13 +164,12 @@ if (missingAdapter.length || unknownAdapter.length) {
     + ' every bundler core-js ships an entry pair for gets a cell here');
 }
 
-// Every chunk loader in the adapter matrix needs a dynamic-import cell. These cells execute a
-// single-file bundle, so they exercise the lazy body without requiring a multi-chunk loader.
+// Every chunk loader in the adapter matrix needs a dynamic-import cell and separate lazy chunk.
 const DYNAMIC_LEG = new Set(['esbuild', 'rollup', 'rolldown', 'vite', 'webpack', 'rspack', 'rsbuild', 'farm']);
-const unexercisedChunkLoaders = adapters.filter(name => isChunkLoaderBundler(name) && !DYNAMIC_LEG.has(name));
-if (unexercisedChunkLoaders.length) {
-  throw new Error(`${ unexercisedChunkLoaders.join(', ') } is classified as a chunk loader in @core-js/unplugin`
-    + ' and has no dynamic-import cell');
+const SPLIT_DYNAMIC_LEG = new Set(['webpack', 'rspack', 'rsbuild', 'farm']);
+const differentChunkLoaders = adapters.filter(name => isChunkLoaderBundler(name) !== SPLIT_DYNAMIC_LEG.has(name));
+if (differentChunkLoaders.length) {
+  throw new Error(`chunk-loader classification disagrees with the split dynamic-import cells: ${ differentChunkLoaders.join(', ') }`);
 }
 
 // every bundler is driven the same way here - unplugin's binding for that tool, plus whatever
@@ -357,9 +356,10 @@ for (const name of DYNAMIC_LEG) {
   const label = `${ name }/usage-global/dynamic-import`;
   try {
     await runLeg(name, async () => {
-      const { code, ext } = await builders[name](dynamicInput, 'usage-global', undefined,
-        { inlineDynamic: true });
-      await verifyDynamic(code, label, ext);
+      const splitDynamic = SPLIT_DYNAMIC_LEG.has(name);
+      const bundle = await builders[name](dynamicInput, 'usage-global', undefined, { inlineDynamic: !splitDynamic, splitDynamic });
+      if (splitDynamic) await verifySplitDynamic(bundle, label);
+      else await verifyDynamic(bundle.code, label, bundle.ext);
     });
     echo(`${ cyan(label) } ${ green('passed') }`);
   } catch (error) {

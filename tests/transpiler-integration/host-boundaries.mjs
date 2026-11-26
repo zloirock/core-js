@@ -204,22 +204,34 @@ export async function hostBoundaries(run) {
       await run(`compiled default/${ method }/${ ext }`, async () => {
         const file = join(dir, `view.${ ext }`);
         await writeFile(file, '<raw component>');
-        const build = await rollup({
-          input: file,
-          plugins: [unplugin.rollup(opts(method)), {
-            name: 'component-compiler',
-            resolveId(id) {
-              for (const [pkg, path] of Object.entries(aliases)) if (id.startsWith(`${ pkg }/`)) return `${ path }/${ id.slice(pkg.length + 1) }.js`;
-              return null;
-            },
-            transform(code, id) { return id === file ? source(method) : null; },
-          }, nodeResolve(), commonjs()],
-        });
-        try {
-          const result = await build.generate({ format: 'iife' });
-          verify(result.output[0].code);
-        } finally {
-          await closeRollupBundle(build);
+        const entry = method === 'entry-global';
+        const options = { ...opts(method), ...entry && { exclude: ['es.json.is-raw-json'] } };
+        const compiled = source(method) + (entry
+          ? '\nimport "core-js/full/json/is-raw-json";'
+            + '\nif (typeof JSON.isRawJSON !== "undefined") throw new Error("provider did not exclude isRawJSON");'
+          : '');
+        async function compile(withProvider) {
+          const build = await rollup({
+            input: file,
+            plugins: [withProvider && unplugin.rollup(options), {
+              name: 'component-compiler',
+              resolveId(id) {
+                for (const [pkg, path] of Object.entries(aliases)) if (id.startsWith(`${ pkg }/`)) return `${ path }/${ id.slice(pkg.length + 1) }.js`;
+                return null;
+              },
+              transform(code, id) { return id === file ? compiled : null; },
+            }, nodeResolve(), commonjs()],
+          });
+          return withCleanup(async () => {
+            const result = await build.generate({ format: 'iife' });
+            return result.output[0].code;
+          }, () => closeRollupBundle(build));
+        }
+        const code = await compile(true);
+        verify(`delete JSON.isRawJSON;\n${ code }`);
+        if (entry && ext === 'vue') {
+          const uncontrolled = await compile(false);
+          assert.throws(() => verify(`delete JSON.isRawJSON;\n${ uncontrolled }`), /provider did not exclude isRawJSON/u);
         }
       });
     }

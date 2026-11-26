@@ -3,12 +3,21 @@ import { rejects } from 'node:assert/strict';
 import childProcess from 'node:child_process';
 import { once } from 'node:events';
 import { syncBuiltinESMExports } from 'node:module';
+import { createServer } from 'node:net';
 import { runShards } from './fixture-shards.mjs';
 import { createChecker } from '../polyfill-provider/harness.mjs';
 import { fileURLToPath } from 'node:url';
 
 const { check, checkTruthy, finish } = createChecker('fixture-shard-protocol');
 const CHILD = fileURLToPath(new URL('./fixture-shard-protocol-child.mjs', import.meta.url));
+
+async function removeTestDir(directory) {
+  try {
+    await fs.remove(directory);
+  } catch (error) {
+    console.warn(`could not remove ${ directory }: ${ error.message }`);
+  }
+}
 
 const dir = await fs.mkdtemp(path.join(import.meta.dirname, 'fixture-shard-protocol-'));
 const output = [];
@@ -43,11 +52,7 @@ try {
   check('standalone shard reports its failed fixture', JSON.parse(manual.stdout.trimEnd().split('\n').at(-1)).failed, 1);
   check('standalone shard fails the command', manual.exitCode, 1);
 } finally {
-  try {
-    await fs.remove(dir);
-  } catch (error) {
-    console.warn(`could not remove ${ dir }: ${ error.message }`);
-  }
+  await removeTestDir(dir);
 }
 check('replays both shard logs in order with complete UTF-8 characters', output.join('\n'),
   [0, 1].map(index => `[fixture-shard-protocol] shard ${ index }: @@FIXTURE-SHARD@@{ordinary output}@@🌍`).join('\n'));
@@ -115,38 +120,59 @@ await rejects(runShards({
   print: line => hungOutput.push(line),
 }), /fixture shards did not finish within 5000ms/u);
 checkTruthy('prints diagnostics from a timed-out shard', hungOutput.some(line => line.includes('shard 0:')));
+await rejects(runShards({
+  script: CHILD, shards: 1, extraEnv: { SHARD_PROTOCOL_DISCONNECT: '1' }, timeout: 10_000,
+  print: () => { /* The rejection is the verdict. */ },
+}), /shard 0\/1 disconnected without a result/u);
 const pipeDir = await fs.mkdtemp(path.join(import.meta.dirname, 'fixture-shard-pipe-'));
-const shardExited = path.join(pipeDir, 'exited');
+const peerExited = path.join(pipeDir, 'peer-exited');
 const pipeOutput = [];
-let releaseWriter;
-async function releaseAfterExit(shard) {
-  // This event precedes close even while the descendant holds stdout open.
-  await once(shard, 'exit');
-  await fs.writeFile(shardExited, '');
+let peer;
+let releaseError;
+function releaseAfterExit() {
+  // The failing shard's pipe stays open until runShards stops its peer.
+  try {
+    // eslint-disable-next-line node/no-sync -- finish the marker write before cleanup can remove it
+    fs.writeFileSync(peerExited, '');
+  } catch (error) {
+    releaseError = error;
+  }
 }
 try {
   childProcess.fork = (file, args, options) => {
     const shard = originalFork(file, args, options);
-    if (options?.env?.SHARD_PROTOCOL_HELD_PIPE === shardExited) releaseWriter = releaseAfterExit(shard);
+    if (options?.env?.SHARD_PROTOCOL_HELD_PIPE === peerExited && options.env.FIXTURE_SHARD === '1/2') {
+      peer = shard;
+      peer.once('exit', releaseAfterExit);
+    }
     return shard;
   };
   syncBuiltinESMExports();
-  const run = runShards({
-    script: CHILD, shards: 1, extraEnv: { SHARD_PROTOCOL_EARLY_EXIT: '1', SHARD_PROTOCOL_HELD_PIPE: shardExited },
+  await rejects(runShards({
+    script: CHILD, shards: 2, extraEnv: { SHARD_PROTOCOL_EARLY_EXIT: '1', SHARD_PROTOCOL_HELD_PIPE: peerExited },
     timeout: 60_000, print: line => pipeOutput.push(line),
-  });
-  await Promise.all([rejects(run, /shard 0\/1 produced no result.*code 2/u), releaseWriter]);
-  checkTruthy('drains inherited stdout after the failing shard exits', pipeOutput.some(line => line.endsWith('pipe drained')));
+  }), /shard 0\/2 produced no result.*code 2/u);
+  if (releaseError) throw releaseError;
+  checkTruthy('stops the peer before the failing shard closes stdout and drains its output',
+    pipeOutput.some(line => line.endsWith('pipe drained')));
 } finally {
   childProcess.fork = originalFork;
   syncBuiltinESMExports();
-  await fs.rm(pipeDir, { recursive: true, force: true });
+  peer?.removeListener('exit', releaseAfterExit);
+  await removeTestDir(pipeDir);
 }
 const fastDir = await fs.mkdtemp(path.join(import.meta.dirname, 'fixture-shard-fail-fast-'));
+let descendantSocket;
+const server = createServer(socket => {
+  descendantSocket = socket;
+  socket.on('error', () => { /* Forced termination can reset the connection. */ });
+});
 try {
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
   for (const [suffix, extraEnv, expected] of [
     ['exit', {}, /shard 0\/2 produced no result.*code 2/u],
-    ['descendant', { SHARD_PROTOCOL_DESCENDANT: '1' }, /shard 0\/2 produced no result.*code 2/u],
+    ['descendant', { SHARD_PROTOCOL_DESCENDANT: String(server.address().port) }, /shard 0\/2 produced no result.*code 2/u],
     ['counter', { SHARD_PROTOCOL_BAD: '1' }, /shard 0\/2: invalid value for shard key `passed`/u],
     ['duplicate', { SHARD_PROTOCOL_BAD_MESSAGE: '1' }, /shard 0\/2 must report exactly one result object/u],
   ]) {
@@ -159,11 +185,17 @@ try {
     check(`both logs survive ${ suffix }`, logs.length, 2);
     if (suffix === 'descendant') {
       check('the descendant started before cancellation', await fs.readFile(path.join(fastDir, suffix), 'utf8'), 'started');
+      if (descendantSocket && !descendantSocket.closed) {
+        await once(descendantSocket, 'close', { signal: AbortSignal.timeout(5000) });
+      }
+      checkTruthy('cancellation terminates the descendant', descendantSocket?.closed);
       checkTruthy('cancellation closes the pipe held by the descendant', logs.every(line => !line.includes('descendant finished')));
     }
     checkTruthy(`stops the still-running shard after ${ suffix }`, logs.every(line => !line.includes('slow shard finished')));
   }
 } finally {
-  await fs.rm(fastDir, { recursive: true, force: true });
+  descendantSocket?.destroy();
+  server.close();
+  await removeTestDir(fastDir);
 }
 finish();

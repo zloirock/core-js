@@ -19,6 +19,7 @@ import { HERE, ROOT, isCoreJsModule } from './paths.mjs';
 import { isSnapshotName } from './snapshots.mjs';
 import { tsSources } from './ts-sources.mjs';
 import { assertWorkspacePayload } from './payload.mjs';
+import { selectRunnableCells } from '../karma/e2e-libs-results.mjs';
 
 const sparse = [];
 sparse.length = 2;
@@ -450,13 +451,23 @@ try {
 }
 if (prepareTestError) throw prepareTestError;
 
-const first = { label: 'first' };
-const second = { label: 'second' };
-const cells = [first, second];
-deepEqual(reconcileRows(cells, [second, first]), cells);
+const first = { label: 'first', runtime: 'passed', snapshotState: 'ok', checks: 3 };
+const second = { label: 'second', runtime: 'failed', error: 'bundle failed' };
+const cells = [{ label: first.label }, { label: second.label }];
+const reconciled = reconcileRows(cells, [second, first]);
+deepEqual(reconciled, [
+  { label: 'first', runtime: 'passed', snapshotState: 'ok', checks: 3 },
+  { label: 'second', runtime: 'failed', error: 'bundle failed' },
+]);
+deepEqual(selectRunnableCells(reconciled).map(cell => cell.label), ['first']);
 throws(() => reconcileRows(cells, [first]), /expected 2 cell results/u);
 throws(() => reconcileRows(cells, [first, first]), /1 unique/u);
 throws(() => reconcileRows(cells, [first, { label: 'unrequested' }]), /missing result for second/u);
+const longLabelPrefix = 'x'.repeat(4096);
+strictEqual(checkResultProblem([{ label: `${ longLabelPrefix }actual`, pass: true }], [`${ longLabelPrefix }expected`])
+  .includes('actual'), true);
+strictEqual(checkResultProblem([{ label: `${ longLabelPrefix }actual`, pass: true }], [`${ longLabelPrefix }expected`])
+  .includes('xxxxxxxxxxxxxxxxxxxxxxxxexpected'), true);
 deepEqual(runtimeVerdict('drift', false), { runtime: 'failed', snapshotState: 'drift' });
 deepEqual(runtimeVerdict('updated', false), { runtime: 'failed', snapshotState: 'updated' });
 deepEqual(runtimeVerdict('ok', true), { runtime: 'failed', snapshotState: 'ok' });
@@ -577,6 +588,113 @@ E2E.run = () => {
   } };
 };
 strictEqual((await browserRun())[0].pass, false);
+const diagnosticValue = { fields: [2] };
+const editedDifference = { path: '[length]', pair: [1, diagnosticValue] };
+E2E.run = () => ({
+  // eslint-disable-next-line unicorn/no-thenable -- mutate the diagnostic after resolving
+  then(resolve) {
+    resolve({ checks: [{ label: 'original', pass: false, difference: editedDifference }] });
+    editedDifference.path = '[wrong]';
+    editedDifference.pair[0] = 91;
+    diagnosticValue.fields[0] = 92;
+    editedDifference.missing = 'expected';
+  },
+});
+deepEqual(structuredClone(window.e2eCheckResult((await browserRun())[0])), {
+  result: false, actual: 1, expected: { fields: [2] }, message: 'original at [length]',
+});
+for (const replace of [false, true]) {
+  const self = {
+    checks: valid,
+    // eslint-disable-next-line unicorn/no-thenable -- a thenable can change before the next adoption
+    then(resolve) {
+      // eslint-disable-next-line unicorn/no-thenable -- exercise replacement of the original then
+      if (replace) Object.defineProperty(self, 'then', { value: deliver => deliver({ checks: valid }) });
+      else delete self.then;
+      resolve(self);
+    },
+  };
+  E2E.run = () => self;
+  strictEqual((await browserRun())[0].label, valid[0].label);
+}
+let remaining = 1;
+// eslint-disable-next-line unicorn/no-thenable -- a fixed then method can settle on a later call
+const stateful = Object.freeze({ then(resolve) { resolve(remaining-- ? stateful : { checks: valid }); } });
+E2E.run = () => stateful;
+strictEqual((await browserRun())[0].label, valid[0].label);
+for (const shape of ['self', 'mutual', 'fresh']) {
+  let pendingJobs = 0;
+  function advance(resolve) {
+    if (++pendingJobs === 1000) return; // The control must finish even if no timer is allowed to run.
+    if (shape === 'fresh') resolve(makeThenable());
+    else resolve(shape === 'mutual' && pendingJobs % 2 ? tail : loop);
+  }
+  function makeThenable() {
+    // eslint-disable-next-line unicorn/no-thenable -- both cyclic and freshly allocated thenables use this method
+    return { then: advance };
+  }
+  const loop = makeThenable();
+  const tail = makeThenable();
+  const busyWindow = { queueMicrotask, addEventListener() { /* only the timer is relevant */ } };
+  const busy = runInNewContext(`${ browserPrograms }\n window`, { window: busyWindow, E2E: { run: () => loop }, setTimeout });
+  const unexpected = [];
+  function recordUnexpected(result) { unexpected.push(result); }
+  const cancelPending = busy.e2eRun(recordUnexpected, recordUnexpected);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  cancelPending();
+  const jobsAtCancel = pendingJobs;
+  strictEqual(jobsAtCancel > 0 && jobsAtCancel < 1000, true, shape);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  strictEqual(pendingJobs, jobsAtCancel, shape);
+  deepEqual(unexpected, []);
+}
+const hiddenPair = Object.defineProperty(new Array(3), 1, { value: 17, writable: true });
+E2E.run = () => ({
+  // eslint-disable-next-line unicorn/no-thenable -- mutate the hidden slot after it is observed
+  then(resolve) {
+    resolve({ checks: [{ label: 'hidden', pass: false, difference: { path: '[1]', pair: [hiddenPair, null] } }] });
+    hiddenPair[1] = 18;
+  },
+});
+const hiddenDiagnostic = window.e2eCheckResult((await browserRun())[0]).actual;
+strictEqual(hiddenDiagnostic.length, 3);
+strictEqual(Object.hasOwn(hiddenDiagnostic, 0), false);
+strictEqual(Object.getOwnPropertyDescriptor(hiddenDiagnostic, 1).value, 17);
+const shorter = new Proxy([17, 18], { get: (array, key) => key === 'length' ? 1 : Reflect.get(array, key) });
+E2E.run = () => ({ checks: [{ label: 'shorter', pass: false, difference: { pair: [shorter, null] } }] });
+const shorterDiagnostic = window.e2eCheckResult((await browserRun())[0]).actual;
+strictEqual(shorterDiagnostic.length, 1);
+strictEqual(shorterDiagnostic[1], 18);
+let reflected = 0;
+const opaque = new Proxy({ field: 17 }, {
+  getOwnPropertyDescriptor(target, key) {
+    if (++reflected === 2) throw new Error('descriptor unavailable');
+    return Reflect.getOwnPropertyDescriptor(target, key);
+  },
+});
+E2E.run = () => ({ checks: [{ label: 'aliased', pass: false, difference: { pair: [opaque, opaque] } }] });
+const opaqueDiagnostic = window.e2eCheckResult((await browserRun())[0]);
+strictEqual(opaqueDiagnostic.actual, opaque);
+strictEqual(opaqueDiagnostic.expected, opaque);
+strictEqual(reflected, 2);
+const protectedWindow = { addEventListener() { /* model a bundle that changes builtin methods */ } };
+remaining = 1;
+const protectedExercise = { run: () => stateful };
+runInNewContext(`${ browserPrograms }\nArray.prototype.push = Array.isArray = Object.keys = function () {
+  throw new Error('bundle replaced a method');
+};`, { window: protectedWindow, E2E: protectedExercise, setTimeout });
+const protectedRows = await new Promise((resolve, reject) => protectedWindow.e2eRun(resolve, reject));
+strictEqual(protectedRows[0].label, valid[0].label);
+const protectedValue = { field: 17 };
+protectedExercise.run = () => ({
+  // eslint-disable-next-line unicorn/no-thenable -- the diagnostic must be independent of the original
+  then(resolve) {
+    resolve({ checks: [{ label: 'diagnostic', pass: false, difference: { pair: [protectedValue, null] } }] });
+    protectedValue.field = 18;
+  },
+});
+const [protectedDiagnostic] = await new Promise((resolve, reject) => protectedWindow.e2eRun(resolve, reject));
+strictEqual(protectedWindow.e2eCheckResult(protectedDiagnostic).actual.field, 17);
 let thenReads = 0;
 const oneRead = {
   // eslint-disable-next-line unicorn/no-thenable -- exercise a thenable with an accessor
@@ -798,7 +916,7 @@ const probe = `
   import { deepEqual, match, rejects, throws } from 'node:assert/strict';
   import { fork } from 'node:child_process';
   import { once } from 'node:events';
-  import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+  import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
   import { createServer } from 'node:net';
   import { createRequire } from 'node:module';
   import { tmpdir } from 'node:os';
@@ -881,6 +999,29 @@ const probe = `
       + 'const actual = new Proxy([42], { get(target, key) { return key === "length" ? observedLength : target[key]; } });'
       + 'return { checks: [{ label: "array", pass: true, actual }] }; }');
     await rejects(rawChecks(observed, { repeat: true }), /at .*length.*0 on the first run and at .*length.*1 on the second/);
+    await writeFile(observed, 'export function run() { let reads = 0; const array = new Array(1000000);'
+      + 'Object.defineProperty(array, 42, { value: 1 });'
+      + 'const actual = new Proxy(array, { getOwnPropertyDescriptor(target, key) {'
+      + 'if (++reads > 10) throw Error("scanned a sparse array"); return Reflect.getOwnPropertyDescriptor(target, key);'
+      + '} }); return { checks: [{ label: "sparse", pass: true, actual }] }; }');
+    deepEqual(await rawChecks(observed, { repeat: true }), [{ label: 'sparse', pass: true, failure: null }]);
+    await writeFile(observed, 'let count = 0; export function run() { const actual = new Array(1000000);'
+      + 'if (++count === 2) Object.defineProperty(actual, 42, { value: undefined });'
+      + 'return { checks: [{ label: "sparse", pass: true, actual }] }; }');
+    await rejects(rawChecks(observed, { repeat: true }), /'sparse' gave.*42.*<missing>.*undefined/);
+    await writeFile(observed, 'export function run() {'
+      + 'const actual = { get [Symbol.toStringTag]() { throw Error("tag unavailable"); } };'
+      + 'return { checks: [{ label: "mismatch", pass: false, actual, expected: {} }] }; }');
+    deepEqual(await rawChecks(observed, { repeat: true }), await rawChecks(observed));
+    await writeFile(observed, 'let runCount = 0; export function run() { const tag = String(++runCount);'
+      + 'const actual = { get [Symbol.toStringTag]() { return tag; } };'
+      + 'return { checks: [{ label: "tag", pass: true, actual }] }; }');
+    await rejects(rawChecks(observed, { repeat: true }), /'tag' gave.*"1".*first run.*"2".*second/);
+    await writeFile(observed, 'let reversed = false; export function run() { let reads = 0;'
+      + 'const actual = new Proxy([0, 0], { ownKeys() { return reversed ? ["1", "0", "length"] : ["0", "1", "length"]; },'
+      + 'get(target, key) { return key === "0" || key === "1" ? ++reads : Reflect.get(target, key); } });'
+      + 'reversed = !reversed; return { checks: [{ label: "proxy order", pass: true, actual }] }; }');
+    deepEqual(await rawChecks(observed, { repeat: true }), [{ label: 'proxy order', pass: true, failure: null }]);
     const mutating = join(scratch, 'mutating.mjs');
     await writeFile(mutating, 'const check = { label: "ok", pass: true, actual: { n: 0 } };'
       + 'export function run() { check.actual.n++; return { checks: [check] }; }');
@@ -991,6 +1132,32 @@ const probe = `
     try {
       process.env.NODE_OPTIONS = ((options || '') + ' --import=' + pathToFileURL(preload).href).trim();
       await rejects(rawChecks(progress), /could not stop the exercise process tree for progress.mjs/);
+      await writeFile(preload, 'import cp from "node:child_process"; import { syncBuiltinESMExports } from "node:module";'
+        + 'const fork = cp.fork; cp.fork = (file, opts) => fork(file, { ...opts, execPath: process.execPath + ".missing" });'
+        + 'syncBuiltinESMExports();');
+      await rejects(rawChecks(progress), { name: 'Error', code: 'ENOENT', syscall: /^spawn / });
+      const spawnFailure = await strippedLeg('', 'spawn failure', []);
+      match(spawnFailure.reason, /ENOENT/);
+      deepEqual(strippedFails(spawnFailure, 'pre'), true);
+      const stoppedBranch = join(scratch, 'stopped-branch');
+      await writeFile(preload, 'import cp from "node:child_process"; import { EventEmitter } from "node:events";'
+        + 'import { writeFileSync } from "node:fs"; import { syncBuiltinESMExports } from "node:module";'
+        + 'await import(' + JSON.stringify(${ JSON.stringify(import.meta.resolve('zx')) }) + ');'
+        + 'Object.defineProperty(process, "platform", { value: "win32" });'
+        + 'const child = Object.assign(new EventEmitter(), { pid: 100, connected: false, exitCode: 23, signalCode: null });'
+        + 'cp.fork = () => { setImmediate(() => child.emit("exit", 23, null)); return child; };'
+        + 'cp.execFile = (file, args, options, callback) => {'
+        + 'if (file === "powershell.exe") { const now = Date.now() + 1000;'
+        + 'const rows = [[100, 99, now - 100000], [100, 101, now], [101, 102, now + 10], [101, 103, now - 1],'
+        + '[1, 100, now + 200], [100, 104, now + 210]];'
+        + 'callback(null, { stdout: rows.map(row => row.join(" ")).join("\\\\r\\\\n") }); }'
+        + 'else if (args[1] === "101") callback(new Error("branch already exited"));'
+        + 'else if (args[1] === "102") { writeFileSync(' + JSON.stringify(stoppedBranch) + ', "stopped"); callback(null); }'
+        + 'else callback(new Error("unexpected process")); };'
+        + 'process.kill = pid => { if (pid === 101) throw Object.assign(new Error("branch already exited"), { code: "ESRCH" }); };'
+        + 'syncBuiltinESMExports();');
+      await rejects(rawChecks(progress), /exited with code 23 without a result/);
+      deepEqual(await readFile(stoppedBranch, 'utf8'), 'stopped');
     } finally {
       if (options === undefined) delete process.env.NODE_OPTIONS;
       else process.env.NODE_OPTIONS = options;

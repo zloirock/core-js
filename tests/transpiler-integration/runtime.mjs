@@ -1,5 +1,5 @@
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { deepEqual } from 'node:assert/strict';
@@ -47,11 +47,15 @@ async function assertRefsDeclared(code, label, sourceType) {
 // Assert before serialization: JSON alone hides boxed primitives and custom toJSON methods.
 async function verifyResult(code, label, expression, expected, ext, { strip = false, chunks = [], beforeLoad = '' } = {}) {
   await assertRefsDeclared(code, label, ext === '.cjs' ? 'commonjs' : 'module');
-  for (const chunk of chunks) await assertRefsDeclared(chunk.code, `${ label }/${ chunk.fileName }`, 'module');
+  for (const chunk of chunks) await assertRefsDeclared(chunk.code, `${ label }/${ chunk.fileName }`, ext === '.cjs' ? 'commonjs' : 'module');
   await withTmpDir(async dir => {
     const file = join(dir, `bundle${ ext ?? '.mjs' }`);
     await writeFile(file, code);
-    for (const chunk of chunks) await writeFile(join(dir, chunk.fileName), chunk.code);
+    for (const chunk of chunks) {
+      const target = join(dir, chunk.fileName);
+      await mkdir(dirname(target), { recursive: true });
+      await writeFile(target, chunk.code);
+    }
     const probe = join(dir, 'probe.mjs');
     await writeFile(probe, `import { deepEqual } from 'node:assert/strict';
       ${ beforeLoad }
@@ -88,17 +92,21 @@ export async function verifyDynamic(code, label, ext = '.mjs') {
   return verifyResult(code, label, '[await results.lazy, results.control]', [2, 4], ext, { strip: true });
 }
 
-export async function verifySplitDynamic({ code, chunks, dynamicImports }, label) {
+export async function verifySplitDynamic({ code, ext = '.mjs', chunks, dynamicImports }, label) {
   // Rollup can re-export the entry from a shared chunk which owns the import() itself.
-  const targets = new Set([...dynamicImports, ...chunks.flatMap(chunk => chunk.dynamicImports)]);
-  const lazyChunk = chunks.find(chunk => chunk.isDynamicEntry && targets.has(chunk.fileName));
+  const targets = dynamicImports && new Set([...dynamicImports, ...chunks.flatMap(chunk => chunk.dynamicImports)]);
+  const lazyChunk = chunks.find(chunk => targets
+    ? chunk.isDynamicEntry && targets.has(chunk.fileName)
+    : chunk.code.includes('core-js dynamic fixture'));
   if (!lazyChunk) throw new Error(`${ label }: expected a separate dynamic chunk`);
-  const expression = '[await results.lazy, results.control]';
-  const expected = [2, 4];
-  await verifyResult(code, label, expression, expected, '.mjs', { strip: true, chunks });
+  const expression = targets ? '[await results.lazy, results.control]' : '[await results.lazy, results.control, typeof Promise.all]';
+  const expected = targets ? [2, 4] : [2, 4, 'function'];
+  const beforeLoad = targets ? '' : 'delete Promise.all;';
+  await verifyResult(code, label, expression, expected, ext, { chunks });
+  await verifyResult(code, label, expression, expected, ext, { strip: true, chunks, beforeLoad });
   // The entry must still load. Only awaiting its lazy export should see the missing module.
-  const missing = '[await results.lazy.then(() => null, error => error.code), results.control]';
-  await verifyResult(code, label, missing, ['ERR_MODULE_NOT_FOUND', 4], '.mjs', {
-    strip: true, chunks: chunks.filter(chunk => chunk !== lazyChunk),
+  const missing = `[await results.lazy.then(() => null, error => ${ targets ? 'error.code' : 'true' }), results.control]`;
+  await verifyResult(code, label, missing, [targets ? 'ERR_MODULE_NOT_FOUND' : true, 4], ext, {
+    strip: true, beforeLoad, chunks: chunks.filter(chunk => chunk !== lazyChunk),
   });
 }

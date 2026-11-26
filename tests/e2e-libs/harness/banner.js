@@ -93,9 +93,10 @@
   setTimeout(function () {
     if (settled) return;
     settled = true;
+    cancel();
     paint(FAIL, 'FAIL - run() did not settle within ' + CELL.timeout + 'ms in this browser');
     tableSays('The browser exercise timed out.');
   }, CELL.timeout);
 
-  window.e2eRun(render, showError);
+  var cancel = window.e2eRun(render, showError);
 }());
