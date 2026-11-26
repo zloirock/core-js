@@ -2,7 +2,7 @@ import stringMatchAll from '@core-js/pure/full/string/match-all';
 
 const s = 'abcabc';
 const re = /abc/g;
-stringMatchAll(s, re);
+const matchIter: IterableIterator<RegExpExecArray> = stringMatchAll(s, re);
 
 // @ts-expect-error
 stringMatchAll(s);
@@ -11,7 +11,7 @@ stringMatchAll(s);
 stringMatchAll(s, 'abc');
 
 // @ts-expect-error
-const n: number = stringMatchAll(re);
+const n: number = stringMatchAll(s, re);
 
 // @ts-expect-error
 stringMatchAll(s, {});
