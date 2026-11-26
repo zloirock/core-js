@@ -57,7 +57,7 @@ var nativePropertyIsEnumerable = propertyIsEnumerableModule.f;
 var concat = uncurryThis([].concat);
 var push = uncurryThis([].push);
 
-var AllSymbols = shared('symbols');
+var AllSymbols = !NATIVE_SYMBOL && shared('symbols');
 var ObjectPrototypeSymbols = shared('op-symbols');
 var WellKnownSymbolsStore = shared('wks');
 

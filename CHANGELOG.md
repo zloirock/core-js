@@ -77,6 +77,7 @@
   - Added detection of native `Reflect.has` missing indexed properties in [Rhino 1.8.0-1.9.2](https://github.com/mozilla/rhino/issues/2599)
 - `Symbol`
   - Added a workaround for Babel and SWC rewriting `typeof` checks when transpiling `core-js`, which could break the `Symbol` polyfill and trigger getters on ordinary objects
+  - Fixed recognition of well-known symbol keys loaded before the `Symbol` polyfill and of polyfilled symbols across copies of `core-js` and `core-js-pure` that share internal state
   - Fixed `Function#toString` conversion of `Symbol.for` wrapped by the `Symbol.prototype.description` polyfill
   - Fixed partially incorrect `Symbol.{ dispose, asyncDispose }` descriptors from transpilers helpers / userland code
   - Fixed property descriptors of `Symbol.prototype[@@toPrimitive]` and `Date.prototype[@@toPrimitive]` polyfills
