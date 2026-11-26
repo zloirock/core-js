@@ -9,7 +9,9 @@ var createNonEnumerableProperty = require('../internals/create-non-enumerable-pr
 var SPECIES = wellKnownSymbol('species');
 var RegExpPrototype = RegExp.prototype;
 
-module.exports = function (KEY, exec, FORCED, SHAM) {
+// eslint-disable-next-line unicorn/consistent-function-style -- Babel reads the typeof directive on declarations
+function fixRegExp(KEY, exec, FORCED, SHAM) {
+  '@babel/helpers - typeof';
   var SYMBOL = wellKnownSymbol(KEY);
 
   var DELEGATES_TO_SYMBOL = !fails(function () {
@@ -78,4 +80,6 @@ module.exports = function (KEY, exec, FORCED, SHAM) {
   }
 
   if (SHAM) createNonEnumerableProperty(RegExpPrototype[SYMBOL], 'sham', true);
-};
+}
+
+module.exports = fixRegExp;
