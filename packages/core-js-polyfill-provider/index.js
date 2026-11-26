@@ -7,7 +7,7 @@ import { HELPER_CANON_ENTRIES } from './detect-usage/globals.js';
 import { POSSIBLE_GLOBAL_OBJECTS } from './helpers/ast-patterns.js';
 import { brand, wrapWithCause } from './helpers/error-tag.js';
 import { isEntryPattern, isModulePattern, patternToRegExp, safeErrorMessage, validatePatternList } from './helpers/pattern-matching.js';
-import { WINDOWS_UNC_PREFIX_RE, canonicalisePackage, isAssetImport, resolveImportPath, stripQueryHash } from './helpers/path-normalize.js';
+import { canonicalisePackage, isAssetImport, normalizeImportSource, resolveImportPath } from './helpers/path-normalize.js';
 import { VALID_MODES, expectEnum, validatePackageShape } from './plugin-options/validate.js';
 
 const { hasOwn } = Object;
@@ -71,25 +71,11 @@ function collectEntryPaths(patterns) {
   return result;
 }
 
-// strip `file://` / `./` prefixes that bundler id resolution commonly introduces
-function stripLeadingPrefix(p) {
-  if (p.startsWith('file://')) return p.slice(7);
-  if (p.startsWith('./')) return p.slice(2);
-  return p;
-}
-
-// normalize the import source to a canonical entry path so we can look it up in the `entries`
-// map: forward slashes only, no query/hash, no protocol, no trailing `/index` or `.{c,m}js`.
-// pipeline split between query/backslash normalisation (pre-strip), prefix strip, and the
-// remaining UNC/slash-collapse/lowercase pass: slash-collapse must run AFTER stripLeadingPrefix
-// because `file://` would otherwise collapse to `file:/` and miss the prefix matcher
+// Only a package specifier names an entry. A leading './' identifies a file in the author's project.
 function normalizeImportPath(path) {
   if (typeof path != 'string' || isAssetImport(path)) return null;
-  const queryless = stripQueryHash(path).replaceAll('\\', '/');
-  const stripped = stripLeadingPrefix(queryless);
-  const canonical = stripped.replace(WINDOWS_UNC_PREFIX_RE, '').replaceAll(/\/{2,}/g, '/').toLowerCase();
   // accept `.js`, `.mjs`, `.cjs` - `import 'core-js/actual/array/at.mjs'` should resolve like `.js`
-  return canonical.replace(/(?:\/(?:index)?)?(?:\.[cm]?js)?$/i, '');
+  return normalizeImportSource(path).replace(/(?:\/(?:index)?)?(?:\.[cm]?js)?$/i, '');
 }
 
 function patternMatches(pattern, modules) {

@@ -271,7 +271,11 @@ When `true`, the plugin will not read any browserslist config files. Only the ex
 
 When `true`, injected `core-js` imports will use absolute filesystem paths instead of package names. The configured package is resolved from the project working directory, so all files use that installation. A missing package or entry raises an error instead of falling back to a bare import. With an explicit `version` and `absoluteImports: false`, the package need not be installed while transforming.
 
-If a custom `package` has separate ESM and CommonJS exports or an import-only entry, start Node with `--experimental-import-meta-resolve` to select its ESM target for an absolute `import`. By default the plugins use the project's `require` conditions for absolute paths.
+In a Node application, absolute ESM imports use the project's ESM export conditions and absolute CommonJS loads use its CommonJS conditions.
+
+For files whose names contain `#` or `%`, standalone Babel emits an escaped URL for Node ESM. Webpack's `babel-loader` and Rollup's `@rollup/plugin-babel` identify their bundler automatically. When compiling separately for esbuild, Rollup or webpack, set Babel's `caller.name` to `'esbuild'`, `'rollup'` or `'webpack'` to emit the resolved filesystem path.
+
+An export target with a URL query or fragment identifies a distinct module instance. In esbuild and Rollup, bundling such a target requires a resolver for `file:` URLs. When using webpack's `babel-loader` with Rspack, set Babel's `caller.name` to `'rspack'` so filenames containing `?` or `#` use Rspack's URL handling.
 
 ### `importStyle`
 

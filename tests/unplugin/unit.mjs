@@ -3945,6 +3945,18 @@ function checkDebugReportIsTheEmission() {
     checkDeep(`debug report/usage-pure ${ label }: lists exactly the emitted entries`, reportedPolyfills(logs), importedPolyfills(code));
     check(`debug report/usage-pure ${ label }: the emission is non-empty`, importedPolyfills(code).length > 0, true);
   }
+  for (const replace of [false, true]) {
+    const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, debug: true });
+    const id = '/src/debug-retained.mjs';
+    const source = `import own from '@core-js/pure/actual/array/of'; export { own }; ${ pureSource }`;
+    const pre = transformWithReport(plugin, source, id, ['pre']).code;
+    const post = replace ? pre.replace('@core-js/pure/actual/array/instance/at', 'other-package') : pre;
+    const { code, logs } = transformWithReport(plugin, post, id, ['post']);
+    const expected = replace ? ['array/from'] : ['array/from', 'array/instance/at'];
+    checkDeep(`debug report/retained pre imports/${ replace }`, reportedPolyfills(logs), expected);
+    const own = programOf(code).body.find(node => node.source?.value === '@core-js/pure/actual/array/of');
+    check(`debug report/author import still present/${ replace }`, own?.specifiers[0].local.name, 'own');
+  }
   // usage-global: the modules the usage pulled in; a core-js import the user wrote stays theirs -
   // kept as written, it is no emission of ours and is not reported as one
   const globalSource = "import 'core-js/actual/array/at';\nexport const p = Promise.resolve(1);\n";

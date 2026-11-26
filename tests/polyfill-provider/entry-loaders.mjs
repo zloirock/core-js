@@ -2,6 +2,7 @@
 import { strict as assert } from 'node:assert';
 import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -94,6 +95,26 @@ for (const [host, transform] of hosts) {
   const mixed = emit(`require?.('${ entry }'); mark(1); require('${ entry }');`);
   checkDeep(`${ host }/optional load does not satisfy a required load`, execute(mixed).calls, [mod, 1, mod]);
   assert.throws(() => execute(mixed, { require: null }), { name: 'TypeError' });
+  const disabledSource = `(0,\n'${ entry }' // core-js-disable-line\n)`;
+  for (const load of [`(\n// core-js-disable-next-line\nrequire\n)('${ entry }')`, `require(\n'${ entry }' // core-js-disable-line\n)`, `require(${ disabledSource })`]) {
+    const code = emit(`${ load }; require('core-js/actual/array/from');`);
+    checkDeep(`${ host }/disabled load precedes its active neighbor`, execute(code).calls,
+      [entry, 'core-js/modules/es.object.to-string', 'core-js/modules/es.array.from', 'core-js/modules/es.string.iterator']);
+  }
+  const dynamic = emit(`await import(${ disabledSource });`, 'entry-global', 'disabled.mjs');
+  check(`${ host }/disabled dynamic specifier`, parse(dynamic, { sourceType: 'module' }).program.body[0].expression?.type, 'AwaitExpression');
+  const fileURL = new URL('../../packages/core-js/modules/es.array.at.js', import.meta.url).href;
+  const fileLoad = emit(`require(${ JSON.stringify(fileURL) });`, 'usage-global');
+  assert.throws(() => execute(fileLoad, { require: createRequire(import.meta.url) }),
+    { code: 'MODULE_NOT_FOUND' }, `${ host }/CommonJS file URL`);
+  const realmURL = new URL('../../packages/core-js-pure/actual/global-this.js', import.meta.url).href;
+  for (const decl of ['const root =', 'import root =']) {
+    const source = emit(`${ decl } require(${ JSON.stringify(realmURL) }); module.exports = root.Array.from([3]);`, 'usage-pure', 'url.cts');
+    const lowered = transformBabel(source, { ...babel, filename: 'url.cts', plugins: [transformTypeScript, transformModules] });
+    check(`${ host }/CommonJS URL carries no realm type/${ decl }`, execute(lowered.code, {
+      require: id => id === realmURL ? { Array: { from: () => 'author' } } : () => 'polyfill',
+    }).value, 'author');
+  }
   for (const definition of [
     'const box = { get x() { throw new RangeError("getter"); } };',
     'const box = { get x() { if (mark) throw new RangeError("getter"); return 1; } };',
@@ -172,6 +193,26 @@ for (const [host, transform] of hosts) {
   });
   check(`${ host }/early module callback`, seen, 'pony:3');
   check(`${ host }/later declarator`, cyclicValue.value, 'pony:4');
+  for (const initializer of [`require(\n'${ pony }' // core-js-disable-line\n)`, `(\nrequire // core-js-disable-line\n)('${ pony }')`]) {
+    const source = `const authored = ${ initializer }; module.exports = [authored([5]), Array.from([3])];`;
+    const { calls, value } = execute(emit(source, 'usage-pure'));
+    checkDeep(`${ host }/disabled source is not borrowed`, calls, [pony, pony]);
+    checkDeep(`${ host }/disabled and independent uses`, value, ['pony:5', 'pony:3']);
+  }
+  const tsAlias = emit(`import first = ns.member; const from = require('${ pony }');
+    function read() { return Array.from([3]); } module.exports = [first, from([4])];`, 'usage-pure', 'alias.cts');
+  const loweredAlias = transformBabel(tsAlias, { ...babel, filename: 'alias.cts', plugins: [transformTypeScript, transformModules] });
+  checkDeep(`${ host }/qualified import alias can call back before a later initializer`,
+    execute(`const ns = { get member() { return read(); } };\n${ loweredAlias.code }`).value, ['pony:3', 'pony:4']);
+  const disabledImport = emit(`import picked from\n'${ pony }'; // core-js-disable-line\nexport default [picked, Array.from([3])];`,
+    'usage-pure', 'disabled.mjs');
+  checkDeep(`${ host }/disabled default import remains independent`,
+    parse(disabledImport, { sourceType: 'module' }).program.body.filter(node => node.type === 'ImportDeclaration').map(node => node.source.value),
+    [pony, pony]);
+  const disabledEquals = emit(`import picked = require(\n'${ pony }' // core-js-disable-line\n); module.exports = [picked([9]), Array.from([3])];`,
+    'usage-pure', 'disabled.cts');
+  const loweredEquals = transformBabel(disabledEquals, { ...babel, filename: 'disabled.cts', plugins: [transformTypeScript, transformModules] });
+  checkDeep(`${ host }/disabled import equals remains independent`, execute(loweredEquals.code).calls, [pony, pony]);
   for (const before of ['', 'require = replacement;', 'function require(id) { return replacement(id); }']) {
     const source = `${ before } import held = require('${ pony }'); module.exports = [held([9]), Array.from([3])];`;
     const compiled = transformBabel(emit(source, 'usage-pure', 'loader.cts'), {
@@ -251,7 +292,39 @@ try {
   await mkdir(join(project, 'node_modules', '@core-js'), { recursive: true });
   await symlink(fileURLToPath(new URL('../../packages/core-js-pure', import.meta.url)),
     join(project, 'node_modules', '@core-js', 'pure'), 'junction');
+  const localEntry = './core-js/actual/array/at.js';
+  await mkdir(join(project, 'core-js/actual/array'), { recursive: true });
+  await writeFile(join(project, localEntry), "console.log('author');");
+  const lazyModules = ['es.object.to-string', 'es.array.from', 'es.string.iterator'];
+  const lazyPackage = join(project, 'node_modules', 'lazy-entry');
+  await mkdir(lazyPackage);
+  await writeFile(join(lazyPackage, 'package.json'), JSON.stringify({ type: 'module', exports: { './modules/*': './*.js' } }));
+  for (const name of lazyModules) {
+    await writeFile(join(lazyPackage, `${ name }.js`), `events.push('${ name }'); if (fail === '${ name }') throw new RangeError('load');`);
+  }
   for (const [host, transform] of hosts) {
+    for (const [ext, load] of [['mjs', `import '${ localEntry }'`], ['mjs', `await import('${ localEntry }')`], ['cjs', `require('${ localEntry }')`]]) {
+      const filename = join(project, `${ host }-local.${ ext }`);
+      await writeFile(filename, transform(load, filename, { method: 'entry-global', version: '4.0', targets: { ie: 11 } }));
+      const { stdout } = await promisify(execFile)(process.execPath, [filename]);
+      check(`${ host }/load author file/${ load }`, stdout.trim(), 'author');
+    }
+    const late = `events.push('before'); queueMicrotask(() => events.push('tick'));
+      await import('lazy-entry/actual/array/from'); events.push('after');`;
+    for (const [exclude, fail, expected] of [
+      [[], null, [...lazyModules, 'after']],
+      [[], lazyModules[1], [...lazyModules.slice(0, 2), 'RangeError']],
+      [[lazyModules[1]], null, [lazyModules[0], lazyModules[2], 'after']],
+      [lazyModules, null, ['after']],
+    ]) {
+      const filename = join(project, `${ host }-late.mjs`);
+      await writeFile(filename, transform(late, filename, { method: 'entry-global', package: 'lazy-entry', version: '4.0', targets: { ie: 11 }, exclude }));
+      const run = `globalThis.events = []; globalThis.fail = ${ JSON.stringify(fail) };
+        try { await import('./${ host }-late.mjs'); } catch (error) { events.push(error.name); }
+        console.log(JSON.stringify(events));`;
+      const { stdout } = await promisify(execFile)(process.execPath, ['--input-type=module', '-e', run], { cwd: project });
+      checkDeep(`${ host }/late await/${ exclude }/${ fail }`, JSON.parse(stdout), ['before', 'tick', ...expected]);
+    }
     const source = `const picked = require?.('${ pony }');
       const root = require?.('@core-js/pure/actual/global-this');
       export default [typeof picked, Array.from([3])[0], root?.Array.from([4])[0]];`;
@@ -267,22 +340,68 @@ try {
     const main = `${ host }-cycle.mjs`;
     const dep = `${ host }-dependency.mjs`;
     await writeFile(join(project, dep), `import { read } from './${ main }'; export const early = globalThis.early = read();`);
-    const body = `const prior = require('${ pony }'); export function read() { return Array.from([3])[0]; } export default prior([4])[0];`;
-    for (const moduleSource of [`import './${ dep }'; ${ body }`, `${ body } export { early } from './${ dep }';`]) {
+    const body = 'export function read() { return Array.from([3])[0]; } export default prior([4])[0];';
+    const required = `const prior = require('${ pony }');`;
+    const imported = `import prior from '${ pony }';`;
+    for (const moduleSource of [
+      `import './${ dep }'; ${ required } ${ body }`,
+      `${ required } ${ body } export { early } from './${ dep }';`,
+      `import './${ dep }'; ${ imported } ${ body }`,
+      `export { early } from './${ dep }'; import { default as prior } from '${ pony }'; ${ body }`,
+      `${ imported } import './${ dep }'; ${ body }`,
+    ]) {
       const output = join(project, main);
       await writeFile(output, transform(moduleSource, output, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }));
       const run = `import { createRequire } from 'node:module'; globalThis.require = createRequire(import.meta.url);
         delete Array.from; const result = await import('./${ main }'); console.log(JSON.stringify([globalThis.early, result.default]));`;
       const { stdout } = await promisify(execFile)(process.execPath, ['--input-type=module', '-e', run], { cwd: project });
-      checkDeep(`${ host }/ESM cycle before require/${ moduleSource }`, JSON.parse(stdout), [3, 4]);
+      checkDeep(`${ host }/ESM cycle/${ moduleSource }`, JSON.parse(stdout), [3, 4]);
+    }
+    // The early polyfill and the author's default binding share one evaluated ESM dependency.
+    const shared = `import './${ dep }'; ${ imported }
+      export function read() { return [prior([1])[0], Array.from([2])[0]]; }`;
+    await writeFile(join(project, main), transform(shared, join(project, main), { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }));
+    const run = `delete Array.from; await import('./${ main }'); console.log(JSON.stringify(globalThis.early));`;
+    const { stdout } = await promisify(execFile)(process.execPath, ['--input-type=module', '-e', run], { cwd: project });
+    checkDeep(`${ host }/ESM cycle shares the initialized default`, JSON.parse(stdout), [1, 2]);
+    for (const [shadow, available] of [['first', 'second'], ['second', 'first'], ['unrelated', 'first']]) {
+      const aliases = `import './${ dep }'; import first, { default as second } from '${ pony }';
+        export function read() { return 7; } export let result;
+        { const ${ shadow } = 23; result = [Array.from([3])[0], ${ shadow }]; }`;
+      const output = transform(aliases, join(project, main), { method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+      const nodes = parse(output, { sourceType: 'module' }).program.body;
+      check(`${ host }/one default import beside ${ shadow }`, nodes.filter(node => node.source?.value === pony).length, 1);
+      check(`${ host }/available default beside ${ shadow }`, output.includes(`${ available }([3])`), true);
+      await writeFile(join(project, main), output);
+      const executeAliases = `delete Array.from; const { result } = await import('./${ main }'); console.log(JSON.stringify(result));`;
+      const result = await promisify(execFile)(process.execPath, ['--input-type=module', '-e', executeAliases], { cwd: project });
+      checkDeep(`${ host }/shadowed default value/${ shadow }`, JSON.parse(result.stdout), [3, 23]);
+    }
+    const instance = '@core-js/pure/actual/array/instance/includes';
+    for (const [site, pattern, expected] of [
+      ['top level', 'export function read() { return 7; } export const { includes: top } = [1];', [7, true]],
+      ['early function', 'export function read() { const { includes } = [1]; return includes.call([1], 1); }', [true]],
+    ]) {
+      const patternSource = `import './${ dep }'; import prior from '${ instance }'; ${ pattern } export { prior };`;
+      const output = transform(patternSource, join(project, main), { method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+      if (site === 'top level') check(`${ host }/reuse imported method in exported pattern`,
+        parse(output, { sourceType: 'module' }).program.body.filter(node => node.source?.value === instance).length, 1);
+      await writeFile(join(project, main), output);
+      const executePattern = `delete Array.prototype.includes; const m = await import('./${ main }');
+        const result = [globalThis.early]; if (m.top) result.push(m.top.call([1], 1)); console.log(JSON.stringify(result));`;
+      const result = await promisify(execFile)(process.execPath, ['--input-type=module', '-e', executePattern], { cwd: project });
+      checkDeep(`${ host }/ESM cycle/destructured method/${ site }`, JSON.parse(result.stdout), expected);
     }
   }
   const pkg = join(project, 'node_modules', 'entry-test');
-  const other = join(root, 'other', 'node_modules', 'entry-test', 'actual', 'array');
+  const otherPackage = join(root, 'other', 'node_modules', 'entry-test');
+  const other = join(otherPackage, 'actual', 'array');
   await mkdir(other, { recursive: true });
+  await writeFile(join(otherPackage, 'package.json'), '\uFEFF{"name":"entry-test"}');
   await writeFile(join(other, 'from.js'), 'module.exports = () => 53;');
+  await writeFile(join(other, 'index.js'), 'module.exports = () => 57;');
   await symlink(join(root, 'other'), join(root, 'other #%'), 'junction');
-  const otherModules = join(root, 'other', 'node_modules', 'entry-test', 'modules');
+  const otherModules = join(otherPackage, 'modules');
   await mkdir(otherModules);
   await writeFile(join(otherModules, 'es.array.at.js'), "globalThis.loads.push('relative');");
   const store = join(root, 'store #%');
@@ -311,6 +430,7 @@ try {
       './modules/es.array.at': { import: './effect.mjs', require: './effect.cjs' },
       './missing': './later.cjs',
       './directory': './linked',
+      './exact-target': { import: './linked/actual/array/from', require: './require.cjs' },
       './conditions': { 'fixture mode': './special.mjs', 'node-addons': './addons.mjs', import: './import.mjs' },
       './query': './linked/identity.mjs?variant=a',
       './fragment': './linked/identity.mjs#b',
@@ -333,6 +453,7 @@ try {
     const sameQuery = query === await import(queryURL);
     const sameFragment = fragment === await import(fragmentURL);
     console.log([bare(), absolute.default(), query !== fragment, sameQuery, sameFragment].join(' '));`;
+  const resolverFlags = ['--no-experimental-import-meta-resolve', '--experimental-import-meta-resolve'];
   for (const [args, nodeOptions, expected, preserveSymlinks = '0'] of [
     [['--conditions=fixture mode'], '', 41],
     [[], '--conditions="fixture mode"', 41],
@@ -343,15 +464,17 @@ try {
     [['--no-preserve-symlinks'], '', 53, '1'],
     [['--preserve_symlinks', '--no_addons'], '', 17],
   ]) {
-    const { stdout } = await promisify(execFile)(process.execPath, ['--experimental-import-meta-resolve', ...args, '--input-type=module', '-e', compareConditions], {
-      cwd: project, env: { ...process.env, NODE_OPTIONS: nodeOptions, NODE_PRESERVE_SYMLINKS: preserveSymlinks },
-    });
-    check(`native and absolute exports ${ JSON.stringify([args, nodeOptions, preserveSymlinks]) }`,
-      stdout.trim(), `${ expected } ${ expected } true true true`);
+    for (const flag of resolverFlags) {
+      const { stdout } = await promisify(execFile)(process.execPath, [flag, ...args, '--input-type=module', '-e', compareConditions], {
+        cwd: project, env: { ...process.env, NODE_OPTIONS: nodeOptions, NODE_PRESERVE_SYMLINKS: preserveSymlinks },
+      });
+      check(`native and absolute exports ${ JSON.stringify([flag, args, nodeOptions, preserveSymlinks]) }`,
+        stdout.trim(), `${ expected } ${ expected } true true true`);
+    }
   }
   const worker = fileURLToPath(new URL('./fixtures/absolute-imports.mjs', import.meta.url));
-  for (const [flag, branch] of [['--no-experimental-import-meta-resolve', 'require'], ['--experimental-import-meta-resolve', 'import']]) {
-    const { stdout } = await promisify(execFile)(process.execPath, [flag, worker, branch], {
+  for (const flag of resolverFlags) {
+    const { stdout } = await promisify(execFile)(process.execPath, [flag, worker], {
       cwd: project, env: { ...process.env, NODE_OPTIONS: '' },
     });
     check(`execute absolute imports ${ flag }`, stdout.trim(), 'ok');

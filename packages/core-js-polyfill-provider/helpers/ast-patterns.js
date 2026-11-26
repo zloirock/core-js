@@ -11,7 +11,7 @@ import {
   PATTERN_WRAPPERS,
 } from '../resolve-node-type/base.js';
 import { NESTED_BINDING_INTRODUCERS, nodeAlwaysReaches } from '../resolve-node-type/exit-analysis.js';
-import { coreJSImportSubpath, moduleIdLanguage, pureImportSourceEntry, pureImportSubpath } from './path-normalize.js';
+import { coreJSImportSubpath, isFileURLSpecifier, moduleIdLanguage, pureImportSourceEntry, pureImportSubpath } from './path-normalize.js';
 import { pushMultimap } from './pattern-matching.js';
 
 export { pureImportSourceEntry } from './path-normalize.js';
@@ -314,7 +314,7 @@ export function extractStaticString(node, adapter) {
 // `detect-usage/resolve.js`, the import-binding table below and every binding's own
 // require-declarator test read through it
 export function requireCallSource(node, aliasCtx = {}, program = null) {
-  const { adapter = null, scope = null, path = null } = aliasCtx;
+  const { adapter = null, scope = null, path = null, isDisabled } = aliasCtx;
   // `var P = require?.('x')` wraps the call in a ChainExpression (estree / oxc); peel transparent
   // wrappers so the source is known on the branch where the call actually runs
   node = unwrapTransparentSeq(node);
@@ -325,10 +325,12 @@ export function requireCallSource(node, aliasCtx = {}, program = null) {
   // recognised `(spy(), require)('core-js/...')` but not `(a(), (b(), require))('core-js/...')`,
   // and an unrecognised entry is left in place while its targets go uninjected
   const callee = peelSequenceTail(unwrapTransparentSeq(node.callee), { step: unwrapTransparentSeq });
-  if (callee?.type !== 'Identifier' || callee.name !== 'require') return null;
+  if (callee?.type !== 'Identifier' || callee.name !== 'require'
+    || isDisabled?.(node) || isDisabled?.(callee) || isDisabled?.(node.arguments[0], true)) return null;
   if (scope && adapter?.hasBinding?.({ scope, name: 'require', path, read: callee })) return null;
   const source = extractStaticString(node.arguments[0], adapter);
-  return source !== null && (program || path) && userRequireAt(node, program ?? path) ? null : source;
+  if (source === null || isFileURLSpecifier(source)) return null;
+  return (program || path) && userRequireAt(node, program ?? path) ? null : source;
 }
 
 // leading-import-region statement: ImportDeclaration, `export ... from 'mod'` re-export,
@@ -11452,7 +11454,7 @@ export function tsImportEqualsRequireSource(node, adapter, origin = null) {
   if (node?.type !== 'TSImportEqualsDeclaration' || node.importKind === 'type'
     || node.id?.type !== 'Identifier' || node.moduleReference?.type !== 'TSExternalModuleReference') return null;
   const source = adapter ? adapter.getStringValue(node.moduleReference.expression) : node.moduleReference.expression?.value;
-  return typeof source === 'string' && !userRequireAt(node, origin) ? source : null;
+  return typeof source === 'string' && !isFileURLSpecifier(source) && !userRequireAt(node, origin) ? source : null;
 }
 
 // `import g = require('<pkg>/<mode>/global-this')` - the TS require-import shape. tsc /

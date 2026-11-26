@@ -110,7 +110,7 @@ import {
   renderStaticFallbackReceiver,
 } from '@core-js/polyfill-provider/render';
 import estreeToBabel from './internals/estree-to-babel.js';
-import { isCoreJSFile, isDeclarationFile } from '@core-js/polyfill-provider/helpers/path-normalize';
+import { absoluteImportsForHost, isCoreJSFile, isDeclarationFile } from '@core-js/polyfill-provider/helpers/path-normalize';
 import {
   DISABLE_NEXT_LINE_DIRECTIVE,
   disableDirectiveAnchors,
@@ -230,11 +230,11 @@ function splitMinifierSequence(programPath, t, census) {
 
 export default function plugin(api, options) {
   const { types } = api;
-  const isWebpack = api.caller?.(caller => caller?.name === 'babel-loader');
+  const caller = api.caller?.(context => context?.name);
   let babelTargets;
   const getBabelTargets = typeof api.targets === 'function' ? () => babelTargets ??= api.targets() : null;
   const stateKey = Symbol('core-js-file');
-  let idle = createFilePlugin(api, options, getBabelTargets, isWebpack);
+  let idle = createFilePlugin(api, options, getBabelTargets, caller);
   const spares = [];
   // Re-entered AST nodes carry answers and rendered marks from their earlier file.
   // Keep the warm context for ordinary fresh trees, but give the same Program a fresh one.
@@ -262,7 +262,7 @@ export default function plugin(api, options) {
       while (!state && spares.length) state = spares.pop().deref();
       if (usedPrograms.has(this.file.path.node)) state = null;
       usedPrograms.add(this.file.path.node);
-      state ??= createFilePlugin(api, options, getBabelTargets, isWebpack);
+      state ??= createFilePlugin(api, options, getBabelTargets, caller);
       this[stateKey] = state;
       return state.pre.apply(this, args);
     },
@@ -288,7 +288,7 @@ export default function plugin(api, options) {
 
 // One native binding context. Configuration cache queries belong to the outer factory;
 // creating a context during an overlapping transform cannot reopen Babel's config cache.
-function createFilePlugin(api, options, getBabelTargets, isWebpack) {
+function createFilePlugin(api, options, getBabelTargets, caller) {
   // every clone in this plugin goes through the range-preserving wrapper: babel's own `cloneNode`
   // drops the source offsets the provider's positional rules read (see `rangePreservingTypes`)
   const { types: babelTypes, traverse, version: babelVersion } = api;
@@ -382,7 +382,9 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
     getBabelTargets,
   });
 
-  const { method, absoluteImports = false } = options;
+  const { method } = options;
+  const isWebpack = caller === 'babel-loader';
+  const absoluteImports = absoluteImportsForHost(options.absoluteImports, caller);
   const {
     getCoreJSEntry,
     getModulesForEntry,
@@ -2125,6 +2127,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
           const local = new Set();
           scanExistingCoreJSImports(path.node, {
             importStyle,
+            absoluteImports,
             packages,
             pkg,
             mode,

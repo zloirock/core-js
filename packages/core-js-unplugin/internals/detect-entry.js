@@ -13,10 +13,10 @@ export function planEntries(ast, { adapter, getCoreJSEntry, getModulesForEntry, 
   const candidateIndices = [];
   let injectedModules = 0;
   const local = new Map();
-  scanEntryLoads(ast, { adapter, getCoreJSEntry, isDisabled }, ({ node, entry, index, local: inPlace, optional }) => {
+  scanEntryLoads(ast, { adapter, getCoreJSEntry, isDisabled }, ({ node, entry, index, local: inPlace, optional, awaited }) => {
     if (inPlace) {
       const modules = getModulesForEntry(entry);
-      if (modules.length || optional) {
+      if (modules.length || optional || awaited) {
         local.set(node, modules);
         return;
       }

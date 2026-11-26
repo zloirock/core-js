@@ -80,6 +80,74 @@ export async function assetExternals(run) {
         }
       }
     });
+    await run('absolute ESM imports select the project installation', async () => {
+      const project = join(dir, 'absolute-project');
+      const nested = join(project, 'nested');
+      const name = 'entry-package';
+      const leaf = process.platform === 'win32' ? 'from#%.mjs' : 'from#%?.mjs';
+      const manifest = JSON.stringify({ name, exports: { './actual/array/from': `./${ encodeURIComponent(leaf) }` } });
+      for (const [base, value] of [[project, 17], [nested, 23]]) {
+        const pkg = join(base, 'node_modules', name);
+        await mkdir(pkg, { recursive: true });
+        await writeFile(join(pkg, 'package.json'), manifest);
+        await writeFile(join(pkg, leaf), `export default () => ${ value };`);
+      }
+      const entry = join(nested, 'app.mjs');
+      const source = 'export const r = Array.from([3]); export const effects = [];';
+      const opts = { ...options('usage-pure'), mode: 'actual', package: name, absoluteImports: true };
+      const config = { filename: entry, babelrc: false, configFile: false, plugins: [[babelPlugin, opts]] };
+      const cwd = process.cwd();
+      try {
+        process.chdir(project);
+        await writeFile(entry, (await transformAsync(source, config)).code);
+        assert.equal(await runInWorker(entry, { strip: true, stripGlobals: [] }), 'OK|17|[]');
+        const outputs = new Map();
+        for (const host of ['esbuild', 'rollup', 'webpack', 'rspack']) for (const adapter of ['author', 'babel', 'unplugin']) {
+          if (adapter === 'author' && host !== 'esbuild') continue;
+          const filename = `${ host }-${ adapter }.mjs`;
+          const outfile = join(project, filename);
+          let code = source;
+          if (adapter === 'author') code = `import from from '${ name }/actual/array/from'; export const r = from([3]); export const effects = [];`;
+          else if (adapter === 'babel') {
+            const caller = { name: { rollup: '@rollup/plugin-babel', webpack: 'babel-loader' }[host] ?? host };
+            ({ code } = await transformAsync(source, { ...config, caller }));
+          }
+          await writeFile(entry, code);
+          const plugins = adapter === 'unplugin' ? [unplugin[host](opts)] : [];
+          if (host === 'esbuild') await esbuild.build({ entryPoints: [entry], outfile, bundle: true, platform: 'browser', format: 'esm', plugins });
+          else if (host === 'rollup') {
+            const bundle = await require('rollup').rollup({ input: entry, plugins });
+            try {
+              await bundle.write({ file: outfile, format: 'es' });
+            } finally {
+              await bundle.close();
+            }
+          } else await compileWebpack(compilers[host]({
+            mode: 'development', devtool: false, target: 'web', entry, plugins, experiments: { outputModule: true },
+            output: { path: project, filename, module: true, library: { type: 'module' } },
+          }));
+          outputs.set(outfile, adapter === 'author' ? 23 : 17);
+        }
+        await rm(join(project, 'node_modules'), { recursive: true });
+        await rm(join(nested, 'node_modules'), { recursive: true });
+        for (const [outfile, value] of outputs) {
+          assert.equal(await runInWorker(outfile, { strip: true, stripGlobals: [] }), `OK|${ value }|[]`, outfile);
+        }
+      } finally {
+        process.chdir(cwd);
+      }
+    });
+    await run('esbuild/late external entry uses dynamic imports', async () => {
+      const input = join(dir, 'late-entry.mjs');
+      const outfile = join(dir, 'late-external.mjs');
+      await writeFile(input, `export const effects = [typeof Array.from]; await import('core-js/actual/array/from');
+        export const r = Array.from([7])[0];`);
+      const result = await esbuild.build({ entryPoints: [input], outfile, bundle: true, platform: 'node', format: 'esm',
+        metafile: true, external: ['core-js/*'], plugins: [unplugin.esbuild(entryOptions)] });
+      const [{ imports }] = Object.values(result.metafile.outputs);
+      assert.deepEqual(imports.map(({ kind, path }) => [kind, path]), modules.map(name => ['dynamic-import', `core-js/modules/${ name }`]));
+      assert.equal(await runInWorker(outfile, { strip: true, stripGlobals: [] }), 'OK|7|["undefined"]');
+    });
     for (const host of ['webpack', 'rspack']) for (const filtered of [false, true]) {
       await run(`${ host }/Babel optional entry/${ filtered ? 'filtered' : 'linked' }`, async () => {
         const code = await babelEntry(optionalEntry, filtered ? { ...entryOptions, exclude: modules } : entryOptions);

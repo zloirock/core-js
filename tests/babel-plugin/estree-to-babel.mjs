@@ -18,6 +18,7 @@ import {
   arrowFunctionExpression,
   assignmentExpression,
   assignmentPattern,
+  awaitedImport,
   blockStatement,
   bareImport,
   bareRequire,
@@ -229,6 +230,8 @@ check('bareImport', print(bareImport('core-js/modules/es.array.flat')), 'import 
 check('defaultImport', print(defaultImport('_at', '@core-js/pure/actual/array/at')),
   'import _at from "@core-js/pure/actual/array/at";');
 check('voidZero', print(voidZero()), 'void 0');
+check('late imported module', print(awaitedImport('core-js/modules/es.array.at')), 'await import("core-js/modules/es.array.at");');
+check('filtered late import', print(awaitedImport()), 'await 0;');
 check('bareRequire', print(bareRequire('core-js/modules/es.array.flat')), 'require("core-js/modules/es.array.flat");');
 check('varRequire', print(varRequire('_at', '@core-js/pure/actual/array/at')),
   'var _at = require("@core-js/pure/actual/array/at");');
@@ -413,7 +416,8 @@ check('chain/seal boundary types', estreeToBabel(sealed).type, 'MemberExpression
 }
 
 // --- totality: outside the vocabulary or misminted = loud throw, never a wrong print ---
-checkTruthy('totality/unknown type throws', caught({ type: 'AwaitExpression' })?.includes('outside the canonical vocabulary'));
+checkTruthy('totality/await without an operand throws', caught({ type: 'AwaitExpression' })?.includes('outside the canonical vocabulary'));
+checkTruthy('totality/unknown type throws', caught({ type: 'DebuggerStatement' })?.includes('outside the canonical vocabulary'));
 check('memo activation/lexical local var and return', generate(estreeToBabel(
   renderMemoActivation(identifier('value'), ['_ref']),
 )).code, '(() => {\n  var _ref;\n  return value;\n})()');

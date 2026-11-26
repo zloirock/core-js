@@ -1,5 +1,5 @@
-import { statSync } from 'node:fs';
-import { createRequire } from 'node:module';
+import { readFileSync, statSync } from 'node:fs';
+import Module, { createRequire } from 'node:module';
 import { isAbsolute, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import entriesMap from '@core-js/compat/entries' with { type: 'json' };
@@ -84,42 +84,78 @@ export function canonicalisePackage(name) {
   return end === collapsed.length ? collapsed : collapsed.slice(0, end);
 }
 
+// Node's import.meta.resolve ignores its parent argument without a flag. Forward this
+// lookup with the project's parent URL and the caller's own ESM conditions and hooks.
+function projectImportURL(source, parent) {
+  // Bun's resolver takes a filename. Deno and Node's asynchronous loader thread do not
+  // expose a project-relative synchronous ESM resolver through Node's hooks.
+  if (process.versions.bun) return new URL(import.meta.resolve(source, parent));
+  if (!import.meta.resolve || process.versions.deno) return pathToFileURL(createRequire(parent).resolve(source));
+  const parentURL = pathToFileURL(parent).href;
+  // eslint-disable-next-line node/no-unsupported-features/node-builtins -- synchronous hooks are available since Node 22.15
+  const hook = Module.registerHooks({ resolve(specifier, context, nextResolve) {
+    if (specifier === source && context.parentURL === import.meta.url) return nextResolve(specifier, { ...context, parentURL });
+    return nextResolve(specifier, context);
+  } });
+  try {
+    return new URL(import.meta.resolve(source));
+  } finally {
+    hook.deregister();
+  }
+}
+
+const absoluteImportCache = new Map();
+const PATH_IMPORT_HOSTS = new Map([
+  ['esbuild', 'path'], ['rollup', 'path'], ['@rollup/plugin-babel', 'path'], ['webpack', 'webpack'], ['babel-loader', 'webpack'],
+]);
+
+// These resolvers consume filesystem requests. Standalone Node ESM consumes URL specifiers.
+export function absoluteImportsForHost(enabled, host) {
+  return enabled && (PATH_IMPORT_HOSTS.get(host) ?? enabled);
+}
+
 // Resolve from the project working directory, not the provider's installation. Builds do not
 // mutate their package layout; include the directory in the key so another project in this
 // process cannot inherit its paths. Only successful resolutions are retained.
-const absoluteImportCache = new Map();
-let acceptsImportParent;
-
 export function resolveImportPath(pkg, subpath, absoluteImports, importStyle = 'require') {
   const source = `${ pkg }/${ subpath }`;
   if (!absoluteImports) return source;
   const directory = process.cwd();
-  const key = `${ directory }\0${ importStyle }\0${ source }`;
+  const bundler = importStyle === 'import' && typeof absoluteImports === 'string' && absoluteImports;
+  const key = `${ directory }\0${ bundler || importStyle }\0${ source }`;
   const cached = absoluteImportCache.get(key);
   if (cached !== undefined) return cached;
   let result;
   try {
     const parent = resolve(directory, 'package.json');
     if (importStyle === 'import') {
-      if (acceptsImportParent === undefined) {
-        // Without --experimental-import-meta-resolve Node ignores the parent URL.
-        const manifest = new URL('../package.json', import.meta.url).href;
-        try {
-          acceptsImportParent = import.meta.resolve?.('./package.json', manifest) === manifest;
-        } catch {
-          // A strict loader can reject the missing helpers/package.json when Node ignores the parent.
-          acceptsImportParent = false;
-        }
+      let url = projectImportURL(source, parent);
+      // Packages without an exports map can rely on extension and directory-index lookup.
+      // An explicit ESM target is exact, even when a CommonJS sibling exists.
+      try {
+        // eslint-disable-next-line node/no-sync -- both plugins resolve imports during the synchronous transform
+        if (!statSync(url).isFile()) throw new Error(`not a file: ${ url.href }`);
+      } catch (error) {
+        if (url.search || url.hash || (error.code && error.code !== 'ENOENT' && error.code !== 'ENOTDIR')) throw error;
+        // eslint-disable-next-line node/no-unsupported-features/node-builtins -- this finds the manifest even when exports hides it
+        const manifest = Module.findPackageJSON?.(source, parent);
+        // eslint-disable-next-line node/no-sync -- a legacy package directory may have no manifest
+        const hasManifest = manifest && statSync(manifest, { throwIfNoEntry: false });
+        // eslint-disable-next-line node/no-sync -- resolving a filename must not run a user's module load hook
+        const exportMap = hasManifest ? JSON.parse(readFileSync(manifest, 'utf8').replace(/^\uFEFF/, '')).exports : null;
+        if (!manifest || (exportMap ?? null) !== null) throw error;
+        url = pathToFileURL(createRequire(parent).resolve(fileURLToPath(url)));
       }
-      // Bun resolves a package relative to a filename. Passing an encoded parent URL loses the project.
-      const url = acceptsImportParent
-        ? new URL(import.meta.resolve(source, process.versions.bun ? parent : pathToFileURL(parent).href))
-        : pathToFileURL(createRequire(parent).resolve(source));
-      // import.meta.resolve can return a file URL for a missing target or a directory.
-      // eslint-disable-next-line node/no-sync -- both plugins resolve imports during the synchronous transform
-      if (acceptsImportParent && !statSync(url).isFile()) throw new Error(`not a file: ${ url.href }`);
       const path = fileURLToPath(url);
-      result = path.startsWith('/') && new URL(path, url).href === url.href ? path : url.href;
+      if (bundler) {
+        const file = path.split(sep).join('/');
+        const suffix = url.href.slice(url.href.search(/[#?]|$/));
+        if (bundler === 'webpack' && (suffix || file.includes('?', uncPrefixOffset(file)))) {
+          // FileUriPlugin decodes the URL, then webpack splits the resource at unquoted '?' and '#'.
+          url.pathname = url.pathname.replaceAll(/%(?:23|3f)/gi, '%00$&');
+          result = url.href;
+        } else result = suffix ? url.href : file;
+      } else result = path.startsWith('/') && new URL(path, url).href === url.href ? path : url.href;
     } else result = createRequire(parent).resolve(source).split(sep).join('/');
   } catch (error) {
     throw wrapWithCause(`cannot resolve ${ JSON.stringify(source) } from ${ JSON.stringify(directory) }`, error);
@@ -158,6 +194,11 @@ export function canonicalizeEntrySubpath(s) {
   return s.replace(/\.js$/, '').replace(/\/index$/, '');
 }
 
+// Node accepts file URLs as ESM specifiers. A CommonJS load needs a filesystem path.
+export function isFileURLSpecifier(source) {
+  return /^file:[/\\]/i.test(source);
+}
+
 // `?v=123` / `#hash` suffixes are Vite/webpack cache-bust markers, not part of the entry path.
 // match `source` against `<pkg>/<subPrefix><rest>` where `pkg` is one of `pkgs`;
 // returns canonicalized `<rest>` or null when no prefix matches or `<rest>` is empty.
@@ -168,13 +209,15 @@ export function canonicalizeEntrySubpath(s) {
 // itself be called `core-js` and contain a different polyfill package. The package travels
 // with the entry because a recognised import is re-emitted, and re-emitting it under the plugin's
 // own package would silently retarget a user's polyfill at another one
-export function matchEntrySubpath(source, pkgs, subPrefix, esm = null, importStyle = null) {
+export function matchEntrySubpath(source, pkgs, subPrefix, esm = null, importStyle = null, absoluteImports = false) {
   if (isAssetImport(source)) return null;
   const clean = normalizeImportSource(source);
-  const fileURL = clean.startsWith('file:/');
+  const fileURL = isFileURLSpecifier(clean);
+  if (fileURL && esm === false) return null;
   const absoluteId = clean.startsWith('/') || /^(?:[a-z]:|file:)\//.test(clean);
   const absolute = isAbsolute(source) && !/^\/@(?:fs|id)\//.test(source);
-  const absoluteESM = absolute && esm !== false && source.startsWith('/');
+  const bundlePath = esm && typeof absoluteImports === 'string';
+  const absoluteESM = absolute && esm !== false && (source.startsWith('/') || bundlePath);
   const reserved = absoluteESM && /[#%?]/.test(source);
   let physical;
   let match = null;
@@ -211,10 +254,17 @@ export function matchEntrySubpath(source, pkgs, subPrefix, esm = null, importSty
       } else if (fileURL || projectFile || (absoluteESM && (physical || reserved))) {
         let target;
         try {
-          target = resolveImportPath(pkg, subPrefix + entry, true, 'import');
-          const expected = new URL(target, 'file:///').href;
-          const authored = new URL(source, 'file:///').href;
-          if (authored !== expected && import.meta.resolve(authored) !== expected) continue;
+          let matches;
+          if (bundlePath && absolute) {
+            target = resolveImportPath(pkg, subPrefix + entry, absoluteImports, 'import');
+            matches = source === target || physical === target;
+          } else {
+            target = resolveImportPath(pkg, subPrefix + entry, true, 'import');
+            const expected = new URL(target, 'file:///').href;
+            const authored = new URL(source, 'file:///').href;
+            matches = authored === expected || import.meta.resolve(authored) === expected;
+          }
+          if (!matches) continue;
         } catch {
           // A bundler can supply an absolute id for an alias outside Node's package tree.
           if (fileURL || physical || target || packageRootPrefix(pkg)) continue;

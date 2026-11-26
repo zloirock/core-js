@@ -297,7 +297,7 @@ export default class ImportInjectorState {
     if (existing) return existing;
     const late = this.#latePureImports?.get(source);
     const use = this.#importUse;
-    if (late && use && (!late.end || use.node.start >= late.end && findNearestVarScopeOwner(use)?.node.type === 'Program')
+    if (late && use && (late.end === null || use.node.start >= late.end && findNearestVarScopeOwner(use)?.node.type === 'Program')
       && (!late.home || bindingHomeNode(use.scope?.getBinding?.(late.name)) === late.home)) return late.name;
     const name = this.uniqueName(`_${ hint.replaceAll('.', '$') }`);
     this.pureImports.set(source, name);
@@ -458,8 +458,12 @@ export default class ImportInjectorState {
     // first-write-wins via `#recordImportInfo`). hint feeds `resolveSuperImportName`
     // for `import MyPromise from '@core-js/pure/actual/promise'` -> `statics.Promise.try`
     if (initialized || shadowedHome) {
-      const end = initialized ? initialized.end ?? initialized.range?.[1] ?? Infinity : null;
-      (this.#latePureImports ??= new Map()).set(source, { name, end, home: shadowedHome });
+      // Static imports are ready throughout the module body, even above their declaration.
+      const end = initialized && (initialized.type === 'ImportDeclaration' ? 0 : initialized.end ?? initialized.range?.[1] ?? Infinity);
+      const imports = this.#latePureImports ??= new Map();
+      const prior = imports.get(source);
+      // Keep the earliest unshadowed name when another alias for the same default follows it.
+      if (!prior || prior.home || !shadowedHome && end < prior.end) imports.set(source, { name, end, home: shadowedHome });
     } else if (!this.existingPureImports.has(source)) this.existingPureImports.set(source, name);
     // This binding still names a known module. Only borrowing its spelling for a new
     // use has to wait for the original initializer.

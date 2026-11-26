@@ -82,7 +82,7 @@ export default class ImportInjector extends ImportInjectorState {
     // Post can recognize the printed binding by checking the exact load it inherited.
     if (this.absoluteImports) for (const [source, name] of this.pureImports) {
       const info = importInfoByName.get(name);
-      if (info) info.resolved = resolveImportPath(this.pkg, source, true, this.importStyle);
+      if (info) info.resolved = resolveImportPath(this.pkg, source, this.absoluteImports, this.importStyle);
     }
     return {
       importStyle: this.importStyle,

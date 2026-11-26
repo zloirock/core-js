@@ -703,7 +703,8 @@ export default function createDestructureDrains(ctx) {
         }
       }
       work.sort((a, b) => (a.position ?? Infinity) - (b.position ?? Infinity));
-      for (const item of work) item.apply();
+      // A deferred import belongs to the same scope as the destructuring that requested it.
+      for (const item of work) injectorState.dispatchPureUsage(null, item.path, item.apply);
     }
     synthLedger.clear();
     pendingBranchSynths.clear();

@@ -616,6 +616,12 @@ export function bareImport(path) {
   return { type: 'ImportDeclaration', specifiers: [], source: literal(path), attributes: [] };
 }
 
+// A filtered top-level import still suspends the module at its original statement.
+export function awaitedImport(path = null) {
+  const argument = path === null ? literal(0) : { type: 'ImportExpression', source: literal(path), options: null };
+  return expressionStatement({ type: 'AwaitExpression', argument });
+}
+
 export function defaultImport(name, path) {
   return {
     type: 'ImportDeclaration',

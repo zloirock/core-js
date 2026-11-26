@@ -183,8 +183,11 @@ function build(node) {
         consequent: convert(node.consequent),
         alternate: node.alternate && convert(node.alternate),
       };
+    case 'AwaitExpression':
     case 'ReturnStatement':
-      return { type: 'ReturnStatement', argument: convert(node.argument) };
+      return { type: node.type, argument: convert(node.argument) };
+    case 'ImportExpression':
+      return { type: node.type, source: convert(node.source) };
     case 'FunctionExpression':
       return {
         type: 'FunctionExpression',

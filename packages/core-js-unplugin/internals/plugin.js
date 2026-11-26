@@ -52,7 +52,12 @@ import {
   proxyWriteOriginsReducer,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { brand, tagError } from '@core-js/polyfill-provider/helpers/error-tag';
-import { isCoreJSFile, isDeclarationFile, resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
+import {
+  absoluteImportsForHost,
+  isCoreJSFile,
+  isDeclarationFile,
+  resolveImportPath,
+} from '@core-js/polyfill-provider/helpers/path-normalize';
 import {
   DISABLE_NEXT_LINE_DIRECTIVE,
   buildOffsetToLine,
@@ -546,7 +551,8 @@ export default function createPlugin(options) {
     },
   });
 
-  const { method, absoluteImports } = providerOptions;
+  const { method } = providerOptions;
+  const absoluteImports = absoluteImportsForHost(providerOptions.absoluteImports, bundler);
   const {
     mode,
     pkg,
@@ -890,6 +896,7 @@ export default function createPlugin(options) {
 
     // Fallback diagnostics below share the debug output created after resolver setup.
     let debugOutput = null;
+    let retainedPureEntries;
     const injector = new ImportInjector({
       pkg,
       packages,
@@ -964,6 +971,7 @@ export default function createPlugin(options) {
         scanExistingCoreJSImports(ast, {
           adapter: estreeAdapter,
           importStyle,
+          absoluteImports,
           previousImports: absoluteImports && inherit?.importStyle === importStyle ? inherit.importInfoByName : null,
           isDisabled,
           mode,
@@ -991,12 +999,18 @@ export default function createPlugin(options) {
           // a user binding the file WRITES through is poisoned as a dedup target - the
           // census' assignedNames is the reassignment fact this leg has (babel reads its
           // scope's constantViolations for the same gate)
-          onPureImport: (entry, name, sourceMode, initialized, shadowedHome) => injector.registerUserPureImport(entry, name, {
-            mode: sourceMode,
-            initialized,
-            shadowedHome,
-            reassigned: fileCensus.assignedNames?.has(name) ?? false,
-          }),
+          onPureImport(entry, name, sourceMode, initialized, shadowedHome) {
+            // A pre-emitted import still belongs in the report when its name cannot be reused at an early call.
+            if (createDebugOutput && inherit?.pure.get(`${ sourceMode }/${ entry }`) === name) {
+              (retainedPureEntries ??= new Set()).add(entry);
+            }
+            injector.registerUserPureImport(entry, name, {
+              mode: sourceMode,
+              initialized,
+              shadowedHome,
+              reassigned: fileCensus.assignedNames?.has(name) ?? false,
+            });
+          },
           packages,
           pkg,
         });
@@ -1049,7 +1063,10 @@ export default function createPlugin(options) {
         getModulesForEntry,
         getDebugOutput() { return debugOutput; },
         injectGlobal: moduleName => injector.addGlobalImport(moduleName),
-        getEmitted: () => injector.emittedPolyfills(),
+        getEmitted() {
+          const entries = injector.emittedPolyfills();
+          return retainedPureEntries ? [...new Set([...entries, ...retainedPureEntries])] : entries;
+        },
       });
 
       // resolve a bare global name (`Array`, `Promise`, `globalThis`) to its pure polyfill
@@ -1130,8 +1147,10 @@ export default function createPlugin(options) {
         const required = hostOptions.onRequire && new Set();
         for (const [node, modules] of plan.local) {
           injector.recordLocalEntry(modules);
-          // The host decides whether an optional require is a dependency or a runtime call.
-          if (required && !entryCall(node).optional) for (const name of modules) required.add(name);
+          if (required) {
+            const call = entryCall(node);
+            if (call.type !== 'AwaitExpression' && !call.optional) for (const name of modules) required.add(name);
+          }
         }
         for (const name of required ?? []) {
           hostOptions.onRequire(resolveImportPath(injector.pkg, `modules/${ name }`, injector.absoluteImports, 'require'), false);
