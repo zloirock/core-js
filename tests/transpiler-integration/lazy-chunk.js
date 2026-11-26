@@ -1,4 +1,2 @@
-// lazily-imported module body: computed through a polyfilled call so the chunk itself
-// proves polyfill injection, not just the loader plumbing
-export const value = [1, [2]].flat().at(-1);
-export const marker = 'core-js dynamic fixture';
+// The witness belongs to the polyfilled computation in the lazy module.
+export const value = [1, ['core-js dynamic fixture']].flat().at(-1);
