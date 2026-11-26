@@ -27255,6 +27255,96 @@ function * generateComputedEntryKeyDefaults() {
   }
 }
 
+function * generateSettledReceivers() {
+  for (const [name, expression] of [
+    ['await', 'await task'],
+    ['resolve', 'await Promise.resolve(task)'],
+    ['all', '(await Promise.all([task]))[0]'],
+    ['async-return', 'await (async () => task)()'],
+    ['sync-iterator', 'await (async () => { for await (const value of [task]) return value.at(0); })()'],
+  ]) for (const source of ['object', 'array', 'class']) {
+    const setup = source === 'object' ? 'const task = { then(done) { effects.push(1); done([7]); } };'
+      : source === 'array' ? 'const task = []; task.then = done => { effects.push(1); done("xy"); };'
+      : 'class Task { then(done) { effects.push(1); done([9]); } } const task = new Task();';
+    yield { name: `settled-receivers/${ name }/${ source }`, strip: true,
+      code: `export const effects = []; ${ setup } const value = ${ expression }; export const r = ${ name === 'sync-iterator' ? 'value' : 'value.at(0)' };` };
+  }
+  for (const [name, expression] of [
+    ['member', 'Promise.reject(0).then(() => [1], handlers.no)'],
+    ['spread', 'Promise.reject(0).then(...[() => [1], handlers.no])'],
+  ]) yield { name: `settled-receivers/handler/${ name }`, strip: true,
+    code: `export const effects = []; const handlers = { no: () => "x" }; export const r = (await ${ expression }).at(0);` };
+  for (const [name, setup, value] of [
+    ['quoted-then', 'const task = { "then": done => done("xy") };', 'await task'],
+    ['returned-then', 'const task = []; task.then = done => done("xy"); function get() { return task; }', 'await get()'],
+    ['untyped-mapper', 'const make = () => Object.assign([7], { then(done) { effects.push(1); done("xy"); } });',
+      '(await Array.fromAsync([0], make))[0]'],
+    ['promised-mapper', '', '(await Array.fromAsync([1], async () => "xy"))[0]'],
+  ]) yield { name: `settled-receivers/${ name }`, strip: true,
+    code: `export const effects = []; ${ setup } export const r = (${ value }).at(1);` };
+  for (const [name, expression] of [
+    ['try', 'await Promise.try<Job, []>(make)'], ['mapper', '(await Array.fromAsync([0], make))[0]'],
+  ]) yield { name: `settled-receivers/annotated-callback/${ name }`, strip: true, ts: true,
+    code: `export const effects = []; interface Job extends Array<number> { then(done: (s: string) => void): void }
+      const make = (): Job => Object.assign([2], { then(done) { effects.push(3); done("xy"); } });
+      export const r = (${ expression }).at(0);` };
+  for (const [name, write] of [
+    ['initial', ''], ['written', 'box.C = Map;'], ['taken', 'if (flag) box.C = Map;'], ['untaken', 'if (!flag) box.C = Map;'],
+  ]) yield { name: `settled-receivers/head-source/${ name }`, strip: true,
+    code: `export const effects = []; const box = { C: Array }; const flag = true; ${ write }
+      export let r; for (const { of, groupBy } of [box.C]) r = [typeof of, typeof groupBy];` };
+  for (const [name, write] of [['definite', 'box.C = Array;'], ['selected', 'if (flag) box.C = flag ? Array : Map;']]) {
+    yield { name: `settled-receivers/head-source/written-${ name }`, strip: true,
+      code: `export const effects = [], r = []; for (const flag of [false, true]) { const box = { C: Map }; ${ write }
+        for (const { of, groupBy } of [box.C]) r.push(of ? of(3) : groupBy([5], x => x).get(5)); }` };
+  }
+  yield { name: 'settled-receivers/head-source/reentered', strip: true,
+    code: `export const effects = [], r = []; const box = { C: Map };
+      for (const flag of [false, true]) {
+        if (flag) box.C = Array;
+        for (const { of, groupBy } of [box.C]) r.push(flag ? of(9) : groupBy([3], x => x).get(3));
+      }` };
+  for (const method of ['values', 'slice']) yield { name: `settled-receivers/sync-iterator/${ method }`, strip: true,
+    code: `export const effects = []; const item = Object.assign([17], { then(ok) { effects.push(1); ok("xy"); } });
+      export let r; for await (const value of [item].${ method }()) r = value.at(-1);` };
+  yield { name: 'settled-receivers/sync-iterator/later-write', strip: true,
+    code: `export const effects = []; const leaf = [17]; const items = [leaf].values();
+      leaf.then = ok => { effects.push(1); ok("xy"); };
+      export let r; for await (const value of items) r = value.at(-1);` };
+  yield { name: 'settled-receivers/sync-iterator/write-after-element-capture', strip: true,
+    code: `export const effects = []; const leaf = [17]; const source = [leaf]; const alias = leaf;
+      alias.then = ok => { effects.push(1); ok("xy"); };
+      export let r; for await (const value of source.values()) r = value.at(-1);` };
+  yield { name: 'settled-receivers/head-source/custom', strip: true,
+    code: `export const effects = []; const box = { C: Array };
+      const other = { get of() { effects.push(this === other); return 9; }, get groupBy() { effects.push(2); return 3; } };
+      if (Math) box.C = other;
+      export let r; for (const { of, groupBy } of [box.C]) r = [of, groupBy];` };
+  for (const [name, pattern, value] of [['slot', 'v', '"xy"'], ['pattern', '[v]', '["xy"]']]) {
+    yield { name: `settled-receivers/replaced-protocol/${ name }`, ts: true, strip: true,
+      code: `export const effects = []; const xs: number[][] = [[1]];
+        Object.defineProperty(xs, Symbol.asyncIterator, { value: async function* () { effects.push(1); yield ${ value }; } });
+        export let r; for await (const ${ pattern } of xs) r = v.at(0);` };
+  }
+  yield { name: 'settled-receivers/sync-iterator/fulfilled-property', strip: true,
+    code: `export const effects = []; export let r;
+      for await (const { value } of [{ value: [1], then(resolve) { effects.push(1); resolve({ value: "xy" }); } }]) r = value.at(0);` };
+  // The global then is removed before the module finishes evaluating.
+  yield { name: 'settled-receivers/realm', isolated: true, strip: true,
+    code: 'export const effects = []; globalThis.then = done => done({ Array: { of: () => 19 } }); '
+      + 'const make = () => globalThis; export let r; try { r = (await make()).Array.of(1); } finally { delete globalThis.then; }' };
+  for (const [name, head, receiver] of [['pattern', '{ items }', 'items'], ['member', 'row', 'row.items']]) {
+    yield { name: `settled-receivers/declared-promise/${ name }`, ts: true, strip: true,
+      code: `export const effects = []; const value = Object.assign(Promise.resolve({ items: [7] }), { items: 'abc' });
+        const rows = { [Symbol.asyncIterator]() { return { async next() { effects.push(1); return { done: false, value }; } }; } };
+        async function read(source: AsyncIterable<Promise<{ items: number[] }>>) {
+          for await (const ${ head } of source) return ${ receiver }.at(-1);
+        }
+        async function* settled() { yield value; }
+        export const r = [await read(rows), await read(settled())];` };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -29102,4 +29192,5 @@ export function * generate() {
   yield * generatePriorOutputReads();
   yield * generateTagLookupOrder();
   yield * generateComputedEntryKeyDefaults();
+  yield * generateSettledReceivers();
 }

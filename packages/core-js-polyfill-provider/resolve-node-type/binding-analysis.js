@@ -1480,6 +1480,7 @@ export function createBindingAnalysis({
     defaultAliasRefClassifier,
     isBindingExportedByName,
     resolveStaticCalleePair,
+    resolveKnownStaticEntry,
     protoSetterCalleeArms,
     classBindingName,
     isClassExported,

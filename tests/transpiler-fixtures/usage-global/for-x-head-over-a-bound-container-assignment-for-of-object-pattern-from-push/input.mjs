@@ -5,9 +5,9 @@ const out = [];
 // which evaluates the iterable again, against the slot the previous entry replaced
 const reentered = { w: Array };
 for (let round = 0; round < 2; round += 1) {
-  for (const { from } of [reentered.w]) {
+  for (const { from, of } of [reentered.w]) {
     reentered.w = Map;
-    out.push(typeof from);
+    out.push(typeof from, typeof of);
   }
 }
 export { out };

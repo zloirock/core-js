@@ -1,1 +1,1 @@
-globalThis.Iterator.concat(iter1, iter2).toArray();
+globalThis.Iterator.concat(iter1, iter2).toArray().at(0);

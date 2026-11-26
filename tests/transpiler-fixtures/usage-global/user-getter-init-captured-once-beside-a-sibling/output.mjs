@@ -87,6 +87,7 @@ const {
   },
   fromAsync: a4
 } = OE.A;
+// Iterator already supplies its prototype methods. These imports distinguish its statics.
 export const {
   prototype: {
     drop: m5

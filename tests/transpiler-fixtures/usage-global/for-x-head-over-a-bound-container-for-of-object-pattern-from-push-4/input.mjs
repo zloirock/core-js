@@ -4,5 +4,5 @@ const out = [];
 // NEGATIVE: a slot the source WRITES holds whatever was written, so the walk owes the live read
 const written = { w: Array };
 written.w = Map;
-for (const { from } of [written.w]) out.push(typeof from);
+for (const { from, of, groupBy } of [written.w]) out.push(typeof from, typeof of, typeof groupBy);
 export { out };

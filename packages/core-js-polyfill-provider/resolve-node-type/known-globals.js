@@ -12,7 +12,7 @@
 //   resolveInnerType(type)                    - container element peel (string hint or
 //                                               cached Type object slot)
 //   unwrapPromise(type)                       - recursive Promise<Promise<...T>> -> T
-//   promiseRefInner(node)                     - single-step Promise / PromiseLike /
+//   promiseRefInner(node, scope)              - single-step Promise / PromiseLike /
 //                                               Thenable type-ref -> first typeArg
 //                                               annotation; null otherwise
 //   isPromiseRefName(name)                    - name predicate for the synonym set
@@ -37,6 +37,7 @@ import {
 import { isTypeReferenceNode, typeRefName } from './ast-shapes.js';
 import {
   callArgumentPathAt,
+  effectiveArgsLength,
   FUNCTION_LIKE_NODE_TYPES,
   getTypeArgs,
   pathOfNode,
@@ -67,6 +68,8 @@ const STRING_PROTOCOLS = {
 export function createKnownGlobals({
   babelNodeType,
   isMemberLike,
+  isGlobalTypeName,
+  settleValue,
   instanceSlotWritten,
   arrayElementsMayBeRetyped,
   isMutatedStatic = () => false,
@@ -85,7 +88,7 @@ export function createKnownGlobals({
   KNOWN_RESOLUTION_DIRECTIVES = RESOLUTION_DIRECTIVES,
   commonType,
   elementContainerType,
-  resolveReturnType,
+  resolveSettledReturnType,
   resolveRuntimeExpression,
 }) {
   // Registry membership needs no receiver type. Resolving an impossible property first
@@ -105,7 +108,7 @@ export function createKnownGlobals({
   function typeFromDirective(hint, objectType, callPath) {
     switch (KNOWN_RESOLUTION_DIRECTIVES[hint]) {
       case 'receiver': return resolveReceiverDirective(hint, objectType);
-      case 'call': return resolveArgumentDirective(hint, callPath);
+      case 'call': return resolveArgumentDirective(hint, callPath, objectType);
       default: return null;
     }
   }
@@ -134,12 +137,14 @@ export function createKnownGlobals({
     } else if (PRIMITIVES.has(hint.type)) {
       base = new $Primitive(hint.type);
     } else {
-      // `resolved` names what a promise SETTLES to, and settling is what unwraps - so the await
-      // lives here, once, instead of inside each directive that may feed the slot
+      // A resolved slot unwraps promises. For an identity argument the value itself
+      // can also have a then method, even when its nominal type is an ordinary object.
       const settles = hint.resolved !== undefined;
       const innerHint = hint.element ?? hint.resolved ?? null;
       let inner = innerHint ? typeFromHint(innerHint, objectType, callPath) : null;
-      if (settles && inner) inner = unwrapPromise(inner);
+      if (settles && inner) {
+        inner = innerHint === 'argument' ? settleValue(directiveArgument(callPath), inner) : unwrapPromise(inner);
+      }
       // an element the data never recorded, or an argument directive that could not be read, leaves
       // the container inner-less - the declared answer minus the precision, never a guess about what
       // the call was given. That absence is also the shape a BARE container has, which means
@@ -181,12 +186,11 @@ export function createKnownGlobals({
   }
 
   // single-step probe: if `node` is a Promise / PromiseLike / Thenable type-reference,
-  // return its first type-argument annotation; null otherwise. shape-only, no recursion.
-  // shared between the AST-side Promise peel (callers want one layer for distribute)
-  // and `unwrapPromiseAnnotation` (callers loop for full unwrap)
-  function promiseRefInner(node) {
+  // return its first type argument unless a local binding shadows that name.
+  function promiseRefInner(node, scope) {
     if (!isTypeReferenceNode(node)) return null;
-    if (!isPromiseRefName(typeRefName(node))) return null;
+    const name = typeRefName(node);
+    if (!isPromiseRefName(name) || !isGlobalTypeName(name, scope)) return null;
     return getTypeArgs(node)?.params?.[0] ?? null;
   }
 
@@ -258,11 +262,10 @@ export function createKnownGlobals({
   // rather than in the method. they are the static-side twins of `inherit`, which names
   // the RECEIVER's inner, and the data spells them in the same slots - so a new method needs a row
   // there and nothing here.
-  //   `argument`         - arg 0 itself, one promise layer peeled (`Promise.resolve`)
-  //   `argument-element` - the awaited common type of arg 0's elements (`Promise.race` / `any`,
-  //                        and nested under Array for `Promise.all` / `Array.fromAsync`)
-  //   `argument-return`  - the return type of the callback arg 0 holds (`Promise.try`, `then`,
-  //                        `AsyncIterator.reduce`)
+  //   `argument`         - arg 0 itself; a resolved slot also assimilates thenables
+  //   `argument-element` - settled elements of a literal input to a Promise combinator
+  //   `argument-return`  - settled callback result, independently of data passed to Promise.try
+  //   `mapped-element`, `then-return`, `reduce-accumulator` also account for argument 1
   // every one of them answers null on anything it cannot read - a literal-free iterable, a spread,
   // an unresolvable element - and the caller then serves the declared container bare
   // which side each directive reads is DATA, shipped beside the values it qualifies. restating the
@@ -313,50 +316,57 @@ export function createKnownGlobals({
   // the branches below ARE the list of call directives this file implements - a `default` that
   // throws is what keeps them honest against the shipped vocabulary, and it is reached even when
   // the argument is unreadable, so a name with no branch can never answer off the last one
-  function resolveArgumentDirective(directive, callPath) {
-    const argPath = directiveArgument(callPath);
-    if (directive === 'argument') return argPath && typeOfArgument(argPath);
-    if (directive === 'argument-element') {
-      if (!argPath) return null;
-      // through the wrappers FIRST, and through the canonical set: babel strips `(xs)` at parse
-      // while oxc keeps a `ParenthesizedExpression`, so a shape test on the raw node answers
-      // differently per parser on the same source - the two emitters then inject different helpers
-      const literal = peelTransparentWrapperPath(argPath);
-      // only a literal array of non-spread elements is readable; anything else keeps the container.
-      // the elements fold exactly as a union does - a disagreement leaves no inner
-      if (babelNodeType(literal.node) !== 'ArrayExpression') return null;
-      const elements = literal.get('elements');
-      if (!elements.length) return null;
-      let inner = null;
-      for (const element of elements) {
-        if (!element?.node || babelNodeType(element.node) === 'SpreadElement') return null;
-        const awaited = unwrapPromise(typeOfArgument(element));
-        if (!awaited) return null;
-        inner = inner ? commonType(inner, awaited) : awaited;
-        if (!inner) return null;
-      }
-      return inner;
+  function resolveArgumentDirective(directive, callPath, objectType) {
+    const first = directiveArgument(callPath);
+    if (directive === 'argument') return first && typeOfArgument(first);
+    if (directive === 'argument-element') return awaitedLiteralElement(first);
+    if (directive !== 'argument-return' && directive !== 'mapped-element'
+      && directive !== 'then-return' && directive !== 'reduce-accumulator') {
+      throw new Error(`no resolver for call directive '${ directive }'`);
     }
-    if (directive !== 'argument-return') throw new Error(`no resolver for call directive '${ directive }'`);
-    if (!argPath) return null;
-    // `argument-return`: a LATER argument that is itself a callback opens a second resolution path
-    // (`then(onFulfilled, onRejected)`), and one hint cannot carry two - bail rather than answer
-    // off the first. an ordinary later argument is data the callback receives (`Promise.try(fn, a)`)
-    // and changes nothing
-    // the callback may be NAMED rather than written inline (`Promise.try(mk)`), and a name is a
-    // reference to resolve, not a shape to reject - the runtime-expression canon is what reaches
-    // the value behind it. anything that does not land on a function-like node stays unresolved
-    const fnPath = callbackPathOf(argPath);
-    if (!fnPath) return null;
-    // the SECOND callback is found the same way as the first: reading only literals here while the
-    // first slot resolves names made `then(onFulfilled, onRejected)` answer off one of two paths
-    const rest = callArgumentPaths(callPath).slice(1);
-    if (rest.some(a => callbackPathOf(a))) return null;
-    // the callback's own return goes through the canon that already infers it from the body and
-    // the annotation; awaited once, since a callback returning a promise is flattened by the
-    // methods that carry this directive
-    const returned = resolveReturnType(fnPath);
-    return !returned || isNullableOrNever(returned) ? null : returned;
+    if (!first) return null;
+    if (directive === 'argument-return') return callbackResult(first);
+    const second = directiveArgument(callPath, 1);
+    const length = second ? null : effectiveArgsLength(callArgumentPaths(callPath).map(arg => arg.node), isMutatedStatic);
+    const absent = length !== null && length < 2;
+    const secondType = second && resolveNodeType(second);
+    if (directive === 'mapped-element') {
+      if (!absent && secondType?.type !== 'undefined') return callbackResult(second);
+      return isMutatedStatic('Array.prototype', 'Symbol.asyncIterator') ? null : awaitedLiteralElement(first);
+    }
+    if (directive === 'then-return') {
+      // Unknown and spread rejection handlers can recover with a different family.
+      const ctor = secondType?.constructor;
+      const nonCallable = secondType?.primitive || ctor && ctor !== 'Function' && ctor !== 'Object';
+      return absent || nonCallable ? callbackResult(first) : null;
+    }
+    // An empty iterator keeps its initial value. Without an initializer, a
+    // singleton keeps its first element without invoking the reducer.
+    const initial = absent ? resolveInnerType(objectType) : second && settleValue(second, secondType);
+    const result = callbackResult(first);
+    return initial && result ? commonType(initial, result) : null;
+  }
+
+  function callbackResult(path) {
+    const fn = callbackPathOf(path);
+    if (!fn) return null;
+    const result = resolveSettledReturnType(fn);
+    return result && !isNullableOrNever(result) ? result : null;
+  }
+
+  function awaitedLiteralElement(first) {
+    if (!first || isMutatedStatic('Array.prototype', 'Symbol.iterator')) return null;
+    const literal = peelTransparentWrapperPath(first);
+    if (babelNodeType(literal.node) !== 'ArrayExpression') return null;
+    let inner = null;
+    for (const element of literal.get('elements')) {
+      if (!element?.node || babelNodeType(element.node) === 'SpreadElement') return null;
+      const awaited = settleValue(element, typeOfArgument(element));
+      if (!awaited) return null;
+      inner = inner ? commonType(inner, awaited) : awaited;
+      if (!inner) return null;
+    }
+    return inner;
   }
 
   function resolveKnownStaticReturnType(callee, callPath) {

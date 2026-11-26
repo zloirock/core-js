@@ -7,6 +7,7 @@
 // import set - one shared static would let the deduped injection of the control hide a regression.
 export const asyncArrow = (async () => Map)().groupBy([1], v => v);
 export const generator = (function* () { return Array; })().from([1]);
+export const generatorOf = (function* () { return Array; })().of(1);
 export const asyncGenerator = (async function* () { return Object; })().entries({ a: 1 });
 export const bareReturn = (() => { return; })().hypot(3, 4);
 export const noReturn = (function () { })().parseFloat('1.5');

@@ -853,6 +853,7 @@ export function createTypeMembers({
     arrayElementType,
     findTypeMember,
     getTypeMembers,
+    staticKeySet,
     reset,
   };
 }

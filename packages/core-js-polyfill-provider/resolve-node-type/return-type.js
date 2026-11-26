@@ -8,7 +8,7 @@
 // Public surface:
 //   resolveReturnType(fnPath, callPath, classSubst)  - main entry
 //   resolveReturnUnionHints(fnPath, callPath)        - reachable return families when no Type fits
-//   resolveBodyReturnType(fnPath, callPath)          - body-return fold (used by awaited
+//   resolveBodyReturnType(fnPath, callPath, awaitResult?) - body-return fold (used by awaited
 //                                                       cluster's `resolveAwaitedFromCallBody`)
 //   collectReturnPaths(blockPath)                    - the `return` statements a body-fold walks
 //                                                       (also drives the class-member cluster's
@@ -50,6 +50,7 @@ import {
 import { EXIT_STATEMENTS, nodeAlwaysExits } from './exit-analysis.js';
 
 export function createReturnType({
+  settleValue,
   getScopeBinding,
   t,
   babelNodeType,
@@ -340,7 +341,7 @@ export function createReturnType({
     return collectList(blockPath.get('body'), 0);
   }
 
-  function resolveBodyReturnType(fnPath, callPath) {
+  function resolveBodyReturnType(fnPath, callPath, awaitResult = fnPath.node.async) {
     // generator bodies use `return X` for the iterator-completion value (TReturn),
     // not for the function's runtime result - the function itself returns a
     // Generator instance. callers awaiting `gen()` should fall back to the declared
@@ -355,8 +356,11 @@ export function createReturnType({
     // injection entirely downstream; the estree adapter binds ambient names, so a
     // bodyless head genuinely reaches this fold)
     if (!body.node || fnPath.node.declare) return null;
-    // arrow with expression body: () => [1, 2, 3]
-    if (!t.isBlockStatement(body.node)) return resolveBodyExpr(body, fnPath, callPath);
+    function returned(path) {
+      const type = resolveBodyExpr(path, fnPath, callPath);
+      return awaitResult ? settleValue(path, type) : type;
+    }
+    if (!t.isBlockStatement(body.node)) return returned(body);
     // block body: collect return statements, skip nested functions. nullable-typed
     // branches stay out of the commonType merge (so `if(x) return null; return arr;`
     // narrows to Array rather than null|Array which commonType folds to null), but an
@@ -369,7 +373,7 @@ export function createReturnType({
     for (const returnPath of collectReturnPaths(body)) {
       const arg = returnPath.get('argument');
       const isBareReturn = !arg.node;
-      const type = isBareReturn ? new $Primitive('undefined') : resolveBodyExpr(arg, fnPath, callPath);
+      const type = isBareReturn ? new $Primitive('undefined') : returned(arg);
       if (!type) return null;
       // skip bare `return;` (implicit undefined, common in `catch { return; }`
       // bail-outs) and `never`-typed returns (consistent with how

@@ -2,6 +2,7 @@
 module.exports = {
   plugins: [
     ['@babel/transform-arrow-functions'],
+    ['@babel/transform-async-generator-functions'],
     ['@babel/transform-block-scoped-functions'],
     ['@babel/transform-block-scoping'],
     ['@babel/transform-class-properties'],

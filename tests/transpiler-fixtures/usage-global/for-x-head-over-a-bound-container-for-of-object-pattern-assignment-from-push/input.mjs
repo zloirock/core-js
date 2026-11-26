@@ -4,8 +4,8 @@ const out = [];
 // a write through the head's own binding lands AFTER the iterable was read: a head reads its source
 // once per ENTRY, so the literal the element spells is what every pass of that entry binds
 const throughHead = { w: Array };
-for (const { from } of [throughHead.w]) {
+for (const { from, of } of [throughHead.w]) {
   throughHead.w = Map;
-  out.push(typeof from);
+  out.push(typeof from, typeof of);
 }
 export { out };

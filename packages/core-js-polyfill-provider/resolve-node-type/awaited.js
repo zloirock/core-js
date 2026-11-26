@@ -17,6 +17,7 @@
 //   unwrapPassthroughWrapper(node, scope)
 //   passthroughModifierDelta(node, scope) - the member-flag delta ONE such hop crosses
 //   resolveAwaitedAnnotation({ node, scope, depth, typeParamMap, seen })
+//   settleTypeAnnotation(annotation, scope) - runtime fulfillment of an annotated value
 //   resolveAwaitExpressionType(path)
 //   functionTypeParams(node)
 //   resolveIndexedAccessMemberAnnotationAST(peeled, scope, depth)
@@ -24,7 +25,7 @@
 // `functionTypeParams` is here because the cluster's local callback-param extractors consume
 // it; the factory only forward-declares the name and rebinds it to this cluster's export, so
 // this is the sole declaration.
-import { MAX_DEPTH, STRUCTURE_PRESERVING_WRAPPERS, dropLeadingThisParam } from './base.js';
+import { $Object, MAX_DEPTH, STRUCTURE_PRESERVING_WRAPPERS, dropLeadingThisParam } from './base.js';
 import {
   compositeAnnotationOf,
   isDistributiveConditional,
@@ -35,9 +36,12 @@ import {
   isTypeReferenceNode,
   isUnionType,
   modifierWrapperDelta,
+  TS_UNKNOWN_TYPE,
+  typeRefName,
   typeRefSegments,
+  unionAnnotationOf,
 } from './ast-shapes.js';
-import { getTypeArgs } from '../helpers/ast-patterns.js';
+import { getTypeArgs, isTupleRestElement, pathOfNode, tupleElements, unwrapTupleMember } from '../helpers/ast-patterns.js';
 import { createClassMemberShape } from './class-member-shapes.js';
 
 export function createAwaited({
@@ -56,14 +60,15 @@ export function createAwaited({
   foldIntersectionTypes,
   promiseRefInner,
   unwrapPromise,
+  settleValue,
   resolveNodeType,
   resolveRuntimeExpression,
   resolveBodyReturnType,
   resolveAnnotationInContext,
   isFunctionLike,
-  findClassPathForTypeReference,
-  buildSubstMap,
-  findClassMember,
+  withTypeReferenceScope,
+  isNullableOrNeverAnnotation,
+  staticKeySet,
   getTypeMembers,
   keyMatchesName,
   findExpressionAnnotation,
@@ -109,22 +114,20 @@ export function createAwaited({
   // returns a Type object (not AST), but callers like findTypeMember need a substituted AST
   // to recurse into - so this helper runs the same peel structurally and returns AST.
   // depth bound matches `followTypeAliasChain`'s budget; cycle prevention via the depth cap.
-  // AST walker carries no substitution context: its only entry (`peelAwaitedWrapper`) runs the
-  // peel structurally with no typeParamMap. type-param substitution is applied OUTSIDE this
-  // walker by findTypeMember at the call site (with the proper alias subst); the Type walker
-  // (`resolveAwaitedAnnotation`) is the surface that threads typeParamMap / seen
+  // Member projection needs the written AST. Runtime consumers also account for
+  // optional or overloaded then methods, whose actual result can differ from Awaited<T>.
   function peelAwaitedArgument(args) {
     return typeAnswer(peelAwaitedArgument, args.arg, {
-      scope: args.scope, depth: args.depth, map: args.typeParamMap, seen: args.seen,
+      scope: args.scope, depth: args.depth, map: args.typeParamMap, seen: args.seen, key: args.runtime,
     }, () => peelAwaitedArgumentUncached(args));
   }
 
   // The uncached walk keeps its original depth and branch policy.
-  function peelAwaitedArgumentUncached({ arg, scope, depth }) {
+  function peelAwaitedArgumentUncached({ arg, scope, depth, runtime }) {
     if (!arg || depth > MAX_DEPTH) return arg;
     const peeled = peelTSParenthesized(unwrapTypeAnnotation(arg));
     function recurse(next) {
-      return peelAwaitedArgument({ arg: next, scope, depth: depth + 1 });
+      return peelAwaitedArgument({ arg: next, scope, depth: depth + 1, runtime });
     }
     // distribute Awaited over union / intersection. filter null members - a nested
     // union / intersection that collapses to empty `types[]` returns null; carrying
@@ -136,6 +139,14 @@ export function createAwaited({
     // asymmetry - but adding a new intersection-distribution rule MUST update both call sites
     if (peeled.type === 'TSUnionType' || peeled.type === 'UnionTypeAnnotation'
         || peeled.type === 'TSIntersectionType' || peeled.type === 'IntersectionTypeAnnotation') {
+      if (runtime && !isUnionType(peeled)) {
+        // Extra fields belong to the pending Promise, not to its fulfillment.
+        // An index signature or an extra then can change which callback runs.
+        const promise = peeled.types.find(part => promiseRefInner(part, scope));
+        if (promise && peeled.types.every(part => part === promise || isObjectTypeLiteral(part) && !part.indexers?.length
+          && (part.members ?? part.properties).every(member => member.key && !member.computed
+            && !keyMatchesName(member.key, 'then', scope, false)))) return recurse(promiseRefInner(promise, scope));
+      }
       const nextTypes = peeled.types.map(recurse).filter(Boolean);
       return nextTypes.length ? compositeAnnotationOf(nextTypes, peeled.type) : null;
     }
@@ -161,8 +172,11 @@ export function createAwaited({
       if (branch !== null) return recurse(branch ? peeled.trueType : peeled.falseType);
       return peeled;
     }
-    const next = peelAwaitedCommonSteps(peeled, scope, depth);
-    return next ? recurse(next) : peeled;
+    const next = peelAwaitedCommonSteps(peeled, scope, depth, runtime);
+    const fulfilled = next ?? fulfilledAnnotation(peeled, scope, depth, { runtime });
+    return fulfilled ? withTypeReferenceScope(fulfilled, scope, at => peelAwaitedArgument({
+      arg: fulfilled, scope: at, depth: depth + 1, runtime,
+    })) : peeled;
   }
 
   // shared peel sequence between peelAwaitedArgument (AST walker) and resolveAwaitedAnnotation
@@ -170,10 +184,36 @@ export function createAwaited({
   // type-alias chain. returns next AST node to recurse on, or null when none of these
   // steps fires. callers handle union/intersection/tuple distribution upfront and the
   // TSConditionalType case specially (different fold strategies per output format)
-  function peelAwaitedCommonSteps(peeled, scope, depth) {
+  function peelAwaitedCommonSteps(peeled, scope, depth, runtime) {
     const passthrough = peelStructurePreservingWrapper(peeled, scope);
-    if (passthrough) return passthrough;
-    const promiseInner = promiseRefInner(peeled);
+    if (passthrough) {
+      // An optional or omitted then does not satisfy the required method in Awaited<T>.
+      let current = peeled;
+      let inner = passthrough;
+      let optional;
+      while (inner) {
+        const name = typeRefName(current);
+        optional ??= modifierWrapperDelta(current)?.optional;
+        if (optional && !runtime) return null;
+        if (name === 'Pick' || name === 'Omit') {
+          const keys = staticKeySet(getTypeArgs(current)?.params?.[1]);
+          if (!keys || (name === 'Pick' ? !keys.has('then') : keys.has('then'))) return null;
+        }
+        current = inner;
+        inner = peelStructurePreservingWrapper(current, scope);
+      }
+      // A Partial can have a callable then on one value and no then on another.
+      if (optional && (promiseRefInner(current, scope) || fulfilledAnnotation(current, scope, depth, { required: true, runtime }))) {
+        return TS_UNKNOWN_TYPE;
+      }
+      // Structural types expose the effective optional flag on their members.
+      if (optional === false) {
+        const fulfilled = fulfilledAnnotation(current, scope, depth, { required: true, runtime });
+        if (fulfilled) return fulfilled;
+      }
+      return current;
+    }
+    const promiseInner = promiseRefInner(peeled, scope);
     if (promiseInner) return promiseInner;
     const indexedAST = resolveIndexedAccessMemberAnnotationAST(peeled, scope, depth);
     if (indexedAST) return indexedAST;
@@ -319,17 +359,17 @@ export function createAwaited({
       return foldUnionTypes([peeled.trueType, peeled.falseType], recurse);
     }
     const next = peelAwaitedCommonSteps(peeled, scope, depth);
-    if (next) return recurse(next);
+    const fulfilled = next ?? fulfilledAnnotation(peeled, scope, depth);
+    if (fulfilled) return withTypeReferenceScope(fulfilled, scope, at => resolveAwaitedAnnotation({
+      node: fulfilled, scope: at, depth: depth + 1, typeParamMap, seen,
+    }));
     const resolved = resolveAnnotationInContext({ node, scope, depth: depth + 1, typeParamMap, seen });
     // the terminal sees a FREE type-param through the caller's map, but the peel steps above
     // only fire on annotation SHAPES - a param substituted to Promise<X[]> reaches here with
     // its promise layer intact and must still be awaited (it resolved to the raw Promise and
     // dropped the member lookup)
-    if (resolved?.constructor === 'Promise') return unwrapPromise(resolved);
-    // `Awaited<T>` unwraps a structural thenable on exactly the contract `await` does, and the peel
-    // that answers it already exists - it was wired to the await lane alone, so the annotation form
-    // (`Awaited<MyThenable>`) resolved to the thenable OBJECT instead of what its `then` hands on
-    return peelUserThenable(peeled, scope) ?? resolved;
+    if (resolved?.constructor !== 'Promise') return resolved;
+    return peelStructurePreservingWrapper(peeled, scope) ? new $Object('Object') : unwrapPromise(resolved);
   }
 
   // pick a conditional-type branch in Awaited contexts: prefer AST-level literal precision
@@ -363,7 +403,7 @@ export function createAwaited({
     if (type !== 'CallExpression' && type !== 'OptionalCallExpression') return null;
     const fnPath = resolveRuntimeExpression(argument.get('callee'));
     if (!isFunctionLike(fnPath?.node)) return null;
-    const bodyType = resolveBodyReturnType(fnPath, argument);
+    const bodyType = resolveBodyReturnType(fnPath, argument, true);
     if (!bodyType) return null;
     return bodyType.constructor === 'Promise' ? unwrapPromise(bodyType) : bodyType;
   }
@@ -378,99 +418,74 @@ export function createAwaited({
     return params && node.rest ? [...params, { type: 'RestElement', typeAnnotation: node.rest.typeAnnotation }] : params;
   }
 
-  // peel callback's first-arg annotation. cb node may be Identifier with typeAnnotation
-  // (babel ClassMethod / ESTree FunctionExpression params) - extract its function-type then
-  // walk to the first arg's annotation. babel quirk: TSFunctionType uses `parameters`, not
-  // `params`; `functionTypeParams` covers both. returns null when shape isn't a function-type
-  function cbFirstArgAnnotation(cbNode) {
-    const cbType = unwrapTypeAnnotation(cbNode?.typeAnnotation);
-    if (!isFunctionTypeNode(cbType)) return null;
-    return unwrapTypeAnnotation(dropLeadingThisParam(functionTypeParams(cbType))?.[0]?.typeAnnotation);
+  // Nullable fulfillment callbacks are never called. A nullable then property,
+  // however, can leave the object intact. Runtime await must allow both outcomes.
+  function firstArgument(annotation, scope, depth, slot = null) {
+    if (!annotation || depth > MAX_DEPTH) return TS_UNKNOWN_TYPE;
+    const type = peelTSParenthesized(unwrapTypeAnnotation(annotation));
+    if (isUnionType(type)) return typeAnswer(firstArgument, type, { scope, depth, key: slot }, () => {
+      const values = type.types.filter(arm => slot ? arm.type !== 'TSNeverKeyword' : !isNullableOrNeverAnnotation(arm))
+        .map(arm => firstArgument(arm, scope, depth + 1, slot));
+      if (values.includes(null)) return slot === 'runtime' && values.some(Boolean) ? TS_UNKNOWN_TYPE : null;
+      return values.length ? unionAnnotationOf(values) : TS_UNKNOWN_TYPE;
+    });
+    if (isTypeReferenceNode(type)) {
+      return withTypeReferenceScope(type, scope, at => typeAnswer(firstArgument, type, { scope: at, depth, key: slot }, () => {
+        const alias = followTypeAliasChain(type, at);
+        return alias.node !== type ? firstArgument(applySubst(alias.node, alias.subst), at, depth + 1, slot) : TS_UNKNOWN_TYPE;
+      }));
+    }
+    if (!isFunctionTypeNode(type)) return slot && !isUnconstrainedTypeShape(type) ? null : TS_UNKNOWN_TYPE;
+    const param = dropLeadingThisParam(functionTypeParams(type))?.[0];
+    const value = unwrapTypeAnnotation(param?.typeAnnotation);
+    if (param?.type !== 'RestElement') return value ?? TS_UNKNOWN_TYPE;
+    const first = value?.type === 'TSTupleType' || value?.type === 'TupleTypeAnnotation' ? tupleElements(value)?.[0] : null;
+    return first && !isTupleRestElement(first) ? unwrapTupleMember(first) : TS_UNKNOWN_TYPE;
   }
 
-  // peel a function-type annotation slot into its first parameter node. used for property-
-  // form `then` whose typeAnnotation IS the function type (`then: (cb) => ...`) - the cb
-  // sits at that type's first parameter slot, one extra unwrap layer beyond method-form's
-  // direct `parameters[0]` access. same dialect pair as the callback peeler below it: the
-  // method form is parser-agnostic already, so a narrower list here would resolve a Flow
-  // `then` method but bail on the Flow property spelling of the same interface
-  function firstParamOfFnTypeAnnotation(typeAnnotation) {
-    const fnType = unwrapTypeAnnotation(typeAnnotation);
-    if (!isFunctionTypeNode(fnType)) return null;
-    return dropLeadingThisParam(functionTypeParams(fnType))?.[0];
-  }
-
-  // extract the `cb` parameter from a `then` member. covers all shapes returned by both
-  // direct class-body walks and `getTypeMembers`:
-  //   - TSMethodSignature  (`then(cb: ...)` in iface)   -> functionTypeParams[0]
-  //   - TSPropertySignature (`then: (cb: ...) => ...`)  -> peel the fn type, [0]
-  //   - ObjectTypeProperty (Flow iface / object type, method AND property spelling alike)
-  //                                                     -> same peel off the `value` slot
-  //   - ClassMethod / MethodDefinition (`then(cb)`)     -> ESTree node.value.params[0]
-  //                                                        babel node.params[0]
-  //   - ClassProperty / PropertyDefinition (`then!: (cb) => ...`) -> peel the fn type
-  // class shapes appear in the fall-through path when a type alias resolves to a user
-  // Thenable class - `getTypeMembers` walks the class body and returns native shapes
-  function memberThenCbParam(member) {
-    if (!member) return null;
-    if (member.type === 'TSMethodSignature') return dropLeadingThisParam(functionTypeParams(member))?.[0];
-    if (member.type === 'TSPropertySignature') return firstParamOfFnTypeAnnotation(member.typeAnnotation);
-    // Flow keeps the member's type on `value` for both spellings - a `then(cb)` method in a Flow
-    // interface is an ObjectTypeProperty carrying a FunctionTypeAnnotation, not a method node
-    if (member.type === 'ObjectTypeProperty') return firstParamOfFnTypeAnnotation(member.value);
-    if (isMethodMember(member)) return dropLeadingThisParam((member.value ?? member).params)?.[0];
-    if (isPropertyMember(member)) return firstParamOfFnTypeAnnotation(member.typeAnnotation);
-    return null;
-  }
-
-  // resolve a `then` cb's first-arg annotation under Awaited semantics, not flatly: a cb-arg
-  // typed `Promise<X>` / `PromiseLike<X>` / nested thenable means `await x` yields X, so the
-  // Awaited recursion must run or the awaited value stays typed as the inner Promise and the
-  // inner element's polyfill is dropped. for plain (non-thenable) arg types this bottoms out
-  // identically to a flat resolve
-  function resolveThenableCbArgAwaited(valueAnn, scope) {
-    return resolveAwaitedAnnotation({ node: valueAnn, scope, depth: 0 });
-  }
-
-  // structural Thenable peel: `await x` where x has `then(cb: (v: T) => ...): any`
-  // resolves to T per TS Thenable contract. plugin's named-PROMISE_SYNONYMS covers Promise /
-  // PromiseLike / Thenable aliases but misses user classes / interfaces with structural .then.
-  // class path via `findClassMember` (handles babel + ESTree shapes); fall-through via
-  // `getTypeMembers` covers type-aliases pointing to a user class - members come back in
-  // their native node shape (ClassMethod / MethodDefinition / TSMethodSignature / ...),
-  // unified through `memberThenCbParam`. both sides end in `cbFirstArgAnnotation`, then
-  // `resolveThenableCbArgAwaited` for the recursive Awaited flatten
-  function peelUserThenable(annotation, scope) {
-    // accept a qualified-name TSTypeReference (`NS.MyThenable<T>`) and a structural object-literal
-    // thenable (`{ then(cb: (v: T) => any): void }` or an alias resolving to one): getTypeMembers
-    // handles TSTypeLiteral directly, so the structural peel below works for it. only the class-path
-    // lookup is TSTypeReference-specific (findClassPathForTypeReference resolves typeRefSegments)
-    if (isTypeReferenceNode(annotation)) {
-      const classPath = findClassPathForTypeReference(annotation, scope);
-      if (classPath) {
-        const classSubst = buildSubstMap(classPath.node.typeParameters?.params, getTypeArgs(annotation)?.params, scope);
-        const found = findClassMember({ classPath, name: 'then', isStatic: false, classSubst });
-        if (found) {
-          const valueAnn = cbFirstArgAnnotation(memberThenCbParam(found.member.node));
-          // subst applied to the AST BEFORE the awaited walk so a generic cb-arg
-          // (`(v: T) => any`) is concrete when the recursive Promise-peel runs
-          if (valueAnn) return resolveThenableCbArgAwaited(found.subst ? applySubst(valueAnn, found.subst) : valueAnn, scope);
-        }
-        // class body lacks `then` - fall through to interface-path because TS
-        // declaration-merging puts `then` on a merged `interface Foo {}` companion.
-        // `getTypeMembers` (collectClassLikeMembers) includes merged-iface members
-        // alongside class body, so the structural peel catches the merged-only shape
+  function fulfilledAnnotation(annotation, scope, depth, { runtime, required } = {}) {
+    if (!isTypeReferenceNode(annotation) && !isObjectTypeLiteral(annotation)) return null;
+    if (peelStructurePreservingWrapper(annotation, scope)) return null;
+    const members = getTypeMembers({ objectType: annotation, scope, depth });
+    let signature;
+    for (const member of members ?? []) {
+      if (member.static || member.kind === 'set' || !keyMatchesName(member.key, 'then', scope, member.computed)) continue;
+      const method = member.value ?? member;
+      // TypeScript infers from the last overload visible to callers. Its body
+      // implements that set and contributes no further public call signature.
+      if (signature) {
+        if (method.body) break;
+        // Members from ancestors follow the receiver's own signatures. A base
+        // declaration does not add an overload to a method the child redeclared.
+        function owner(key) { return pathOfNode(scope.path, key)?.parentPath?.parentPath?.node; }
+        if (owner(signature.key) !== owner(member.key)) break;
+        if (runtime) return TS_UNKNOWN_TYPE;
       }
-    } else if (!isObjectTypeLiteral(annotation)) return null;
-    const members = getTypeMembers({ objectType: annotation, scope });
-    const thenMember = members?.find(m => keyMatchesName(m.key, 'then', scope, m.computed));
-    const valueAnn = cbFirstArgAnnotation(memberThenCbParam(thenMember));
-    return valueAnn ? resolveThenableCbArgAwaited(valueAnn, scope) : null;
+      signature = member;
+      if (method.body || member.kind === 'get' || isPropertyMember(member)) break;
+    }
+    if (!signature) return null;
+    if (signature.optional && !required) return runtime ? TS_UNKNOWN_TYPE : null;
+    const method = signature.value ?? signature;
+    let callback;
+    if (signature.kind !== 'get' && (signature.type === 'TSMethodSignature' || isMethodMember(signature))) {
+      callback = dropLeadingThisParam(functionTypeParams(method))?.[0]?.typeAnnotation;
+    } else {
+      const callable = signature.kind === 'get' ? method.returnType ?? method.typeAnnotation : signature.typeAnnotation ?? signature.value;
+      callback = firstArgument(callable, scope, depth, runtime ? 'runtime' : 'type');
+      if (!callback) return null;
+    }
+    return firstArgument(callback, scope, depth);
   }
 
-  // await expression resolution: Promise / PromiseLike / Thenable named aliases unwrap via
-  // `unwrapPromise` + annotation Awaited<T> machinery; user-defined structural thenables
-  // route through `peelUserThenable`; everything else stays AS-IS per `await x` semantics
+  // Undefined denotes an ordinary value. A callable then with unknown fulfillment returns null.
+  function settleTypeAnnotation(annotation, scope) {
+    const arg = unwrapTypeAnnotation(annotation);
+    const node = peelAwaitedArgument({ arg, scope, depth: 0, runtime: true });
+    return node && node !== arg ? resolveAnnotationInContext({ node, scope, depth: 0 }) : undefined;
+  }
+
+  // A value-level await must also account for a callable then installed on the value.
   function resolveAwaitExpressionType(path) {
     const argument = path.get('argument');
     const type = resolveNodeType(argument);
@@ -481,9 +496,11 @@ export function createAwaited({
     // when it didn't resolve to a nominal at all (an object-literal `{ then() }`, or an alias to
     // one, resolves to a null receiver type). a non-Promise type with no thenable returns unchanged
     if (type?.constructor !== 'Promise') {
-      const thenable = annotation && peelUserThenable(annotation, annotationInfo.scope);
-      if (thenable) return thenable;
-      if (type) return type;
+      if (type) return settleValue(argument, type);
+      if (annotation) {
+        const settled = settleTypeAnnotation(annotation, annotationInfo.scope);
+        if (settled !== undefined) return settled;
+      }
     }
     // recursively unwrap Promise<Promise<...T>> -> T
     const peeled = unwrapPromise(type);
@@ -499,18 +516,13 @@ export function createAwaited({
     return resolveAwaitedFromCallBody(argument);
   }
 
-  // public surface exposes only what factory / other clusters consume; AST<->Type
-  // cross-references (peelAwaitedCommonSteps, pickAwaitedConditionalBranch,
-  // getSingleTypeRefArg, peelAwaitedArgument,
-  // peelAwaitedWrapper, resolveAwaitedFromCallBody,
-  // peelUserThenable, cbFirstArgAnnotation) live as private closures inside the cluster.
-  // `resolveIndexedAccessMemberAnnotationAST` exposed so call-resolution can peel
-  // `T['key']` annotations on binding callees (`type M = T['m']; declare const fn: M; fn()`)
   return {
     peelStructurePreservingWrapper,
     unwrapPassthroughWrapper,
+    peelAwaitedArgument,
     passthroughModifierDelta,
     resolveAwaitedAnnotation,
+    settleTypeAnnotation,
     resolveAwaitExpressionType,
     functionTypeParams,
     resolveIndexedAccessMemberAnnotationAST,

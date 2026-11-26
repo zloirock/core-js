@@ -22,7 +22,7 @@ import {
   typeAliasBody,
   typeRefName,
 } from './ast-shapes.js';
-import { getTypeArgs, IMPORT_SPECIFIER_TYPES } from '../helpers/ast-patterns.js';
+import { getTypeArgs, peelTSParenthesized } from '../helpers/ast-patterns.js';
 
 export function createElementTypes({
   withTypeReferenceScope,
@@ -36,9 +36,7 @@ export function createElementTypes({
   commonType,
   isNullableOrNever,
   findTypeDeclaration,
-  typeDeclarationShadowsGlobal,
-  findTypeParameter,
-  getScopeBinding,
+  isGlobalTypeName,
   declarationPath,
   withLookupPath,
   applyAliasSubstDeep,
@@ -46,9 +44,7 @@ export function createElementTypes({
 }) {
   function builtinCollection(name, scope) {
     return (SINGLE_ELEMENT_COLLECTIONS.has(name) || name === 'Map' || name === 'ReadonlyMap')
-      && !findTypeParameter(name, scope)
-      && !typeDeclarationShadowsGlobal(findTypeDeclaration(name, scope), name, scope)
-      && !IMPORT_SPECIFIER_TYPES.has(getScopeBinding({ scope, name })?.path?.node?.type);
+      && isGlobalTypeName(name, scope);
   }
 
   // resolve the element type of a collection from its type annotation. `seen` is a per-
@@ -126,8 +122,7 @@ export function createElementTypes({
   // the `resolveUserDefinedType` -> `resolveTypeArgs` propagation in user-type-resolve.js.
   // `applyAliasSubstDeep` is a no-op when `subst` is null, so unparameterized aliases /
   // interfaces flow through unchanged without an explicit guard
-  function resolveUserTypeElement({ name, typeArgs, scope, depth, resolver, seen }) {
-    const decl = findTypeDeclaration(name, scope);
+  function resolveUserTypeElement({ name, typeArgs, scope, depth, resolver, seen, decl = findTypeDeclaration(name, scope) }) {
     if (!decl) return null;
     // cycle guard: `type Rec = Rec[]` / `interface A extends B; interface B extends A`
     // would otherwise burn MAX_DEPTH hops before bottoming out (the alias / interface
@@ -215,5 +210,56 @@ export function createElementTypes({
     }
   }
 
-  return { resolveElementType, extractElementAnnotation };
+  // Preserve explicit fields on the raw iterator value. Only a plain global Promise
+  // promises its payload shape; transparent aliases resolve where they were declared.
+  function declaredAsyncElement(annotation, scope, depth = 0, seen = undefined) {
+    const node = peelTSParenthesized(unwrapTypeAnnotation(annotation));
+    if (!node || depth > MAX_DEPTH) return null;
+    const name = typeRefName(node);
+    const typeArgs = getTypeArgs(node)?.params;
+    if (name === 'Promise' && isGlobalTypeName(name, scope)) return { annotation: node, scope, payload: typeArgs?.[0] };
+    const decl = name && findTypeDeclaration(name, scope);
+    return isTypeAlias(decl)
+      ? resolveUserTypeElement({ decl, typeArgs, scope, depth, resolver: declaredAsyncElement, seen })
+      : { annotation: node, scope };
+  }
+
+  // Async iterators hand over IteratorResult.value as written. Only a sync
+  // iterator adapted by for-await assimilates that value. A mixed source can do either.
+  function iterationProtocol(annotation, scope, depth = 0, seen = undefined) {
+    let node = unwrapTypeAnnotation(annotation);
+    while (node?.type === 'TSParenthesizedType' || node?.type === 'TSTypeOperator' && node.operator === 'readonly') {
+      node = unwrapTypeAnnotation(node.typeAnnotation);
+    }
+    if (!node || depth > MAX_DEPTH) return null;
+    const name = typeRefName(node);
+    if (name && builtinCollection(name, scope)) {
+      if (name === 'ArrayLike' || name === 'Iterator' || name === 'AsyncIterator') return null;
+      return name.startsWith('Async') ? 'async' : 'sync';
+    }
+    const decl = name && findTypeDeclaration(name, scope);
+    // A custom iterator member or a second parent can provide the other protocol.
+    const inherited = isInterfaceDeclaration(decl) && decl.extends?.length === 1
+      && !decl.body?.body?.length && !decl.body?.properties?.length;
+    if (isTypeAlias(decl) || inherited) {
+      return resolveUserTypeElement({ name, typeArgs: getTypeArgs(node)?.params, scope, depth, resolver: iterationProtocol, seen });
+    }
+    switch (node.type) {
+      case 'TSArrayType': case 'ArrayTypeAnnotation': case 'TSTupleType': case 'TupleTypeAnnotation':
+      case 'TSStringKeyword': case 'StringTypeAnnotation': return 'sync';
+      case 'TSUnionType':
+      case 'UnionTypeAnnotation': return typeAnswer(iterationProtocol, node, { scope, depth, seen, guarded: true }, () => {
+        let protocol;
+        for (const arm of node.types) {
+          const next = iterationProtocol(arm, scope, depth + 1, seen);
+          if (!next || protocol && protocol !== next) return null;
+          protocol = next;
+        }
+        return protocol;
+      });
+      default: return null;
+    }
+  }
+
+  return { resolveElementType, extractElementAnnotation, iterationProtocol, declaredAsyncElement };
 }

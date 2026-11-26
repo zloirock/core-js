@@ -1,3 +1,4 @@
+import _Array$from from "@core-js/pure/actual/array/from";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _Map from "@core-js/pure/actual/map";
 // A head whose LEFT is a pattern unpacks the element it binds, and unpacking is a read: it re-homes what its own leaves bind,
@@ -9,9 +10,8 @@ const reentered = {
   w: Array
 };
 for (let round = 0; round < 2; round += 1) {
-  for (const {
-    from
-  } of [reentered.w]) {
+  for (const _ref of [reentered.w]) {
+    const from = _ref === Array ? _Array$from : _ref.from;
     reentered.w = _Map;
     _pushMaybeArray(out).call(out, typeof from);
   }

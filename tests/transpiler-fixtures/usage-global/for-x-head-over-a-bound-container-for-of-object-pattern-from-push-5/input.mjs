@@ -4,5 +4,5 @@ const out = [];
 // NEGATIVE: the container's slot is read by a GETTER, so the read is the effect and no literal
 // stands in for it; an effectful key is the same refusal spelled on the other side
 const observed = { get w() { out.push('got'); return Array; } };
-for (const { from } of [observed.w]) out.push(typeof from);
+for (const { from, of } of [observed.w]) out.push(typeof from, typeof of);
 export { out };

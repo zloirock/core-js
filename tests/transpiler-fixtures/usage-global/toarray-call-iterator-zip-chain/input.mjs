@@ -1,1 +1,1 @@
-Iterator.zip([iter1, iter2]).toArray();
+Iterator.zip([iter1, iter2]).toArray().at(0);

@@ -7,6 +7,7 @@ import "core-js/modules/es.array.from";
 import "core-js/modules/es.array.push";
 import "core-js/modules/es.map.constructor";
 import "core-js/modules/es.map.species";
+import "core-js/modules/es.map.group-by";
 import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.iterator";
@@ -20,6 +21,8 @@ const written = {
 };
 written.w = Map;
 for (const {
-  from
-} of [written.w]) out.push(typeof from);
+  from,
+  of,
+  groupBy
+} of [written.w]) out.push(typeof from, typeof of, typeof groupBy);
 export { out };

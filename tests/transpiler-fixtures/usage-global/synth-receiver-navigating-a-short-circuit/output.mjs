@@ -1,6 +1,11 @@
 import "core-js/modules/es.object.entries";
 import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.promise.constructor";
+import "core-js/modules/es.promise.catch";
+import "core-js/modules/es.promise.finally";
+import "core-js/modules/es.promise.resolve";
 import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.array.from-async";
 import "core-js/modules/es.array.from";
 import "core-js/modules/es.array.of";
 import "core-js/modules/es.global-this";
@@ -33,7 +38,8 @@ export const viaIifeArgument = (({
 }) => [entries, other])(globalThis.window?.self.Object);
 export function directlyUnderTheGuard({
   of,
+  fromAsync,
   other
 } = globalThis.window?.Array) {
-  return [of, other];
+  return [of, fromAsync, other];
 }

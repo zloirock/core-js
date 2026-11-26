@@ -41,6 +41,7 @@ import {
   forEachPatternWriteMember,
   isChainAssignment,
   isDestructurePattern,
+  isMemberAccessNode,
   isEffectfulKeyHop,
   loopRhsObservesHead,
   paramPatternReadsValue,
@@ -224,6 +225,7 @@ import {
   mirrorAcceptedKey,
   passthroughOutrunsEffect,
   buildDestructuringInitMeta,
+  loopElementDestructureMeta,
   claimWriteOrderBound,
   destructureHostInitNode,
   nativePatternRealmHop,
@@ -4015,10 +4017,18 @@ export function planCatchClauseExtraction({
     // Ask the same receiver question as the mirror before the instance fallback. A constructor
     // reached through a call, alias, container or selection still supplies its static in the
     // iterated element; relocating it first loses the only host the mirror can replace.
+    let needsHost = false;
     const spelled = elementNodes.length > 0 && elementNodes.every(element => {
-      const meta = buildDestructuringInitMeta({ initNode: element, key, scope, adapter, path });
-      return meta?.placement === 'static' && resolvePure(meta)?.kind === 'static';
+      const meta = loopElementDestructureMeta({ initNode: element, key, scope, adapter, path });
+      const direct = meta?.placement === 'static' && resolvePure(meta)?.kind === 'static';
+      if (elementNodes.length === 1 && isMemberAccessNode(unwrapRuntimeExpr(element))) {
+        needsHost = direct && meta.writtenLoopElement || meta?.guardedWriteObjects?.some(name => resolvePure({
+          kind: 'property', object: name, key, placement: 'static',
+        })?.kind === 'static');
+      }
+      return direct;
     });
+    if (needsHost) return true;
     if (!spelled && resolvePure(objectHint
       ? { kind: 'property', object: objectHint, key, placement: 'prototype' }
       : { kind: 'property', object: null, key, placement: null })) return true;

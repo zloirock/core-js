@@ -6,6 +6,7 @@ import "core-js/modules/es.object.get-own-property-symbols";
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.of";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
 // An array-wrapped pattern combines a static binding, an iterator read and rest.
@@ -13,9 +14,11 @@ import "core-js/modules/web.dom-collections.iterator";
 // Rest excludes both consumed keys.
 const [{
   'from': f,
+  of,
   [Symbol.iterator]: it,
   ...r
 }] = [Array];
 f([1]);
 it;
 r;
+of(1);

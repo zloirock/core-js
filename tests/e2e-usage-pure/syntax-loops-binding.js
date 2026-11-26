@@ -129,6 +129,28 @@ QUnit.test('loop: a head reads its iterable once per entry, so a write in the bo
   assert.deepEqual(seen, [[1]]);
 });
 
+QUnit.test('loop: a conditionally written slot uses the static of the current constructor', assert => {
+  const seen = [];
+  for (const useMap of [false, true]) {
+    const box = { C: Array };
+    if (useMap) box.C = Map;
+    for (const { of, groupBy } of [box.C]) {
+      seen.push([typeof of, typeof groupBy, useMap ? groupBy(['x'], x => x).get('x') : of(17)]);
+    }
+  }
+  assert.deepEqual(seen, [['function', 'undefined', [17]], ['undefined', 'function', ['x']]]);
+});
+
+QUnit.test('loop: re-entering the head picks up Array written over Map', assert => {
+  const box = { C: Map };
+  const seen = [];
+  for (const useArray of [false, true]) {
+    if (useArray) box.C = Array;
+    for (const { of, groupBy } of [box.C]) seen.push(useArray ? of(9) : groupBy([3], x => x).get(3));
+  }
+  assert.deepEqual(seen, [[3], [9]]);
+});
+
 QUnit.test('loop: an OUTER loop re-enters the head, and the second entry reads the replaced slot', assert => {
   const seen = [];
   const replacement = { from() { return 'REPLACED'; } };

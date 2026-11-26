@@ -1003,12 +1003,8 @@ function resolveConditionalDestructureMeta({ node, ...ctx }) {
     if (!names.length && isMemberAccessNode(unwrapRuntimeExpr(value))) {
       staticContainerReceiverName({ node: value, scope, path, adapter: readKeepingAdapter(adapter), unionSink: names });
     }
-    const guarded = guardableSelectionArms(names, adapter).filter(name => hasOwnStaticDefinition(name, key)
-      && !adapter.isMutatedStatic?.(name, key));
-    return guarded.length ? {
-      kind: 'property', object: null, key, placement: 'static', guardOnly: true, captureGuardReceiver: true,
-      guardedAliasHint: guarded[0], guardedWriteObjects: guarded,
-    } : null;
+    const guard = writtenSlotGuard(names, key, adapter);
+    return guard && { ...guard, captureGuardReceiver: true };
   }
   const resolved = consequent.object ? consequent : alternate.object ? alternate : null;
   if (!resolved) return consequent;
@@ -11106,6 +11102,63 @@ function literalParameterDefaultInstanceMeta(objectPattern, { key, adapter, reso
   return resolvePure(instance)?.kind === 'instance' ? instance : null;
 }
 
+function writtenSlotGuard(names, key, adapter) {
+  const guarded = guardableSelectionArms(names, adapter).filter(name => hasOwnStaticDefinition(name, key)
+    && !adapter.isMutatedStatic?.(name, key));
+  return guarded.length ? {
+    kind: 'property', object: null, key, placement: 'static', guardOnly: true,
+    guardedAliasHint: guarded[0], guardedWriteObjects: guarded,
+  } : null;
+}
+
+// The iterable takes a member's value before the head starts repeating. A conditional
+// write supplies candidates for an identity guard on the actual iteration binding.
+export function loopElementDestructureMeta({ initNode, key, scope, path, adapter, resolveStaticKey, unionSink }) {
+  const member = isMemberAccessNode(unwrapRuntimeExpr(initNode));
+  const read = member && pathOfNode(path, initNode);
+  const candidates = read && adapter.method === 'usage-pure' ? unionSink ?? [] : null;
+  const ctx = { scope: read?.scope ?? scope, path: read || path, adapter };
+  const meta = buildDestructuringInitMeta({ initNode, key, ...ctx, resolveStaticKey, unionSink: unionSink ?? candidates });
+  if (!meta || !candidates) return meta;
+  const { root, keys } = containerReadChain(unwrapRuntimeExpr(initNode), ctx);
+  if (!keys.length || keys.includes(null) || !aliasSlotWritten(root, keys, adapter, ctx)) return meta;
+  if (meta.object) return guardableSelectionArms([meta.object], adapter).length ? { ...meta, writtenLoopElement: true } : meta;
+  const binding = adapter.getBinding({ scope: ctx.scope, name: root.name, path: read, read: root });
+  // The guard needs only writes that can reach this iteration, resolved in the writer's scope.
+  for (const value of writtenContainerSlotValuesAt(root, [keys], ctx)) {
+    const site = pathOfNode(read, value);
+    if (!site || writeNeverRuns({ write: value, usagePath: read, adapter }) || noReassignmentReachesUsage({
+      reassignmentNodes: [value], usagePath: read, usageNode: read.node, bindingAnchor: bindingLoopAnchor(binding),
+      bindingScopeNode: binding?.scope?.block ?? binding?.scope?.path?.node,
+    })) continue;
+    for (const arm of flattenFallbackBranches({ node: value, key, path: site, scope: site.scope, adapter })) {
+      if (arm.object && !candidates.includes(arm.object)) candidates.push(arm.object);
+    }
+  }
+  return writtenSlotGuard(candidates, key, adapter) ?? meta;
+}
+
+function destructuringHostInitMeta({ descriptor, key, adapter, resolvePure, unionSink, resolveStaticKey }) {
+  if (!key) return null;
+  // A mixed literal has no single receiver type. Each element can still carry its own
+  // static claim: this meta reaches the head mirror, which rechecks every element.
+  if (!descriptor.initNode && adapter.method === 'usage-pure' && resolvePure) {
+    for (const element of forOfHeadIterableElements(descriptor.path) ?? []) {
+      const meta = buildDestructuringInitMeta({
+        initNode: element, key, scope: descriptor.scope, adapter, path: descriptor.path, resolveStaticKey,
+      });
+      const pure = meta?.placement === 'static' && resolvePure(meta);
+      if (pure && pure.kind !== 'instance') return meta;
+    }
+  }
+  const loop = isMemberAccessNode(unwrapRuntimeExpr(descriptor.initNode))
+    && (forXHeadLoopPath(descriptor.path) || ownRelocatedHeadElement(descriptor.path));
+  const resolve = loop ? loopElementDestructureMeta : buildDestructuringInitMeta;
+  return resolve({
+    initNode: descriptor.initNode, key, scope: descriptor.scope, adapter, path: descriptor.path, unionSink, resolveStaticKey,
+  });
+}
+
 // ONE meta rule over the classified host - the same answer on either leg. the canonical
 // fallbacks live here once: an unresolvable receiver yields a TYPELESS meta (`object:
 // null`, the instance dispatcher's degrade - dropping the leaf instead lost the polyfill
@@ -11155,22 +11208,7 @@ export function buildDestructureLeafMeta({
       return key && !adapter.isMutatedStatic?.('Array.prototype', key)
         ? { kind: 'property', object: 'Array', key, placement: 'prototype' } : null;
     case 'init':
-      if (!key) return null;
-      // A mixed literal has no single receiver type. Each element can still carry its own
-      // static claim: this meta reaches the head mirror, which rechecks every element.
-      if (!descriptor.initNode && adapter.method === 'usage-pure' && resolvePure) {
-        for (const element of forOfHeadIterableElements(descriptor.path) ?? []) {
-          const meta = buildDestructuringInitMeta({
-            initNode: element, key, scope: descriptor.scope, adapter, path: descriptor.path, resolveStaticKey,
-          });
-          const pure = meta?.placement === 'static' && resolvePure(meta);
-          if (pure && pure.kind !== 'instance') return meta;
-        }
-      }
-      return buildDestructuringInitMeta({
-        initNode: descriptor.initNode, key, scope: descriptor.scope, adapter, path: descriptor.path, unionSink,
-        resolveStaticKey,
-      });
+      return destructuringHostInitMeta({ descriptor, key, adapter, resolvePure, unionSink, resolveStaticKey });
     case 'param-default': {
       if (!key) return null;
       const { pattern } = descriptor;

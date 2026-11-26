@@ -5,3 +5,4 @@
 let M = Object;
 for (M of [Array]) { break; }
 M.from([1]);
+M.of(1);

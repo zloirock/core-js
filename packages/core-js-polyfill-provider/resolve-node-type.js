@@ -22,6 +22,7 @@ import {
   isSloppyAtPath,
   initializerReachesRead,
   isNullLiteralNode,
+  isQuietLiteralOperand,
   isTypeAnnotationWrapper,
   isVoidExpression,
   lookupReadPath,
@@ -31,6 +32,7 @@ import {
   pathOfNode,
   memberChainKeys,
   nodePositionKey,
+  walkPatternIdentifiers,
   positionalElementPath,
   POSSIBLE_GLOBAL_OBJECTS,
   peelParenAndTSParentPath,
@@ -92,7 +94,7 @@ import {
   typeRefSegments,
 } from './resolve-node-type/ast-shapes.js';
 import { isKnownGlobalName, staticReceiverHint } from './detect-usage/globals.js';
-import { decidedLiveOperandKey, pureEntryTarget, pureInstanceMethod } from './detect-usage/resolve.js';
+import { computedKeyWellKnownSymbolName, decidedLiveOperandKey, pureEntryTarget, pureInstanceMethod } from './detect-usage/resolve.js';
 import { createAwaited } from './resolve-node-type/awaited.js';
 import { createBindingAnalysis } from './resolve-node-type/binding-analysis.js';
 import { createCallResolution } from './resolve-node-type/call-resolution.js';
@@ -614,13 +616,7 @@ function createResolveNodeType(babelNodeType, t, {
     })) return null;
     if (parameterLiteralValues.has(parameter.node)) return parameterLiteralValues.get(parameter.node);
     parameterLiteralValues.set(parameter.node, null);
-    if (!parameterCallerSites.has(parameter.node)) parameterCallerSites.set(parameter.node,
-      patternBindingsCluster.parameterCallSites(parameter, {
-        staticIsMutated: isMutatedStatic,
-        getBindingEntry: (scope, name, path, sourceRead) => getPolyfillBindingEntry(scope, name,
-          hopAnchorStart({ node: sourceRead, ctx: { path } }), useBindingThunk({ scope, name, path, read: sourceRead })),
-      }));
-    const sites = parameterCallerSites.get(parameter.node);
+    const sites = getParameterCallerSites(parameter);
     if (!sites?.length) return null;
     let value = null;
     for (const { pairing, callPath, argIndex } of sites) {
@@ -781,6 +777,7 @@ function createResolveNodeType(babelNodeType, t, {
     findOverloadsForName,
     findDeclPathBySegments,
     findTypeDeclaration,
+    isGlobalTypeName,
     typeDeclarationShadowsGlobal,
     findAllEnumDeclarations,
     enumIsNearestValue,
@@ -981,11 +978,12 @@ function createResolveNodeType(babelNodeType, t, {
     // thunk: `commonType` is declared further down the factory - same forward-decl shape the
     // other late deps use
     commonType: (...args) => commonType(...args),
-    // same forward-decl thunk: the return-type cluster is built after this one
-    resolveReturnType: (...args) => resolveReturnType(...args),
+    resolveSettledReturnType,
     // and the type-folding cluster, which owns the element-container build, is built after it too
     elementContainerType: (...args) => elementContainerType(...args),
     resolveRuntimeExpression,
+    isGlobalTypeName,
+    settleValue,
     babelNodeType,
     isMemberLike,
     isMutatedStatic,
@@ -1318,6 +1316,7 @@ function createResolveNodeType(babelNodeType, t, {
     functionTypeParams: (...args) => functionTypeParams(...args),
     getScopeBinding,
     t,
+    settleValue,
     babelNodeType,
     unwrapTypeAnnotation,
     effectiveParam,
@@ -1376,14 +1375,15 @@ function createResolveNodeType(babelNodeType, t, {
     foldIntersectionTypes,
     promiseRefInner,
     unwrapPromise,
+    settleValue,
     resolveNodeType,
     resolveRuntimeExpression,
     resolveBodyReturnType,
     resolveAnnotationInContext,
     isFunctionLike,
-    findClassPathForTypeReference: (...args) => findClassPathForTypeReference(...args),
-    buildSubstMap,
-    findClassMember: (...args) => findClassMember(...args),
+    withTypeReferenceScope,
+    isNullableOrNeverAnnotation,
+    staticKeySet: node => typeMembersCluster.staticKeySet(node),
     getTypeMembers: (...args) => getTypeMembers(...args),
     keyMatchesName,
     findExpressionAnnotation: (...args) => findExpressionAnnotation(...args),
@@ -1395,6 +1395,7 @@ function createResolveNodeType(babelNodeType, t, {
     unwrapPassthroughWrapper,
     passthroughModifierDelta,
     resolveAwaitedAnnotation,
+    settleTypeAnnotation,
     resolveAwaitExpressionType,
     resolveIndexedAccessMemberAnnotationAST,
   } = awaitedCluster;
@@ -1452,10 +1453,10 @@ function createResolveNodeType(babelNodeType, t, {
     return ownsWrite(cls.classPath) || classAncestorPaths(cls.classPath).some(ownsWrite)
       || base.node.type === 'ThisExpression' && collectClassDescendantPaths(cls.classPath, findProgramPath(base))?.paths.some(ownsWrite);
   }
-  function instanceSlotWritten(path, key) {
+  function instanceSlotWritten(path, key, read) {
     if (fieldMemberWritten(path, key)) return true;
     const { root, keys } = memberChainKeys(path?.node);
-    return containerSlotWritten(root, [...keys, key], { scope: path?.scope, adapter: observedSlotAdapter, path });
+    return containerSlotWritten(root, [...keys, key], { scope: path?.scope, adapter: observedSlotAdapter, path: read ?? path }, read?.node);
   }
   function pathSlotWritten(holderPath, keys) {
     if (!keys.length) return false;
@@ -1463,6 +1464,132 @@ function createResolveNodeType(babelNodeType, t, {
     return containerSlotWritten(unwrapRuntimeExpr(holderPath?.node), keyPath, {
       scope: holderPath?.scope, adapter: slotCensusAdapter, path: holderPath,
     });
+  }
+
+  function hasAsyncGeneratorMethod(value) {
+    const { properties } = value.node;
+    for (let i = properties.length - 1; i >= 0; i--) {
+      const prop = properties[i];
+      if (prop.type === 'SpreadElement') return false;
+      if (!prop.computed) continue;
+      const symbol = computedKeyWellKnownSymbolName({
+        keyNode: prop.key, scope: value.scope, adapter: getDecisionAdapter() ?? babelBindingAdapter, path: value,
+      });
+      if (symbol === 'asyncIterator') {
+        const method = prop.value ?? prop;
+        return !!(method.async && method.generator);
+      }
+      if (!symbol && resolveComputedKeyName(prop.key, value.scope) === null) return false;
+    }
+    return false;
+  }
+
+  // A replaced iterator can yield a different value from the declared or literal element.
+  function asyncIterationMethodWritten(loop) {
+    if (!loop?.node.await) return false;
+    const source = loop.get('right');
+    return pathSlotWritten(source, [Symbol.asyncIterator]) || pathSlotWritten(source, [Symbol.iterator])
+      || instanceSlotWritten(source, Symbol.asyncIterator) || instanceSlotWritten(source, Symbol.iterator)
+      || isMutatedStatic('Array.prototype', 'Symbol.asyncIterator') || isMutatedStatic('Array.prototype', 'Symbol.iterator');
+  }
+
+  function resolveSettledReturnType(fn) {
+    if (!fn.node.returnType && !fn.node.async && !fn.node.generator) return resolveBodyReturnType(fn, null, true);
+    if (fn.node.returnType && !fn.node.generator) {
+      const settled = settleTypeAnnotation(fn.node.returnType, fn.scope);
+      if (settled !== undefined) return settled;
+    }
+    return unwrapPromise(resolveReturnType(fn));
+  }
+
+  function literalMayProvideThen(node) {
+    if (node.type === 'StringLiteral' || node.type === 'Literal' && typeof node.value === 'string') return node.value === 'then';
+    return node.type !== 'ObjectExpression' || node.properties.some(prop => prop.computed || prop.type === 'SpreadElement'
+      || keyMatchesName(prop.key, 'then') && !isQuietLiteralOperand(prop.value) || keyMatchesName(prop.key, '__proto__'));
+  }
+
+  // An object's then method can settle to any family. Keep the ordinary type
+  // only while the returned object has no callable then or visible write to it.
+  function settleValue(path, type, depth = 0) {
+    if (!type || type.primitive || type.constructor === 'Promise') return unwrapPromise(type);
+    const value = resolveRuntimeExpression(path);
+    const member = 'then';
+    if (depth > MAX_DEPTH) return null;
+    const written = pathSlotWritten(path, [member]) || instanceSlotWritten(path, member) || isMutatedStatic('Object.prototype', member)
+      || isMutatedStatic(`${ type.constructor }.prototype`, member);
+    if (!written) {
+      const info = findExpressionAnnotation(path);
+      if (info) {
+        const settled = settleTypeAnnotation(info.annotation, info.scope);
+        if (settled !== undefined) return settled;
+      }
+    }
+    if (!written && (t.isCallExpression(value.node) || t.isOptionalCallExpression(value.node))) {
+      const callee = value.get('callee');
+      const pair = callee.node.computed && resolveGlobalMember(callee);
+      const hint = pair ? lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, pair.objectName, pair.memberName)
+        : bindingAnalysisCluster.resolveKnownStaticEntry(callee.node, callee);
+      // Identity-returning builtins can install then on the value they hand back.
+      if (hint?.type === 'argument') {
+        if (hint.exposesArgument || hint.mutatesArgument && value.node.arguments.slice(1).some(literalMayProvideThen)) return null;
+        const source = resolveCallArgument(value.node.arguments, 0, isMutatedStatic);
+        const origin = source && pathOfNode(value, source);
+        return origin && settleValue(origin, type, depth + 1);
+      }
+      const fn = resolveRuntimeExpression(callee);
+      if (isFunctionLike(fn.node) && !fn.node.async && !fn.node.generator && !fn.node.returnType) {
+        const expression = singleReturnBodyExpression(fn.node.body, { preservesBody: true });
+        const origin = expression && pathOfNode(fn, expression);
+        return origin && settleValue(origin, resolveNodeType(origin), depth + 1);
+      }
+    }
+    if (!written && value.node.type !== 'ObjectExpression' && value.node.type !== 'NewExpression') return type;
+    const slot = memberResolveCluster.resolveMemberOfObjectPath(path, member, null);
+    if (slot) return slot.primitive || slot.constructor && slot.constructor !== 'Object' && slot.constructor !== 'Function' ? type : null;
+    if (written) return null;
+    if (t.isNewExpression(value.node)) {
+      const ctx = resolveClassContext(value);
+      if (ctx && findClassMember({ ...ctx, name: member })) return null;
+    }
+    if (value.node.type === 'ObjectExpression' && literalMayProvideThen(value.node)) return null;
+    return type;
+  }
+
+  // Sync iterators assimilate their elements. A method that preserves the receiver's
+  // elements also preserves a thenable's identity, even if its nominal family is Array.
+  function settledSyncIterableElement(path, raw, read = path, depth = 0) {
+    const value = resolveRuntimeExpression(path);
+    if (t.isArrayExpression(value.node)) {
+      const elements = literalElementUnionPaths(path, null, read);
+      if (!elements?.length || elements.length !== value.node.elements.length) return null;
+      return foldUnionTypes(elements, element => instanceSlotWritten(element, 'then', read)
+        ? null : settleValue(element, resolveNodeType(element)));
+    }
+    if (t.isIdentifier(path.node) && arrayElementsMayBeRetyped(path, read)) return null;
+    if (!raw || raw.primitive || raw.constructor === 'Promise') return unwrapPromise(raw);
+    if (depth >= MAX_DEPTH || !(t.isCallExpression(value.node) || t.isOptionalCallExpression(value.node))) return null;
+    const callee = value.get('callee');
+    if (!isMemberLike(callee)) return null;
+    const object = peelSkippableWrapperPath(callee.get('object'));
+    const dispatch = pairedInstanceDispatcher(callee, object);
+    const selected = dispatch && peelSkippableWrapperPath(object.get('arguments')[0]);
+    const receiver = dispatch?.capture ? selected.get('right') : selected ?? object;
+    const name = dispatch?.method ?? resolveMemberPropertyName(callee);
+    const family = receiver && resolveNodeType(receiver)?.constructor;
+    const elements = family && lookupNested(KNOWN_INSTANCE_METHOD_RETURN_TYPES, family, name)?.element;
+    if (!elements || instanceSlotWritten(receiver, name) || isMutatedStatic(`${ family }.prototype`, name)) return null;
+    // Each builtin entries iterator creates a new pair when next() is called.
+    if (name === 'entries' && raw.constructor === 'Array') {
+      return isMutatedStatic('Array.prototype', 'then') || isMutatedStatic('Object.prototype', 'then') ? null : raw;
+    }
+    return elements === 'inherit' ? settledSyncIterableElement(receiver, raw, read, depth + 1) : null;
+  }
+
+  // Reading a property of a literal element is sound only if async-from-sync
+  // hands that same object to the pattern after promise assimilation.
+  function awaitKeepsElement(element) {
+    const type = element?.node && resolveNodeType(element);
+    return !!type && settleValue(element, type) === type;
   }
 
   // walk an RHS path (`right` of an AssignmentExpression with destructure LHS) along the
@@ -1738,6 +1865,7 @@ function createResolveNodeType(babelNodeType, t, {
     // Local containers keep their binding-aware slot flow. A proven global constructor or realm
     // has the same surface at the element read and at each loop-body use.
     const loop = forXHeadLoopPath(bindingPath);
+    if (loop?.node.await) return null;
     const literal = unwrapRuntimeExpr(loop?.node?.right);
     const literalPath = literal ? walkPathToNode(loop.get('right'), literal) : null;
     if (!literalPath || isMutatedStatic('Array.prototype', 'Symbol.iterator')
@@ -2241,9 +2369,13 @@ function createResolveNodeType(babelNodeType, t, {
   // goes to the binding the name reads (`useBinding`, `read` its spelling when a hop carries one,
   // looked up only where a USER record is in play). kept in factory (not in call-return cluster)
   // because the binding-analysis and guard clusters instantiated upstream consume it as a service dep
-  function staticPairFromPolyfillBinding(scope, name, useStart, path = null, read = null) {
-    const target = pureEntryTarget(getPolyfillBindingEntry(scope, name, useStart, useBindingThunk({ scope, name, path, read })));
+  function staticPairForEntry(entry) {
+    const target = pureEntryTarget(entry);
     return target?.member ? { constructor: target.global, method: target.member, imported: true } : null;
+  }
+
+  function staticPairFromPolyfillBinding(scope, name, useStart, path = null, read = null) {
+    return staticPairForEntry(getPolyfillBindingEntry(scope, name, useStart, useBindingThunk({ scope, name, path, read })));
   }
 
   // the binding a name read resolves to, deferred: the injector asks it only of a USER record
@@ -2251,20 +2383,23 @@ function createResolveNodeType(babelNodeType, t, {
     return () => getScopeBinding(lookup);
   }
 
-  // Recover a dispatched method from its import binding, including helpers introduced during the current pass.
-  function instanceDispatcherKey(path) {
+  // Include entries introduced by this pass as well as actual import bindings.
+  function polyfillCallEntry(path) {
     if (path?.node?.type !== 'Identifier') return null;
     const { name } = path.node;
     const useBinding = useBindingThunk({ scope: path.scope, name, path, read: path.node });
-    const entry = getPolyfillBindingEntry(path.scope, name, hopAnchorStart({ node: path.node, ctx: { path } }), useBinding);
+    return getPolyfillBindingEntry(path.scope, name, hopAnchorStart({ node: path.node, ctx: { path } }), useBinding);
+  }
+
+  function instanceDispatcherKey(path, entry = polyfillCallEntry(path)) {
     const method = pureInstanceMethod(entry);
     // Instance dispatchers are module imports. A closer declaration can use the same name.
-    return method && !useBinding()?.scope?.parent ? method : null;
+    return method && !getScopeBinding({ scope: path.scope, name: path.node.name, path })?.scope?.parent ? method : null;
   }
 
   // Both selecting and invoking the same receiver are reads when a pure dispatcher
   // supplies a non-mutating method. An unrelated or borrowed invocation may write.
-  function pairedInstanceDispatcher(callee) {
+  function pairedInstanceDispatcher(callee, dispatchPath) {
     if (unwrapExpressionChain(callee?.node?.object)?.type !== 'CallExpression') return null;
     const key = resolveMemberPropertyName(callee);
     if (key !== 'call' && key !== 'apply') return null;
@@ -2277,7 +2412,8 @@ function createResolveNodeType(babelNodeType, t, {
     const target = capture ? capture.left : selected;
     if (dispatch.arguments.length !== 1 || target?.type !== 'Identifier' || invoked?.type !== 'Identifier'
       || target.name !== invoked.name) return null;
-    const method = instanceDispatcherKey(pathOfNode(callee, dispatch.callee));
+    const methodPath = dispatchPath?.node === dispatch ? dispatchPath.get('callee') : pathOfNode(callee, dispatch.callee);
+    const method = instanceDispatcherKey(methodPath);
     if (!method) return null;
     return { pairing, selected, invoked, capture, method };
   }
@@ -2341,9 +2477,7 @@ function createResolveNodeType(babelNodeType, t, {
     commonType,
     isNullableOrNever,
     findTypeDeclaration,
-    typeDeclarationShadowsGlobal,
-    findTypeParameter,
-    getScopeBinding,
+    isGlobalTypeName,
     declarationPath,
     withLookupPath,
     applyAliasSubstDeep,
@@ -2383,7 +2517,13 @@ function createResolveNodeType(babelNodeType, t, {
     findTypeMember: (...args) => findTypeMember(...args),
     substituteTypeParams: (...args) => substituteTypeParams(...args),
     followTypeAliasChain,
-    promiseRefInner,
+    iterationProtocol: elementTypesCluster.iterationProtocol,
+    peelAwaitedArgument: awaitedCluster.peelAwaitedArgument,
+    declaredAsyncElement: elementTypesCluster.declaredAsyncElement,
+    hasAsyncGeneratorMethod,
+    instanceDispatcherKey,
+    getParameterCallerSites,
+    settledSyncIterableElement,
     unwrapPromise,
     unwrapTypeAnnotation,
     findExpressionAnnotation: (...args) => findExpressionAnnotation(...args),
@@ -2400,6 +2540,8 @@ function createResolveNodeType(babelNodeType, t, {
     walkObjectLiteralPropertyPath,
     isGetterFreshLiteral,
     pathSlotWritten,
+    asyncIterationMethodWritten,
+    awaitKeepsElement,
     resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
     resolveComputedKeyName,
     getKeyName,
@@ -2498,7 +2640,19 @@ function createResolveNodeType(babelNodeType, t, {
   // forward-declared `findExpressionAnnotation` + `buildCallSiteSubst`; typeQuery
   // (instantiated earlier) sees the latter via a thunk
   const callResolutionCluster = createCallResolution({
+    polyfillCallEntry,
+    staticPairForEntry,
+    instanceDispatcherKey,
+    resolveAnnotatedMemberPath,
     callbackParameterAnnotation: patternBindingsCluster.callbackParameterAnnotation,
+    forAwaitBindingAnnotation: patternBindingsCluster.forAwaitBindingAnnotation,
+    awaitedValueAnnotation(value, info, depth) {
+      if (pathSlotWritten(value, ['then']) || instanceSlotWritten(value, 'then')
+        || isMutatedStatic('Promise.prototype', 'then') || isMutatedStatic('Object.prototype', 'then')) return null;
+      const arg = unwrapTypeAnnotation(info.annotation);
+      const annotation = awaitedCluster.peelAwaitedArgument({ arg, scope: info.scope, depth, runtime: true });
+      return annotation && annotation !== arg ? { ...info, annotation } : null;
+    },
     foldUnionArmTypes,
     resolveMemberPropertyName,
     t,
@@ -2525,7 +2679,6 @@ function createResolveNodeType(babelNodeType, t, {
     typeFromHint,
     resolveKnownInstanceMember,
     KNOWN_INSTANCE_METHOD_RETURN_TYPES,
-    staticPairFromPolyfillEntry,
     pairedInstanceDispatcher,
     collectBindingReferences,
     lookupNested,
@@ -3292,6 +3445,22 @@ function createResolveNodeType(babelNodeType, t, {
     const pattern = host?.node ? host.get(host.node.type === 'VariableDeclarator' ? 'id' : 'left') : null;
     if (!pattern?.node || primedPatterns.has(pattern.node)) return;
     primedPatterns.add(pattern.node);
+    // A pure property helper can replace the binding's initializer when the
+    // loop head moves into its body. Keep each original member receiver's type.
+    const declaration = host.parentPath;
+    const loop = declaration?.parentPath;
+    if (t.isForOfStatement(loop?.node) && loop.node.await && loop.node.left === declaration.node
+      && findExpressionAnnotation(loop.get('right'))) {
+      walkPatternIdentifiers(pattern.node, id => {
+        const binding = getScopeBinding({ scope: host.scope, name: id.name, path: host });
+        if (!binding) return;
+        for (const ref of collectBindingReferences(binding, host) ?? []) {
+          if (ref.parent?.object !== ref.node) continue;
+          const type = resolveNodeType(ref);
+          if (type) resolvedType.set(ref.node, type);
+        }
+      });
+    }
     // the dialect's own property type: each parser visits only the name it spells
     pattern.traverse({ [prop.node.type](leaf) {
       const valueType = leaf.node.value?.type;
@@ -3312,11 +3481,13 @@ function createResolveNodeType(babelNodeType, t, {
   // Literal slots use their value paths; a builtin prototype uses the shared surface walk.
   function forOfElementSlotType(forOfPath, keyPath, slotDefault) {
     if (!keyPath?.length) return NO_SLOT_ANSWER;
+    if (asyncIterationMethodWritten(forOfPath)) return null;
     const iterated = resolveRuntimeExpression(forOfPath.get('right'));
     if (t.isArrayExpression(iterated?.node) && (isMutatedStatic('Array.prototype', 'Symbol.iterator')
       || pathSlotWritten(forOfPath.get('right'), [Symbol.iterator]))) return null;
     const elements = iterated?.node?.type === 'ArrayExpression'
       ? cachedContainerPaths(iterated, 'elements') : [];
+    if (forOfPath.node.await && !elements.every(awaitKeepsElement)) return null;
     const values = elements.map(element => resolveRuntimeExpression(element));
     // the head may destructure an ARRAY wrapper first (`for (const [{ y }] of [[{ y: [5] }]])`): a numeric
     // step descends the element literal the way the object step descends a property
@@ -3389,6 +3560,16 @@ function createResolveNodeType(babelNodeType, t, {
   // Defaults select undefined alone, and nested defaults change the remaining member path.
   const parameterReceiverFacts = new WeakMap();
   const parameterCallerSites = new WeakMap();
+  function getParameterCallerSites(parameter) {
+    if (!parameterCallerSites.has(parameter.node)) {
+      parameterCallerSites.set(parameter.node, patternBindingsCluster.parameterCallSites(parameter, {
+        staticIsMutated: isMutatedStatic,
+        getBindingEntry: (scope, name, path, readNode) => getPolyfillBindingEntry(scope, name,
+          hopAnchorStart({ node: readNode, ctx: { path } }), useBindingThunk({ scope, name, path, read: readNode })),
+      }));
+    }
+    return parameterCallerSites.get(parameter.node);
+  }
   const primedParameterFunctions = new WeakSet();
   function resolveParameterReceiver(objectPattern) {
     if (parameterReceiverFacts.has(objectPattern.node)) return parameterReceiverFacts.get(objectPattern.node);
@@ -3403,14 +3584,7 @@ function createResolveNodeType(babelNodeType, t, {
     parameterReceiverFacts.set(objectPattern.node, null);
     const parameterAnnotation = findBindingAnnotation(parameter);
     if (!parameterAnnotation && !parameterArgumentsOnlyObserved(fn)) return null;
-    if (!parameterCallerSites.has(parameter.node)) {
-      parameterCallerSites.set(parameter.node, patternBindingsCluster.parameterCallSites(parameter, {
-        staticIsMutated: isMutatedStatic,
-        getBindingEntry: (scope, name, path, readNode) => getPolyfillBindingEntry(scope, name,
-          hopAnchorStart({ node: readNode, ctx: { path } }), useBindingThunk({ scope, name, path, read: readNode })),
-      }));
-    }
-    const sites = parameterCallerSites.get(parameter.node);
+    const sites = getParameterCallerSites(parameter);
     const keyPath = collectPatternKeyPath(objectPattern);
     if (!keyPath) return null;
     const levels = defaults.map(path => ({ path, depth: collectPatternKeyPath(path.get('left')).length }));
@@ -3797,6 +3971,7 @@ function createResolveNodeType(babelNodeType, t, {
     // a `const` for-of HEAD holds each element of the literal it iterates, one per pass
     if (!declarator.init) {
       const loop = forXHeadLoopPath(declaratorPath);
+      if (loop?.node.await) return null;
       if (t.isForOfStatement(loop?.node) && t.isArrayExpression(resolveRuntimeExpression(loop.get('right')).node)
         && (isMutatedStatic('Array.prototype', 'Symbol.iterator') || pathSlotWritten(loop.get('right'), [Symbol.iterator]))) return null;
       const elements = t.isForOfStatement(loop?.node) && binding.kind === 'const'

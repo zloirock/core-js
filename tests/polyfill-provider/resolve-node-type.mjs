@@ -14416,18 +14416,16 @@ for (const [label, decl, want] of EXTRACT_NULLISH_ARM_ROWS) {
     want === 'Array' ? arrayAtReceiver : dropAtReceiver);
 }
 
-// what a call SETTLES to often lives in the call, not in the method - the data says so with the
-// `argument` directives, and the resolver reads them off the hint rather than off a name list.
-// `Promise.all` and `Array.fromAsync` carry the identical hint, which is what a name-keyed
-// registry used to hide: only the listed names got the inference
+// The compat table selects the source of a settled value. Promise.all reads the input
+// elements; Array.fromAsync uses the mapper's result when one is supplied.
 const ARGUMENT_DIRECTIVE_ROWS = [
   ['argument: the awaited value itself', 'async function f() { const r = await Promise.resolve([1]); r.at(0); }', 'Array'],
   ['argument-element: race', 'async function f() { const r = await Promise.race([Promise.resolve([1])]); r.at(0); }', 'Array'],
   ['argument-element: any', 'async function f() { const r = await Promise.any([Promise.resolve([1])]); r.at(0); }', 'Array'],
   ['argument-element under Array: all', 'async function f() { const r = (await Promise.all([[1], [2]]))[0]; r.at(0); }', 'Array'],
-  ['argument-element under Array: fromAsync', 'async function f() { const r = (await Array.fromAsync([[1], [2]]))[0]; r.at(0); }', 'Array'],
+  ['mapped-element without a mapper: fromAsync', 'async function f() { const r = (await Array.fromAsync([[1], [2]]))[0]; r.at(0); }', 'Array'],
   ['argument-return: Promise.try', 'async function f() { const r = await Promise.try(() => [1]); r.at(0); }', 'Array'],
-  ['argument-return: then', 'async function f() { const r = await Promise.resolve(0).then(() => [1]); r.at(0); }', 'Array'],
+  ['then-return without a rejection handler', 'async function f() { const r = await Promise.resolve(0).then(() => [1]); r.at(0); }', 'Array'],
   ['argument-return keeps extra data args', 'async function f() { const r = await Promise.try((a: number) => [a], 1); r.at(0); }', 'Array'],
   // the bails: one hint cannot carry two resolutions, and nothing may be guessed about an
   // argument the reader cannot see

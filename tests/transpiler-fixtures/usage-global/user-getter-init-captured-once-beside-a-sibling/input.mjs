@@ -10,6 +10,7 @@ const { prototype: { at: m1 }, from: a1 } = KE.A;
 const { prototype: { flat: m2 }, foo: r2 } = KE.A;
 const { prototype: { with: m3, toSorted: f3 }, bar: a3 } = KE.A;
 const { prototype: { findLast: m4 }, fromAsync: a4 } = OE.A;
+// Iterator already supplies its prototype methods. These imports distinguish its statics.
 export const { prototype: { drop: m5 }, concat: a5 } = KE.I;
 const z6 = 1, { prototype: { take: m6 }, from: a6 } = KE.I;
 const { prototype: { flatMap: m7 }, isArray: a7 } = Array;

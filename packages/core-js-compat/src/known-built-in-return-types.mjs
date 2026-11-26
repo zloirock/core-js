@@ -1,4 +1,4 @@
-// A hint is a type name (`'Array'`), or an object carrying that name plus qualifiers. Four strings
+// A hint is a type name (`'Array'`), or an object carrying that name plus qualifiers. Some strings
 // are DIRECTIVES rather than names - they say where the type comes from instead of naming it, and
 // they are written wherever a type name is: as the hint's own `type` when the directive IS the
 // answer, or as its inner (`element` / `resolved`) when the answer is a container of it:
@@ -6,21 +6,20 @@
 //   'inherit'           - the RECEIVER's own inner. `Array#filter` returns an array of whatever the
 //                         receiver held, so `{ type: 'Array', element: 'inherit' }`, and `Array#at`
 //                         returns that element itself: `{ type: 'inherit', nullable: true }`
-//   'argument'          - arg 0 of the CALL, awaited. `Promise.resolve(x)` settles to x, and the
-//                         identity statics hand it back: `Object.freeze` is `{ type: 'argument' }`
-//   'argument-element'  - the awaited common type of arg 0's ELEMENTS, so arg 0 is the iterable:
-//                         `Promise.race([a, b])`. `Promise.all` / `Array.fromAsync` wrap it in an
-//                         Array and therefore carry the IDENTICAL hint. NOT "the arguments" -
-//                         a method whose result holds its argument LIST (`Array.of(a, b)`) is a
-//                         different shape and has no directive today
-//   'argument-return'   - the return type of the callback arg 0 holds: `Promise.try(fn)`,
-//                         `Promise#then(fn)`, `AsyncIterator#reduce(fn)`
+//   'argument'          - arg 0 itself for identity statics such as Object.freeze. In the
+//                         resolved slot of Promise.resolve, the result assimilates its thenable
+//   'argument-element'  - the common settled element of the iterable in arg 0. Promise.race
+//                         resolves to one such element, Promise.all resolves to an Array of them
+//   'argument-return'   - the return type of the callback arg 0 holds: `Promise.try(fn)`
+//   'then-return'       - the fulfillment callback when a rejection has no other handler
+//   'reduce-accumulator' - the common result of the reducer and its untouched starting value
+//   'mapped-element'    - the mapper result or, with no mapper, the awaited input element
 //
 // An argument directive answers off the CALL, so it is meaningful only in the static-method and
 // instance-method tables - the lanes the resolver decodes with a call in hand. `tests/compat-tools`
 // enforces that, and the resolver decodes the directives generically: a new row here starts working
-// without touching the plugins. The four names themselves belong to the resolver, which declares
-// them in its `resolve-node-type/base.js` - a fifth is a change there, not a row here.
+// without touching the plugins. The directive names belong to the resolver, which declares
+// them in its `resolve-node-type/base.js` - a new directive is a change there, not a row here.
 //
 // A static method's hint also says what the CALL does with the values it is handed - the escape
 // analysis reads it to decide whether an object passed in can still be changed behind its back:
@@ -387,7 +386,7 @@ export const instanceMethods = {
     flatMap: 'AsyncIterator',
     forEach: { type: 'Promise', resolved: 'undefined' },
     map: 'AsyncIterator',
-    reduce: { type: 'Promise', resolved: 'argument-return' },
+    reduce: { type: 'Promise', resolved: 'reduce-accumulator' },
     some: { type: 'Promise', resolved: 'boolean' },
     take: { type: 'AsyncIterator', element: 'inherit' },
     toArray: { type: 'Promise', resolved: { type: 'Array', element: 'inherit' } },
@@ -558,7 +557,7 @@ export const instanceMethods = {
     catch: 'Promise',
     finally: { type: 'Promise', resolved: 'inherit' },
     // eslint-disable-next-line unicorn/no-thenable -- false positive
-    then: { type: 'Promise', resolved: 'argument-return' },
+    then: { type: 'Promise', resolved: 'then-return' },
   },
   RegExp: {
     exec: { type: 'Array', element: 'string', nullable: true },
@@ -711,7 +710,7 @@ export const staticMethods = {
   },
   Array: {
     from: { type: 'Array', exposesArgument: [2] },
-    fromAsync: { type: 'Promise', resolved: { type: 'Array', element: 'argument-element' }, exposesArgument: [2] },
+    fromAsync: { type: 'Promise', resolved: { type: 'Array', element: 'mapped-element' }, exposesArgument: [2] },
     isArray: { type: 'boolean', inert: true },
     of: 'Array',
   },

@@ -397,3 +397,17 @@ QUnit.test('receiver precision: a written caller field retains its array paramet
   assert.true(includes.call(box.value, 2));
   assert.false(includes.call('ab', 'ab'), 'the method retains Array semantics');
 });
+
+QUnit.test('async iteration reads an explicit field on the raw Promise', assert => {
+  const value = Object.assign(Promise.resolve({ items: [7] }), { items: 'abc' });
+  const rows = { [Symbol.asyncIterator]() {
+    return { next: () => Promise.resolve({ done: false as const, value }) };
+  } };
+  async function read(source: AsyncIterable<Promise<{ items: number[] }>>) {
+    for await (const { items } of source) return items.at(-1);
+  }
+  async function readField(source: AsyncIterable<typeof value>) {
+    for await (const row of source) return row.items.at(-1);
+  }
+  return Promise.all([read(rows), readField(rows)]).then(results => assert.deepEqual(results, ['c', 'c']));
+});

@@ -58,6 +58,9 @@ export const RESOLUTION_DIRECTIVES = assign(create(null), {
   argument: 'call',
   'argument-element': 'call',
   'argument-return': 'call',
+  'mapped-element': 'call',
+  'reduce-accumulator': 'call',
+  'then-return': 'call',
   inherit: 'receiver',
 });
 

@@ -2,6 +2,6 @@
 // nothing, so the claim has only the head's own shape to resolve against - and a head declarator
 // holds no init, which is why its receiver is the ELEMENT of the iterated literal rather than a
 // slot. asking the canon for it is what installs the module here
-for (var { from } of [Array]) {
-  record(from);
+for (var { from, of } of [Array]) {
+  record(from, of);
 }

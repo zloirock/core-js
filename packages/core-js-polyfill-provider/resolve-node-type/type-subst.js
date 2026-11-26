@@ -130,14 +130,15 @@ export function createTypeSubst({
   }
 
   function substTypeLiteral(node, subst, depth, visited) {
-    if (!node.members) return node;
+    const slot = node.type === 'ObjectTypeAnnotation' ? 'properties' : 'members';
+    if (!node[slot]?.length) return node;
     let changed = false;
-    const members = node.members.map(m => {
+    const members = node[slot].map(m => {
       const next = substMemberAnnotations({ member: m, subst, depth: depth + 1, visited });
       if (next !== m) changed = true;
       return next;
     });
-    return changed ? { ...node, members } : node;
+    return changed ? { ...node, [slot]: members } : node;
   }
 
   function substConditional(node, subst, depth, visited) {
@@ -156,13 +157,12 @@ export function createTypeSubst({
     const innerSubst = dropTypeParamSubst(node.typeParameters, subst);
     const rt = node[returnSlot] ? applyAliasSubstDeep(node[returnSlot], innerSubst, depth + 1, visited) : node[returnSlot];
     const paramsSlot = 'parameters' in node ? 'parameters' : 'params';
-    const params = node[paramsSlot]?.map(p => {
-      const pTA = p.typeAnnotation ? applyAliasSubstDeep(p.typeAnnotation, innerSubst, depth + 1, visited) : p.typeAnnotation;
-      return pTA === p.typeAnnotation ? p : { ...p, typeAnnotation: pTA };
-    });
-    const paramsChanged = params && params.some((p, i) => p !== node[paramsSlot][i]);
-    if (rt === node[returnSlot] && !paramsChanged) return node;
-    return { ...node, [returnSlot]: rt, ...paramsChanged && { [paramsSlot]: params } };
+    const params = node[paramsSlot]?.map(p => substSlot(p, 'typeAnnotation', innerSubst, depth, visited));
+    const paramsChanged = params?.some((p, i) => p !== node[paramsSlot][i]);
+    // Flow keeps the rest parameter outside the ordinary parameter list.
+    const rest = node.rest && substSlot(node.rest, 'typeAnnotation', innerSubst, depth, visited);
+    if (rt === node[returnSlot] && !paramsChanged && rest === node.rest) return node;
+    return { ...node, [returnSlot]: rt, ...paramsChanged && { [paramsSlot]: params }, ...rest !== node.rest && { rest } };
   }
 
   // ESTree MethodDefinition wraps its function shape in `.value` (FunctionExpression). the slot
@@ -213,7 +213,7 @@ export function createTypeSubst({
     return inner === node.literal ? node : { ...node, literal: inner };
   }
 
-  // dispatch table: 14 AST shapes routed to per-shape handlers. simple slot-substitution
+  // Dispatch AST shapes to per-shape handlers. simple slot-substitution
   // cases (`substSlot` / `substList`) stay as inline arrow values; complex multi-slot
   // / alpha-rename cases live as named functions for readability and stack traces
   const SUBST_DISPATCH = {
@@ -236,6 +236,7 @@ export function createTypeSubst({
     TSIntersectionType: (n, s, d, v) => substList(n, 'types', s, d, v),
     IntersectionTypeAnnotation: (n, s, d, v) => substList(n, 'types', s, d, v),
     TSTypeLiteral: substTypeLiteral,
+    ObjectTypeAnnotation: substTypeLiteral,
     TSConditionalType: substConditional,
     TSFunctionType: substFunctionType,
     TSConstructorType: substFunctionType,
@@ -291,7 +292,7 @@ export function createTypeSubst({
   // covers TS `TSPropertySignature`/`TSIndexSignature`/`TSMethodSignature` and Flow
   // `ObjectTypeProperty`. depth / visited are forwarded to `applyAliasSubstDeep` so callers
   // inside cycle-active walks don't reset the cycle guard - `applyAliasSubstDeepInner`'s
-  // TSTypeLiteral case routes through here to avoid duplicating the slot-iteration pattern
+  // object-literal type cases route through here to share the member walk.
   function substMemberAnnotations({ member, subst, depth = 0, visited = null }) {
     if (!member || typeof member !== 'object') return member;
     // a method-like member's signature-local typeParameters (`bar<T>(): T`) shadow the outer subst.
@@ -313,7 +314,7 @@ export function createTypeSubst({
     // babel quirk (same as TSFunctionType): TSMethodSignature uses `parameters`; ClassMethod
     // uses `params`. probe whichever slot the node carries via `functionTypeParams`. without
     // this, methods with parameter types referring to outer alias type-params bail on
-    // overload resolution AND interface-shaped Thenable detection (`peelUserThenable`) fails
+    // overload resolution AND structural thenable detection fails
     // to substitute T inside `then(cb: (v: T) => ...)`
     const memberParamsList = functionTypeParams(member);
     if (Array.isArray(memberParamsList) && memberParamsList.length) {

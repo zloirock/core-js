@@ -14,6 +14,7 @@ import "core-js/modules/es.iterator.filter";
 import "core-js/modules/es.iterator.find";
 import "core-js/modules/es.iterator.flat-map";
 import "core-js/modules/es.iterator.for-each";
+import "core-js/modules/es.iterator.from";
 import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.iterator.join";
 import "core-js/modules/es.iterator.map";
@@ -35,6 +36,7 @@ const [[i0, {
   Iterator: I
 }]] = [[...tail, globalThis]];
 export const viaDeepSpread = I.range(0, 3);
+export const viaFrom = I.from([0, 1, 2]);
 let AB;
 [, {
   DOMException: AB

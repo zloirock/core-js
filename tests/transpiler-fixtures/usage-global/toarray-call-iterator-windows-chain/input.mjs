@@ -1,1 +1,1 @@
-Iterator.from(x).windows(2).toArray();
+Iterator.from(x).windows(2).toArray().at(0);

@@ -4,6 +4,7 @@ import "core-js/modules/es.symbol.iterator";
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.of";
 import "core-js/modules/es.array.push";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
@@ -16,6 +17,7 @@ const WN = {
   }
 };
 for (const {
-  from
-} of [WN.a.b]) out.push(typeof from);
+  from,
+  of
+} of [WN.a.b]) out.push(typeof from, typeof of);
 export { out };

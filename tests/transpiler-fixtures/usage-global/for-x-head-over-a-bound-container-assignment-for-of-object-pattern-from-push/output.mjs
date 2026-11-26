@@ -4,6 +4,7 @@ import "core-js/modules/es.symbol.iterator";
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.of";
 import "core-js/modules/es.array.push";
 import "core-js/modules/es.map.constructor";
 import "core-js/modules/es.map.species";
@@ -21,10 +22,11 @@ const reentered = {
 };
 for (let round = 0; round < 2; round += 1) {
   for (const {
-    from
+    from,
+    of
   } of [reentered.w]) {
     reentered.w = Map;
-    out.push(typeof from);
+    out.push(typeof from, typeof of);
   }
 }
 export { out };

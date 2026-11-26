@@ -75,6 +75,9 @@ deepEqual({ ...directives }, {
   argument: 'call',
   'argument-element': 'call',
   'argument-return': 'call',
+  'mapped-element': 'call',
+  'reduce-accumulator': 'call',
+  'then-return': 'call',
   inherit: 'receiver',
 });
 
@@ -177,7 +180,9 @@ function checkArgumentQualifiers(label, kind, hint) {
   for (const key of ARGUMENT_QUALIFIERS) {
     if (key in hint && kind !== 'staticMethods') fail(`${ label }: argument qualifier '${ key }' sits outside the static lane`);
   }
-  if (hint.inert && directivesOf(hint).includes('argument-return')) fail(`${ label }: an inert method runs a callback`);
+  if (hint.inert && directivesOf(hint).some(d => ['argument-return', 'mapped-element', 'then-return', 'reduce-accumulator'].includes(d))) {
+    fail(`${ label }: an inert method runs a callback`);
+  }
 }
 
 throws(() => checkArgumentQualifiers('probe', 'instanceMethods', { type: 'number', mutatesArgument: [0] }), /outside the static lane/);
@@ -253,18 +258,16 @@ deepEqual(knownBuiltInReturnTypes.staticMethods.Reflect.ownKeys, {
   element: [{ type: 'string' }, { type: 'symbol' }],
   inert: true,
 });
-// resolved hint carrying an ARGUMENT directive: what the call settles to lives in the call, not in
-// the method, and `Promise.all` / `Array.fromAsync` say it with the SAME type hint - which is the
-// truth a name-keyed registry in the resolver used to hide. only `Array.fromAsync` takes a thisArg
+// Array.fromAsync maps its elements when called with a mapper. Promise.all always awaits its inputs.
 deepEqual(knownBuiltInReturnTypes.staticMethods.Promise.all,
   { type: 'Promise', resolved: { type: 'Array', element: 'argument-element' } });
 deepEqual(knownBuiltInReturnTypes.staticMethods.Array.fromAsync,
-  { type: 'Promise', resolved: { type: 'Array', element: 'argument-element' }, exposesArgument: [2] });
+  { type: 'Promise', resolved: { type: 'Array', element: 'mapped-element' }, exposesArgument: [2] });
 deepEqual(knownBuiltInReturnTypes.staticMethods.Promise.resolve, { type: 'Promise', resolved: 'argument' });
 deepEqual(knownBuiltInReturnTypes.staticMethods.Promise.race, { type: 'Promise', resolved: 'argument-element' });
 deepEqual(knownBuiltInReturnTypes.staticMethods.Promise.try, { type: 'Promise', resolved: 'argument-return' });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Promise.then, { type: 'Promise', resolved: 'argument-return' });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.AsyncIterator.reduce, { type: 'Promise', resolved: 'argument-return' });
+deepEqual(knownBuiltInReturnTypes.instanceMethods.Promise.then, { type: 'Promise', resolved: 'then-return' });
+deepEqual(knownBuiltInReturnTypes.instanceMethods.AsyncIterator.reduce, { type: 'Promise', resolved: 'reduce-accumulator' });
 // the deliberate NON-directives: a rejection value is not a resolution, `catch` settles two
 // different ways, and the settled wrappers are not the awaited elements
 deepEqual(knownBuiltInReturnTypes.staticMethods.Promise.reject, { type: 'Promise' });

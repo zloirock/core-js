@@ -6,5 +6,6 @@ let tail = globalThis.tail;
 // ctor modules inject
 const [s0, { Symbol: S }] = [...tail, globalThis];
 export const viaSymbolAlias = [1, 2][S.iterator];
+export const viaTag = [1, 2][S.toStringTag];
 let AB;
 ([, { DOMException: AB }] = [...tail, globalThis]);

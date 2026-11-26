@@ -4,6 +4,7 @@ import "core-js/modules/es.symbol.iterator";
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.of";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
 // a for-of HEAD rebinds the alias to each element of an array-literal iterable: every
@@ -15,3 +16,4 @@ for (M of [Array]) {
   break;
 }
 M.from([1]);
+M.of(1);

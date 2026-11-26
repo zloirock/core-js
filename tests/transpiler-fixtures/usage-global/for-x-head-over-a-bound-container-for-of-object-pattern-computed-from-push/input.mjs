@@ -2,5 +2,5 @@
 // exactly as the declarator twin does.
 const out = [];
 const WA = [Array];
-for (const { from } of [WA[0]]) out.push(typeof from);
+for (const { from, of } of [WA[0]]) out.push(typeof from, typeof of);
 export { out };

@@ -5,6 +5,7 @@ import "core-js/modules/es.object.from-entries";
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.of";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
 // two array-wrapper levels over a const alias of a reassigned array: the outer literal captured the
@@ -16,7 +17,8 @@ let inner = [Array];
 const outer = [inner];
 inner = [Object];
 const [[{
-  from
+  from,
+  of
 }]] = outer;
 export const afterCapture = from('ab');
 let inner2 = [Array];
@@ -26,3 +28,4 @@ const [[{
   fromEntries
 }]] = outer2;
 export const beforeCapture = fromEntries([]);
+of(1);

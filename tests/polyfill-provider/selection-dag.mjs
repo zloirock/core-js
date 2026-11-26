@@ -137,6 +137,8 @@ for (const [name, source, key, symbol] of [
   ['symbol', 'const s = Symbol.iterator; const k = c ? s : Symbol.iterator; const result = k;', 'Symbol.iterator', true],
   ['string spelling', "const k = c ? 'Symbol.iterator' : 'Symbol.iterator'; const result = k;", 'Symbol.iterator', false],
   ['different provenance', "const k = c ? Symbol.iterator : 'Symbol.iterator'; const result = k;", null, false],
+  ['shared symbol arms', 'const a = Symbol.iterator; const b = Symbol.iterator; const c = first() ? b : a; const result = second() ? c : b;', 'Symbol.iterator', true],
+  ['shared mixed arms', "const a = Symbol.iterator; const b = 'Symbol.iterator'; const c = first() ? b : a; const result = second() ? c : b;", null, false],
   ['different names', "const k = c ? 'from' : 'of'; const result = k;", null, false],
   ['own cycle', "const k = c ? k : 'from'; const result = k;", null, false],
   ['mutual cycle', "const a = c ? b : 'from'; const b = c ? a : 'from'; const result = a;", null, false],

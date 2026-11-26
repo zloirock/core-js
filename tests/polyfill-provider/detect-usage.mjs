@@ -4087,7 +4087,11 @@ for (const width of [32, 64]) {
   index.nonIterationEscapes.add('items#0.*');
   check(`iterator summary/${ width }/an actual writer still invalidates the slot`,
     adapter.isWrittenContainerSlot('items', [Symbol.iterator]), true);
+  check(`iterator summary/${ width }/async protocol after escape`,
+    adapter.isWrittenContainerSlot('items', [Symbol.asyncIterator]), true);
   index.nonIterationEscapes.clear();
+  check(`iterator summary/${ width }/async iteration alone`,
+    adapter.isWrittenContainerSlot('items', [Symbol.asyncIterator]), false);
   check(`iterator summary/${ width }/other slots keep their iteration escape`,
     adapter.isWrittenContainerSlot('items', ['at']), true);
 }

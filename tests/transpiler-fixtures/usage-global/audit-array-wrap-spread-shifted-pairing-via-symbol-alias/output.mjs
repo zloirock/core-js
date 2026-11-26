@@ -1,10 +1,13 @@
 import "core-js/modules/es.symbol.constructor";
 import "core-js/modules/es.symbol.description";
 import "core-js/modules/es.symbol.iterator";
+import "core-js/modules/es.symbol.to-string-tag";
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.from";
 import "core-js/modules/es.global-this";
+import "core-js/modules/es.json.to-string-tag";
+import "core-js/modules/es.math.to-string-tag";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-exception.constructor";
 import "core-js/modules/web.dom-exception.to-string-tag";
@@ -19,6 +22,7 @@ const [s0, {
   Symbol: S
 }] = [...tail, globalThis];
 export const viaSymbolAlias = [1, 2][S.iterator];
+export const viaTag = [1, 2][S.toStringTag];
 let AB;
 [, {
   DOMException: AB

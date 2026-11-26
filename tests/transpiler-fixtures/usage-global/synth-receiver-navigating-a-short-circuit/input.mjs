@@ -8,6 +8,6 @@ export function unpolyfilledSibling({ groupBy, other } = globalThis.window?.Map)
   return [groupBy, other];
 }
 export const viaIifeArgument = (({ entries, other }) => [entries, other])(globalThis.window?.self.Object);
-export function directlyUnderTheGuard({ of, other } = globalThis.window?.Array) {
-  return [of, other];
+export function directlyUnderTheGuard({ of, fromAsync, other } = globalThis.window?.Array) {
+  return [of, fromAsync, other];
 }

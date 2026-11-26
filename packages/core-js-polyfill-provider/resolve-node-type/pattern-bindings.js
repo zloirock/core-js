@@ -50,6 +50,7 @@ import {
   patternHasAnyDefault,
   patternSlotHasDefault,
   positionalElementPath,
+  singleReturnBodyExpression,
   resolveCallArgument,
   resolveCallArgumentCoords,
   staleVarRedeclNodes,
@@ -71,6 +72,8 @@ import {
   foldedPropertyKeyName,
   FUSED_METHOD_TYPES,
   isMemberAccessNode,
+  memberChainEndPath,
+  memberChainKeys,
   isMemberMutationContext,
   staticMemberKeyName,
   privateNameSpelling,
@@ -215,7 +218,13 @@ export function createPatternBindings({
   findTypeMember,
   substituteTypeParams,
   followTypeAliasChain,
-  promiseRefInner,
+  iterationProtocol,
+  peelAwaitedArgument,
+  declaredAsyncElement,
+  hasAsyncGeneratorMethod,
+  instanceDispatcherKey,
+  getParameterCallerSites,
+  settledSyncIterableElement,
   unwrapPromise,
   unwrapTypeAnnotation,
   findExpressionAnnotation,
@@ -229,6 +238,8 @@ export function createPatternBindings({
   walkObjectLiteralPropertyPath,
   isGetterFreshLiteral,
   pathSlotWritten,
+  asyncIterationMethodWritten,
+  awaitKeepsElement,
   resolveTypeAnnotation,
   resolveComputedKeyName,
   getKeyName,
@@ -244,6 +255,7 @@ export function createPatternBindings({
   protoSetterCalleeArms,
 }) {
   let localFlowInputs = new WeakMap();
+  let exposedRowPaths = new WeakMap();
   let localFlowValues = new WeakMap();
   let localFlowRetries = new WeakSet();
   const activeLocalReads = new WeakSet();
@@ -673,7 +685,7 @@ export function createPatternBindings({
   // just the first: `for (const { x } of [{ x: "a" }, { x: [1] }])` must surface `x` as the common
   // type, else narrowing to the leading string would unsoundly drop the array element's polyfill.
   // holes / spreads / an unresolvable element / mixed types -> null (caller bails to speculative)
-  function resolveArrayLiteralMemberCommonType(arrayPath, keyPath) {
+  function resolveArrayLiteralMemberCommonType(arrayPath, keyPath, awaitElements) {
     const length = effectiveArgsLength(arrayPath.node.elements, isMutatedStatic);
     if (!length) return null;
     let common = null;
@@ -684,7 +696,7 @@ export function createPatternBindings({
       // inside an array literal, so asking it there declines every narrow, held container or not -
       // but an element that NAMES a binding holds that binding's container, whose written slots
       // the detection census knows (`pathSlotWritten`)
-      if (pathSlotWritten(element, keyPath)) return null;
+      if (pathSlotWritten(element, keyPath) || awaitElements && !awaitKeepsElement(element)) return null;
       const member = resolveObjectMemberPath(resolveRuntimeExpression(element), keyPath);
       if (!member) return null;
       common = commonType(common, member);
@@ -695,11 +707,15 @@ export function createPatternBindings({
 
   // resolve element type from a runtime iterable (follows variables via resolvePath)
   // handles: string literals (chars) and homogeneous array literals (common element type)
-  function resolveRuntimeIterableElement(path) {
+  function resolveRuntimeIterableElement(path, awaitElements = false) {
     const type = resolveNodeType(resolveRuntimeExpression(path));
     if (type?.constructor === 'Array' && (isMutatedStatic('Array.prototype', 'Symbol.iterator')
       || pathSlotWritten(path, [Symbol.iterator]))) return null;
-    return resolveInnerType(type);
+    const raw = resolveInnerType(type);
+    if (!awaitElements) return raw;
+    const kind = type?.constructor;
+    return kind === 'Array' || kind === 'Iterator' || kind === 'Set' ? settledSyncIterableElement(path, raw)
+      : raw?.constructor === 'Promise' ? null : raw;
   }
 
   function findBindingAnnotation(bindingPath) {
@@ -811,7 +827,9 @@ export function createPatternBindings({
       }
     }
     // for-of iterable: for (const [a] of typedArr) / nested: for (const [{ x }] of typedArr)
-    const elemInfo = resolveForOfElementAnnotation(bindingPath);
+    const forOfPath = findForLoopParent(bindingPath);
+    if (asyncIterationMethodWritten(forOfPath)) return null;
+    const elemInfo = resolveForOfElementAnnotation(forOfPath);
     if (elemInfo) {
       const elemResult = resolveArrayPatternBinding({
         arrayPattern, varName, annotation: elemInfo.annotation, scope: elemInfo.scope, index,
@@ -821,7 +839,6 @@ export function createPatternBindings({
     // runtime: for (const [a] of 'hello') or for (const [k, v] of urlParams.entries()). the
     // element's inner type is the binding type only for a DIRECT positional element - a nested
     // or rest binding (rest handled above) must not pick up the iterable element type here
-    const forOfPath = findForLoopParent(bindingPath);
     if (t.isForOfStatement(forOfPath?.node) && index >= 0) {
       // ... an iterated element that NAMES a binding holds that binding's container, and an element
       // of it the file wrote (`pathSlotWritten`) has no type the iterable's literal spells
@@ -884,46 +901,146 @@ export function createPatternBindings({
     return prefix === null ? null : resolveAnnotatedMember(prefix, keyPath.at(-1), scope, depth);
   }
 
-  // recursively unwrap Promise<T> annotation to T for for-await-of element types
-  // mirrors runtime `await` semantics: Promise<Promise<T>> -> T. peel structural-Promise
-  // synonyms (PromiseLike / Thenable) the same way - PROMISE_SYNONYMS aliases them at the
-  // type-resolver level, but raw AST consumers (for-await-of element annotation, destructure)
-  // need parallel peel so `for await (const x of asyncIter<PromiseLike<T>>)` reaches T
-  function unwrapPromiseAnnotation(node) {
-    let result = unwrapTypeAnnotation(node);
-    while (true) {
-      const inner = promiseRefInner(result);
-      if (!inner) break;
-      const unwrapped = unwrapTypeAnnotation(inner);
-      if (!unwrapped) break;
-      result = unwrapped;
+  // A genuine async generator settles each yield. A hand-written next() returns
+  // its value intact, which may expose fields of the Promise object itself.
+  function asyncIterationValues(source, declared) {
+    const value = resolveRuntimeExpression(source);
+    const binding = t.isIdentifier(value.node) && getScopeBinding({ scope: value.scope, path: value, name: value.node.name });
+    let param = binding?.path;
+    if (param?.parentPath?.node.type === 'AssignmentPattern') param = param.parentPath;
+    const sites = param && t.isFunction(param.parentPath?.node) && getParameterCallerSites(param);
+    const pending = sites?.length ? [] : [value];
+    if (param?.node.type === 'AssignmentPattern') pending.push(param.get('right'));
+    if (sites) for (const { pairing, callPath, argIndex } of sites) {
+      const node = resolveCallArgument(pairing.args ?? [], argIndex, isMutatedStatic);
+      if (node) pending.push(pathOfNode(callPath, node));
     }
-    return result ?? node;
+    const seen = new Set();
+    let result;
+    while (pending.length) {
+      const path = pending.pop();
+      if (!path?.node || seen.size > MAX_DEPTH) return 'mixed';
+      const actual = resolveRuntimeExpression(path);
+      if (seen.has(actual.node)) continue;
+      seen.add(actual.node);
+      let kind = declared;
+      if (t.isObjectExpression(actual.node)) kind = hasAsyncGeneratorMethod(actual) ? 'settled' : 'raw';
+      else if (t.isNewExpression(actual.node)) kind = 'raw';
+      else if (t.isArrayExpression(actual.node)) kind = 'settled';
+      else if (t.isConditionalExpression(actual.node) || t.isLogicalExpression(actual.node)) {
+        for (const arm of flattenBranchingValueNodes([actual.node])) pending.push(pathOfNode(actual, arm));
+        continue;
+      } else if (t.isCallExpression(actual.node)) {
+        const fn = resolveRuntimeExpression(actual.get('callee'));
+        if (t.isFunction(fn.node)) {
+          if (fn.node.generator) kind = 'settled';
+          else {
+            const returned = singleReturnBodyExpression(fn.node.body);
+            pending.push(returned && pathOfNode(fn, returned));
+            continue;
+          }
+        }
+      }
+      if (result && result !== kind) return 'mixed';
+      result = kind;
+    }
+    return result ?? declared;
   }
 
-  // resolve the raw element annotation of a for-of iterable from its type annotation
-  function resolveForOfElementAnnotation(path) {
-    const forOfPath = findForLoopParent(path);
-    if (!t.isForOfStatement(forOfPath?.node)) return null;
-    const annotationInfo = findExpressionAnnotation(forOfPath.get('right'));
-    if (!annotationInfo) return null;
-    let elemAnnotation = extractElementAnnotation(annotationInfo.annotation, annotationInfo.scope, 0);
-    // for-await-of unwraps Promise elements: Iterable<Promise<T>> -> T
-    if (elemAnnotation && forOfPath.node.await) elemAnnotation = unwrapPromiseAnnotation(elemAnnotation);
-    return elemAnnotation ? { annotation: elemAnnotation, scope: annotationInfo.scope } : null;
+  function awaitedElementAnnotation(right, arg, scope, protocol) {
+    if (protocol === 'async') {
+      const declared = declaredAsyncElement(arg, scope);
+      if (!declared) return null;
+      const values = asyncIterationValues(right, declared.payload ? 'settled' : 'raw');
+      if (values === 'mixed') return null;
+      if (values === 'raw') return declared;
+      arg = declared.payload ?? declared.annotation;
+      scope = declared.scope;
+    }
+    return withTypeReferenceScope(arg, scope, at => ({
+      annotation: peelAwaitedArgument({ arg, scope: at, depth: 0, runtime: true }), scope: at,
+    }));
   }
 
-  // resolve the element type of a for-of iterable, unwrapping Promise for for-await-of
-  function resolveForOfResolvedElement(forOfPath) {
-    const isAwait = forOfPath.node.await;
-    const annotationInfo = findExpressionAnnotation(forOfPath.get('right'));
-    if (annotationInfo) {
-      const annotatedType = resolveElementType(annotationInfo.annotation, annotationInfo.scope, 0);
-      if (annotatedType) return isAwait ? unwrapPromise(annotatedType) : annotatedType;
+  function resolveForOfElementAnnotation(loop, depth = 0) {
+    if (!t.isForOfStatement(loop?.node)) return null;
+    const right = loop.get('right');
+    const source = findExpressionAnnotation(right, depth + 1);
+    if (!source) return null;
+    const annotation = extractElementAnnotation(source.annotation, source.scope, 0);
+    if (annotation && loop.node.await) {
+      const protocol = iterationProtocol(source.annotation, source.scope);
+      if (!protocol) return null;
+      const info = awaitedElementAnnotation(right, annotation, source.scope, protocol);
+      return info?.annotation ? { ...source, ...info } : null;
     }
-    const runtimeType = resolveRuntimeIterableElement(forOfPath.get('right'));
-    if (runtimeType) return isAwait ? unwrapPromise(runtimeType) : runtimeType;
-    return null;
+    return annotation ? { ...source, annotation } : null;
+  }
+
+  // A caller can replace fields of the object it receives, including the
+  // receiver of a method call. Passing the field value cannot replace its slot.
+  function exposedRowFields(binding, read) {
+    if (exposedRowPaths.has(binding)) return exposedRowPaths.get(binding);
+    const refs = collectBindingReferences(binding, read);
+    if (!refs) return null;
+    const exposed = new Set();
+    for (const ref of refs) {
+      const end = peelTransparentExprAncestorPath(memberChainEndPath({ path: ref }));
+      const parent = end.parentPath?.node;
+      const { keys } = memberChainKeys(end.node);
+      if (parent?.callee === end.node || parent?.tag === end.node) keys.pop();
+      else if (parent?.type === 'CallExpression' && parent.arguments.length === 1 && parent.arguments[0] === end.node) {
+        const key = instanceDispatcherKey(end.parentPath.get('callee'));
+        if (key) keys.push(key);
+      } else if (defaultAliasRefClassifier(parent, end.node, end) === 'trivial') continue;
+      const unknown = keys.indexOf(null);
+      exposed.add(JSON.stringify(unknown === -1 ? keys : keys.slice(0, unknown)));
+    }
+    exposedRowPaths.set(binding, exposed);
+    return exposed;
+  }
+
+  function forAwaitBindingAnnotation(binding, read, depth, memberKeys) {
+    const loop = findForLoopParent(binding.path);
+    if (!loop?.node.await || binding.path.node.id?.name !== read.node.name
+      || structuralNarrowInvalidated(binding, read)) return null;
+    // A field read off the bound row sees the same element as a pattern in the head.
+    const info = resolveForOfElementAnnotation(loop, depth);
+    if (!info || asyncIterationMethodWritten(loop)) return null;
+    const keys = memberKeys ?? memberChainKeys(memberChainEndPath({ path: read }).node).keys;
+    if (!keys.length || keys.length > MAX_DEPTH || pathSlotWritten(read, keys)) return null;
+    const exposed = exposedRowFields(binding, read);
+    const adapter = getDecisionAdapter();
+    if (!exposed || keys.some((key, i) => key === null
+      || (memberKeys || i < keys.length - 1) && exposed.has(JSON.stringify(keys.slice(0, i)))
+      || adapter?.hasObservedSlotWrite?.(read.node.name, keys.slice(0, i + 1), binding.path.node, read, read.node))) return null;
+    return info;
+  }
+
+  function resolveForOfResolvedElement(loop) {
+    if (asyncIterationMethodWritten(loop)) return null;
+    const right = loop.get('right');
+    const source = findExpressionAnnotation(right);
+    if (source) {
+      const raw = resolveElementType(source.annotation, source.scope, 0);
+      if (!loop.node.await) return raw ?? resolveRuntimeIterableElement(right);
+      const protocol = iterationProtocol(source.annotation, source.scope);
+      if (protocol === 'sync' || protocol === 'async' && raw?.constructor === 'Promise') {
+        const node = extractElementAnnotation(source.annotation, source.scope, 0);
+        if (node) {
+          const value = awaitedElementAnnotation(right, node, source.scope, protocol);
+          if (value?.annotation && value.annotation !== node) {
+            const type = withTypeReferenceScope(value.annotation, value.scope, at => resolveTypeAnnotation(value.annotation, at));
+            return type?.constructor === 'Promise' ? null : type;
+          }
+        }
+        if (protocol === 'sync') return unwrapPromise(raw);
+      }
+      // PromiseLike describes then alone. Its raw value can also be an Array
+      // or another dispatch family, as can either value of a mixed protocol.
+      return raw?.constructor === 'Promise' || !protocol && !raw?.primitive ? null : raw;
+    }
+    return resolveRuntimeIterableElement(right, loop.node.await);
   }
 
   // Project every enumerable value of a reassigned container through the same remaining path.
@@ -1163,14 +1280,15 @@ export function createPatternBindings({
       const result = resolveDestructuredMember(bindingPath.get('init'), keyPath);
       if (result) return result;
     }
-    const elemInfo = resolveForOfElementAnnotation(bindingPath);
+    const forOfPath = findForLoopParent(bindingPath);
+    if (asyncIterationMethodWritten(forOfPath)) return null;
+    const elemInfo = resolveForOfElementAnnotation(forOfPath);
     if (elemInfo) return resolveAnnotatedMemberPath(elemInfo.annotation, keyPath, elemInfo.scope);
     // runtime: for (const { name } of [{ name: [1,2,3] }])
-    const forOfPath = findForLoopParent(bindingPath);
     if (t.isForOfStatement(forOfPath?.node)) {
       const iterPath = resolveRuntimeExpression(forOfPath.get('right'));
       if (t.isArrayExpression(iterPath.node)) {
-        const folded = resolveArrayLiteralMemberCommonType(iterPath, keyPath);
+        const folded = resolveArrayLiteralMemberCommonType(iterPath, keyPath, forOfPath.node.await);
         if (folded) return folded;
       }
     }
@@ -1828,16 +1946,12 @@ export function createPatternBindings({
     return null;
   }
 
-  // cluster-private (consumed only by other cluster functions, not by factory or other
-  // clusters):
-  // `resolveArrayPatternBinding` / `findPatternIndex` / `resolveRuntimeIterableElement` /
-  // `resolveArrayBinding` / `resolveForOfElementAnnotation` / `resolveObjectBinding` /
-  // `unwrapPromiseAnnotation`
   return {
     resolveLocalFlowValue,
     needsLocalFlowQuery: node => localFlowValues.has(node) || localFlowRetries.has(node),
     reset() {
       localFlowInputs = new WeakMap();
+      exposedRowPaths = new WeakMap();
       localFlowValues = new WeakMap();
       localFlowRetries = new WeakSet();
     },
@@ -1847,6 +1961,7 @@ export function createPatternBindings({
     findArrayPatternKeyPath,
     findDestructuredKeyPath,
     findForLoopParent,
+    forAwaitBindingAnnotation,
     resolveArrayLiteralElement,
     resolveArrayLiteralCommonType,
     resolveRuntimeIterableElement,

@@ -25,6 +25,7 @@ import {
 } from './base.js';
 import { collectQualifiedSegments, isInterfaceDeclaration, isTypeAlias, moduleStatements } from './ast-shapes.js';
 import {
+  IMPORT_SPECIFIER_TYPES,
   STATEMENT_LIST_HOST_TYPES,
   getDirectStatementBody,
   isAmbientTypeDeclaration,
@@ -849,6 +850,11 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
     findOverloadsForName,
     findDeclPathBySegments,
     findTypeDeclaration,
+    isGlobalTypeName(name, scope) {
+      return !findTypeParameter(name, scope)
+        && !typeDeclarationShadowsGlobal(findTypeDeclaration(name, scope), name, scope)
+        && !IMPORT_SPECIFIER_TYPES.has(getScopeBinding({ scope, name })?.path?.node?.type);
+    },
     typeDeclarationShadowsGlobal,
     findEnumDeclaration,
     findAllEnumDeclarations,

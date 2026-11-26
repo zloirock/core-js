@@ -101,7 +101,10 @@ export function createCallResolution({
   typeFromHint,
   resolveKnownInstanceMember,
   KNOWN_INSTANCE_METHOD_RETURN_TYPES,
-  staticPairFromPolyfillEntry,
+  polyfillCallEntry,
+  staticPairForEntry,
+  instanceDispatcherKey,
+  resolveAnnotatedMemberPath,
   pairedInstanceDispatcher,
   collectBindingReferences,
   lookupNested,
@@ -121,6 +124,8 @@ export function createCallResolution({
   keyMatchesName,
   findBindingAnnotation,
   callbackParameterAnnotation,
+  forAwaitBindingAnnotation,
+  awaitedValueAnnotation,
   bindingAnnotationPath,
   narrowUnionByAssignmentLiteral,
   buildSubstMap,
@@ -235,11 +240,11 @@ export function createCallResolution({
     // covers post-rewrite `const from = _Array$from` / destructure / default-with-fallback
     // shapes), then walked-resolved Identifier as fallback when alias-map missed
     if (t.isIdentifier(callee.node)) {
-      const aliased = resolveAliasedStaticReturn(callee, callee.parentPath);
+      const aliased = resolveAliasedCallReturn(callee, callee.parentPath);
       if (aliased) return aliased;
     }
     if (resolved.node?.type === 'Identifier' && resolved.node !== callee.node) {
-      const aliased = resolveAliasedStaticReturn(resolved, callee.parentPath);
+      const aliased = resolveAliasedCallReturn(resolved, callee.parentPath);
       if (aliased) return aliased;
     }
     // ambient `declare function` (not in scope.bindings) keyed by Identifier name. cast-on-
@@ -292,13 +297,23 @@ export function createCallResolution({
       p => ambientSignatureNode(p.node).returnType, callPath);
   }
 
-  // resolve aliased static-method call return type. tries each alias shape's extractor
-  // until one yields a (constructor, method) pair, then runs the shared registry lookup.
-  // both extractors return null for non-matching shapes so the caller order doesn't
-  // matter for correctness - polyfilled-entry first only because it's the cheaper probe
-  function resolveAliasedStaticReturn(callee, callPath) {
-    const pair = staticPairFromPolyfillEntry(callee.node.name, { node: callee.node, ctx: { scope: callee.scope, path: callee } })
-      ?? staticPairFromDestructure(callee.scope, callee.node.name, callee);
+  // An instance entry reads a property from its argument. Recover that property's
+  // declared type after a loop-head extraction, including when reparsing the output.
+  // Static entries and extracted static methods use the shared return-type registry.
+  function resolveAliasedCallReturn(callee, callPath) {
+    const entry = polyfillCallEntry(callee);
+    if (entry && callPath.node.arguments?.length === 1 && t.isIdentifier(callPath.node.arguments[0])) {
+      const key = instanceDispatcherKey(callee, entry);
+      if (key) {
+        const [receiver] = callPath.get('arguments');
+        const binding = getScopeBinding({ scope: receiver.scope, name: receiver.node.name, path: receiver });
+        const info = binding && forAwaitBindingAnnotation(binding, receiver, 0, [key]);
+        return info && resolveAnnotatedMemberPath(info.annotation, [key], info.scope);
+      }
+    }
+    const imported = staticPairForEntry(entry);
+    const pair = imported && hasOwn(KNOWN_STATIC_METHOD_RETURN_TYPES, imported.constructor)
+      ? imported : staticPairFromDestructure(callee.scope, callee.node.name, callee);
     if (!pair) return null;
     // aliased patched static (`const af = Array.from` after `Array.from = ...`) - same drop to generic
     if (isMutatedStatic(pair.constructor, pair.method, { node: callPath.node, path: callPath })) return null;
@@ -826,6 +841,38 @@ export function createCallResolution({
     constructionTypeArgsCache = new WeakMap();
   }
 
+  function identifierAnnotation(path, depth) {
+    const binding = getScopeBinding({ scope: path.scope, name: path.node.name, path });
+    if (!binding) return null;
+    const annotation = findBindingAnnotation(binding.path);
+    if (annotation) {
+      // narrow declared union via the last straight-line assignment's literal-property
+      // shape: TS treats `let f: Foo = init; f = { kind: 'b', ... }` as narrowing `f`
+      // to FooB after the assignment. without this `f.data` after the assignment
+      // resolves on the declared union and emits the generic polyfill
+      const annotationPath = bindingAnnotationPath(binding.path);
+      const narrowed = narrowUnionByAssignmentLiteral(path, annotation, annotationPath.scope);
+      // the annotation of a destructured binding describes its CONTAINER (`function f({ m }: I)`),
+      // so the same key-path descent the initializer lane needs applies here too
+      return destructuredMemberAnnotation(
+        annotationAt(narrowed ?? annotation, binding.path, annotationPath.scope), binding.path, path.node.name,
+      );
+    }
+    if (binding.path.node.type === 'Identifier' && t.isFunction(binding.path.parentPath?.node)) {
+      return callbackParameterAnnotation(binding, path);
+    }
+    if (t.isVariableDeclarator(binding.path.node) && !binding.path.node.init) {
+      return forAwaitBindingAnnotation(binding, path, depth);
+    }
+    if (!binding.constantViolations?.length && t.isVariableDeclarator(binding.path.node)) {
+      const init = binding.path.get('init');
+      if (init.node) {
+        return destructuredMemberAnnotation(findExpressionAnnotation(init, depth + 1), binding.path, path.node.name);
+      }
+    }
+    return null;
+  }
+
   function computeExpressionAnnotation(path, depth) {
     // path.node may be null on orphaned paths or stub slots - bail safely instead of
     // crashing on `.type` access. matches the defensive shape used elsewhere
@@ -840,33 +887,12 @@ export function createCallResolution({
       || path.node.type === 'TSTypeAssertion' || path.node.type === 'TypeCastExpression') {
       return annotationAt(path.node.typeAnnotation, path);
     }
-    if (t.isIdentifier(path.node)) {
-      const binding = getScopeBinding({ scope: path.scope, name: path.node.name, path });
-      if (!binding) return null;
-      const annotation = findBindingAnnotation(binding.path);
-      if (annotation) {
-        // narrow declared union via the last straight-line assignment's literal-property
-        // shape: TS treats `let f: Foo = init; f = { kind: 'b', ... }` as narrowing `f`
-        // to FooB after the assignment. without this `f.data` after the assignment
-        // resolves on the declared union and emits the generic polyfill
-        const annotationPath = bindingAnnotationPath(binding.path);
-        const narrowed = narrowUnionByAssignmentLiteral(path, annotation, annotationPath.scope);
-        // the annotation of a destructured binding describes its CONTAINER (`function f({ m }: I)`),
-        // so the same key-path descent the initializer lane needs applies here too
-        return destructuredMemberAnnotation(
-          annotationAt(narrowed ?? annotation, binding.path, annotationPath.scope), binding.path, path.node.name,
-        );
-      }
-      if (binding.path.node.type === 'Identifier' && t.isFunction(binding.path.parentPath?.node)) {
-        return callbackParameterAnnotation(binding, path);
-      }
-      if (!binding.constantViolations?.length && t.isVariableDeclarator(binding.path.node)) {
-        const init = binding.path.get('init');
-        if (init.node) {
-          return destructuredMemberAnnotation(findExpressionAnnotation(init, depth + 1), binding.path, path.node.name);
-        }
-      }
+    if (path.node.type === 'AwaitExpression') {
+      const value = path.get('argument');
+      const info = findExpressionAnnotation(value, depth + 1);
+      return info && awaitedValueAnnotation(value, info, depth + 1);
     }
+    if (t.isIdentifier(path.node)) return identifierAnnotation(path, depth);
     // obj.prop / obj?.prop - resolve property type through the object's annotation chain,
     // carrying generic substitutions so `Wrapper<string>.inner.value()` resolves T -> string.
     // `resolveMemberAnnotation` self-guards on shape; null fall-through to the call branch below

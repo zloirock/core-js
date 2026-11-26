@@ -7787,8 +7787,10 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
       } else {
         const last = keys.length - 1;
         if (keys[last] === 'length') keys[last] = null;
-        else if (keys[last] === null && keys.length === chain.keys.length && member.computed
-          && wksComputedKeyName(member.property) === 'iterator') keys[last] = Symbol.iterator;
+        else if (keys[last] === null && keys.length === chain.keys.length && member.computed) {
+          const protocol = wksComputedKeyName(member.property);
+          if (protocol === 'iterator' || protocol === 'asyncIterator') keys[last] = Symbol[protocol];
+        }
         recordSlotWrite(root.name, keys, value, currentScopes, write, null, currentMutationSite);
       }
     }
@@ -8633,7 +8635,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
       const key = qualify(name, scopes);
       if (!key) continue;
       // A local Symbol may name a numeric key. Only the global protocol slot is disjoint from indices.
-      if (keys.at(-1) === Symbol.iterator && declared.resolve('Symbol', scopes) !== undefined) keys[keys.length - 1] = null;
+      if (typeof keys.at(-1) === 'symbol' && declared.resolve('Symbol', scopes) !== undefined) keys[keys.length - 1] = null;
       for (const [root, path] of canonicalSlotPaths(plainAliases, key, keys, slotPathMemo)) {
         // a write that stores what can hold a built-in PROMOTES an inert array-literal binding, as
         // the mutator install below does (`const w = [1]; w[0] = Map`)
@@ -9441,10 +9443,11 @@ export function mutationSiteVisitors(handleSite, memberVisits = true, babel = fa
   };
 }
 
-// Keep ordinary property names distinct from the wildcard and the iterator protocol slot.
+// Keep ordinary property names distinct from the wildcard and both iterator protocol slots.
 function slotSegment(key) {
   if (key === null) return '*';
   if (key === Symbol.iterator) return '~i';
+  if (key === Symbol.asyncIterator) return '~a';
   return typeof key === 'string' && /[*.~]/.test(key)
     ? key.replaceAll('~', '~0').replaceAll('.', '~1').replaceAll('*', '~2') : key;
 }
@@ -9867,7 +9870,7 @@ export function createDetectionAdapter({
           const escapes = index?.escapes.get(`${ prefix }.*`);
           // The protocol read precedes iteration; an iteration-only record is not its writer.
           // Summarized at publication so many loop reads never re-scan the same escape list.
-          if (keyPath.length === 1 && keyPath[0] === Symbol.iterator && escapes?.length
+          if (keyPath.length === 1 && (keyPath[0] === Symbol.iterator || keyPath[0] === Symbol.asyncIterator) && escapes?.length
             && index.nonIterationEscapes && !index.nonIterationEscapes.has(`${ prefix }.*`)) return true;
           const binding = usagePath && adapter.getBinding({ scope: usagePath.scope, name: object, path: usagePath });
           const declaration = binding?.path?.node ?? binding?.node;

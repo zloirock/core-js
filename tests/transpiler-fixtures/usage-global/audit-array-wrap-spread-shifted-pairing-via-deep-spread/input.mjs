@@ -5,5 +5,6 @@ let tail = globalThis.tail;
 // deep array-wrap layers: the spread shifts the INNER level - the maybe-union recurses the same way
 const [[i0, { Iterator: I }]] = [[...tail, globalThis]];
 export const viaDeepSpread = I.range(0, 3);
+export const viaFrom = I.from([0, 1, 2]);
 let AB;
 ([, { DOMException: AB }] = [...tail, globalThis]);

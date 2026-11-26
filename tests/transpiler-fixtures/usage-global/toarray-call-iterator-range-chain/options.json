@@ -7,7 +7,8 @@
         "version": "4.0",
         "targets": {
           "ie": 11
-        }
+        },
+        "mode": "full"
       }
     ]
   ]

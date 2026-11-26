@@ -4168,7 +4168,7 @@ function awaitedValueNoThenable(call, ctx) {
   const name = !!value && resolveObjectName({
     objectNode: value, scope: followed.ctx.scope, adapter: ctx.adapter, path: ctx.path,
   });
-  if (POSSIBLE_GLOBAL_OBJECTS.has(name)) return true;
+  if (POSSIBLE_GLOBAL_OBJECTS.has(name)) return !ctx.adapter?.isMutatedStaticSlot?.('globalThis', 'then');
   return !!name && isKnownStaticGlobal(name, ctx.adapter)
     && !!inlineCallReturnExpression({ ...hop, awaited: false }, { allowUninitializedCallee: true })
     && !prototypeChainMayLend('then', ctx, ['Function']) && !ctx.adapter?.isMutatedStaticSlot?.(name, 'then');
