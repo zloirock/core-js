@@ -1,6 +1,8 @@
 {
   "name": "scripts/canon",
   "devDependencies": {
+    "@babel/parser": "^8.1.2",
+    "@babel/types": "^8.1.2",
     "@probelabs/probe": "^0.6.0-rc344"
   }
 }

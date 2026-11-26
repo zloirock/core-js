@@ -86,6 +86,49 @@ try {
   await fs.appendFile(path.join(directory, unicode), 'export function trackedEdit() {}\n');
   const { added } = await canon(['delta', 'HEAD'], 1);
   deepEqual(added.map(({ file, name, line }) => [file, name, line]), [[unicode, 'trackedEdit', 3]]);
+
+  const bindings = `${ pkg }/bindings.mjs`;
+  await write(bindings, [
+    'export function loadFeature(savedData) { return savedData; }',
+    'const methods = { loadFeature() {}, readFeature: () => {} };',
+    'const readFeature = function readFeature() {};',
+    'export { readFeature as publicFeature };',
+    'const moduleData = 0;',
+    'if (true) { const blockData = 1; var hoistedData = 2; }',
+    'for (let loopData = 0; loopData < 1; loopData++) {}',
+    'export { hoistedData };',
+    '{ const loadFeature = () => {}; }',
+    'function local() { var innerData = 0; }',
+    'try { throw 0; } catch (caughtData) { var caughtData = 0, savedData = 1; }',
+    'try { throw 0; } catch (caughtFeature) { var caughtFeature = () => {}; }',
+    'export { caughtData, caughtFeature };',
+    'export var { items: [patternFeature = moduleData], ...patternData } = { items: [] };',
+    'var patternFeature = () => {}, patternData = 1;',
+  ].join('\n'));
+  const missingContracts = (await canon(['contracts'])).filter(entry => entry.file === bindings);
+  deepEqual(missingContracts.map(({ name, line }) => [name, line]), [['loadFeature', 1], ['readFeature', 3], ['patternFeature', 15]]);
+  const functions = (await canon(['find', 'feature'])).results;
+  deepEqual(functions.map(({ name, line, exported }) => [name, line, exported]), [
+    ['loadFeature', 1, true],
+    ['loadFeature', 2, false],
+    ['readFeature', 2, false],
+    ['readFeature', 3, true],
+    ['readFeature', 3, false],
+    ['loadFeature', 9, false],
+    ['caughtFeature', 12, false],
+    ['patternFeature', 15, true],
+  ]);
+  const data = (await canon(['find', 'data'])).results;
+  deepEqual(data.map(({ name, exported }) => [name, exported]), [
+    ['moduleData', false],
+    ['hoistedData', true],
+    ['savedData', false],
+    ['patternData', true],
+  ]);
+  const delta = await canon(['delta', 'HEAD'], 1);
+  deepEqual(delta.added.filter(entry => entry.name.endsWith('Data')).map(entry => entry.name), [
+    'moduleData', 'hoistedData', 'savedData', 'patternData',
+  ]);
 } finally {
   await fs.remove(directory);
 }

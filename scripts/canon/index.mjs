@@ -3,9 +3,11 @@
 // cached AST index, then probe text search over code and comments; `show` prints a found
 // function whole; `dupes` / `contracts` enumerate the index.
 import { createHash, hash } from 'node:crypto';
-import { createRequire } from 'node:module';
 import { isDeepStrictEqual } from 'node:util';
 import { parse } from '@babel/parser';
+import parserPackage from '@babel/parser/package.json' with { type: 'json' };
+import { getOuterBindingIdentifiers } from '@babel/types';
+import typesPackage from '@babel/types/package.json' with { type: 'json' };
 
 const { cyan, green, red } = chalk;
 
@@ -19,12 +21,11 @@ const PACKAGES = [
 ];
 
 const CACHE_DIR = path.join(os.homedir(), '.cache', 'core-js-canon');
-// Keep a cache per checkout, extractor and parser version. loadIndex checks the paths and contents
+// Keep a cache per checkout, extractor and Babel versions. loadIndex checks the paths and contents
 // of that checkout's sources. Under zxi, __filename names the bootstrap and import.meta.url names this script.
-const PARSER_VERSION = createRequire(import.meta.url)('@babel/parser/package.json').version;
 const INDEX_KEY = createHash('sha256')
   .update(await fs.readFile(new URL(import.meta.url)))
-  .update(PARSER_VERSION)
+  .update(`${ parserPackage.version }/${ typesPackage.version }`)
   .update(process.cwd())
   .digest('hex')
   .slice(0, 12);
@@ -138,11 +139,7 @@ function collectExports(body) {
       continue;
     }
     if (statement.type !== 'ExportNamedDeclaration' || statement.source) continue;
-    const { declaration } = statement;
-    if (declaration?.id) names.add(declaration.id.name);
-    for (const declarator of declaration?.declarations ?? []) {
-      if (declarator.id.type === 'Identifier') names.add(declarator.id.name);
-    }
+    for (const name of Object.keys(getOuterBindingIdentifiers(statement))) names.add(name);
     for (const specifier of statement.specifiers) names.add(specifier.local?.name ?? specifier.exported.name);
   }
   return { names, defaultExport };
@@ -186,24 +183,37 @@ function indexSource({ source, file, entries }) {
     console.error(red(`parse failed: ${ file } - ${ error.message }`));
     return;
   }
-  const { names, defaultExport } = collectExports(ast.program.body);
+  const { body } = ast.program;
+  const { names, defaultExport } = collectExports(body);
+  const moduleDeclarations = new Set(body.map(statement => statement.declaration ?? statement));
+  const ancestors = [];
+
+  // A var can bind outside a block, but its initializer still writes to a shadowing catch parameter.
+  function isModuleBinding(node) {
+    const declaration = node.type === 'VariableDeclarator' ? ancestors.at(-1) : node;
+    if (moduleDeclarations.has(declaration)) return true;
+    return declaration.kind === 'var' && ancestors.every(ancestor => !SCOPE_NODE_TYPES.has(ancestor.type)
+      && (ancestor.type !== 'CatchClause' || ancestor.param?.name !== node.id.name));
+  }
+
   // `inherited` forwards leading comments from export / variable-declaration wrappers one level down
-  function visit(node, chain, inherited, fnDepth = 0) {
+  function visit(node, chain, inherited) {
     if (Array.isArray(node)) {
-      for (const item of node) visit(item, chain, inherited, fnDepth);
+      for (const item of node) visit(item, chain, inherited);
       return;
     }
     if (!node || typeof node.type !== 'string') return;
     const isDefault = node === defaultExport?.declaration;
     const named = namedFunctionOf(node, isDefault);
-    if (named && (!named.data || fnDepth === 0)) {
+    const moduleBinding = named && isModuleBinding(node);
+    if (named && (!named.data || moduleBinding)) {
       entries.push({
         name: named.name,
         file,
         line: node.loc.start.line,
         endLine: node.loc.end.line,
         parent: chain.join(' > ') || null,
-        exported: fnDepth === 0 && (isDefault || names.has(named.name)),
+        exported: isDefault || (moduleBinding && names.has(named.name)),
         contract: contractOf(node.leadingComments ?? inherited, node.loc.start.line)
           ?? (isDefault ? contractOf(defaultExport.leadingComments, defaultExport.loc.start.line) : null),
         tokens: tokenize(named.name),
@@ -212,14 +222,16 @@ function indexSource({ source, file, entries }) {
     }
     const forwards = node.type === 'ExportNamedDeclaration' || node.type === 'ExportDefaultDeclaration'
       || node.type === 'VariableDeclaration' || node.type === 'ExpressionStatement';
+    const nextComments = forwards ? node.leadingComments ?? inherited : undefined;
     const nextChain = named && !named.data ? [...chain, named.name] : chain;
-    const nextDepth = fnDepth + (SCOPE_NODE_TYPES.has(node.type) ? 1 : 0);
+    ancestors.push(node);
     for (const [key, value] of Object.entries(node)) {
       if (key === 'leadingComments' || key === 'trailingComments' || key === 'loc') continue;
-      if (value && typeof value === 'object') visit(value, nextChain, forwards ? node.leadingComments ?? inherited : undefined, nextDepth);
+      if (value && typeof value === 'object') visit(value, nextChain, nextComments);
     }
+    ancestors.pop();
   }
-  visit(ast.program.body, [], undefined, 0);
+  visit(body, []);
 }
 
 // hash-keyed caches of dead branches / edited scripts accumulate - sweep the old ones in passing
