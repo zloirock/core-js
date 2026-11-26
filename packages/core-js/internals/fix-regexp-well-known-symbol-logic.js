@@ -12,7 +12,9 @@ var SPECIES = wellKnownSymbol('species');
 var RegExpPrototype = RegExp.prototype;
 
 // Firefox 49-52 accepts a symbol in the RegExpCreate fallback of match and search.
-var hasCorrectSymbolFallback = function (method, symbol) {
+// Babel recognizes its `typeof` helper directive only at the start of a function declaration.
+function hasCorrectSymbolFallback(method, symbol) {
+  '@babel/helpers - typeof';
   if (typeof symbol != 'symbol') return true;
   try {
     ''[method](symbol);
@@ -20,7 +22,7 @@ var hasCorrectSymbolFallback = function (method, symbol) {
     return error instanceof TypeError;
   }
   return false;
-};
+}
 
 module.exports = function (KEY, exec, FORCED, SHAM) {
   var SYMBOL = wellKnownSymbol(KEY);
