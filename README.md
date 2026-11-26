@@ -606,7 +606,7 @@ class Function {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/es|stable|actual|full/function
-core-js/es|stable|actual|full/function/name
+{ core-js, @core-js/pure }/es|stable|actual|full/function/name
 ```
 [*Examples*](https://core-js.io/playground#code=%28function+foo%28%29+%7B+%2F%2A+empty+%2A%2F+%7D%29.name%3B+%2F%2F+%3D%3E+%27foo%27):
 ```js

@@ -19,5 +19,5 @@ core-js/es|stable|actual|full/date
 
 ## Examples
 ```js
-new Date(NaN).toString(); // => 'Invalid Date'
+new Date(NaN).toJSON(); // => null
 ```

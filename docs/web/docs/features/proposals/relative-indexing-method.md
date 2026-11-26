@@ -24,7 +24,7 @@ class %TypedArray% {
 ```plaintext
 core-js/proposals/relative-indexing-method
 { core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/at
-{ core-js, @core-js/pure }/es|stable|actual/string(/prototype)/at
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/at
 core-js/es|stable|actual|full/typed-array/at
 ```
 
@@ -38,6 +38,7 @@ new Int32Array([1, 2, 3]).at(-1); // => 3
 
 'abc'.at(1);  // => 'b'
 'abc'.at(-1); // => 'c'
+'𠮷'.at(0);   // => '\uD842'
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
