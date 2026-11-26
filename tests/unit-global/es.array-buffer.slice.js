@@ -1,5 +1,4 @@
 /* eslint-disable es/no-shared-array-buffer -- testing */
-import { NODE_ARRAY_BUFFER_SLICE_OWN_LENGTH_BUG } from '../helpers/constants.js';
 import { arrayToBuffer, bufferToArray } from '../helpers/helpers.js';
 
 QUnit.test('ArrayBuffer#slice', assert => {
@@ -48,7 +47,7 @@ QUnit.test('ArrayBuffer#slice', assert => {
     // the length is an own non-configurable property in some old engines
     Object.defineProperty(shadowed, 'byteLength', { value: 2 });
   } catch { /* empty */ }
-  if (shadowed.byteLength === 2 && !NODE_ARRAY_BUFFER_SLICE_OWN_LENGTH_BUG) {
+  if (shadowed.byteLength === 2) {
     assert.arrayEqual(bufferToArray(shadowed.slice(0, 4)), [1, 2, 3, 4], 'own byteLength does not replace the length');
   }
 });
