@@ -28,6 +28,7 @@ import {
 } from '../helpers/ast-patterns.js';
 import {
   isUnionType,
+  mutableCollectionName,
   OPEN_KEYWORD_ANNOTATION_TYPES,
   violationInCapturedFunction,
 } from './ast-shapes.js';
@@ -51,6 +52,8 @@ export function createNarrowByGuards({
   findNameAnnotation,
   followTypeAliasChain,
   applyAliasSubstDeep,
+  arrayElementType,
+  structuralKey,
   findEnclosingTypeGuards,
   nearestPrecedingGuardIndex,
   findConditionalGuards,
@@ -531,6 +534,18 @@ export function createNarrowByGuards({
     return guard ? { annotation: guard.annotation, scope: guard.scope } : null;
   }
 
+  function predicateArmKey(annotation, scope) {
+    const { node, subst } = followTypeAliasChain(annotation, scope);
+    const target = applyAliasSubstDeep(node, subst);
+    if (mutableCollectionName(target) !== 'Array') return structuralKey(target, scope);
+    // T[] and Array<T> denote the same mutable array. Match their element in its own scope.
+    const element = arrayElementType(target);
+    if (!element) return null;
+    const inner = followTypeAliasChain(element, scope);
+    const key = structuralKey(applyAliasSubstDeep(inner.node, inner.subst), scope);
+    return key === null ? null : `array:${ key }`;
+  }
+
   function resolveTypeGuardNarrowing(path) {
     const info = findGuardsForBinding(path);
     if (!info) return null;
@@ -539,7 +554,13 @@ export function createNarrowByGuards({
       const { types, subst, scope } = classification;
       if (!types?.length) return null;
       // every arm is a candidate, the ones nothing can resolve included - the fold sinks on those
-      return narrowByGuards(types.map(member => resolveTypeAnnotation(applyAliasSubstDeep(member, subst), scope)), guards);
+      const members = types.map(member => applyAliasSubstDeep(member, subst));
+      // A failed partial predicate rules out its exact annotated arm (number[]), even
+      // though another arm in the same family (string[]) can still reach the read.
+      const excluded = guards.filter(guard => !guard.positive && !guard.optionalCall && guard.partial && guard.annotation)
+        .map(guard => predicateArmKey(guard.annotation, guard.scope)).filter(key => key !== null);
+      const remaining = excluded.length ? members.filter(member => !excluded.includes(predicateArmKey(member, scope))) : members;
+      return narrowByGuards(remaining.map(member => resolveTypeAnnotation(member, scope)), guards);
     }
     // 'closed' filtered by findGuardsForBinding - only 'none' / 'open' / 'union' reach here. a
     // positive guard that implies no type of its own (`typeof x === 'object'`, an OR group, a

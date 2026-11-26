@@ -36,6 +36,7 @@
 // `staticPairFromDestructure`, `lookupNested`, `KNOWN_STATIC_METHOD_RETURN_TYPES`) and the Babel/ESTree type
 // adapter `t`. Module-level state (`exportedNamesCache`) ships with `reset()`.
 import { MAX_DEPTH, PRIMITIVES, directivesOf } from './base.js';
+import { mutatorInstalledValues } from '../detect-usage/mutations.js';
 import { resolveInlineCalleeFunction } from '../detect-usage/resolve.js';
 import {
   POSSIBLE_GLOBAL_OBJECTS,
@@ -53,6 +54,7 @@ import {
   isForXStatement,
   isMemberAccessNode,
   getFallbackBranchSlots,
+  computedKeyStaticName,
   NO_PROTOTYPE_VALUE,
   installedPrototypeValueAt,
   prototypeValueMayDispatch,
@@ -399,8 +401,8 @@ export function createBindingAnalysis({
   // pair has no registered entry, or the module may replace that static - the entry describes the
   // built-in, a replacement does whatever it does with its arguments, and the return-type tables
   // drop a patched static by the same census
-  function resolveKnownStaticEntry(callee, refPath) {
-    const pair = resolveStaticCalleePair({ node: callee, ctx: { scope: refPath?.scope, path: refPath } });
+  function resolveKnownStaticEntry(callee, refPath, pair) {
+    if (pair === undefined) pair = resolveStaticCalleePair({ node: callee, ctx: { scope: refPath?.scope, path: refPath } });
     return pair && !bindingAdapter.isMutatedStatic(pair.constructor, pair.method, { node: callee, path: refPath })
       ? lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, pair.constructor, pair.method) : null;
   }
@@ -425,7 +427,7 @@ export function createBindingAnalysis({
   // runtime positions [argIndex, argIndex+1, ...] (covers Reflect.set's [0,3] receiver-slot
   // mutation reachable via `Reflect.set(t, k, ...o)`). resolveKnownStaticEntry handles both
   // pre-rewrite member (`Object.assign`) and post-rewrite alias (`_Object$assign`)
-  function isKnownNonMutatingCallSite(parent, refNode, refPath) {
+  function isKnownNonMutatingCallSite(parent, refNode, refPath, entry) {
     if (parent?.type === 'SpreadElement') {
       const container = refPath?.parentPath?.parent;
       if (container?.type === 'ArrayExpression' || container?.type === 'ObjectExpression') return true;
@@ -442,13 +444,31 @@ export function createBindingAnalysis({
     const argIndex = parent.arguments?.indexOf(refNode) ?? -1;
     if (argIndex === -1) return false;
     for (let i = 0; i < argIndex; i++) if (parent.arguments[i]?.type === 'SpreadElement') return false;
-    const entry = resolveKnownStaticEntry(parent.callee, refPath);
+    if (entry === undefined) entry = resolveKnownStaticEntry(parent.callee, refPath);
     if (entry === null) return !!localCallMemberRead(parent, refNode, refPath);
     const spread = refNode.type === 'SpreadElement';
     if (slotListReaches(entry.mutatesArgument, argIndex, spread) || slotListReaches(entry.exposesArgument, argIndex, spread)) return false;
     // a call answering with its callback's return (`argument-return`) runs that callback - which is
     // called, not handed on
     return !((spread || argIndex > 0) && directivesOf(entry).includes('argument-return'));
+  }
+
+  // A call can write a field and also return the same object to a later writer.
+  function visitArgumentWrites(call, arg, write) {
+    const { callee, arguments: args } = call.node;
+    const pair = resolveStaticCalleePair({ node: callee, ctx: { scope: arg.scope, path: arg } });
+    const entry = resolveKnownStaticEntry(callee, arg, pair);
+    if (!isKnownNonMutatingCallSite(call.node, arg.node, arg, entry)) {
+      if (!entry || args.some(node => node.type === 'SpreadElement')) write(null);
+      else if (pair.constructor === 'Reflect' && pair.method === 'deleteProperty') write(computedKeyStaticName(unwrapRuntimeExpr(args[1])));
+      else {
+        const entries = mutatorInstalledValues(pair.constructor, pair.method, args);
+        const copies = pair.constructor === 'Object' && (pair.method === 'assign' || pair.method === 'defineProperties');
+        if (!entries.length && !copies) write(null);
+        for (const { targetNode, key, value } of entries) if (targetNode === arg.node) write(key, value);
+      }
+    }
+    return args[0] === arg.node && entry?.type === 'argument' && call.node.type !== 'NewExpression';
   }
 
   // does a list of argument slots name `argIndex` - or, for a spread argument, any position it fills?
@@ -1471,10 +1491,11 @@ export function createBindingAnalysis({
 
   // cluster-private helpers (used only by other cluster functions, not by the factory
   // or other clusters): `getExportedNames` / `isMemberRefReceiver` /
-  // `resolveKnownStaticEntry` / `isKnownNonMutatingCallSite` /
+  // `resolveKnownStaticEntry` /
   // `isTypePositionParent`
   return {
     buildProgramIndex,
+    visitArgumentWrites,
     programCensus,
     collectBindingReferences,
     defaultAliasRefClassifier,

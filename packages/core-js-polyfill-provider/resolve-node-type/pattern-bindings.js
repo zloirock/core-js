@@ -34,7 +34,7 @@ import {
   isUnionType,
   withMemberModifiers,
 } from './ast-shapes.js';
-import { assignLeft, assignRightKey, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
+import { assignLeft, assignRightKey, bindingCrossesLoopBackEdge, bindingReadStart } from './straight-line-flow.js';
 import {
   declaratorBindsName,
   bindingDeclaratorNode,
@@ -244,6 +244,7 @@ export function createPatternBindings({
   resolveComputedKeyName,
   getKeyName,
   findLastStraightLineAssignment,
+  reachingNumericUpdate,
   resolveStaleRedeclSliceType,
   withLookupPath,
   functionTypeParams,
@@ -1691,6 +1692,9 @@ export function createPatternBindings({
     // a binding written past the ceiling is not followed through its writes (`writesPastCeiling`)
     if (!binding || writesPastCeiling(binding.constantViolations)) return null;
     const { name } = path.node;
+    const update = reachingNumericUpdate(binding, path);
+    if (update === null) return null;
+    if (update) return assignedValueType(update, name, unionHints);
     const bindingPath = liveBindingPath(binding, name);
     const { node } = bindingPath;
     // Hint projection is for stable pattern extractions; ordinary bindings enumerate their
@@ -1782,8 +1786,8 @@ export function createPatternBindings({
   // the value an assignment writes into the binding named `name`: a compound operator's own result,
   // the paired slot of a destructuring LHS, or the plain RHS
   function assignedValueType(assignPath, name, unionHints = false, depth = 0) {
-    // `+=` / `-=` / ... - the assignment node's own type captures the result
-    if (assignPath.node.type === 'AssignmentExpression' && assignPath.node.operator !== '=') {
+    // A compound assignment or numeric update writes the expression's type, also for postfix.
+    if (assignPath.node.operator && assignPath.node.operator !== '=') {
       return unionHints ? mergeArmHints([assignPath], depth) : resolveNodeType(assignPath);
     }
     const left = assignLeft(assignPath.node);
@@ -1936,7 +1940,7 @@ export function createPatternBindings({
     // keys an array-only helper to a receiver the key already made a string, which is a wrong VALUE
     // on `usage-pure` (`[].includes.call('abc', 'ab')` is false where the string method is true)
     if (anyWriteOutrunsUse(violations.map(v => v.node), path)) return null;
-    const usagePos = path.node.start;
+    const usagePos = bindingReadStart(path);
     // Same-execution writes in the opposite arm cannot replace the init at this read.
     // Loop and deferred execution were ruled out above, before applying this exclusion.
     if (usagePos !== undefined && violations.every(v => (v.node.start ?? -1) >= usagePos

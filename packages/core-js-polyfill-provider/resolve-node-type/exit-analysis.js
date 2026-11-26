@@ -94,7 +94,10 @@ function alwaysExitsWithKind(node, depth, exitTypes, blockedLabels) {
     }
     // finally exit overrides; otherwise need both try and catch (if any) to exit
     if (node.type === 'TryStatement') {
-      if (node.finalizer && alwaysExitsWithKind(node.finalizer, depth + 1, exitTypes, blockedLabels)) return true;
+      if (node.finalizer) {
+        if (alwaysExitsWithKind(node.finalizer, depth + 1, exitTypes, blockedLabels)) return true;
+        if (uncountedExitProbe(exitTypes, blockedLabels)?.(node.finalizer)) return false;
+      }
       if (!alwaysExitsWithKind(node.block, depth + 1, exitTypes, blockedLabels)) return false;
       return !node.handler || alwaysExitsWithKind(node.handler.body, depth + 1, exitTypes, blockedLabels);
     }

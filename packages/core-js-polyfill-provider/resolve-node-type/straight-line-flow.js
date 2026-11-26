@@ -1,17 +1,18 @@
 // Straight-line predecessor-assignment finder. given a binding + usage position, returns
-// the last `<binding> = <value>` / destructure / compound / `var` redecl whose execution
+// the last assignment, numeric update or `var` redeclaration whose execution
 // is GUARANTEED to precede the usage in the same var-scope (possibly nested through plain
 // blocks / synchronous IIFEs). consumers use the captured value to type-narrow `let`
 // mutated in a deterministic prefix.
 //
 // O(V) cache build per binding (sorted by completion position), O(log V) per query.
-import { ASSIGN_LEFT_TYPES, MAX_DEPTH } from './base.js';
+import { ASSIGN_LEFT_TYPES, MAX_DEPTH, nodeRangeContains } from './base.js';
 import { nodeAlwaysHardExits, subtreeLeavesThroughExit } from './exit-analysis.js';
 import {
   bindingLoopAnchor,
   usageCrossesLoopBackEdgeReassign,
   isDeferredContextStep,
   peelTransparentExpr,
+  peelTransparentExprAncestorPath,
   readRunsDeferredWithin,
   runsAtImmediateInvocation,
   isAlwaysEvaluatedSlot,
@@ -75,13 +76,18 @@ function writeHostTypes(ap) {
   return ap.node.type === 'VariableDeclarator' ? DECLARATOR_WRITE_HOSTS : ASSIGNMENT_WRITE_HOSTS;
 }
 
-// AssignmentExpression vs VariableDeclarator slot adapters; reused on the returned node
-// by `findLastStraightLineAssignment` callers to read LHS / RHS without re-switching
+// A numeric update writes its operand. Only assignments and declarators have a source RHS.
 export function assignLeft(n) {
+  if (n.type === 'UpdateExpression') return peelTransparentExpr(n.argument);
   return n.type === 'VariableDeclarator' ? n.id : n.left;
 }
 export function assignRightKey(n) {
   return n.type === 'VariableDeclarator' ? 'init' : 'right';
+}
+// Both spellings read the binding before the update writes it, including `++(x)`.
+export function bindingReadStart(path) {
+  const parent = peelTransparentExprAncestorPath(path).parentPath?.node;
+  return (parent?.type === 'UpdateExpression' ? parent : path.node).start;
 }
 // scope-anchor AST node: babel exposes `.block`, estree-toolkit `.path.node`
 export function scopeNode(s) {
@@ -158,7 +164,7 @@ export function createStraightLineFlow({ t, babelNodeType, decidedLiveNode = () 
     return decidedLiveNode(hostPath.node, hostPath) === branchPath.node;
   }
 
-  // walk constant-violation up to AssignmentExpression / VariableDeclarator.
+  // walk a constant violation up to the assignment, update or declarator that writes it.
   // babel: violation IS the AE / VD. estree-toolkit: violation is LHS Identifier,
   // walk up through Property / ObjectPattern - depth scales with destructure nesting
   function violationToAssignment(v) {
@@ -168,7 +174,7 @@ export function createStraightLineFlow({ t, babelNodeType, decidedLiveNode = () 
     let p = v;
     for (let i = 0; i < MAX_DEPTH && p; i++) {
       const type = babelNodeType(p.node);
-      if (type === 'AssignmentExpression' || type === 'VariableDeclarator') return p;
+      if (type === 'AssignmentExpression' || type === 'UpdateExpression' || type === 'VariableDeclarator') return p;
       if (type === 'ExpressionStatement' || type === 'Program') return null;
       p = p.parentPath;
     }
@@ -267,7 +273,11 @@ export function createStraightLineFlow({ t, babelNodeType, decidedLiveNode = () 
     // Program / Block / StaticBlock host statements at `.body` directly; functions wrap in
     // BlockStatement. ancestor walk compares `p.node === endNode` - array-bodied scopes
     // must compare against the scope node itself, not its `.body` array
-    const varScopeBody = Array.isArray(bindingScopeNode.body) ? bindingScopeNode : bindingScopeNode.body;
+    // A lexical declared directly in a case shares the switch scope, but its statements
+    // run in order only for a read reached through that same consequent.
+    const declarationHost = binding.kind === 'let' && binding.path?.parentPath?.parentPath?.node;
+    const caseNode = declarationHost?.type === 'SwitchCase' ? declarationHost : null;
+    const varScopeBody = caseNode ?? (Array.isArray(bindingScopeNode.body) ? bindingScopeNode : bindingScopeNode.body);
     const out = [];
     for (const v of constantViolations) {
       const ap = violationToAssignment(v);
@@ -286,7 +296,7 @@ export function createStraightLineFlow({ t, babelNodeType, decidedLiveNode = () 
       // lifted effectiveAp is the IIFE call - an expression, standing where an assignment does
       const outerHostTypes = effectiveAp === ap ? hostTypes : ASSIGNMENT_WRITE_HOSTS;
       if (!passesStraightLineCheck(effectiveAp, varScopeBody, outerHostTypes)) continue;
-      out.push({ ap, node: effectiveAp.node, end, from: dominanceStart(effectiveAp, varScopeBody, end) });
+      out.push({ ap, node: effectiveAp.node, end, caseNode, from: dominanceStart(effectiveAp, varScopeBody, end) });
     }
     // ranked by COMPLETION: a write takes effect when its assignment completes, so one enclosing another
     // of the same binding (`var x = (x = 'a', [1])`, `x = (x = 'a', [1]), 0`) ranks after the inner one
@@ -336,7 +346,7 @@ export function createStraightLineFlow({ t, babelNodeType, decidedLiveNode = () 
     return readRunsDeferredWithin(usagePath, scopeNode(bindingScope));
   }
 
-  // last straight-line assignment before usagePath: `x = v`, `x += v`, `({x} = v)`, or a
+  // last straight-line assignment before usagePath: `x = v`, `x += v`, `x++`, `({x} = v)`, or a
   // `var x = v` redecl in the same var-scope (possibly through plain blocks / sync IIFEs).
   // O(V) build per binding (cached), O(log V) per query.
   // `extraViolations` are write paths the parser did NOT record on the binding (the stale-redecl
@@ -344,11 +354,11 @@ export function createStraightLineFlow({ t, babelNodeType, decidedLiveNode = () 
   // spliced into a synthesized `{ ...binding }`: the cache keys on binding IDENTITY, so a fresh
   // object per query missed it every time and rebuilt the whole sorted list per query
   function findLastStraightLineAssignment(binding, usagePath, extraViolations = null) {
-    const beforePos = usagePath.node.start;
-    if (beforePos === undefined || beforePos === null) return null;
     const violations = extraViolations?.length
       ? [...binding.constantViolations ?? [], ...extraViolations] : binding.constantViolations;
     if (!violations?.length) return null;
+    const beforePos = bindingReadStart(usagePath);
+    if (beforePos === undefined || beforePos === null) return null;
     // a reassignment in a deferred (non-IIFE) function runs at an unknown time - possibly before the
     // use even when textually later - so the positional narrow below cannot be trusted
     // a recovered extra has no parent chain to prove it is NOT deferred - bail like one
@@ -383,6 +393,7 @@ export function createStraightLineFlow({ t, babelNodeType, decidedLiveNode = () 
     while (idx >= 0 && sortedAssigns[idx].from > beforePos) idx--;
     if (idx < 0) return null;
     const chosen = sortedAssigns[idx];
+    if (chosen.caseNode && !nodeRangeContains(chosen.caseNode, usagePath.node)) return null;
     // ... and the binding's own initializer installed between the two replaces what the ranked write left
     if (declaratorInitRunsWithin(binding, chosen.end, beforePos)) return null;
     // a CONDITIONAL reassignment (not straight-line, so absent from sortedAssigns) positioned between

@@ -27,7 +27,7 @@
 // already-extracted cluster, the `KNOWN_STATIC_TYPE_GUARDS` table for built-in predicate hint
 // lookup, and the injector's alias channel (`staticPairFromPolyfillBinding`) that names the
 // built-in a pure-import binding stands for
-import { getOrInitMap, hasRange, nodeRangeContains } from './base.js';
+import { UNBOXED_PRIMITIVES, getOrInitMap, hasRange, nodeRangeContains } from './base.js';
 import { bodyRunsWhileTestHolds } from './exit-analysis.js';
 import {
   SOURCE_ORDER_STATEMENT_HOST_TYPES,
@@ -94,6 +94,7 @@ export function createTypeofGuards({
   lookupNested,
   parseUserPredicateGuardEntries,
   parseAssertionGuardEntries,
+  arrayGuardHasLocalInputs,
   blockAlwaysExits,
   canFallThrough,
   KNOWN_STATIC_TYPE_GUARDS,
@@ -126,7 +127,8 @@ export function createTypeofGuards({
     const method = getMemberProperty(peeled);
     if (method !== null) {
       const constructor = builtInNamedBy(unwrapRuntimeExpr(peeled.object), scope, hostPath);
-      return constructor ? { constructor, method } : null;
+      if (!constructor || babelBindingAdapter.isMutatedStatic(constructor, method, { node: peeled, path: hostPath })) return null;
+      return { constructor, method };
     }
     return peeled.type === 'Identifier' && scope
       ? staticPairFromPolyfillBinding(scope, peeled.name, peeled.start ?? null) : null;
@@ -189,7 +191,7 @@ export function createTypeofGuards({
       }
       if (operator === 'instanceof' && left.type === 'Identifier') {
         const constructorName = builtInNamedBy(right, scope, hostPath);
-        if (constructorName) return [{ varName: left.name, guard: instanceofGuard(constructorName, negated) }];
+        if (constructorName) return [{ varName: left.name, operand: left, guard: instanceofGuard(constructorName, negated) }];
       }
     }
     // KNOWN_STATIC_TYPE_GUARDS (`Array.isArray` / `Number.isFinite` / ...) narrow first-arg
@@ -300,7 +302,13 @@ export function createTypeofGuards({
         const orEntry = parseTypeofOrGuardEntry(part, conditionTrue, scope);
         if (orEntry) partEntries = [orEntry];
       }
-      for (const entry of partEntries) entries.push({ varName: entry.varName, guard: stampPolarity(entry.guard, conditionTrue) });
+      for (const { varName, operand, guard } of partEntries) {
+        stampPolarity(guard, conditionTrue);
+        // Primitives fail the wrapper's instanceof. An open Array input can also be Array.prototype.
+        if (!guard.positive && operand && (UNBOXED_PRIMITIVES[guard.constructorName]
+          || guard.constructorName === 'Array' && !arrayGuardHasLocalInputs(operand, scope, hostPath))) guard.partial = true;
+        entries.push({ varName, guard });
+      }
     }
     byPolarity.set(conditionTrue, entries);
     return entries;

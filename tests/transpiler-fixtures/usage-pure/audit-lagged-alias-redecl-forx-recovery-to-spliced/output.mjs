@@ -1,3 +1,4 @@
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _toSplicedMaybeArray from "@core-js/pure/actual/array/instance/to-spliced";
 import _Map from "@core-js/pure/actual/map";
 // an EXPORTED lagged alias resolves through the export wrapper the same as a plain one, while the
@@ -5,4 +6,5 @@ import _Map from "@core-js/pure/actual/map";
 export let E;
 E = _Map;
 E = [9];
+_atMaybeArray(E).call(E, 0);
 export const r5 = _toSplicedMaybeArray(E).call(E, 0, 1);

@@ -14,7 +14,7 @@
 // resolvedTypeCache short-circuit lives at the top of the entry to avoid round-trip info
 // loss when a sibling polyfill plugin stashes a pre-mutation Type for the rewritten node.
 // WeakMap (vs node-attached property) keeps the side-channel opaque to AST-cloning libs.
-import { $Object, $Primitive } from './base.js';
+import { $Object, $Primitive, primitiveTypeOf } from './base.js';
 import {
   NO_PROTOTYPE_VALUE,
   ancestorChainDetached,
@@ -30,6 +30,7 @@ import {
   memberKeyName,
   unwrapRuntimeExpr,
   peelTransparentExprAncestorPath,
+  peelTransparentWrapperPath,
   prototypeValueMayDispatch,
   prototypeWriteHostPath,
   reassignmentDominatesUsage,
@@ -53,6 +54,7 @@ export function createExpressionDispatch({
   resolvePath,
   resolveNodeType,
   resolveBindingType,
+  findExpressionAnnotation,
   unwrapTypeAnnotation,
   resolveConstructorType,
   resolveConstructorCallType,
@@ -78,7 +80,6 @@ export function createExpressionDispatch({
   resolveDesugarDefaultTernary,
   ownCtorNarrowAlternatePath,
   polyfillHintGlobalName,
-  resolveNumericType,
   resolveTypeAnnotation,
   resolveAwaitExpressionType,
   generatorTypeParams,
@@ -568,15 +569,18 @@ export function createExpressionDispatch({
       case 'TaggedTemplateExpression':
         return resolveCallReturnType(path.get('tag'));
       case 'UnaryExpression': {
-        // the shared operator table decides; `-` / `~` preserve Number vs BigInt, read
-        // through `resolveNumericType`'s binding descent only when the table asks
         const kind = unaryOperatorResultKind(path.node.operator,
-          () => resolveNumericType(path.get('argument')).type);
+          () => primitiveTypeOf(resolveNodeType(resolvePath(path.get('argument')))));
         return kind ? new $Primitive(kind) : null;
       }
-      case 'UpdateExpression':
-        // ++ and -- work on both Number and BigInt, preserving the type
-        return resolveNumericType(path.get('argument'));
+      case 'UpdateExpression': {
+        // ToNumeric can obtain either numeric kind from an object, including a boxed Number.
+        const argument = path.get('argument');
+        const operand = peelTransparentWrapperPath(argument);
+        const value = resolveNodeType(operand) ?? (operand !== argument && resolveNodeType(argument));
+        if (!value?.primitive || value.type === 'unknown') return null;
+        return new $Primitive(value.type === 'bigint' ? 'bigint' : 'number');
+      }
       case 'BinaryExpression':
         // comparisons included - the shared operator table reports them as boolean
         // without resolving operands
@@ -619,8 +623,12 @@ export function createExpressionDispatch({
       case 'TSTypeAssertion':
       case 'TypeCastExpression':
         return resolveTypeAnnotation(path.node.typeAnnotation, path.scope) || resolveNodeType(path.get('expression'));
-      case 'TSSatisfiesExpression':
-        return resolveNodeType(path.get('expression')) || resolveTypeAnnotation(path.node.typeAnnotation, path.scope);
+      case 'TSSatisfiesExpression': {
+        const actual = resolveNodeType(path.get('expression'));
+        if (actual) return actual;
+        const info = findExpressionAnnotation(path);
+        return info && resolveTypeAnnotation(info.annotation, info.scope);
+      }
       case 'AwaitExpression':
         return resolveAwaitExpressionType(path);
       case 'YieldExpression':

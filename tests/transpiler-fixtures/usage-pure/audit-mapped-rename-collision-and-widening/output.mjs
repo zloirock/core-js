@@ -1,7 +1,7 @@
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _at from "@core-js/pure/actual/instance/at";
-var _ref, _ref2, _ref3;
+var _ref, _ref2, _ref3, _ref4;
 // two mapped-type renames that must NOT mint a narrower type than the source admits:
 // several source keys renaming onto ONE target give that key the union of every colliding arm,
 // and a rename that widens to bare `string` gives an index signature over the whole value union.
@@ -17,6 +17,7 @@ type Widened = { [K in keyof Source as string]: Source[K] };
 declare const widened: Widened;
 // @ts-expect-error a union whose other arm lacks the member is the shape under test
 export const last = _findLastMaybeArray(_ref2 = widened.arr).call(_ref2, x => x);
+_at(_ref3 = widened.arr).call(_ref3, -1);
 type Kept = { [K in keyof Source as `x${K & string}`]: Source[K] };
 declare const kept: Kept;
-export const found = _includesMaybeArray(_ref3 = kept.xarr).call(_ref3, 1);
+export const found = _includesMaybeArray(_ref4 = kept.xarr).call(_ref4, 1);

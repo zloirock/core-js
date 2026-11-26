@@ -3,4 +3,5 @@
 export let E;
 ({ Map: E } = globalThis);
 E = [9];
+E.at(0);
 export const r5 = E.toSpliced(0, 1);

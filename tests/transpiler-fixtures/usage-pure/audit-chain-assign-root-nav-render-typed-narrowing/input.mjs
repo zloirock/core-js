@@ -5,3 +5,8 @@ globalThis.assignBox = { list: ['ab', 'cd'], n: 1 };
 // entry. this row narrows: a literal receiver resolves to `array`, and the element type `at`
 // yields carries the second call to `string`. a single-family dispatch shows neither verdict
 export const typedNarrowing = ['ab', 'cd'].at(globalThis.window?.self.assignBox.list ? 0 : 1)?.includes('a');
+
+let held;
+let root;
+export const fromAssigned = ['ab', 'cd'].at((held = root = globalThis).window?.self.assignBox.list ? 0 : 1)?.includes('a');
+export { held, root };

@@ -2,7 +2,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _self from "@core-js/pure/actual/self";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
-var _ref, _ref2;
+var _ref, _ref2, _ref3, _ref4;
 // A proxy navigation over a chain assignment keeps the assigned value and its effects. The guard and any collapsed tail must read
 // that same value.
 _globalThis.assignBox = {
@@ -13,3 +13,7 @@ _globalThis.assignBox = {
 // entry. this row narrows: a literal receiver resolves to `array`, and the element type `at`
 // yields carries the second call to `string`. a single-family dispatch shows neither verdict
 export const typedNarrowing = null == (_ref = (_atMaybeArray(_ref2 = ['ab', 'cd']) || 0).call(_ref2, (null == _globalThis.window ? void 0 : _self.assignBox.list) ? 0 : 1)) ? void 0 : _includesMaybeString(_ref).call(_ref, 'a');
+let held;
+let root;
+export const fromAssigned = null == (_ref3 = (_atMaybeArray(_ref4 = ['ab', 'cd']) || 0).call(_ref4, (null == (held = root = _globalThis).window ? void 0 : _self.assignBox.list) ? 0 : 1)) ? void 0 : _includesMaybeString(_ref3).call(_ref3, 'a');
+export { held, root };

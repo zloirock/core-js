@@ -1,3 +1,4 @@
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _withMaybeArray from "@core-js/pure/actual/array/instance/with";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
@@ -7,5 +8,6 @@ switch (_globalThis.k) {
     let S;
     S = _Map;
     S = [4];
+    _atMaybeArray(S).call(S, 0);
     _globalThis.r7 = _withMaybeArray(S).call(S, 0, 'w');
 }

@@ -2,7 +2,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref;
 // repeated module-wide writes to the same open-typed static field with mutually compatible
 // RHS types (both Array) fold into a single Array slot and narrow dispatch stays sound.
-// confirms the candidate collector reaches every write site, not just the last one
+// The mixed-write fixture checks that an incompatible candidate keeps dispatch generic.
 class Foo {
   static bar: any = null;
 }

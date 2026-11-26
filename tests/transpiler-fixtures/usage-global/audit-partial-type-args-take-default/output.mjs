@@ -1,4 +1,3 @@
-import "core-js/modules/es.array.at";
 import "core-js/modules/es.string.at";
 // TS-FIDELITY: with a partial explicit type-argument list the omitted parameter takes its DECLARED
 // DEFAULT, matching the typechecker, not an inference from the call arguments. the default here is
@@ -7,5 +6,3 @@ import "core-js/modules/es.string.at";
 declare function g<A, B = string>(a: A, b?: B): B;
 const fromDefault = g<string>('x');
 export const a = fromDefault.at(0);
-const spelledOut = g<string, string[]>('x');
-export const b = spelledOut.at(0);

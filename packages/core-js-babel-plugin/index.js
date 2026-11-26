@@ -23,6 +23,7 @@ import {
   methodReadsUsageCensus,
   withTraversalCaches,
   invalidateScopeVarIndex,
+  WRAPPED_UPDATE_NAMES,
   memberKeyName,
   memberKeyNamesReducer,
   nestedTSRuntimeDeclarationsReducer,
@@ -2375,6 +2376,7 @@ function createFilePlugin(api, options, getBabelTargets, caller) {
         const helpers = path.get('body').filter(child => !known.has(child.node));
         // A sibling lowering can replace a user loop as well as add helpers. Its removed
         // binding paths cannot answer the late walk; no crawl is needed without new nodes.
+        WRAPPED_UPDATE_NAMES.delete(path.node);
         path.scope.crawl();
         // The late escape census runs on the first introduced global. A preceding helper can
         // trigger it before we visit a later helper's `typeof Symbol === "function" ? Symbol : {}`.

@@ -11,9 +11,3 @@ export function firsts(node: string | string[]) {
 export function scan(item: string | string[]) {
   for (; typeof item === 'string'; item = next()) item.includes('a');
 }
-export function arrays(list: string | string[]) {
-  while (typeof list !== 'string') {
-    list.find(Boolean);
-    list = next();
-  }
-}

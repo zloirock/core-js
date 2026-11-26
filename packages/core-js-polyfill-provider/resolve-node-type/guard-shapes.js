@@ -15,8 +15,8 @@
 // into `positive` by `stampPolarity` and read by nothing after that fold; `positive` - the whole
 // polarity every consumer reads; and three optional stamps - `optionalCall` (`markOptionalCall`: the
 // guard's call may have short-circuited without testing its argument, so it is trusted only where
-// it provably ran), `partial` (`guardFromHint`: a built-in predicate true for only part of its type,
-// so its false answer proves nothing) and `annotation` / `scope` (a predicate's declared target, for
+// it provably ran), `partial` (a test whose false result can still belong to the nominal family)
+// and `annotation` / `scope` (a predicate's declared target, for
 // member resolution). `guardProves` is what every consumer asks of the first two
 //   isTypeofVar(node, varName)                - `typeof varName` (peeled through TS wrappers)
 //
@@ -84,7 +84,7 @@ export function markOptionalCall(guard, optionalCall) {
 }
 
 // hint convention: lowercase -> typeof guard (primitive), capitalized -> instanceof guard (object).
-// the ONE writer of `partial` - a registry guard true for only part of its type (`Number.isFinite`)
+// A partial registry predicate, such as Number.isFinite, cannot exclude its whole type.
 export function guardFromHint(hint, negated) {
   const guard = PRIMITIVES.has(hint.type) ? typeofGuard(hint.type, negated) : instanceofGuard(hint.type, negated);
   if (hint.partial) guard.partial = true;
@@ -157,6 +157,7 @@ export function hasOptionalChainInCall(rawExpr) {
 }
 
 export function createPredicateGuards({
+  followTypeAliasChain,
   getScopeBinding,
   resolveMemberCallChain,
   unwrapTypeAnnotation,
@@ -266,8 +267,14 @@ export function createPredicateGuards({
     if (returnType?.type !== 'TSTypePredicate' || !!returnType.asserts !== asserts) return null;
     const varName = predicateArgName({ predicate: returnType, params, args });
     if (varName === null) return null;
-    const guard = guardFromResolvedType(resolveTypeAnnotation(returnType.typeAnnotation, scope), negated) ?? annotationGuard(negated);
-    guard.annotation = returnType.typeAnnotation;
+    const annotation = unwrapTypeAnnotation(returnType.typeAnnotation);
+    const guard = guardFromResolvedType(resolveTypeAnnotation(annotation, scope), negated) ?? annotationGuard(negated);
+    // Only a predicate covering the whole family can exclude it on a false result.
+    if (guard.kind !== 'annotation') {
+      const target = followTypeAliasChain(annotation, scope).node;
+      if (!keywordPrimitiveKind(target)) guard.partial = true;
+    }
+    guard.annotation = annotation;
     guard.scope = scope;
     return { varName, guard: markOptionalCall(guard, optionalCall), fnNode };
   }
@@ -316,7 +323,10 @@ export function createPredicateGuards({
     for (const arm of selected ? [selected] : candidates) {
       const armEntry = predicateEntryOf(arm, { negated, asserts, args, optionalCall });
       if (!armEntry || (entry && !sameGuardTarget(entry, armEntry))) return EMPTY_GUARD_ENTRIES;
-      if (entry) entry.guard.annotation = sharedAnnotation(entry.guard.annotation, armEntry.guard.annotation);
+      if (entry) {
+        entry.guard.annotation = sharedAnnotation(entry.guard.annotation, armEntry.guard.annotation);
+        if (armEntry.guard.partial) entry.guard.partial = true;
+      }
       entry ??= armEntry;
     }
     return entry ? [{ varName: entry.varName, guard: entry.guard }] : EMPTY_GUARD_ENTRIES;

@@ -4,5 +4,6 @@ switch (globalThis.k) {
     let S;
     ({ Map: S } = globalThis);
     S = [4];
+    S.at(0);
     globalThis.r7 = S.with(0, 'w');
 }

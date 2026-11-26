@@ -1,11 +1,9 @@
 // Runtime expression resolver bits: union / nullish-coalesce / `||` / `??` defaults,
-// binary-operator + numeric-update narrowing, member-property name resolution. these are
+// binary-operator narrowing, member-property name resolution. these are
 // the small per-shape helpers that `resolveNodeTypeExpression` dispatches to for individual
 // AST node kinds.
 //
 // Public surface:
-//   resolveNumericType(path)                          - `Number | BigInt` decision for unary
-//                                                       `++` / `--` / `-` / `~`
 //   resolveMemberPropertyName(path)                   - cross-dialect member-key name from a
 //                                                       MemberExpression (non-computed +
 //                                                       literal-keyed + the canon's structural
@@ -173,21 +171,9 @@ export function createValueOps({
   resolveRuntimeExpression,
   resolveComputedKeyName,
   resolveNodeType,
-  resolvePath,
   isNullableOrNever,
   commonType,
 }) {
-  function resolveNumericType(path) {
-    // Number-vs-BigInt kind for unary `-`/`~` and `++`/`--` (all preserve it). `resolvePath`
-    // descends a const / unreassigned binding to its init, so `const x = BigInt(1); -x` reads
-    // bigint. a `++`/`--` operand is necessarily reassigned, so `resolvePath` bails on that
-    // constantViolation to the bare identifier and the case falls to the `number` default -
-    // a known minor imprecision (`let x = 5n; x++` reads number) with no polyfill impact, since
-    // core-js exposes no Number / BigInt prototype methods that this kind would route between
-    const resolved = resolveNodeType(resolvePath(path));
-    return new $Primitive(primitiveTypeOf(resolved) === 'bigint' ? 'bigint' : 'number');
-  }
-
   // resolve property name from a MemberExpression, handling both
   // non-computed (obj.prop), string/numeric literal (obj['prop'], obj[0]),
   // single-quasi TemplateLiteral (obj[`prop`]), constant binding (const key = 'prop'; obj[key])
@@ -302,7 +288,6 @@ export function createValueOps({
   }
 
   return {
-    resolveNumericType,
     resolveMemberPropertyName,
     resolveUnionType,
     resolveDesugarDefaultTernary,

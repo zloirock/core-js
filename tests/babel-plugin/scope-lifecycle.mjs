@@ -136,6 +136,18 @@ for (const name of [
   check('second-exit helper runtime', typeof execute((await transformAsync(code, { ...base, plugins: [lowering('modules-commonjs')] })).code).result.resolve, 'function');
 }
 
+// A function introduced after the census can write a typed parameter through an assertion.
+{
+  const config = { ...base, filename: 'helper.ts', parserOpts: { plugins: ['typescript'] } };
+  const helper = await parseAsync('function read(u: number[]) { ++(u as any); return [u.at(0), [6].at(-1)]; }', config);
+  function append() {
+    return { visitor: { Program: { exit(p) { p.pushContainer('body', helper.program.body); } } } };
+  }
+  const { code } = await transformAsync('0;', { ...config, plugins: [append, [plugin, options]] });
+  checkTruthy('introduced update leaves the numeric call intact', code.includes('u.at(0)'));
+  checkTruthy('introduced array still gets its method', code.includes('/array/instance/at'));
+}
+
 // scope.push must append to the live body after our ref merge or dead-ref pruning.
 for (const source of ['result = receiver().at(0);', 'result = globalThis.window?.Array.from(xs);']) {
   const { code } = await transformAsync(source, { ...base, plugins: [() => ({ pre(file) {

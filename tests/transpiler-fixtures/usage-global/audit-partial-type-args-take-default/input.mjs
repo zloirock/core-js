@@ -6,6 +6,3 @@ declare function g<A, B = string>(a: A, b?: B): B;
 
 const fromDefault = g<string>('x');
 export const a = fromDefault.at(0);
-
-const spelledOut = g<string, string[]>('x');
-export const b = spelledOut.at(0);

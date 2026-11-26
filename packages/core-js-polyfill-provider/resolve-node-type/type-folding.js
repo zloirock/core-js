@@ -69,10 +69,15 @@ export function createTypeFolding({
     // bare `Array` has - which means `Array<any>` and matches any element. `[number, string]` and
     // `[string, number]` both end there, and taking the two absences for agreement picks a branch.
     // the LENGTH is the other thing the collapse drops, and the box carries it out
-    const collapsed = elements.length
-      ? elementContainerType(new $Object('Array'), null, resolveTupleInner(elements, resolver))
-      : new $Object('Array');
-    return collapsed.withTupleArity(elements.length);
+    const box = new $Object('Array');
+    if (!elements.length) return box.withTupleArity(0);
+    // The assignability check needs the bottom type of a required singleton, even though
+    // it supplies no dispatch hint. A rest or optional member need not be present.
+    const [first] = elements;
+    const member = unwrapTupleMember(first);
+    const inner = elements.length === 1 && !first.optional && member.type !== 'TSOptionalType' && !isTupleRestElement(first)
+      ? resolver(member) : resolveTupleInner(elements, resolver);
+    return elementContainerType(box, null, inner).withTupleArity(elements.length);
   }
 
   // a container built from ONE written element argument, with the confession its absence owes.

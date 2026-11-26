@@ -3,4 +3,5 @@
 var M;
 ({ Map: M } = globalThis);
 var M = [1, 2];
+M?.at(0);
 export const r1c = M?.toReversed();

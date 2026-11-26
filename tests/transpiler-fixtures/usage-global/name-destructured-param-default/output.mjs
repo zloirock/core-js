@@ -1,6 +1,6 @@
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.string.at";
-// A function with no external callers retains the type of its object parameter default.
+// A default supplies a string only when the caller omits the argument.
 function process({
   name
 } = {

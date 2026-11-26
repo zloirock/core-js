@@ -1,8 +1,21 @@
+import { withTemporaryProperty } from '../helpers/restore-property.cjs';
+
 // Expressions / operators around polyfill injection. Every test is DISTINGUISHING: it asserts
 // something that would change if the transform regressed - a side effect evaluated exactly once
 // (the chain memoizes the receiver into a temp), the receiver `this` threaded through a chain,
 // a short-circuit suppressing evaluation, or spread/sequence ordering. A generic "polyfill works"
 // would pass regardless of the plugin, so those are intentionally absent.
+
+QUnit.test('a numeric update leaves a non-callable method on the number alone', assert => {
+  withTemporaryProperty(Number.prototype, 'at', { call: () => 7 }, () => {
+    assert.throws(() => {
+      let value = { valueOf: () => 3 };
+      value++;
+      assert.same(value, 4);
+      value.at(0);
+    }, TypeError);
+  });
+});
 
 // --- Receiver memoization: a side-effecting receiver is evaluated ONCE across a chain ---
 

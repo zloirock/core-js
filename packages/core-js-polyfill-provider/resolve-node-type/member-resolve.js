@@ -486,7 +486,15 @@ export function createMemberResolve({
     // discriminated union narrowing: `if (x.kind === 'a') { x.data }` - restrict Foo
     // to the `{ kind:'a'; data: T }` branch. works for any serialisable LHS path
     // (Identifier / `this.x` / `obj.a.b`); computed / call-expression paths bail
-    annotation = narrowDiscriminatedUnion(objectPath, annotation, scope) ?? annotation;
+    const narrowed = narrowDiscriminatedUnion(objectPath, annotation, scope, name);
+    if (narrowed) {
+      annotation = narrowed.annotation;
+      if (narrowed.values) {
+        if (callPath) return null;
+        return foldUnionTypes([annotation, ...narrowed.values], value => value === annotation
+          ? resolveAnnotatedMember(annotation, name, scope) : resolveNodeType(value));
+      }
+    }
     // peel type-alias chain ONLY when it ends in TSTypeQuery (`type Q = typeof X;
     // declare const m: Q`) so the typeof branch below dispatches. peeling unconditionally
     // would break generic alias resolution (`Box<string[]>` -> `{val: T}` loses subst)

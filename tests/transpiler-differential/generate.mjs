@@ -11498,9 +11498,75 @@ const GUARD_KINDS_TS = [
     + 'function f(u: SBox | ABox) { switch (u.kind) { case "a": return null; default: return u.v.includes("ab"); } }',
     'f({ kind: "s", v: "ab" }), f({ kind: "a", v: ["a", "b"] })'],
 ];
-function * generateGuardKinds() {
-  for (const [id, body, calls] of GUARD_KINDS_TS) {
+
+const GUARD_NARROWING_TS = [
+  ['literal-predicate-complement',
+    `function one(x: unknown): x is 'one' { return x === 'one'; }
+     function f(x: string | number[]) { if (!one(x)) return x.at(0); }`,
+    'f("abc"), f("one"), f([7])'],
+  ['dotted-discriminant',
+    `type V = { k: 1; v: number[] } | { k: 2; v: string };
+     function f(x: { a: { b: V }; 'a.b': V }) { if (x.a.b.k === 1) return x['a.b'].v.at(0); }`,
+    'f({ a: { b: { k: 1, v: [7] } }, "a.b": { k: 2, v: "ab" } })'],
+  ['loose-discriminant',
+    'function f(s: { k: 2; v: number[] } | { k: "2"; v: string }) { return s.k == 2 && s.v.at(0); }',
+    'f({ k: "2", v: "ab" }), f({ k: 2, v: [7] })'],
+  ['alias-mutator',
+    `function f(s: { k: 1; v: number[] } | { k: 2; v: string }) {
+       if (s.k !== 1) return; const alias = s; Object.assign(alias, { k: 2, v: 'ab' }); return s.v.at(0);
+     }`, 'f({ k: 1, v: [7] })'],
+  ['mutator-overwrites-read-member',
+    `function f(s: { k: 1; v: number[] } | { k: 2; v: string }, write: boolean) {
+       if (s.k !== 1) return; if (write) Reflect.set({}, 'v', 'ab', s); return s.v.at(0);
+     }`, 'f({ k: 1, v: [7] }, true), f({ k: 1, v: [7] }, false)'],
+  ['computed-discriminant-overwrite',
+    `function f(key: string, data: string) {
+       let s: { k: 1; v: number[] } | { k: 2; v: string };
+       s = { k: 1, v: [7], [key]: 2, [data]: 'ab' }; return s.v.at(0);
+     }`, 'f("k", "v"), f("other", "field")'],
+  ['finally-breaks-return',
+    `function f(x: string | number[], c: boolean) {
+       if (typeof x === 'string') { outer: { try { return; } finally { if (c) break outer; } } }
+       return x.at(0);
+     }`, 'f("ab", true), f("ab", false), f([7], true)'],
+  ['opaque-satisfies',
+    'function f(json: string) { return (JSON.parse(json) satisfies { v: number[] }).v.at(0); }',
+    'f(JSON.stringify({ v: "ab" })), f(JSON.stringify({ v: [7] }))'],
+  ['aliased-payload-write',
+    `function f(s: { k: 1; v: number[] } | { k: 2; v: string }, write: boolean) {
+       if (s.k !== 1) return; const t: { v: string | number[] } = s; if (write) t.v = 'ab'; return s.v.at(-1);
+     }`, 'f({ k: 1, v: [7] }, true), f({ k: 1, v: [7] }, false)'],
+  ['forwarded-payload-write',
+    `type S = { k: 1; v: number[] } | { k: 2; v: string };
+     function f(s: S) { if (s.k !== 1) return; let t: S; Reflect.set(Object.assign(t = s, {}), 'v', 'ab'); return s.v.at(-1); }`,
+    'f({ k: 1, v: [7] })'],
+  ['logical-assignment-writer',
+    `type S = { k: 1; v: number[] } | { k: 2; v: string };
+     function f(s: S, use: boolean) { if (s.k !== 1) return; let t: S | undefined = use ? s : undefined;
+       Reflect.set(t ??= { k: 2, v: 'other' }, 'v', 'ab'); return s.v.at(-1); }`,
+    'f({ k: 1, v: [7] }, true), f({ k: 1, v: [7] }, false)'],
+];
+
+function * generateGuardKinds(cases) {
+  for (const [id, body, calls] of cases) {
     yield { ...snippet(`guard-kinds/${ id }`, `(() => { ${ body } return String([${ calls }]); })()`), strip: true, ts: true };
+  }
+}
+
+function * generateNumericUpdateReads(asserted = false) {
+  const target = asserted ? '(value as any)' : 'value';
+  for (const op of ['++', '--']) for (const prefix of [false, true]) {
+    const update = prefix ? op + target : target + op;
+    yield { ...snippet(`numeric-update/${ asserted ? 'asserted/' : '' }${ op }/${ prefix ? 'prefix' : 'postfix' }`, `(() => {
+      function read(initial, change) {
+        let value = initial;
+        if (!change) return value.at(-1);
+        const result = ${ update };
+        return [typeof value, String(result), String(value), typeof value.at, typeof value.flatMap];
+      }
+      return [read([3], false), read({ valueOf() { log.push('number'); return 3; } }, true),
+        read({ valueOf() { log.push('bigint'); return BigInt(3); } }, true)];
+    })()`), strip: true, ...asserted && { ts: true } };
   }
 }
 
@@ -27283,7 +27349,9 @@ function * generateSettledReceivers() {
   ]) yield { name: `settled-receivers/${ name }`, strip: true,
     code: `export const effects = []; ${ setup } export const r = (${ value }).at(1);` };
   for (const [name, expression] of [
-    ['try', 'await Promise.try<Job, []>(make)'], ['mapper', '(await Array.fromAsync([0], make))[0]'],
+    // Node 22 lacks Promise.try. Await the same thenable in the native reference on that host.
+    ['try', 'typeof Promise.try === "function" ? await Promise.try<Job, []>(make) : await make()'],
+    ['mapper', '(await Array.fromAsync([0], make))[0]'],
   ]) yield { name: `settled-receivers/annotated-callback/${ name }`, strip: true, ts: true,
     code: `export const effects = []; interface Job extends Array<number> { then(done: (s: string) => void): void }
       const make = (): Job => Object.assign([2], { then(done) { effects.push(3); done("xy"); } });
@@ -27351,7 +27419,7 @@ export function * generate() {
   yield * generateDeferredReads();
   yield * generateGuardForms();
   yield * generatePredicateArms();
-  yield * generateGuardKinds();
+  yield * generateGuardKinds(GUARD_KINDS_TS);
   yield * generateGuardChains();
   yield * generateGuardDeferralCross();
   yield * generateReEmittedReceiver();
@@ -29193,4 +29261,7 @@ export function * generate() {
   yield * generateTagLookupOrder();
   yield * generateComputedEntryKeyDefaults();
   yield * generateSettledReceivers();
+  yield * generateGuardKinds(GUARD_NARROWING_TS);
+  yield * generateNumericUpdateReads();
+  yield * generateNumericUpdateReads(true);
 }

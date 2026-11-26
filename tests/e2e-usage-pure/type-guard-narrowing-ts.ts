@@ -168,3 +168,128 @@ QUnit.test('type-guard-ts: a predicate shadowed inside the braced branch is not 
   }
   assert.same(braced([9]).length, 1);
 });
+
+QUnit.test('type-guard-ts: discriminants keep their property identity and their comparison operator', assert => {
+  type State = { kind: 1; data: number[] } | { kind: '1'; data: string };
+  function dotted(box: { a: { b: State }; 'a.b': State }) {
+    if (box.a.b.kind === 1) return box['a.b'].data.at(0);
+  }
+  function loose(box: State) {
+    if (box.kind == 1) return box.data.at(0);
+  }
+  const list: State = { kind: 1, data: [7] };
+  const text: State = { kind: '1', data: 'ab' };
+  assert.same(dotted({ a: { b: list }, 'a.b': text }), 'a');
+  assert.same(loose(text), 'a');
+  assert.same(loose(list), 7);
+});
+
+QUnit.test('type-guard-ts: the last discriminant write before the read matters', assert => {
+  type State = { kind: 'list'; data: number[] } | { kind: 'text'; data: string };
+  function read(state: State) {
+    if (state.kind !== 'list') return;
+    const alias = state;
+    Object.assign(alias, { kind: 'text', data: 'ab' });
+    return state.data.at(0);
+  }
+  function computed(tag: string, data: string) {
+    let state: State;
+    state = { kind: 'list', data: [7], [tag]: 'text', [data]: 'ab' };
+    return state.data.at(0);
+  }
+  assert.same(read({ kind: 'list', data: [7] }), 'a');
+  assert.same(computed('kind', 'data'), 'a');
+  assert.same(computed('unused', 'other'), 7);
+});
+
+QUnit.test('type-guard-ts: a payload write can keep the original discriminant', assert => {
+  type State = { kind: 'list'; data: number[] } | { kind: 'text'; data: string };
+  function read(state: State, write: boolean) {
+    if (state.kind !== 'list') return;
+    const alias: { data: string | number[] } = state;
+    if (write) alias.data = 'xy';
+    return state.data.at(-1);
+  }
+  function readAssigned(state: State) {
+    if (state.kind !== 'list') return;
+    let alias: State;
+    Reflect.set(Object.assign(alias = state, {}), 'data', 'xy');
+    return alias === state && state.data.at(-1);
+  }
+  assert.same(read({ kind: 'list', data: [7] }, true), 'y');
+  assert.same(read({ kind: 'list', data: [7] }, false), 7);
+  assert.same(readAssigned({ kind: 'list', data: [7] }), 'y');
+});
+
+QUnit.test('type-guard-ts: a failed partial test and a satisfies constraint keep other receivers', assert => {
+  function one(v: unknown): v is 'one' {
+    return v === 'one';
+  }
+  function other(v: string | number[]) {
+    if (!one(v)) return v.at(0);
+  }
+  function member(source: string) {
+    return (JSON.parse(source) satisfies { data: number[] }).data.at(0);
+  }
+  function notInstance(v: string | number[]) {
+    if (!(v instanceof Array)) return v.at(0);
+  }
+  assert.same(other('abc'), 'a');
+  assert.same(other([7]), 7);
+  assert.same(member('{"data":"ab"}'), 'a');
+  assert.same(member('{"data":[7]}'), 7);
+  assert.same(notInstance(Array.prototype), undefined);
+  assert.same(notInstance('ab'), 'a');
+});
+
+QUnit.test('type-guard-ts: a jump in finally overrides a return', assert => {
+  function read(v: string | number[], keep: boolean) {
+    if (typeof v === 'string') {
+      outer: {
+        try {
+          return;
+        } finally {
+          if (keep) break outer;
+        }
+      }
+    }
+    return v.at(0);
+  }
+  assert.same(read('ab', true), 'a');
+  assert.same(read('ab', false), undefined);
+  assert.same(read([7], true), 7);
+});
+
+QUnit.test('type-guard-ts: a switch write reaches only a falling-through case', assert => {
+  const writes: string[] = [];
+  function read(x: string | number[], exit: 'break' | 'return' | 'fallthrough') {
+    switch (typeof x) {
+      case 'object':
+        writes.push(exit);
+        x = 'abc';
+        if (exit === 'break') break;
+        if (exit === 'return') return 'returned';
+      case 'string': return x.at(0);
+    }
+    return 'left';
+  }
+  assert.same(read([7], 'break'), 'left');
+  assert.same(read([7], 'return'), 'returned');
+  assert.same(read([7], 'fallthrough'), 'a');
+  assert.same(read('text', 'break'), 't');
+  assert.deepEqual(writes, ['break', 'return', 'fallthrough']);
+});
+
+QUnit.test('type-guard-ts: a replaced static predicate does not select a family', assert => {
+  const previous = Number.isFinite;
+  function read(v: string | number[]) {
+    Number.isFinite = () => true;
+    if (Number.isFinite(v)) return v.at(0);
+  }
+  try {
+    assert.same(read([4]), 4);
+    assert.same(read('ab'), 'a');
+  } finally {
+    Number.isFinite = previous;
+  }
+});

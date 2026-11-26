@@ -1,4 +1,35 @@
 // Closed receivers keep their family without changing keys, getters or exception flow.
+import { withTemporaryProperty } from '../helpers/restore-property.cjs';
+
+QUnit.test('an update through a type assertion writes the same binding', assert => {
+  function bumped(u: number[]) {
+    ++(u as any);
+    return u.at(0);
+  }
+  function maybeBumped(u: number[], change: boolean) {
+    if (change) (u as any)--;
+    return u.at(0);
+  }
+  withTemporaryProperty(Number.prototype, 'at', { call: () => 7 }, () => {
+    assert.throws(() => bumped([3]), TypeError);
+    assert.same(maybeBumped([9], false), 9);
+  });
+});
+
+QUnit.test('numeric updates preserve both possible coercion results', assert => {
+  function choose<T>(value: T): T extends bigint ? string : number[] {
+    return (typeof value === 'bigint' ? 'xy' : [7]) as T extends bigint ? string : number[];
+  }
+  function read(toBigInt: boolean) {
+    let value = { valueOf: () => toBigInt ? BigInt(1) : 1 };
+    // @ts-expect-error JavaScript coerces the object before writing the numeric result.
+    value++;
+    return choose(value).at(-1);
+  }
+  assert.same(read(false), 7);
+  if (typeof BigInt === 'function') assert.same(read(true), 'y');
+});
+
 QUnit.test('receiver precision: a local type alias shadows a built-in container', assert => {
   type String = number[];
   const source: String = [0, 2];
@@ -410,4 +441,20 @@ QUnit.test('async iteration reads an explicit field on the raw Promise', assert 
     for await (const row of source) return row.items.at(-1);
   }
   return Promise.all([read(rows), readField(rows)]).then(results => assert.deepEqual(results, ['c', 'c']));
+});
+
+QUnit.test('receiver precision: Promise.try settles an annotated array thenable to a string', async assert => {
+  interface Job extends Array<number> { then(done: (value: string) => void): void }
+  const calls: string[] = [];
+  const make = (): Job => {
+    calls.push('make');
+    return Object.assign([2], {
+      then(done: (value: string) => void) {
+        calls.push('then');
+        done('xy');
+      },
+    });
+  };
+  assert.same((await Promise.try<Job, []>(make)).at(0), 'x');
+  assert.deepEqual(calls, ['make', 'then']);
 });

@@ -19,11 +19,21 @@
 // because it requires only block-child preceding-sibling reachability, not var-scope-wide
 // straight-line execution).
 import {
+  aliasTargetName,
+  bindingBoundName,
   climbTransparentWrapperPath,
+  findNearestVarScopeOwner,
+  getFallbackBranchSlots,
+  memberChainKeys,
   isMemberAccessNode,
   isMemberWriteHost,
+  logicalSlotPatchHost,
+  identifierDeclaratorInit,
+  noReassignmentReachesUsage,
+  pathOfNode,
   cachedContainerPaths,
   SOURCE_ORDER_STATEMENT_HOST_TYPES,
+  VALUE_FLOW_ASSIGN_OPS,
   unwrapRuntimeExpr,
   isDeferredContextStep,
   readRunsDeferredWithin,
@@ -60,11 +70,23 @@ const NULLISH_BRANCH_TYPES = new Set([
   'EmptyTypeAnnotation',
 ]);
 
+// Escape both the path separator and the escape character. A literal "a.b" is one field.
+function fieldSegment(key) {
+  return key.replaceAll('~', '~0').replaceAll('.', '~1');
+}
+
+function guardAcceptsLiteral({ value, positive, loose }, literal) {
+  // Both values are primitive literals. A loose comparison follows the source operator.
+  // eslint-disable-next-line eqeqeq -- model abstract equality between literal values
+  return positive === (loose ? literal == value : literal === value);
+}
+
 export function createDiscriminantNarrow({
   getScopeBinding,
   t,
   peelNegation,
-  pathKey,
+  decidedLiveNode,
+  visitArgumentWrites,
   getMemberProperty,
   flattenCondition,
   resolveComputedKeyName,
@@ -103,7 +125,7 @@ export function createDiscriminantNarrow({
     const right = unwrapRuntimeExpr(test.right);
     const pair = memberLiteralPair({ memberExpr: left, literalNode: right, targetKey, scope })
       ?? memberLiteralPair({ memberExpr: right, literalNode: left, targetKey, scope });
-    return pair && { ...pair, positive: isEq === conditionTrue };
+    return pair && { ...pair, loose: test.operator.length === 2, positive: isEq === conditionTrue };
   }
 
   // the discriminant FIELD may sit behind nested hops (`u.m.k === 'a'` discriminates `u`):
@@ -116,17 +138,16 @@ export function createDiscriminantNarrow({
     const fields = [];
     let current = memberExpr;
     while (current?.type === 'MemberExpression' || current?.type === 'OptionalMemberExpression') {
-      let field = getMemberProperty(current);
-      if (field === null && current.computed && scope) field = resolveComputedKeyName(current.property, scope);
+      const field = memberField(current, scope);
       if (field === null) return null;
       fields.unshift(field);
       current = unwrapRuntimeExpr(current.object);
-      if (pathKey(current) === targetKey) return fields;
+      if (pathKey(current, scope) === targetKey) return fields;
     }
     return null;
   }
 
-  // discriminants compare with `===`, so they key off `literalExactValue` (runtime type kept)
+  // Discriminants use the comparison in the source, so they key off `literalExactValue` (runtime type kept)
   // rather than the coerced property key - `{ kind: 1 }` and `{ kind: '1' }` are distinct union
   // members. null / undefined discriminants are KEYWORD types (TSNullKeyword), not literal
   // nodes, and keep the permissive pass-through.
@@ -146,76 +167,110 @@ export function createDiscriminantNarrow({
     return value === null ? null : { fieldPath, value };
   }
 
-  // a member sub-path narrow (`obj.a.b`) is invalidated by a write to that exact sub-path
-  // (`obj.a.b = other` / `obj.a.b++`) OR to any strict PREFIX of it (`obj.a = other`): rebinding
-  // an intermediate object changes the object `obj.a.b` reads from, so the narrow no longer holds.
-  // neither is a `constantViolation` of the root binding `obj`. collect such writes from the root
-  // binding's references (each `obj.a... = ...` mentions `obj`) so the positional interval check
-  // drops the narrow just like a whole-binding rebind would. `collectBindingReferences` is the
-  // parser-agnostic enumerator (babel `referencePaths`, estree-toolkit program-index fallback) -
-  // reading `binding.referencePaths` directly would miss every reference under the oxc adapter
-  // write-side dotted-key resolution, aligned with the READ side (`matchTargetFieldPath`):
-  // literal keys via `getMemberProperty`, alias / enum computed keys via the scope-aware
-  // `resolveComputedKeyName`, transparent wrappers peeled per hop. `dynamic: true` marks a
-  // chain whose next step past `key` is genuinely unresolvable (`box[expr]`)
-  function writeChainInfo(node, scope) {
-    const peeled = unwrapRuntimeExpr(node);
-    if (peeled?.type === 'Identifier') return { key: peeled.name, dynamic: false };
-    if (peeled?.type === 'ThisExpression') return { key: 'this', dynamic: false };
-    if (!isMemberAccessNode(peeled)) return null;
-    const parent = writeChainInfo(peeled.object, scope);
-    if (!parent) return null;
-    if (parent.dynamic) return parent;
-    let field = getMemberProperty(peeled);
-    if (field === null && peeled.computed && scope) field = resolveComputedKeyName(peeled.property, scope);
-    if (field === null) return { key: parent.key, dynamic: true };
-    return { key: `${ parent.key }.${ field }`, dynamic: false };
+  function memberField(node, scope) {
+    return getMemberProperty(node) ?? (node.computed && scope ? resolveComputedKeyName(node.property, scope) : null);
+  }
+
+  function pathKey(node, scope) {
+    if (node?.type === 'Identifier') return node.name;
+    if (node?.type === 'ThisExpression') return 'this';
+    if (!isMemberAccessNode(node)) return null;
+    const { root, keys } = memberChainKeys(node, member => memberField(member, scope));
+    const name = root?.type === 'ThisExpression' ? 'this' : root?.type === 'Identifier' ? root.name : null;
+    return name && !keys.includes(null) ? [name, ...keys.map(fieldSegment)].join('.') : null;
   }
 
   // null when the binding's reference set could not be enumerated - distinct from an empty list,
   // which states there ARE no writes. the caller drops every guard on the null, because a write it
   // never saw is exactly what invalidates a narrow
   function memberPathWriteViolations({ objectBinding, anchorPath, targetKey }) {
-    const references = collectBindingReferences(objectBinding, anchorPath);
-    if (!references) return null;
     const out = [];
-    for (const ref of references) {
-      // climb to the top of the member-access chain rooted at this `obj` reference,
-      // stepping THROUGH transparent wrappers per hop - a TS cast between hops
-      // (`(box as any).kind = v`) otherwise strands the climb below the write host and
-      // the stale narrow survives
-      let p = climbTransparentWrapperPath(ref);
-      while (isMemberAccessNode(p.parentPath?.node) && p.parentPath.node.object === p.node) {
-        p = climbTransparentWrapperPath(p.parentPath);
-      }
-      // record only when the climbed member chain is itself the WRITE TARGET of its host -
-      // assignment / update / delete, OR a destructure-pattern slot / for-x head (the canonical
-      // `isMemberWriteHost` enumeration; the bare hostType check missed those, so a `[obj.a] = v`
-      // or `for (obj.a of it)` write left the narrow unsoundly retained)
-      if (!isMemberWriteHost(p)) continue;
-      const info = writeChainInfo(p.node, p.scope ?? anchorPath.scope);
-      if (!info) continue;
-      if (info.dynamic) {
-        // a dynamic step AT or ABOVE the narrowed path (`box[expr] = v` for target `box`)
-        // could rebind it or flip its discriminant - conservative identity violation. a
-        // DEEPER dynamic step (`box.data[i] = v`) is a property mutation past the
-        // direct-field level and stays excluded like its resolvable siblings
-        if (info.key === targetKey || targetKey.startsWith(`${ info.key }.`)) out.push(p.parentPath);
+    const roots = new Map([[objectBinding, { key: targetKey.split('.', 1)[0], dynamic: false }]]);
+
+    function record(host, key, value) {
+      // A write can replace the payload without changing the tag. A simple assignment
+      // also tells the member resolver which value may reach this read.
+      if (key === targetKey || targetKey.startsWith(`${ key }.`)) out.push(host);
+      else if (key.startsWith(`${ targetKey }.`)) out.push({ node: host.node, parentPath: host.parentPath,
+        canonicalRecovered: host.canonicalRecovered, writeKey: key, value });
+    }
+
+    function captureAlias(path, key, dynamic) {
+      const name = aliasTargetName(path.node);
+      if (!name) return;
+      const alias = getScopeBinding({ scope: path.scope, name, path });
+      const seen = roots.get(alias);
+      if (!alias || seen && (seen.key !== key || seen.dynamic !== dynamic)) record({ canonicalRecovered: true }, key);
+      else if (!seen) roots.set(alias, { key, dynamic });
+    }
+
+    // An alias carries the object at the path it captured. Writes through it enter the
+    // same interval checks as direct writes, at the write site rather than the alias declaration.
+    for (const [binding, root] of roots) {
+      const refs = collectBindingReferences(binding, anchorPath);
+      if (!refs) {
+        if (binding === objectBinding) return null;
+        // A generated capture may not have indexed uses yet. Its unknown writes
+        // can touch that captured field, without invalidating a guard on a sibling.
+        record({ canonicalRecovered: true }, root.key);
         continue;
       }
-      const writeKey = info.key;
-      // an IDENTITY write - the exact narrowed path or a shallower prefix of it (`obj.a` vs target
-      // `obj.a.b`) - reassigns the narrowed value, so it drops the narrow unconditionally. push the
-      // write-host PATH so `violationInCapturedFunction` can walk `.parentPath`
-      if (writeKey === targetKey || targetKey.startsWith(`${ writeKey }.`)) {
-        out.push(p.parentPath);
-      } else if (writeKey.startsWith(`${ targetKey }.`)) {
-        // a field write under the target (`s.kind`, or the deeper `s.m.k`) flips the variant ONLY
-        // when it lands on a guard's discriminant path; an unrelated field write (`s.data = ...`)
-        // leaves it intact. carry the key so `discriminantGuardApplies` can match it per-guard -
-        // depth is not the filter, the per-guard key comparison is, and a MULTI-HOP discriminant
-        // is invalidated by a write to exactly its own deep path
-        out.push({ node: p.parentPath.node, parentPath: p.parentPath.parentPath, writeKey });
+      let uses = refs;
+      for (const write of binding.constantViolations ?? []) {
+        // Babel indexes the assignment but omits the read of its left operand. OXC indexes the read.
+        if (write.node?.type !== 'AssignmentExpression' || (write.node.operator !== '||=' && write.node.operator !== '??=')
+          || unwrapRuntimeExpr(write.node.left)?.name !== bindingBoundName(binding)) continue;
+        if (uses === refs) uses = refs.slice();
+        uses.push(write.get('left'));
+      }
+      const aliasOwner = binding !== objectBinding && binding.constantViolations?.length && objectBinding.kind === 'param'
+        && !objectBinding.constantViolations?.length && root.key === bindingBoundName(objectBinding)
+        ? findNearestVarScopeOwner(binding.path)?.node : null;
+      for (const ref of uses) {
+        // An object freshly allocated in this invocation cannot be its incoming parameter.
+        if (aliasOwner && aliasOwner === objectBinding.scope.path?.node && findNearestVarScopeOwner(ref)?.node === aliasOwner) {
+          const assigned = findPrecedingBlockAssignment(binding, ref);
+          if (unwrapRuntimeExpr(assigned?.node.left)?.type === 'Identifier'
+            && unwrapRuntimeExpr(assigned.node.right)?.type === 'ObjectExpression'
+            || identifierDeclaratorInit(binding)?.type === 'ObjectExpression' && noReassignmentReachesUsage({
+              reassignmentNodes: binding.constantViolations.map(violationNode), usagePath: ref,
+              bindingScopeNode: scopeNode(binding.scope),
+            })) continue;
+        }
+        let p = climbTransparentWrapperPath(ref);
+        let { key, dynamic } = root;
+        while (p.parentPath) {
+          const parent = p.parentPath;
+          const { node } = parent;
+          if (isMemberAccessNode(node) && node.object === p.node) {
+            const field = memberField(node, parent.scope);
+            if (field === null) dynamic = true;
+            if (!dynamic) key += `.${ fieldSegment(field) }`;
+          } else if (getFallbackBranchSlots(node)?.some(slot => node[slot] === p.node)) {
+            // The false left of && cannot pass an object to the writer.
+            if (node.operator === '&&' && node.left === p.node) break;
+            const live = decidedLiveNode(node, parent);
+            if (live && live !== p.node) break;
+          } else if (node.type === 'VariableDeclarator' && node.init === p.node
+            || node.type === 'AssignmentExpression' && node.right === p.node && VALUE_FLOW_ASSIGN_OPS.has(node.operator)) {
+            captureAlias(parent, key, dynamic);
+            if (node.type === 'VariableDeclarator') break;
+          } else if (node.type === 'AssignmentExpression' && logicalSlotPatchHost(p)) {
+            if (isMemberAccessNode(unwrapRuntimeExpr(p.node))) record(parent, key, dynamic ? undefined : node.right);
+          } else if (node.arguments?.includes(p.node)) {
+            const forwarded = visitArgumentWrites(parent, p, (field, value = null) => {
+              if (dynamic || field === null) record(parent, key);
+              else record(parent, `${ key }.${ fieldSegment(field) }`, value);
+            });
+            if (!forwarded) break;
+          } else if (node.type !== 'SequenceExpression' || node.expressions.at(-1) !== p.node) break;
+          p = climbTransparentWrapperPath(parent);
+        }
+        const host = p.parentPath;
+        if (isMemberAccessNode(unwrapRuntimeExpr(p.node)) && isMemberWriteHost(p)) {
+          const value = host.node.operator === '=' ? host.node.right : null;
+          record(host, key, dynamic ? undefined : value);
+        }
       }
     }
     return out;
@@ -226,7 +281,7 @@ export function createDiscriminantNarrow({
   // both walk-up and preceding-exit collectors share one signature. `this` receivers are
   // not lexically bound - skip the scope lookup and seed empty violations rather than
   // re-resolving across each guard check
-  function buildDiscriminantContext(varPath, targetKey) {
+  function buildDiscriminantContext(varPath, targetKey, readKey) {
     const [rootName] = targetKey.split('.', 1);
     const objectBinding = rootName === 'this' ? null : getScopeBinding({ scope: varPath.scope, name: rootName, path: varPath });
     // `violations` = reassignments of the narrowed value's IDENTITY (binding reassignments + writes to
@@ -241,7 +296,8 @@ export function createDiscriminantNarrow({
       if (writes) for (const write of writes) (write.writeKey === undefined ? violations : fieldWrites).push(write);
       else writesUnknown = true;
     }
-    return { rootName, objectBinding, violations, fieldWrites, writesUnknown, targetKey, varPath, objectStart: varPath.node.start };
+    return { rootName, objectBinding, violations, fieldWrites, writesUnknown, targetKey, readKey,
+      varPath, objectStart: varPath.node.start };
   }
 
   // the `<targetKey>.<field>` write-keys a guard's discriminant clauses test, so a field write only
@@ -255,7 +311,7 @@ export function createDiscriminantNarrow({
     for (const part of flattenCondition(testNode, '&&', hostPath).concat(flattenCondition(testNode, '||', hostPath))) {
       const fieldPath = parseDiscriminantCheck({ rawTest: part, targetKey, conditionTrue: true, scope })?.fieldPath
         ?? matchTargetFieldPath(unwrapRuntimeExpr(part), targetKey, scope);
-      if (fieldPath?.length) keys.add(`${ targetKey }.${ fieldPath.join('.') }`);
+      if (fieldPath?.length) keys.add(`${ targetKey }.${ fieldPath.map(fieldSegment).join('.') }`);
     }
     return keys;
   }
@@ -308,18 +364,11 @@ export function createDiscriminantNarrow({
   // `testPath` (not a bare scope): the identity compare below must resolve `rootName` through the
   // SHARED lookup, and only that answers alike on both parsers for a nested-block `var` - the
   // synthesized hoisted twin needs a path to anchor its search
-  function discriminantGuardApplies(testPath, testNode, ctx, deferredUpper) {
+  function discriminantGuardApplies(testPath, testNode, ctx, deferredUpper, guard) {
     const { rootName, objectBinding, targetKey, objectStart, varPath } = ctx;
     const scope = testPath?.scope;
     if (rootName !== 'this' && objectBinding
       && getScopeBinding({ scope, name: rootName, path: testPath }) !== objectBinding) return false;
-    // a direct field write only flips THIS guard when the field is one of its discriminants
-    const relevant = relevantGuardViolations(ctx, testNode, targetKey, testPath);
-    if (objectBinding && violationInCapturedFunction(relevant, objectBinding.scope?.path)) return false;
-    // the intervals below are bounded ABOVE by the use, so a write whose slot runs ahead of the use's
-    // own - a class key or decorator, a case test a `default` body is reached through - lands past
-    // every one of them and drops out. it reaches the read all the same
-    if (varPath && anyWriteOutrunsUse(relevant.map(v => v.node), varPath)) return false;
     const testStart = testNode?.start;
     const testEnd = testNode?.end;
     if (testEnd === undefined || objectStart === undefined) return false;
@@ -328,10 +377,32 @@ export function createDiscriminantNarrow({
     // a relevant write that textually follows it - `deferredUpper` (loop body end / unbounded for a function)
     // extends the check so a DISCRIMINANT write in that region drops the guard. a non-discriminant write is
     // already filtered out by `relevantGuardViolations`, so it still keeps the narrow
-    return !violationsHitAnyInterval(relevant, [
+    const intervals = [
       { from: testEnd, to: deferredUpper ?? objectStart, inclusive: false },
       { from: testStart, to: testEnd, inclusive: true },
-    ]);
+    ];
+    function reaches(writes, bounds) {
+      return writes.length && (violationInCapturedFunction(writes, objectBinding?.scope?.path)
+        || anyWriteOutrunsUse(writes.map(write => write.node), varPath) || violationsHitAnyInterval(writes, bounds));
+    }
+    const tagWrites = relevantGuardViolations(ctx, testNode, targetKey, testPath);
+    if (reaches(tagWrites, intervals)) return false;
+    // Testing the tag again does not restore a payload overwritten before the test.
+    const pairedTag = guard && tagWrites.length === 1 && tagWrites[0].writeKey === `${ targetKey }.${ guard.fieldPath.map(fieldSegment).join('.') }`
+      ? tagWrites[0] : null;
+    for (const write of ctx.fieldWrites) if (write.writeKey === ctx.readKey && write.value !== undefined
+      && reaches([write], [{ from: -Infinity, to: deferredUpper ?? objectStart }])) {
+      // A conditional alias may have received both a different tag and its payload in one call.
+      // Only the untouched object can pass this test unless a later write changed that tag again.
+      if (pairedTag?.node === write.node && write.node.end <= testStart) {
+        const literal = literalExactValue(pairedTag.value);
+        if (literal !== null && !guardAcceptsLiteral(guard, literal)) continue;
+      }
+      const value = write.value && pathOfNode(write.parentPath, write.value);
+      if (!value) return false;
+      (ctx.values ??= new Set()).add(value);
+    }
+    return true;
   }
 
   // flatten `&&` (truthy) / `||` (falsy) chains so a discriminant clause embedded alongside
@@ -340,12 +411,12 @@ export function createDiscriminantNarrow({
   // its own `!`/parens), survivors append to `out`. `hostPath` - the statement or expression the
   // test stands in - lends its scope to enum-member / alias-chain resolution on the literal side of
   // the comparison, and a selection this build decides tests as its live part (`flattenCondition`)
-  function pushDiscriminantClauses({ test, conditionTrue, targetKey, out, hostPath }) {
+  function pushDiscriminantClauses({ test, conditionTrue, targetKey, out, hostPath, ctx, deferredUpper }) {
     const { scope } = hostPath;
     const parts = flattenCondition(test, conditionTrue ? '&&' : '||', hostPath);
     for (const part of parts) {
       const guard = parseDiscriminantCheck({ rawTest: part, targetKey, conditionTrue, scope });
-      if (guard) out.push(guard);
+      if (guard && discriminantGuardApplies(hostPath, part, ctx, deferredUpper, guard)) out.push(guard);
     }
   }
 
@@ -418,8 +489,7 @@ export function createDiscriminantNarrow({
       const i = positions[p];
       if (i >= current.key) continue;
       const { peeled, conditionTrue } = siblingExitCondition(siblings[i]);
-      if (!discriminantGuardApplies(peeled, peeled.node.test, ctx, deferredUpper)) continue;
-      pushDiscriminantClauses({ test: peeled.node.test, conditionTrue, targetKey, out, hostPath: peeled });
+      pushDiscriminantClauses({ test: peeled.node.test, conditionTrue, targetKey, out, hostPath: peeled, ctx, deferredUpper });
     }
   }
 
@@ -446,7 +516,6 @@ export function createDiscriminantNarrow({
     const outside = switchStmt.parentPath;
     const fieldPath = matchTargetFieldPath(unwrapRuntimeExpr(switchStmt.node.discriminant), targetKey, outside.scope);
     if (fieldPath === null) return;
-    if (!discriminantGuardApplies(outside, switchStmt.node.discriminant, ctx, deferredUpper)) return;
     const { cases } = switchStmt.node;
     const { scope } = switchCase;
     const caseIndex = cases.indexOf(switchCase.node);
@@ -457,6 +526,7 @@ export function createDiscriminantNarrow({
     // look. a discriminant write in any of them drops the guards; a test with no source span could
     // stand anywhere, so it drops them too
     if (switchCase.node.test === null) {
+      if (!discriminantGuardApplies(outside, switchStmt.node.discriminant, ctx, deferredUpper)) return;
       const tests = cases.map($case => $case.test).filter(Boolean);
       // `hasRange`, not an own `undefined` check: the question "does this node carry a span" has one
       // canonical answer, and a site that re-spells it drifts from the canon the moment either parser
@@ -470,7 +540,8 @@ export function createDiscriminantNarrow({
       return;
     }
     const value = resolveLiteralOrComputed(switchCase.node.test, scope);
-    if (value !== null) out.push({ fieldPath, value, positive: true });
+    const guard = { fieldPath, value, positive: true };
+    if (value !== null && discriminantGuardApplies(outside, switchStmt.node.discriminant, ctx, deferredUpper, guard)) out.push(guard);
   }
 
   // the deferred-execution upper bound a deferred context puts on a use inside it. a body that RUNS at
@@ -493,9 +564,8 @@ export function createDiscriminantNarrow({
   // every guard above it. And the mutation-check interval is not the use's own position - crossing a
   // loop or a function CONTAINING the use grows it to that region, so a write standing textually
   // BELOW the use still drops a guard above it
-  function findDiscriminantGuards(varPath, targetKey) {
+  function findDiscriminantGuards(varPath, targetKey, ctx) {
     const guards = [];
-    const ctx = buildDiscriminantContext(varPath, targetKey);
     // the writer set is not enumerable - every guard below rests on having seen the writes, so none
     // of them can be trusted
     if (ctx.writesUnknown) return guards;
@@ -551,8 +621,7 @@ export function createDiscriminantNarrow({
         collectPrecedingExitDiscriminants({ current, targetKey, out: guards, ctx, deferredUpper });
         continue;
       }
-      if (!discriminantGuardApplies(parent, test, ctx, deferredUpper)) continue;
-      pushDiscriminantClauses({ test, conditionTrue, targetKey, out: guards, hostPath: parent });
+      pushDiscriminantClauses({ test, conditionTrue, targetKey, out: guards, hostPath: parent, ctx, deferredUpper });
     }
     return guards;
   }
@@ -575,10 +644,10 @@ export function createDiscriminantNarrow({
       && current.listKey === 'body' && typeof current.key === 'number';
   }
 
-  // assignment shape that re-binds `targetName`: simple Identifier LHS OR destructure pattern
-  // (ArrayPattern / ObjectPattern) whose key-path walker turns up `targetName`. resolvePath's
-  // destructure branch then extracts the matching RHS slot
+  // An update of the identifier, a direct assignment, or a destructuring assignment that
+  // binds the name. resolvePath extracts the matching RHS slot in the last case.
   function assignmentBindsTarget(expr, targetName, scope) {
+    if (expr?.type === 'UpdateExpression') return unwrapRuntimeExpr(expr.argument)?.name === targetName;
     if (expr?.type !== 'AssignmentExpression' || expr.operator !== '=') return false;
     const { left } = expr;
     if (left?.type === 'Identifier') return left.name === targetName;
@@ -648,8 +717,7 @@ export function createDiscriminantNarrow({
     return lo === starts.length || starts[lo] > span.end;
   }
 
-  // a statement's last statement-level write (above) when it re-binds `targetName` - a plain `=`, so a
-  // later compound, update or re-declaration leaves no value to follow. ObjectPattern
+  // a statement's last statement-level write when it assigns or updates `targetName`. ObjectPattern
   // destructure-assignment is only parseable as `({...} = R)` - the parens are an AST node in
   // oxc-parser, one more always-evaluated slot on the way down.
   // the name alone is not the binding: the fall-through descent below enters a nested block, where a
@@ -783,7 +851,7 @@ export function createDiscriminantNarrow({
     return parent.get('init');
   }
 
-  // walk varPath's ancestors looking for an `=` assignment at a preceding-sibling statement
+  // walk varPath's ancestors looking for an assignment or update at a preceding-sibling statement
   // that's GUARANTEED to have run before varPath. unlike `findLastStraightLineAssignment`,
   // which insists on straight-line reachability all the way to the binding's var-scope, this
   // accepts assignments in any enclosing block of the use site - those are guaranteed because
@@ -821,20 +889,23 @@ export function createDiscriminantNarrow({
     return null;
   }
 
-  // collect own non-computed Identifier/StringLiteral-keyed properties whose value is a
+  // Collect own properties with a known key whose value is a
   // primitive literal (string / number) - the RHS projection used to discriminate which
-  // union branch the assignment shape commits to. returns null when a SpreadElement is
-  // present anywhere - spread can override any literal key at runtime (`{kind:'a', ...x}`
-  // where `x.kind === 'b'`), so narrowing to the literal-side branch would be unsound
-  function collectObjectLiteralProps(rhs) {
+  // union branch the assignment shape commits to. Spreads and unknown keys erase earlier
+  // facts; an explicit key after them establishes a new value.
+  function collectObjectLiteralProps(rhs, scope) {
     const literals = new Map();
     for (const p of rhs.properties) {
       if (!p) continue;
-      if (p.type === 'SpreadElement' || p.type === 'ExperimentalSpreadProperty') return null;
-      if (p.computed || (p.type !== 'ObjectProperty' && p.type !== 'Property')) continue;
-      const keyName = getKeyName(p.key);
-      const literalValue = literalExactValue(p.value);
-      if (keyName !== null && literalValue !== null) literals.set(keyName, literalValue);
+      const key = p.computed ? resolveComputedKeyName(p.key, scope) : p.key ? getKeyName(p.key) : null;
+      if (key === null) {
+        // A spread or an unknown key may replace any field seen so far.
+        literals.clear();
+        continue;
+      }
+      const value = literalExactValue(p.value);
+      if (value === null) literals.delete(key);
+      else literals.set(key, value);
     }
     return literals;
   }
@@ -871,8 +942,8 @@ export function createDiscriminantNarrow({
     if (rhs?.type !== 'ObjectExpression') return null;
     const { node: aliased, subst } = followTypeAliasChain(unwrapTypeAnnotation(annotation), scope);
     if (!isUnionType(aliased)) return null;
-    const rhsLiterals = collectObjectLiteralProps(rhs);
-    if (rhsLiterals === null || rhsLiterals.size === 0) return null;
+    const rhsLiterals = collectObjectLiteralProps(rhs, lastAssign.scope);
+    if (rhsLiterals.size === 0) return null;
     return narrowUnionWithPredicate(aliased, subst, scope, branch => branchMatchesLiterals(branch, rhsLiterals, scope));
   }
 
@@ -894,16 +965,19 @@ export function createDiscriminantNarrow({
     return true;
   }
 
-  function narrowDiscriminatedUnion(objectPath, annotation, scope) {
+  function narrowDiscriminatedUnion(objectPath, annotation, scope, member) {
     // cheap early exit before `followTypeAliasChain` spins up the alias walker
-    const targetKey = pathKey(objectPath.node);
+    const targetKey = pathKey(unwrapRuntimeExpr(objectPath.node), objectPath.scope);
     if (!targetKey) return null;
     const { node: aliased, subst } = followTypeAliasChain(annotation, scope);
     if (!isUnionType(aliased)) return null;
-    const guards = findDiscriminantGuards(objectPath, targetKey);
+    const readKey = typeof member === 'string' ? `${ targetKey }.${ fieldSegment(member) }` : null;
+    const ctx = buildDiscriminantContext(objectPath, targetKey, readKey);
+    const guards = findDiscriminantGuards(objectPath, targetKey, ctx);
     if (!guards.length) return null;
     // permissive: branches with unresolvable discriminant members pass through
-    return narrowUnionWithPredicate(aliased, subst, scope, branch => branchMatchesGuards(branch, guards, scope));
+    const narrowed = narrowUnionWithPredicate(aliased, subst, scope, branch => branchMatchesGuards(branch, guards, scope));
+    return narrowed && { annotation: narrowed, values: ctx.values };
   }
 
   // recursively expand alias chains that resolve to unions so each inner branch appears
@@ -980,18 +1054,17 @@ export function createDiscriminantNarrow({
     return guards.every(guard => guardMatchesBranchMember(guard, unwrapped, scope));
   }
 
-  function guardMatchesBranchMember({ fieldPath, value, positive }, objectType, scope) {
+  function guardMatchesBranchMember(guard, objectType, scope) {
     // walk the guard's field path hop by hop; an unresolvable hop passes permissively,
     // matching the single-hop precedent for unknown member types
     let current = objectType;
-    for (const field of fieldPath) {
+    for (const field of guard.fieldPath) {
       const memberType = findTypeMember({ objectType: current, key: field, scope });
       if (!memberType) return true;
       current = followTypeAliasChain(unwrapTypeAnnotation(memberType), scope).node;
     }
     const literal = current?.type === 'TSLiteralType' ? literalExactValue(current.literal) : null;
-    // a positive guard needs the literal to match, a negated one needs it to differ
-    return literal === null || (positive ? literal === value : literal !== value);
+    return literal === null || guardAcceptsLiteral(guard, literal);
   }
 
   return {

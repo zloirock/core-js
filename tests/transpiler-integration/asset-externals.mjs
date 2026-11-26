@@ -18,6 +18,13 @@ function options(method) {
 }
 const external = /^(?:@core-js\/pure|core-js)(?:\/|$)/;
 const banner = 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);';
+const externalRequireMessage = /\[core-js\].*injected require.*Bundle the core-js dependency/s;
+
+function onlyEsbuildRequireErrors(error) {
+  const errors = error?.errors;
+  return Array.isArray(errors) && errors.length > 0
+    && errors.every(entry => entry?.pluginName === 'core-js-unplugin:pre' && externalRequireMessage.test(entry.text));
+}
 
 async function compileWebpack(compiler) {
   try {
@@ -75,7 +82,7 @@ export async function assetExternals(run) {
         if (kind === 'optional' && !bundled) assert.throws(() => runInNewContext(code), { name: 'ReferenceError' });
         if (adapter === 'unplugin' && kind !== 'filtered') {
           const externalOptions = { ...buildOptions, format: 'esm', external: ['core-js/*'], plugins };
-          if (kind === 'required') await assert.rejects(() => esbuild.build(externalOptions), /injected require/u);
+          if (kind === 'required') await assert.rejects(() => esbuild.build(externalOptions), onlyEsbuildRequireErrors);
           else await esbuild.build(externalOptions);
         }
       }
@@ -164,19 +171,26 @@ export async function assetExternals(run) {
         assert.equal(await runInWorker(join(dir, filename), { strip: true, stripGlobals: [] }), filtered ? 'OK|"undefined"|[]' : 'OK|7|[]');
       });
     }
-    for (const compatible of [false, true]) {
-      await run(`esbuild/implicit neutral ESM/file namespace/${ compatible ? 'loader' : 'refused' }`, async () => {
+    for (const scenario of ['refused', 'loader', 'mixed errors']) {
+      await run(`esbuild/implicit neutral ESM/file namespace/${ scenario }`, async () => {
         const file = join(dir, 'neutral.mjs');
         function compile() {
           return esbuild.build({
             entryPoints: [join(dir, 'entry.mjs')], bundle: true, platform: 'neutral', outfile: file, logLevel: 'silent',
-            banner: compatible ? { js: 'import { createRequire } from "node:module"; const { load: require } = { load: createRequire(import.meta.url) };' } : undefined,
+            banner: scenario === 'loader' ? { js: 'import { createRequire } from "node:module"; const { load: require } = { load: createRequire(import.meta.url) };' } : undefined,
             plugins: [unplugin.esbuild(options('usage-pure')), { name: 'external-from-file', setup(build) {
               build.onResolve({ filter: external, namespace: 'file' }, ({ path }) => ({ path, external: true }));
+              if (scenario === 'mixed errors') build.onEnd(() => ({ errors: [{ text: 'independent onEnd failure' }] }));
             } }],
           });
         }
-        if (!compatible) await assert.rejects(compile, /\[core-js\].*injected require/u);
+        if (scenario === 'refused') await assert.rejects(compile, onlyEsbuildRequireErrors);
+        else if (scenario === 'mixed errors') await assert.rejects(compile, error => {
+          const diagnostics = error.errors.map(entry => onlyEsbuildRequireErrors({ errors: [entry] })
+            ? 'core-js refusal' : `${ entry.pluginName }: ${ entry.text }`);
+          assert.deepEqual(diagnostics.sort(), ['core-js refusal', 'external-from-file: independent onEnd failure']);
+          return !onlyEsbuildRequireErrors(error);
+        });
         else {
           await compile();
           assert.equal(await runInWorker(file, { strip: true, stripGlobals: [] }), 'OK|2|[]');
@@ -220,7 +234,7 @@ export async function assetExternals(run) {
                 plugins: [unplugin[host](options(method))],
               }));
             }
-            if (!compatible) await assert.rejects(build, /\[core-js\].*injected require.*Bundle the core-js dependency/s);
+            if (!compatible) await assert.rejects(build, host === 'esbuild' ? onlyEsbuildRequireErrors : externalRequireMessage);
             else {
               await build();
               assert.equal(await runInWorker(file), 'OK|2|[]');

@@ -137,6 +137,7 @@ import {
   statementListOf,
   syntheticNodeAncestry,
   PARAMETER_STATIC_SOURCES,
+  WRAPPED_UPDATE_NAMES,
   parameterStaticSource,
   paramReturnsTheValue,
   pathOfNode,
@@ -474,7 +475,7 @@ function spreadInstallValues(args) {
 // Known keys still invalidate slots when getter returns or unknown sources cannot prove a value.
 // Unknown keys still store the known value, under the ordinary write graph's wildcard.
 // Accessor returns belong only to the escape graph, never to a proof of a stored data value.
-function mutatorInstalledValues(namespace, method, args, { definite = false, accessors = false } = {}) {
+export function mutatorInstalledValues(namespace, method, args, { definite = false, accessors = false } = {}) {
   if (namespace !== 'Object' && namespace !== 'Reflect') return [];
   if (method !== 'defineProperty' && method !== 'defineProperties' && method !== 'assign' && method !== 'set') return [];
   const entries = [];
@@ -3290,6 +3291,7 @@ export function escapedCtorReferencesReducer({
   const nameWriteTargets = [];
   // Numeric updates consume the claim budget without adding constructor or key values.
   const updateTargets = [];
+  const wrappedUpdateNames = new Set();
   const realmSlotTargets = new WeakSet();
   // ... and the names an export specifier hands out, which only the finished declarations tell from a type
   const exportedSpecifierLocals = [];
@@ -4858,6 +4860,7 @@ export function escapedCtorReferencesReducer({
           guardedAliases.add(target.name);
           referenceScopes.set(target, frame?.scopes ?? []);
           updateTargets.push(target);
+          if (target !== node.argument) wrappedUpdateNames.add(target.name);
         } else fileSlotWrite(node.argument, null, frame);
         break;
       }
@@ -6020,6 +6023,7 @@ export function escapedCtorReferencesReducer({
   }
   // eslint-disable-next-line max-statements -- finalize the shared tables before publishing name and receiver facts
   function result() {
+    if (programNode) WRAPPED_UPDATE_NAMES.set(programNode, wrappedUpdateNames);
     const callees = finalize();
     if (updateTargets.length) {
       const updates = new Map();

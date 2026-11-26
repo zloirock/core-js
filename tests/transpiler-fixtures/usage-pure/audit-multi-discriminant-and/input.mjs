@@ -3,7 +3,7 @@
 // the right element-type polyfill
 type Box =
   | { kind: 'a'; sub: 'A1'; data: string[] }
-  | { kind: 'a'; sub: 'A2'; data: number[] }
+  | { kind: 'a'; sub: 'A2'; data: string }
   | { kind: 'b'; data: number };
 
 function readFirst(box: Box) {
@@ -11,4 +11,8 @@ function readFirst(box: Box) {
     return box.data.at(0);
   }
   return null;
+}
+
+function readEither(box: Box) {
+  if (box.kind === 'a') return box.data.at(0);
 }

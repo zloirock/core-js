@@ -1,7 +1,7 @@
-import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _Map from "@core-js/pure/actual/map/constructor";
-// an update write makes the value unknown - the member widens to the generic helper
+// The update stores a number or bigint. Neither has a standard at or flatMap method.
 var U;
 U = _Map;
 U++;
-export const r6 = _flatMapMaybeArray(U).call(U, x => x);
+U.at(0);
+export const r6 = U.flatMap(x => x);

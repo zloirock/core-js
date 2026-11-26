@@ -3835,20 +3835,52 @@ export function writesPastCeiling(writes) {
   return (writes?.length ?? 0) > MAX_FOLLOWED_WRITES;
 }
 
+// Names of bindings updated through a wrapper, collected by the file census or by a standalone scope lookup.
+export const WRAPPED_UPDATE_NAMES = new WeakMap();
+
+function isWrappedUpdate(node) {
+  return node.type === 'UpdateExpression' && isUpdateOperandWrapper(node.argument);
+}
+
+function mayHaveWrappedParameterUpdate(scope, name) {
+  const owner = scope?.path;
+  if (!owner?.node) return false;
+  let names = WRAPPED_UPDATE_NAMES.get(rootProgramOf(owner)) ?? WRAPPED_UPDATE_NAMES.get(scope);
+  if (!names) {
+    // Standalone lookups have no census. Plain formal identifiers contain no runtime writes;
+    // the scope already records their paths, so a body read need not walk the parameter list.
+    const simple = Object.values(scope.bindings ?? {}).filter(binding => binding.kind === 'param'
+      && binding.path?.listKey === 'params' && binding.path.node.type === 'Identifier' && !binding.path.node.decorators?.length);
+    const scan = simple.length === owner.node.params?.length && owner.node.body ? owner.get('body') : owner;
+    names = new Set();
+    for (const [key, writes] of scopeReassignmentIndexFor(scan)) if (writes.some(isWrappedUpdate)) names.add(key);
+    WRAPPED_UPDATE_NAMES.set(scope, names);
+  }
+  return names.has(name);
+}
+
 // merge canonically-recovered reassignments the native scope model missed into a binding's
 // violation list. the native trackers mis-scope some writes (babel places a switch DISCRIMINANT
 // inside the case-block scope, so a discriminant write of a name that a case-level lexical
 // shadows lands on the INNER binding; estree-toolkit drops cross-boundary let writes) - the
 // canonical AST scan is the source of truth for the SET. native entries stay PATHS (their
-// parent-chain carries deferred/captured precision); recovered extras are `{ node,
-// canonicalRecovered: true }` markers that path-dependent analyses treat conservatively
-// (possibly deferred, possibly captured, violating) while positional reads take `.node`.
+// parent-chain carries deferred/captured precision). A wrapped update needs that same live
+// path to distinguish an unconditional write from a skipped or deferred one. Other extras
+// are conservative `{ node, canonicalRecovered: true }` markers.
 // dedupe by containment: a native entry may record the assignment itself or just its target
 // identifier, both sit inside the canonical node's range
 export function withCanonicalViolations(binding, name) {
   const kind = binding?.kind;
-  if (!binding?.path || !name || (kind !== 'var' && kind !== 'let' && kind !== 'const')) return binding;
-  const canonical = scannedWrites(writeScanOwner({ kind, bindingPath: binding.path, anchorPath: binding.path, name }), name);
+  if (!binding?.path || !name) return binding;
+  let canonical;
+  if (kind === 'param') {
+    if (!mayHaveWrappedParameterUpdate(binding.scope, name)) return binding;
+    canonical = collectScopeReassignmentNodes(binding.scope.path, name);
+    if (!canonical.some(isWrappedUpdate)) return binding;
+  } else {
+    if (kind !== 'var' && kind !== 'let' && kind !== 'const') return binding;
+    canonical = scannedWrites(writeScanOwner({ kind, bindingPath: binding.path, anchorPath: binding.path, name }), name);
+  }
   if (!canonical.length) return binding;
   // past the ceiling no read follows these writes (`writesPastCeiling`): each stands as a recovered marker, unmerged
   if (writesPastCeiling(canonical)) {
@@ -3870,7 +3902,7 @@ export function withCanonicalViolations(binding, name) {
     .filter(node => node.start !== undefined && node.end !== undefined)
     .filter(node => known.every(k => !(k === node
       || (k.start !== undefined && k.start >= node.start && k.end <= node.end))))
-    .map(node => ({ node, canonicalRecovered: true }));
+    .map(node => (isWrappedUpdate(node) && pathOfNode(binding.path, node)) || { node, canonicalRecovered: true });
   if (!extras.length) return binding;
   // recovered extras prove the binding IS reassigned - the spread must not carry the
   // native `.constant: true` verdict along (a `.constant`-gated consumer would then read

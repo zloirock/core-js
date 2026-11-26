@@ -18,6 +18,7 @@ import {
   hoistedDeclarationInScope,
   hopAnchorStart,
   isDestructurePattern,
+  isInUpdateOperand,
   isMemberMutationContext,
   isSloppyAtPath,
   initializerReachesRead,
@@ -915,11 +916,7 @@ function createResolveNodeType(babelNodeType, t, {
     // An explicit annotation or assertion can widen a literal before inference. `satisfies`
     // only checks its expression, while `as const` retains the expression's literal type.
     // Keep the caller's annotation budget through recursive argument bindings.
-    let info = findExpressionAnnotation(argument, depth + 1);
-    while (info?.path?.node.type === 'TSSatisfiesExpression') {
-      depth += 1;
-      info = findExpressionAnnotation(info.path.get('expression'), depth + 1);
-    }
+    const info = findExpressionAnnotation(argument, depth + 1);
     const annotated = info && unwrapTypeAnnotation(info.annotation);
     if (annotated && !isConstAssertionType(annotated)) {
       const chain = followTypeAliasChain(annotated, info.scope);
@@ -1050,7 +1047,6 @@ function createResolveNodeType(babelNodeType, t, {
   // by `resolveNodeTypeExpression`'s dispatch switch. depends only on type-folding outputs
   // (`isNullableOrNever` / `commonType`) + factory hoisted helpers; no late deps
   const {
-    resolveNumericType,
     resolveMemberPropertyName,
     resolveUnionType,
     resolveDesugarDefaultTernary,
@@ -1063,7 +1059,6 @@ function createResolveNodeType(babelNodeType, t, {
     resolveRuntimeExpression,
     resolveComputedKeyName,
     resolveNodeType,
-    resolvePath,
     isNullableOrNever,
     commonType,
   });
@@ -1776,7 +1771,7 @@ function createResolveNodeType(babelNodeType, t, {
           && !writeNeverRuns({ write: v, usagePath: path, adapter: getDecisionAdapter() }))
         : null;
       if (violations?.length) {
-        const lastAssign = findPrecedingBlockAssignment(binding, path) ?? findLastStraightLineAssignment(binding, path);
+        const lastAssign = reachingBindingWrite(binding, path);
         if (lastAssign?.node?.type === 'AssignmentExpression' && lastAssign.node.operator === '=') {
           const { left } = lastAssign.node;
           // simple `f = X` reassignment - follow RHS directly
@@ -2291,18 +2286,6 @@ function createResolveNodeType(babelNodeType, t, {
     applySubstToTypeRefArgs,
   } = classObjectMemberCluster;
 
-  // serialize `x`, `this.data`, `obj.a.b` - null for computed / shapes we don't probe
-  function pathKey(node) {
-    if (node?.type === 'Identifier') return node.name;
-    if (node?.type === 'ThisExpression') return 'this';
-    const propName = getMemberProperty(node);
-    if (propName !== null) {
-      const parent = pathKey(node.object);
-      return parent === null ? null : `${ parent }.${ propName }`;
-    }
-    return null;
-  }
-
   // strip outer parens + leading `!` so `if (!(x === 'a'))` narrows identically to `x !== 'a'`.
   // returns the peeled test plus a flag the caller XOR-s into its own polarity tracker.
   // peels ALL consecutive `!` operators (parity-tracked) so `!!X` -> X with negated=false,
@@ -2340,7 +2323,8 @@ function createResolveNodeType(babelNodeType, t, {
     getScopeBinding,
     t,
     peelNegation,
-    pathKey,
+    decidedLiveNode,
+    visitArgumentWrites: bindingAnalysisCluster.visitArgumentWrites,
     getMemberProperty,
     flattenCondition: (...args) => typeofGuardsCluster.flattenCondition(...args),
     resolveComputedKeyName,
@@ -2491,6 +2475,29 @@ function createResolveNodeType(babelNodeType, t, {
   const straightLineFlowCluster = createStraightLineFlow({ t, babelNodeType, decidedLiveNode, getDecisionAdapter });
   const { findLastStraightLineAssignment } = straightLineFlowCluster;
 
+  function reachingBindingWrite(binding, path) {
+    return findPrecedingBlockAssignment(binding, path) ?? findLastStraightLineAssignment(binding, path);
+  }
+
+  // Babel records the update, OXC its target. Only ask about its execution order when
+  // the binding has such a write. Return undefined when ordinary binding inference applies,
+  // or null when mapped arguments can replace the value regardless of its annotation.
+  function reachingNumericUpdate(binding, path) {
+    const writes = binding?.constantViolations;
+    if (writes?.length && !writesPastCeiling(writes) && writes.some(write => write.node?.type === 'UpdateExpression'
+      || write.node?.type === 'Identifier' && isInUpdateOperand(write.parentPath))) {
+      const last = reachingBindingWrite(binding, path);
+      if (last?.node.type === 'UpdateExpression') {
+        const fn = binding.scope?.path;
+        // A sloppy function's plain parameters can be overwritten through its arguments object.
+        if (binding.kind === 'param' && fn?.node.type !== 'ArrowFunctionExpression' && isSloppyAtPath(fn)
+          && !parameterArgumentsOnlyObserved(fn) && fn.node.params.every(param => param.type === 'Identifier')) return null;
+        return last;
+      }
+    }
+    return undefined;
+  }
+
   // pattern-bindings cluster: destructuring + for-of binding resolution + the full
   // `resolveBindingType` entry-point. ~23 functions total. service object is heavy (~26
   // entries) but all deps are hoisted function decls or upstream cluster outputs;
@@ -2546,6 +2553,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveComputedKeyName,
     getKeyName,
     findLastStraightLineAssignment,
+    reachingNumericUpdate,
     resolveStaleRedeclSliceType,
     withLookupPath,
     // the awaited cluster assigned this factory `let` above, and `reset()` re-runs the clusters'
@@ -2993,6 +3001,7 @@ function createResolveNodeType(babelNodeType, t, {
   // user-defined type-predicate cluster lives in `resolve-node-type/guard-shapes.js`;
   // wire it with the type-resolution helpers it consumes and bind the two public entries
   const predicateGuardsCluster = createPredicateGuards({
+    followTypeAliasChain,
     getScopeBinding,
     resolveMemberCallChain,
     unwrapTypeAnnotation,
@@ -3019,6 +3028,7 @@ function createResolveNodeType(babelNodeType, t, {
     lookupNested,
     parseUserPredicateGuardEntries,
     parseAssertionGuardEntries,
+    arrayGuardHasLocalInputs,
     blockAlwaysExits,
     canFallThrough,
     KNOWN_STATIC_TYPE_GUARDS,
@@ -3047,6 +3057,8 @@ function createResolveNodeType(babelNodeType, t, {
     findNameAnnotation,
     followTypeAliasChain,
     applyAliasSubstDeep,
+    arrayElementType,
+    structuralKey,
     findEnclosingTypeGuards,
     nearestPrecedingGuardIndex,
     findConditionalGuards,
@@ -3100,6 +3112,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolvePath,
     resolveNodeType,
     resolveBindingType,
+    findExpressionAnnotation,
     unwrapTypeAnnotation,
     polyfillHintGlobalName,
     resolveConstructorType,
@@ -3125,7 +3138,6 @@ function createResolveNodeType(babelNodeType, t, {
     resolveUnionType,
     resolveDesugarDefaultTernary,
     ownCtorNarrowAlternatePath,
-    resolveNumericType,
     resolveTypeAnnotation,
     resolveAwaitExpressionType,
     generatorTypeParams,
@@ -3570,6 +3582,27 @@ function createResolveNodeType(babelNodeType, t, {
     }
     return parameterCallerSites.get(parameter.node);
   }
+
+  // Fresh array literals in this realm pass instanceof Array. Array.prototype and opaque
+  // arguments do not give that guarantee, even when annotated as arrays.
+  function arrayGuardHasLocalInputs(read, scope, path) {
+    const binding = getScopeBinding({ scope, name: read.name, path, read });
+    if (!binding || binding.constantViolations?.length) return false;
+    const source = binding.path;
+    if (t.isVariableDeclarator(source.node)) return t.isIdentifier(source.node.id) && ordinaryValue(source.get('init'));
+    const sites = getParameterCallerSites(source);
+    return !!sites && sites.every(({ pairing, callPath, argIndex }) => {
+      if (pairing.argsUnknown) return false;
+      const arg = resolveCallArgument(pairing.args ?? [], argIndex, isMutatedStatic);
+      return !!arg && ordinaryValue(pathOfNode(callPath, arg));
+    });
+
+    function ordinaryValue(value) {
+      if (!value?.node) return false;
+      const { node } = resolveRuntimeExpression(value);
+      return t.isArrayExpression(node) || isQuietLiteralOperand(node);
+    }
+  }
   const primedParameterFunctions = new WeakSet();
   function resolveParameterReceiver(objectPattern) {
     if (parameterReceiverFacts.has(objectPattern.node)) return parameterReceiverFacts.get(objectPattern.node);
@@ -3888,11 +3921,19 @@ function createResolveNodeType(babelNodeType, t, {
     const importedHint = polyfillHintGlobalName(path);
     // A mutable binding owns the pairing of pattern writes. Following it before that pairing
     // can mistake the whole RHS container for the field assigned to the receiver.
-    if (!importedHint && (!t.isIdentifier(path.node)
-      || !getScopeBinding({ scope: path.scope, name: path.node.name, path })?.constantViolations?.length)) {
-      path = resolveRuntimeExpression(path);
+    if (!importedHint) {
+      const binding = t.isIdentifier(path.node) && getScopeBinding({ scope: path.scope, name: path.node.name, path });
+      if (binding?.constantViolations?.length) {
+        const update = reachingNumericUpdate(binding, path);
+        if (update === null) return null;
+        path = update ?? path;
+      } else path = resolveRuntimeExpression(path);
     }
     const { type } = path.node;
+    if (type === 'UpdateExpression') {
+      const kind = toHint(resolveNodeType(path));
+      return kind ? new Set([kind]) : new Set(['number', 'bigint']);
+    }
     if (type === 'LogicalExpression') return mergeArmHints([path.get('left'), path.get('right')], depth);
     if (type === 'ConditionalExpression') return mergeArmHints([path.get('consequent'), path.get('alternate')], depth);
     // an object carrying an INSTALLED prototype dispatches that prototype's family - and its

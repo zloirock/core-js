@@ -1,3 +1,4 @@
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
@@ -6,5 +7,6 @@ import _Map from "@core-js/pure/actual/map/constructor";
   let K;
   K = _Map;
   K = [5];
+  _atMaybeArray(K).call(K, 0);
   _globalThis.r8 = (_findLastMaybeArray(K) || 0).call(K, Boolean);
 }

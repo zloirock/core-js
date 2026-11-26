@@ -457,9 +457,15 @@ for (const [setup, expression, object, string] of [
 }, ['typescript']);
 
 for (const [expression, kind] of [['BigInt(1)', 'bigint'], ['1', 'number']]) {
-  runBoth(`postfix ${ kind }`, `let count = ${ expression }; const next = count++;`, (parser, program, label) => {
-    checkType(label, parser.makeResolver().resolveNodeType(parser.pickPath(program, 'UpdateExpression')), { primitive: true, kind });
-  });
+  for (const update of ['count++', '++(count)', 'count--', '--(count)']) {
+    runBoth(`${ kind } ${ update }`, `let count = ${ expression }; const next = ${ update }; count.toFixed(1);`,
+      (parser, program, label) => {
+        const resolver = parser.makeResolver();
+        const member = parser.pickPath(program, 'MemberExpression');
+        checkType(`${ label }/expression`, resolver.resolveNodeType(parser.pickPath(program, 'UpdateExpression')), { primitive: true, kind });
+        checkType(`${ label }/stored`, resolver.resolveNodeType(member.get('object')), { primitive: true, kind });
+      });
+  }
 }
 
 // An array/string union uses a generic member. These controls also distinguish distribution
@@ -534,13 +540,24 @@ runBoth('reset() flushes cache', 'const x = 1;', (adapter, prog, lbl) => {
 // its entries survive across parses while the rest of the factory is rebuilt. the predicate-guard
 // cluster is the one that owned a cache without the hook - assert the surface, and that a reset
 // leaves the resolver working (a missing hook throws at the factory's reset())
-runBoth('reset() drives every cluster hook', 'function isS(x) { return typeof x === "string"; }', (adapter, prog, lbl) => {
+runBoth('reset() reads the replacement assertion in the same statement', `
+  declare function assertArray(v: unknown): asserts v is number[];
+  declare function assertString(v: unknown): asserts v is string;
+  function read(v: unknown) { assertArray(v); return v.at(0); }
+  function other(v: unknown) { assertString(v); }
+`, (adapter, prog, lbl) => {
   const resolver = adapter.makeResolver();
-  const decl = adapter.pickPath(prog, 'FunctionDeclaration');
+  const assertion = adapter.pickPath(prog, 'ExpressionStatement', path => path.node.expression.callee?.name === 'assertArray');
+  const replacement = adapter.pickPath(prog, 'ExpressionStatement', path => path.node.expression.callee?.name === 'assertString');
+  const member = adapter.pickPath(prog, 'MemberExpression', path => path.node.property.name === 'at');
+  function hint() { return toHint(resolver.resolveNodeType(member.get('object'))); }
+  check(`${ lbl } before edit`, hint(), 'array');
+  assertion.node.expression = replacement.node.expression;
+  check(`${ lbl } cached`, hint(), 'array');
   resolver.reset();
+  check(`${ lbl } reset`, hint(), 'string');
   resolver.reset();
-  checkTruthy(`${ lbl } resolver still resolves after repeated reset`,
-    resolver.resolveNodeType(decl) !== undefined);
+  check(`${ lbl } repeated reset`, hint(), 'string');
 });
 check('guard-shapes cluster publishes a reset hook',
   typeof createPredicateGuards({}).reset, 'function');
@@ -1548,7 +1565,8 @@ for (const [what, checkSide, extendSide, trueBranch, rejected] of [
     (adapter, prog, lbl) => {
       const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
       const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
-      if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      if (trueBranch === 'string') checkType(lbl, type, { primitive: true, kind: 'string' });
+      else if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
       else checkType(lbl, type, { primitive: true, kind: 'string' });
     }, ['typescript']);
 }
@@ -1694,7 +1712,8 @@ for (const [what, checkSide, extendSide, trueBranch] of [
     (adapter, prog, lbl) => {
       const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
       const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
-      if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      if (trueBranch === 'string') checkType(lbl, type, { primitive: true, kind: 'string' });
+      else if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
       else checkType(lbl, type, { primitive: true, kind: 'string' });
     }, ['typescript']);
 }
@@ -1805,24 +1824,24 @@ for (const [what, decls, checkSide, extendSide, falseBranch] of [
 // merged declarations of one interface resolve to one node and stay one type. The reverse never
 // holds - two declarations may be structurally assignable all the same - so identity only ever
 // turns the refusal into agreement, and a box from a shape with no declaration keeps refusing
-for (const [what, decls, side, trueBranch] of [
-  ['one interface against itself', 'interface A { a: string }\n', 'Array<A>', true],
-  ['one interface reached through an alias', 'interface A { a: string }\ntype A2 = A;\n', 'Array<A>', true],
-  ['one interface with no container at all', 'interface A { a: string }\n', 'A', true],
-  ['one base-less class against itself', 'declare class K { a: string; }\n', 'Array<K>', true],
-  ['one interface as a Map key', 'interface A { a: string }\n', 'Map<A, number>', true],
-  ['merged declarations of one interface', 'interface A { a: string }\ninterface A { b: number }\n', 'Array<A>', true],
-  ['a GENERIC interface against itself', 'interface Box<T> { v: T }\n', 'Array<Box<string>>', false],
-  ['a GENERIC class against itself', 'declare class Box<T> { v: T; }\n', 'Array<Box<string>>', false],
-  ['a type literal against itself', '', 'Array<{ a: string }>', false],
+for (const [what, decls, side, expected, checkSide = side] of [
+  ['one interface against itself', 'interface A { a: string }\n', 'Array<A>', 'array'],
+  ['one interface reached through an alias', 'interface A { a: string }\ntype A2 = A;\n', 'Array<A>', 'array', 'Array<A2>'],
+  ['a nonmatching alias', 'interface A { a: string }\ntype A2 = string;\n', 'Array<A>', 'string', 'Array<A2>'],
+  ['one interface with no container at all', 'interface A { a: string }\n', 'A', 'array'],
+  ['one base-less class against itself', 'declare class K { a: string; }\n', 'Array<K>', 'array'],
+  ['one interface as a Map key', 'interface A { a: string }\n', 'Map<A, number>', 'array'],
+  ['merged declarations of one interface', 'interface A { a: string }\ninterface A { b: number }\n', 'Array<A>', 'array'],
+  ['a GENERIC interface against itself', 'interface Box<T> { v: T }\n', 'Array<Box<string>>', null],
+  ['a GENERIC class against itself', 'declare class Box<T> { v: T; }\n', 'Array<Box<string>>', null],
+  ['a type literal against itself', '', 'Array<{ a: string }>', null],
 ]) {
-  runBoth(`TS conditional: a box weighed against ${ what } ${ trueBranch ? 'picks the true branch' : 'decides no branch' }`,
-    `${ decls }type Sel<T> = T extends ${ side } ? number[] : string;\ndeclare const v: ${ side };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
+  runBoth(`TS conditional: a box weighed against ${ what } ${ expected ?? 'undecided' }`,
+    `${ decls }type Sel<T> = T extends ${ side } ? number[] : string;\ndeclare const v: ${ checkSide };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
     (adapter, prog, lbl) => {
       const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
       const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
-      if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
-      else check(`${ lbl } no branch types the read`, type === null, true);
+      check(lbl, toHint(type), expected);
     }, ['typescript']);
 }
 
@@ -1869,7 +1888,8 @@ for (const [what, decls, checkSide, extendSide, trueBranch] of [
     (adapter, prog, lbl) => {
       const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
       const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
-      if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      if (trueBranch === 'string') checkType(lbl, type, { primitive: true, kind: 'string' });
+      else if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
       else check(`${ lbl } no branch types the read`, type === null, true);
     }, ['typescript']);
 }
@@ -2119,7 +2139,8 @@ for (const [what, decls, checkSide, extendSide, trueBranch, rejected] of [
     (adapter, prog, lbl) => {
       const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
       const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
-      if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      if (trueBranch === 'string') checkType(lbl, type, { primitive: true, kind: 'string' });
+      else if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
       else checkType(lbl, type, { primitive: true, kind: 'string' });
     }, ['typescript']);
 }
@@ -2192,7 +2213,8 @@ for (const [what, decls, checkSide, extendSide, trueBranch, rejected] of [
     (adapter, prog, lbl) => {
       const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
       const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
-      if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      if (trueBranch === 'string') checkType(lbl, type, { primitive: true, kind: 'string' });
+      else if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
       else checkType(lbl, type, { primitive: true, kind: 'string' });
     }, ['typescript']);
 }
@@ -2229,7 +2251,8 @@ for (const [what, checkSide, extendSide, trueBranch] of [
     (adapter, prog, lbl) => {
       const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
       const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
-      if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      if (trueBranch === 'string') checkType(lbl, type, { primitive: true, kind: 'string' });
+      else if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
       else checkType(lbl, type, { primitive: true, kind: 'string' });
     }, ['typescript']);
 }
@@ -2253,7 +2276,8 @@ for (const [what, checkSide, extendSide, trueBranch] of [
     (adapter, prog, lbl) => {
       const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
       const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
-      if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      if (trueBranch === 'string') checkType(lbl, type, { primitive: true, kind: 'string' });
+      else if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
       else checkType(lbl, type, { primitive: true, kind: 'string' });
     }, ['typescript']);
 }
@@ -2375,7 +2399,8 @@ for (const [what, checkSide, extendSide, trueBranch] of [
     (adapter, prog, lbl) => {
       const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
       const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
-      if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      if (trueBranch === 'string') checkType(lbl, type, { primitive: true, kind: 'string' });
+      else if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
       else checkType(lbl, type, { primitive: true, kind: 'string' });
     }, ['typescript']);
 }
@@ -7622,10 +7647,7 @@ runBoth('the subclass own namespace export outranks the parent one',
       isTypeAnnotationWrapper(empty), false);
   }
 
-  // predicate: node.type startsWith 'TS'
-  function isTSAnnotation(type) { return type.startsWith('TS'); }
-
-  const checker = createTypeAnnotationChecker(isTSAnnotation);
+  const checker = createTypeAnnotationChecker();
   // leaf inside `TSTypeReference` -> true
   const annLeaf = { type: 'Identifier' };
   const annPath = pathFor(
@@ -7643,13 +7665,12 @@ runBoth('the subclass own namespace export outranks the parent one',
   check('ast-patterns: createTypeAnnotationChecker no TS ancestor',
     checker(plainPath), false);
 
-  // .reset() flushes cache - exercise the entrypoint
+  // Move the same cached parent out of type space; the new parent path alone cannot invalidate it.
+  plainPath.parentPath.parentPath = annPath.parentPath;
+  check('ast-patterns: cached value before reset', checker(plainPath), false);
   checker.reset();
-  checkTruthy('ast-patterns: createTypeAnnotationChecker reset reusable',
-    checker(annPath));
-  // re-call exercises cache hit path
-  checkTruthy('ast-patterns: createTypeAnnotationChecker cached hit',
-    checker(annPath));
+  check('ast-patterns: reset follows the new ancestry', checker(plainPath), true);
+  check('ast-patterns: cached value after reset', checker(plainPath), true);
 }
 
 // --- ast-patterns: pattern / destructure / TS-binding predicates ---
@@ -10245,6 +10266,122 @@ loopBackEdgeCase('loopReExec: while-body block let is re-created each iteration 
 loopBackEdgeCase('loopReExec: while-body var hoists to function scope and carries',
   'function f() { while (cond) { var n = []; n.flat(); n = "s"; } }', 'n', true);
 
+const GUARDED_VARIANTS = "type V = { kind: 'a'; data: number[] } | { kind: 'b'; data: string };";
+for (const [label, source, want] of [
+  ['dotted property and nested path',
+    `${ GUARDED_VARIANTS } function f(s: { a: { b: V }; 'a.b': V }) { if (s.a.b.kind === 'a') return s['a.b'].data.at(0); }`, null],
+  ['same dotted property',
+    `${ GUARDED_VARIANTS } function f(s: { a: { b: V }; 'a.b': V }) { if (s['a.b'].kind === 'a') return s['a.b'].data.at(0); }`, 'array'],
+  ['loose literal comparison', "function f(s: { k: 2; v: number[] } | { k: '2'; v: string }) { if (2 == s.k) return s.v.at(0); }", null],
+  ['strict literal comparison', "function f(s: { k: 2; v: number[] } | { k: '2'; v: string }) { if (2 === s.k) return s.v.at(0); }", 'array'],
+  ['aliased assign changes the tag',
+    `${ GUARDED_VARIANTS } function f(s: V) { if (s.kind !== 'a') return; const t = s; Object.assign(t, { kind: 'b', data: 'x' }); return s.data.at(0); }`, null],
+  ['Reflect.set writes the payload through its receiver',
+    `${ GUARDED_VARIANTS } function f(s: V, other: V) { if (s.kind !== 'a') return; Reflect.set(other, 'data', 'x', s); return s.data.at(0); }`, null],
+  ['Reflect.set writes the payload on a different receiver',
+    `${ GUARDED_VARIANTS } function f(s: V, other: V) { if (s.kind !== 'a') return; Reflect.set(s, 'data', 'x', other); return s.data.at(0); }`, 'array'],
+  ['selected receiver of a store',
+    `${ GUARDED_VARIANTS } function f(s: V, other: V, c: boolean) { if (s.kind === 'a') { Reflect.set({}, 'data', 'x', c ? s : other); return s.data.at(0); } }`, null],
+  ['only the sequence tail receives a store',
+    `${ GUARDED_VARIANTS } function f(s: V, other: V) { if (s.kind === 'a') { Reflect.set({}, 'data', 'x', (s, other)); return s.data.at(0); } }`, 'array'],
+  ['aliased assign preserves another tag',
+    `${ GUARDED_VARIANTS } function f(s: V) { if (s.kind !== 'a') return; const t = s; Object.assign(t, { more: 1 }); return s.data.at(0); }`, 'array'],
+  ['write through a wider alias replaces the payload',
+    `${ GUARDED_VARIANTS } function f(s: V, write: boolean) { if (s.kind !== 'a') return; const t: { data: string | number[] } = s; if (write) t.data = 'xy'; return s.data.at(0); }`, null],
+  ['write through an alias preserves the payload family',
+    `${ GUARDED_VARIANTS } function f(s: V) { if (s.kind !== 'a') return; const t = s; t.data = [9]; return s.data.at(0); }`, 'array'],
+  ['an earlier payload write survives a later tag check',
+    `${ GUARDED_VARIANTS } function f(s: V) { const t: { data: string | number[] } = s; t.data = 'xy'; if (s.kind === 'a') return s.data.at(0); }`, null],
+  ['a new guard observes the tag and payload written together',
+    `${ GUARDED_VARIANTS } function f(s: V) { Object.assign(s, { kind: 'b', data: 'xy' }); if (s.kind === 'b') return s.data.at(0); }`, 'string'],
+  ['only the unchanged target can retain the original tag',
+    `${ GUARDED_VARIANTS } function f(s: V, t: V, flag: boolean) { Object.assign(flag ? s : t, { kind: 'b', data: 'xy' }); if (s.kind === 'a') return s.data.at(0); }`, 'array'],
+  ['a later tag write breaks its association with the earlier payload',
+    `${ GUARDED_VARIANTS } function f(s: V) { Object.assign(s, { kind: 'b', data: 'xy' }); Reflect.set(s, 'kind', 'a'); if (s.kind === 'a') return s.data.at(0); }`, null],
+  ['an alias that was replaced with a fresh object no longer writes the parameter',
+    `${ GUARDED_VARIANTS } function f(s: V) { if (s.kind !== 'a') return; let t: { data: string | number[] } = s; t = { data: [] }; t.data = 'xy'; return s.data.at(0); }`, 'array'],
+  ['an outer literal can also be the destructured parameter',
+    `${ GUARDED_VARIANTS } function f() { let t: V = { kind: 'a', data: [7] }; return (({ s }: { s: V }) => {
+      if (s.kind !== 'a') return; Reflect.set(t, 'data', 'xy'); t = s; return s.data.at(0); })({ s: t }); }`, null],
+  ['an alias can receive the parameter from a fresh destructuring source',
+    `${ GUARDED_VARIANTS } function f(s: V) { if (s.kind !== 'a') return; let t: V = s; ({ value: t } = { value: s }); Reflect.set(t, 'data', 'xy'); return s.data.at(0); }`, null],
+  ['a fallback assignment passes its old object on to the writer',
+    `${ GUARDED_VARIANTS } function f(s: V) { if (s.kind !== 'a') return; let t: V = s; Reflect.set(t ||= { kind: 'b', data: 'other' }, 'data', 'xy'); return s.data.at(0); }`, null],
+  ['a truthy logical assignment passes its replacement to the writer',
+    `${ GUARDED_VARIANTS } function f(s: V) { if (s.kind !== 'a') return; let t: V = s; Reflect.set(t &&= { kind: 'b', data: 'other' }, 'data', 'xy'); return s.data.at(0); }`, 'array'],
+  ['destructuring into the aliased payload',
+    `${ GUARDED_VARIANTS } function f(s: V) { if (s.kind !== 'a') return; const t: { data: string | number[] } = s; [t.data] = ['xy']; return s.data.at(0); }`, null],
+  ['iterating into the aliased payload',
+    `${ GUARDED_VARIANTS } function f(s: V) { if (s.kind !== 'a') return; const t: { data: string | number[] } = s; for (t.data of ['xy']) {} return s.data.at(0); }`, null],
+  ['assignment forwards the target to a writer',
+    `${ GUARDED_VARIANTS } function f(s: V) { if (s.kind !== 'a') return; let t: V; Reflect.set(t = s, 'data', 'xy'); return s.data.at(0); }`, null],
+  ['an alias binding and a sibling write preserve the payload',
+    `${ GUARDED_VARIANTS } function f(s: V) { if (s.kind !== 'a') return; let t: V; Reflect.set(t = s, 'extra', 'xy'); return s.data.at(0); }`, 'array'],
+  ['a mutator returns its target to the next writer',
+    `${ GUARDED_VARIANTS } function f(s: V) { if (s.kind !== 'a') return; Reflect.set(Object.assign(s, {extra: 1}), 'data', 'xy'); return s.data.at(0); }`, null],
+  ['a mutator returns a copy instead of its source',
+    `${ GUARDED_VARIANTS } function f(s: V) { if (s.kind !== 'a') return; Reflect.set(Object.assign({}, s), 'data', 'xy'); return s.data.at(0); }`, 'array'],
+  ['deleting a sibling preserves the payload',
+    `${ GUARDED_VARIANTS } function f(s: V) { if (s.kind !== 'a') return; Reflect.deleteProperty(s, 'extra'); return s.data.at(0); }`, 'array'],
+  ['guard after a write',
+    `${ GUARDED_VARIANTS } function f(s: V) { const t = s; Reflect.set(t, 'kind', 'a'); if (s.kind === 'a') return s.data.at(0); }`, 'array'],
+  ['reflect write after a guard',
+    `${ GUARDED_VARIANTS } function f(s: V) { if (s.kind !== 'a') return; Reflect.set(s, 'kind', 'b'); return s.data.at(0); }`, null],
+  ['computed field follows literal tag',
+    `${ GUARDED_VARIANTS } function f(k: string) { let s: V; s = { kind: 'a', data: [], [k]: 'b' }; return s.data.at(0); }`, null],
+  ['literal tag follows computed field',
+    `${ GUARDED_VARIANTS } function f(k: string) { let s: V; s = { [k]: 'b', kind: 'a', data: [] }; return s.data.at(0); }`, 'array'],
+  ['literal predicate complement', "type One = 'one'; declare function one(x: unknown): x is One; function f(x: string | number[]) { if (!one(x)) return x.at(0); }", null],
+  ['full predicate complement', 'declare function str(x: unknown): x is string; function f(x: string | number[]) { if (!str(x)) return x.at(0); }', 'array'],
+  ['predicate covers one declared array arm',
+    'declare function nums(x: unknown): x is number[]; function f(x: string | number[]) { if (!nums(x)) return x.at(0); }', 'string'],
+  ['predicate leaves other arrays',
+    'declare function nums(x: unknown): x is number[]; function f(x: string | string[]) { if (!nums(x)) return x.at(0); }', null],
+  ['predicate and union use the same alias',
+    'type Ns = number[]; declare function nums(x: unknown): x is Ns; function f(x: string | Ns) { if (!nums(x)) return x.at(0); }', 'string'],
+  ['aliased predicate and generic array arm',
+    'type List<T> = T[]; declare function nums(x: unknown): x is List<number>; function f(x: string | Array<number>) { if (!nums(x)) return x.at(0); }', 'string'],
+  ['predicate and aliased union arm',
+    'type N = number; type Ns = N[]; declare function nums(x: unknown): x is Array<number>; function f(x: string | Ns) { if (!nums(x)) return x.at(0); }', 'string'],
+  ['aliased predicate leaves arrays of other elements',
+    'type List<T> = T[]; declare function nums(x: unknown): x is List<number>; function f(x: string | List<string>) { if (!nums(x)) return x.at(0); }', null],
+  ['predicate before discriminant',
+    `${ GUARDED_VARIANTS } declare function pred(v: unknown): v is V; function f(v: unknown) { if (pred(v) && v.kind === 'a') return v.data.at(0); }`, 'array'],
+  ['call after discriminant',
+    `${ GUARDED_VARIANTS } declare function pred(v: unknown): boolean; function f(v: V) { if (v.kind === 'a' && pred(v)) return v.data.at(0); }`, null],
+  ['case-local assignment', 'switch (flag) { case 0: let x; x = [4]; x.at(0); }', 'array'],
+  ['case-local write cannot cross a case label',
+    'switch (flag) { case 0: let x; x = [4]; case 1: x.at(0); }', null],
+  ['conditional break overrides return', `function f(x: string | number[], c: boolean) {
+    if (typeof x === 'string') { outer: { try { return; } finally { if (c) break outer; } } }
+    return x.at(0);
+  }`, null],
+  ['satisfies on an opaque operand', 'declare const x: any; (x satisfies number[]).at(0);', null],
+  ['satisfies on a known operand', "const x = 'ab'; (x satisfies string | number[]).at(0);", 'string'],
+  ['satisfies on an opaque member', 'declare const x: any; (x satisfies { data: number[] }).data.at(0);', null],
+  ['external satisfies constraint', '(((x) satisfies string)).at(0);', 'string'],
+  ['local instanceof complement', 'function f(x: string | number[]) { if (!(x instanceof Array)) return x.at(0); }', 'string'],
+  ['literal callers of instanceof', "function f(x: string | number[]) { if (x instanceof Array) return; return x.at(0); } f([]); f('ab');", 'string'],
+  ['exported instanceof complement', 'export function f(x: string | number[]) { if (!(x instanceof Array)) return x.at(0); }', null],
+  ['Array.prototype caller of instanceof', 'function f(x: string | number[]) { if (!(x instanceof Array)) return x.at(0); } f(Array.prototype);', null],
+]) runBoth(`guarded receiver: ${ label }`, source, (adapter, prog, lbl) => {
+  const member = adapter.pickPath(prog, 'MemberExpression', path => path.node.property?.name === 'at');
+  check(lbl, toHint(adapter.makeResolver().resolveNodeType(member.get('object'))), want);
+});
+
+runBoth('a written Array.isArray slot supplies no predicate',
+  'function f(x: string | number[]) { if (Array.isArray(x)) return x.at(0); }', (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', path => path.node.property.name === 'at');
+    function resolve(mutated) {
+      const resolver = adapter.makeResolver({
+        isMutatedStatic: (owner, key, read) => mutated && owner === 'Array' && key === 'isArray' && !!read.node,
+      });
+      return toHint(resolver.resolveNodeType(member.get('object')));
+    }
+    check(`${ lbl } original`, resolve(false), 'array');
+    check(`${ lbl } replaced`, resolve(true), null);
+  });
+
 // --- G-PICKARM-MAYBE: widen a heterogeneous union/overload/default instead of picking one arm ---
 // picking one arm of a divergent overload / index-signature union / present-but-unresolvable default emits a
 // type-specific Maybe helper that throws on a value matching another arm. the receiver must WIDEN to generic
@@ -10268,7 +10405,7 @@ for (const [variant, code] of [
   runBoth(`pickarm widens not picks: ${ variant }`, code, (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
-    check(`${ lbl } not narrowed to an arm`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+    check(lbl, toHint(resolved), null);
   });
 }
 // literal-discriminated overloads (`get('a'): A; get('b'): B`) are NOT divergent - TS picks by the literal
@@ -10452,7 +10589,8 @@ for (const [what, check1, check2, trueBranch] of [
     (adapter, prog, lbl) => {
       const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
       const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
-      if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      if (trueBranch === 'string') checkType(lbl, type, { primitive: true, kind: 'string' });
+      else if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
       else check(`${ lbl } no branch types the read`, type === null, true);
     }, ['typescript']);
 }
@@ -11679,6 +11817,38 @@ runBoth('logical no-fold: destructured optional property carries the marker',
 
 function checkHintSet(lbl, hints, expected) {
   check(lbl, hints ? [...hints].sort().join(',') : null, expected);
+}
+
+for (const [label, source, hints] of [
+  ['destructured constructor', 'var n; ({ Map: n } = globalThis); n++; n.at(0);', 'bigint,number'],
+  ['computed primitive', 'let n = { valueOf() { return 4n; } }; ++n; n.at(0);', 'bigint,number'],
+  ['same branch', 'let n = get(); if (flag) { n--; n.at(0); }', 'bigint,number'],
+  ['asserted local', 'let n = [3]; ++(n as any); n.at(0);', 'bigint,number'],
+  ['asserted parameter', 'function f(n: number[]) { (n as any)--; n.at(0); }', 'bigint,number'],
+  ['nested assertions', 'function f(...n: number[]) { ++((n as any)!); n.at(0); }', 'bigint,number'],
+  ['skipped asserted update', 'function f(n: any, flag: boolean) { if (flag) ++(n as any); n.at(0); }', null],
+  ['rest parameter', 'function f(...n) { n++; n.at(0); }', 'bigint,number'],
+  ['annotated parameter', '// @ts-expect-error the update coerces the array before the read\nfunction f(n: number[]) { ++n; n.at(0); }', 'bigint,number'],
+  ['annotated union', '// @ts-expect-error the update overwrites the annotated receiver\nlet n: string | number[] = [1]; n--; n.at(0);', 'bigint,number'],
+  ['skipped update', 'let n = get(); if (flag) n--; n.at(0);', null],
+  ['member can have a setter', 'function f(box) { ++box.value; box.value.at(0); }', null],
+]) runBoth(`numeric update ${ label }`, source, (parser, program, name) => {
+  const member = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+  const resolver = parser.makeResolver();
+  check(`${ name }/type`, resolver.resolveNodeType(member.get('object')), null);
+  checkHintSet(`${ name }/families`, resolver.resolvePropertyUnionHints(member), hints);
+});
+
+for (const [operand, expected] of [['4n', 'bigint'], ['4', 'number']]) {
+  runBoth(`asserted update reads the stored ${ expected }`,
+    `let n = ${ operand }; const result = ++(n as unknown as ${ expected === 'bigint' ? 'number' : 'bigint' }); const after = n;`,
+    (parser, program, name) => {
+      const resolver = parser.makeResolver();
+      for (const id of ['result', 'after']) {
+        const decl = parser.pickPath(program, 'VariableDeclarator', p => p.node.id.name === id);
+        check(`${ name }/${ id }`, resolver.resolveNodeType(decl.get('init'))?.type, expected);
+      }
+    });
 }
 
 runBoth('union hints: mixed-family union annotation yields the exact hint set',
@@ -14345,7 +14515,7 @@ const NEVER_DISTRIBUTION_ROWS = [
   ['naked parameter, argument misses the branch', 'type C<T> = T extends string ? number[] : string;\ntype R = C<number>;', 'drop'],
   // the non-distributive spellings keep their old answers: only the naked one distributes
   ['never written directly in the check', 'type R = never extends string ? number[] : string;', 'Array'],
-  ['parameter wrapped in a tuple', 'type C<T> = [T] extends [string] ? number[] : string;\ntype R = C<never>;', 'drop'],
+  ['parameter wrapped in a tuple', 'type C<T> = [T] extends [string] ? number[] : string;\ntype R = C<never>;', 'Array'],
   ['never as a union member, not the whole argument', 'type C<T> = T extends string ? number[] : boolean;\ntype R = C<never | number[]>;', 'drop'],
 ];
 for (const [label, decl, want] of NEVER_DISTRIBUTION_ROWS) {
@@ -14413,7 +14583,12 @@ const EXTRACT_NULLISH_ARM_ROWS = [
 ];
 for (const [label, decl, want] of EXTRACT_NULLISH_ARM_ROWS) {
   runBoth(`extract nullish arm: ${ label }`, `${ decl }\ndeclare const r: R;\n(r as any).at(0);`,
-    want === 'Array' ? arrayAtReceiver : dropAtReceiver);
+    (adapter, prog, lbl) => {
+      const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+      const type = adapter.makeResolver().resolveNodeType(member.get('object'));
+      if (want === 'Array') checkType(lbl, type, { primitive: false, ctor: 'Array', nullish: true });
+      else check(lbl, toHint(type), null);
+    });
 }
 
 // The compat table selects the source of a settled value. Promise.all reads the input
@@ -14507,7 +14682,10 @@ const ARGUMENT_DIRECTIVE_ROWS = [
   ['catch carries no directive', 'async function f() { const r = await Promise.resolve([1]).catch(() => [2]); (r as any).at(0); }', 'drop'],
 ];
 for (const [label, source, want] of ARGUMENT_DIRECTIVE_ROWS) {
-  runBoth(`argument directive: ${ label }`, source, want === 'Array' ? arrayAtReceiver : dropAtReceiver);
+  runBoth(`argument directive: ${ label }`, source, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    check(lbl, toHint(adapter.makeResolver().resolveNodeType(member.get('object'))), want === 'Array' ? 'array' : null);
+  });
 }
 
 // The directive vocabulary and what each directive MEANS both live in the resolver, one file apart:

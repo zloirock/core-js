@@ -63,6 +63,7 @@ import {
   reachingReassignmentValueNode,
   prologueEndIndex,
   unwrapExpressionChain,
+  unwrapParens,
   unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
 
@@ -883,8 +884,16 @@ export function createCallResolution({
       || path.node.type === 'TSNonNullExpression' || path.node.type === 'TSInstantiationExpression') {
       return findExpressionAnnotation(path.get('expression'), depth + 1);
     }
-    if (path.node.type === 'TSAsExpression' || path.node.type === 'TSSatisfiesExpression'
-      || path.node.type === 'TSTypeAssertion' || path.node.type === 'TypeCastExpression') {
+    if (path.node.type === 'TSSatisfiesExpression') {
+      const value = path.get('expression');
+      const info = findExpressionAnnotation(value, depth + 1);
+      // A free name has no declaration in the input. Its explicit constraint is the only type supplied.
+      if (info) return info;
+      const read = unwrapParens(value.node);
+      return t.isIdentifier(read) && !getScopeBinding({ scope: value.scope, name: read.name, path: value, read })
+        ? annotationAt(path.node.typeAnnotation, path) : null;
+    }
+    if (path.node.type === 'TSAsExpression' || path.node.type === 'TSTypeAssertion' || path.node.type === 'TypeCastExpression') {
       return annotationAt(path.node.typeAnnotation, path);
     }
     if (path.node.type === 'AwaitExpression') {

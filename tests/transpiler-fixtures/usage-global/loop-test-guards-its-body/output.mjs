@@ -1,4 +1,3 @@
-import "core-js/modules/es.array.find";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
 // a `while` or `for` runs its body only while its test holds and asks the test again before every
@@ -13,10 +12,4 @@ export function firsts(node: string | string[]) {
 }
 export function scan(item: string | string[]) {
   for (; typeof item === 'string'; item = next()) item.includes('a');
-}
-export function arrays(list: string | string[]) {
-  while (typeof list !== 'string') {
-    list.find(Boolean);
-    list = next();
-  }
 }
