@@ -78,6 +78,7 @@ core-js/modules/es.promise.race
 core-js/modules/es.promise.reject
 core-js/modules/es.promise.resolve
 core-js/modules/es.reflect.construct
+core-js/modules/es.reflect.namespace
 core-js/modules/es.reflect.own-keys
 core-js/modules/es.regexp.constructor
 core-js/modules/es.regexp.dot-all
@@ -168,4 +169,5 @@ core-js/modules/web.dom-collections.values
 core-js/modules/web.dom-exception.constructor
 core-js/modules/web.dom-exception.stack
 core-js/modules/web.dom-exception.to-string-tag
+core-js/modules/web.self
 core-js/modules/web.structured-clone

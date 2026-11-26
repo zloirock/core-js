@@ -7,6 +7,7 @@
 -core-js/modules/es.object.get-own-property-descriptors
 -core-js/modules/es.object.get-prototype-of
 -core-js/modules/es.reflect.construct
+-core-js/modules/es.reflect.namespace
 -core-js/modules/es.symbol.to-primitive
 -core-js/modules/es.symbol.to-string-tag
 -core-js/modules/web.dom-collections.for-each

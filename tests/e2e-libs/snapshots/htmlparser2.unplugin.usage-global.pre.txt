@@ -5,5 +5,6 @@
 -core-js/modules/es.object.get-prototype-of
 -core-js/modules/es.object.set-prototype-of
 -core-js/modules/es.reflect.construct
+-core-js/modules/es.reflect.namespace
 -core-js/modules/es.symbol.to-primitive
 -core-js/modules/web.dom-collections.for-each

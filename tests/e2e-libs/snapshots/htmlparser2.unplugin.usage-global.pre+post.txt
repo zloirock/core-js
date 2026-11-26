@@ -1,1 +1,2 @@
+-core-js/modules/es.reflect.namespace
 +core-js/modules/es.array.concat

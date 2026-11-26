@@ -16,6 +16,7 @@
 -core-js/modules/es.promise.reject
 -core-js/modules/es.promise.resolve
 -core-js/modules/es.reflect.construct
+-core-js/modules/es.reflect.namespace
 -core-js/modules/es.regexp.exec
 -core-js/modules/es.regexp.test
 -core-js/modules/es.symbol.to-primitive

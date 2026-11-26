@@ -42,6 +42,7 @@ core-js/modules/es.promise.finally
 core-js/modules/es.promise.reject
 core-js/modules/es.promise.resolve
 core-js/modules/es.reflect.construct
+core-js/modules/es.reflect.namespace
 core-js/modules/es.regexp.constructor
 core-js/modules/es.regexp.dot-all
 core-js/modules/es.regexp.exec
