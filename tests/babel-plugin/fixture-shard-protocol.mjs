@@ -1,6 +1,7 @@
 // Exercise the shard protocol through a real fork, including diagnostics that look like reports.
 import { rejects } from 'node:assert/strict';
 import childProcess from 'node:child_process';
+import { once } from 'node:events';
 import { syncBuiltinESMExports } from 'node:module';
 import { runShards } from './fixture-shards.mjs';
 import { createChecker } from '../polyfill-provider/harness.mjs';
@@ -114,12 +115,33 @@ await rejects(runShards({
   print: line => hungOutput.push(line),
 }), /fixture shards did not finish within 5000ms/u);
 checkTruthy('prints diagnostics from a timed-out shard', hungOutput.some(line => line.includes('shard 0:')));
+const pipeDir = await fs.mkdtemp(path.join(import.meta.dirname, 'fixture-shard-pipe-'));
+const shardExited = path.join(pipeDir, 'exited');
 const pipeOutput = [];
-await rejects(runShards({
-  script: CHILD, shards: 1, extraEnv: { SHARD_PROTOCOL_EARLY_EXIT: '1', SHARD_PROTOCOL_HELD_PIPE: '1' }, timeout: 5000,
-  print: line => pipeOutput.push(line),
-}), /shard 0\/1 produced no result.*code 2/u);
-checkTruthy('drains inherited stdout after the failing shard exits', pipeOutput.some(line => line.endsWith('pipe drained')));
+let releaseWriter;
+async function releaseAfterExit(shard) {
+  // This event precedes close even while the descendant holds stdout open.
+  await once(shard, 'exit');
+  await fs.writeFile(shardExited, '');
+}
+try {
+  childProcess.fork = (file, args, options) => {
+    const shard = originalFork(file, args, options);
+    if (options?.env?.SHARD_PROTOCOL_HELD_PIPE === shardExited) releaseWriter = releaseAfterExit(shard);
+    return shard;
+  };
+  syncBuiltinESMExports();
+  const run = runShards({
+    script: CHILD, shards: 1, extraEnv: { SHARD_PROTOCOL_EARLY_EXIT: '1', SHARD_PROTOCOL_HELD_PIPE: shardExited },
+    timeout: 60_000, print: line => pipeOutput.push(line),
+  });
+  await Promise.all([rejects(run, /shard 0\/1 produced no result.*code 2/u), releaseWriter]);
+  checkTruthy('drains inherited stdout after the failing shard exits', pipeOutput.some(line => line.endsWith('pipe drained')));
+} finally {
+  childProcess.fork = originalFork;
+  syncBuiltinESMExports();
+  await fs.rm(pipeDir, { recursive: true, force: true });
+}
 const fastDir = await fs.mkdtemp(path.join(import.meta.dirname, 'fixture-shard-fail-fast-'));
 try {
   for (const [suffix, extraEnv, expected] of [
