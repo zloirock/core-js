@@ -2,6 +2,7 @@ import { deepEqual, equal } from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 
+const dumpSource = await readFile(new URL('../../unit-browser/qunit-dump.js', import.meta.url), 'utf8');
 const source = await readFile(new URL('../../unit-browser/qunit-results.js', import.meta.url), 'utf8');
 
 {
@@ -44,6 +45,24 @@ const source = await readFile(new URL('../../unit-browser/qunit-results.js', imp
   equal(results.done, true, 'publishes the active QUnit test until it completes #5');
   equal(results.failed, 1, 'publishes the active QUnit test until it completes #6');
   equal(results.total, 2, 'publishes the active QUnit test until it completes #7');
+}
+
+{
+  const dump = {
+    depth: 2,
+    parse(value) {
+      if (!Array.isArray(value)) return String(value);
+      this.depth++;
+      const text = `[${ this.parse(value[0], undefined, [value]) }]`;
+      this.depth--;
+      return text;
+    },
+  };
+  runInNewContext(dumpSource, { window: { QUnit: { dump } } });
+  const unprintable = { toString() { throw new Error('unprintable'); } };
+  equal(dump.parse([unprintable]), '[unprintable]', 'a nested formatting error replaces the whole value');
+  equal(dump.depth, 2, 'a failed dump restores its initial depth');
+  equal(dump.parse([42]), '[42]', 'the next value still prints normally');
 }
 
 echo(chalk.green('Sauce Labs page reporter tested'));

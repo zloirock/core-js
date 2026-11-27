@@ -36,7 +36,7 @@ module.exports = config => {
       playwrightLauncher,
       { 'middleware:echo': ['factory', createEchoMiddleware] },
     ],
-    files: target.slice(3).split(','),
+    files: ['../unit-browser/qunit-dump.js', ...target.slice(3).split(',')],
     middleware: ['echo'],
     frameworks: ['qunit'],
     basePath: '.',
