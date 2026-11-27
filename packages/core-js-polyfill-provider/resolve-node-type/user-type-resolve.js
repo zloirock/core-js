@@ -76,13 +76,12 @@ export function createUserTypeResolve({
   resolveTypeAnnotation,
   applyAliasSubstDeep,
 }) {
-  // the type ARGUMENTS an instantiation spelled, per substitution map it produced: the map holds what
-  // each resolved to, which has lost the structure an indexed access over the parameter reads
-  // (`type ValueOf<T> = T[keyof T]` folds the members of the argument, not its resolved type). a
-  // parameter left to its default is not among them: the default lives in the declaration's scope
+  // Keep the syntax of known alias arguments. Their resolved families lose members and key filters.
+  // An explicit argument belongs to the caller and a default to its declaration.
   const spelledTypeArgs = new WeakMap();
-  function spelledTypeArgsOf(typeParamMap) {
-    return typeParamMap ? spelledTypeArgs.get(typeParamMap) ?? null : null;
+  function spelledTypeArgsOf(typeParamMap, includeDefaults = false) {
+    const args = spelledTypeArgs.get(typeParamMap);
+    return (includeDefaults ? args?.effective : args?.written) ?? null;
   }
 
   function resolveTypeArgs({ decl, path, node, typeParamMap, scope, depth, seen }) {
@@ -130,12 +129,24 @@ export function createUserTypeResolve({
     if (!didSubst && !baseCollides) return typeParamMap;
     // an argument naming an outer hop's parameter is read through that hop's spelled arguments; an
     // outer map without them (a call site's inference) leaves nothing to spell this hop with
-    const baseSpelled = spelledTypeArgsOf(typeParamMap);
-    if (callArgs?.length && (!base.size || baseSpelled)) {
-      spelledTypeArgs.set(localMap, new Map(callArgs.slice(0, declParams.length).map((arg, i) => [
-        typeParamName(declParams[i]),
-        baseSpelled ? applyAliasSubstDeep(arg, baseSpelled) : arg,
-      ])));
+    const callerWritten = spelledTypeArgsOf(typeParamMap);
+    const callerEffective = spelledTypeArgsOf(typeParamMap, true);
+    if (!base.size || callerEffective) {
+      function supplied(bindings) {
+        if (!callArgs?.length || (base.size && !bindings)) return null;
+        return new Map(callArgs.slice(0, declParams.length).map((arg, i) => [
+          typeParamName(declParams[i]), bindings ? applyAliasSubstDeep(arg, bindings) : arg,
+        ]));
+      }
+      const written = supplied(callerWritten);
+      let effective = callerWritten === callerEffective ? written : supplied(callerEffective);
+      for (let i = callArgs?.length ?? 0; i < declParams.length; i++) {
+        const param = declParams[i];
+        if (!param.default) continue;
+        if (effective === written || !effective) effective = new Map(effective);
+        effective.set(typeParamName(param), effective.size ? applyAliasSubstDeep(param.default, effective) : param.default);
+      }
+      if (effective) spelledTypeArgs.set(localMap, { written, effective });
     }
     return localMap;
   }

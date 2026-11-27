@@ -380,6 +380,7 @@ export function createAwaited({
   function pickAwaitedConditionalBranch({ node, scope, depth, typeParamMap, seen }) {
     return pickConditionalBranchVia({
       checkAST: node.checkType,
+      typeParamMap,
       distributive: isDistributiveConditional(node, typeParamMap),
       extendsAST: node.extendsType,
       resolveOne: ast => resolveAnnotationInContext({ node: ast, scope, depth: depth + 1, typeParamMap, seen }),

@@ -82,8 +82,9 @@ export function createTypeFolding({
     const families = values.map((value, index) => {
       if (!isTupleRestElement(elements[index])) {
         const optional = elements[index].optional || elements[index].type === 'TSOptionalType';
-        positions?.push(optional && isTypeObject(value) ? value.mark('mayBeNullish') : value);
-        return value;
+        const slot = optional && isTypeObject(value) ? value.mark('mayBeNullish') : value;
+        positions?.push(slot);
+        return slot;
       }
       const nested = value?.tuple;
       const inner = resolveInnerType(value);
@@ -100,7 +101,7 @@ export function createTypeFolding({
       return inner;
     });
     const inner = families.length === 1 && bounds.min === 1 ? families[0]
-      : foldTypes(families, slot => slot, slot => !isTypeObject(slot) ? 0 : isNullableOrNever(slot) ? 1 : 2);
+      : foldUnionTypes(families, slot => isTypeObject(slot) ? slot : null);
     const box = new $Object('Array');
     return (elements.length ? elementContainerType(box, null, inner) : box).withTuple({ ...bounds, rest, slots: positions });
   }
@@ -350,11 +351,29 @@ export function createTypeFolding({
   // deep equality of inner type hints (string hints or type objects)
   function innersEqual(a, b) {
     if (a === b) return true;
-    if (!a || !b) return false;
-    if (typeof a === 'string' || typeof b === 'string') return a === b;
+    if (!isTypeObject(a) || !isTypeObject(b)) return false;
     // Keeping one nested arm must not keep its structural proof for a different alternative.
     if (a.identity !== b.identity || a.argumentMembers !== b.argumentMembers || !tupleShapesEqual(a.tuple, b.tuple)) return false;
-    return typesEqual(a, b) && innersEqual(a.inner, b.inner);
+    return typesEqual(a, b)
+      && a.literal === b.literal
+      && a.literals === b.literals
+      && a.literalUnion === b.literalUnion
+      && a.readonly === b.readonly
+      && a.mixedView === b.mixedView
+      && a.promiseLike === b.promiseLike
+      && a.mayBeNullish === b.mayBeNullish
+      && a.mayBePrimitive === b.mayBePrimitive
+      && a.inheritedPresent === b.inheritedPresent
+      && a.topObject === b.topObject
+      && a.objectKeyword === b.objectKeyword
+      && a.functionKeyword === b.functionKeyword
+      && a.keyDomainArgs === b.keyDomainArgs
+      && a.innerElided === b.innerElided
+      && a.innerUnconstrained === b.innerUnconstrained
+      && a.innerUnknown === b.innerUnknown
+      && innersEqual(a.droppedInner, b.droppedInner)
+      && argListsEqual(a.args, b.args)
+      && innersEqual(a.inner, b.inner);
   }
 
   // merge two types into a common type: returns null if outer types differ,
@@ -370,12 +389,14 @@ export function createTypeFolding({
     if (existing && existing !== incoming && existing.argumentMembers !== incoming.argumentMembers) {
       merged = merged.withArgumentMembers(null);
     }
+    if (existing?.promiseLike || incoming.promiseLike) merged = merged.mark('promiseLike');
     if (existing?.mayBeNullish || incoming.mayBeNullish) merged = merged.mark('mayBeNullish');
     if (existing?.mayBePrimitive || incoming.mayBePrimitive) merged = merged.mark('mayBePrimitive');
     // topObject is a MAY-union like mayBeNullish: assignability to a union target holds
     // when ANY arm accepts, so `object | Object` accepts primitives regardless of arm
     // order (the identity-returned fold otherwise dropped the marker order-dependently)
     if (existing?.topObject || incoming.topObject) merged = merged.mark('topObject');
+    if (existing?.functionKeyword || incoming.functionKeyword) merged = merged.mark('functionKeyword');
     // the lowercase `object` keyword is a MAY-union marker for the same reason: every other arm a
     // fold can keep beside it is constructor-null too - the box for a shape this layer did not
     // model, or the boxed top, which is asked first and answers wider still
@@ -383,8 +404,12 @@ export function createTypeFolding({
     // enforced symmetrically: the inner fold may return `existing` by IDENTITY with its
     // readonly marker already set, which made `readonly | mutable` readonly-certain in one
     // arm order but not the other - so the single-readonly merge STRIPS, not just skips-add
+    if (existing && (existing.mixedView || incoming.mixedView || existing.readonly !== incoming.readonly
+      || existing.promiseLike !== incoming.promiseLike)) merged = merged.mark('mixedView');
     if (existing && existing.readonly && incoming.readonly) merged = merged.mark('readonly');
     else if (existing && merged.readonly) merged = merged.unmark('readonly');
+    if (existing && merged.inheritedPresent && !incoming.inheritedPresent) merged = merged.unmark('inheritedPresent');
+    if (existing && merged.keyDomainArgs && !incoming.keyDomainArgs) merged = merged.unmark('keyDomainArgs');
     // Preserve positions only when every incoming value has the same tuple shape.
     if (existing && merged.tuple && !tupleShapesEqual(existing.tuple, incoming.tuple)) {
       merged = merged.withTuple(null);
@@ -412,8 +437,12 @@ export function createTypeFolding({
       const marked = merged.mark('literalUnion');
       return union && union.size <= MAX_LITERAL_UNION_MEMBERS ? marked.withLiterals(union) : marked;
     }
-    if (innersEqual(existing.inner, incoming.inner) && argListsEqual(existing.args, incoming.args)) return existing;
-    return new $Object(existing.constructor);
+    if (existing.innerUnconstrained === incoming.innerUnconstrained && existing.innerUnknown === incoming.innerUnknown
+      && existing.innerElided === incoming.innerElided && innersEqual(existing.droppedInner, incoming.droppedInner)
+      && innersEqual(existing.inner, incoming.inner) && argListsEqual(existing.args, incoming.args)) return existing;
+    const inner = isTypeObject(existing.inner) && isTypeObject(incoming.inner) ? commonType(existing.inner, incoming.inner) : null;
+    const box = new $Object(existing.constructor, inner);
+    return inner ? box : box.mark('innerElided');
   }
 
   function isNullableOrNever(resolved) {

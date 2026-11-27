@@ -51,38 +51,9 @@ export function typeRefName(node) {
   return segments?.length === 1 ? segments[0] : null;
 }
 
-// the MUTABLE collection a readonly-collection type is a read-only view of: `readonly T[]` /
-// `readonly [T, U]` / `ReadonlyArray<T>` -> 'Array', `ReadonlySet<T>` -> 'Set', `ReadonlyMap<K, V>`
-// -> 'Map', `Readonly<T[]>` / `Readonly<Set<T>>` (the utility applied to a collection) -> that
-// collection's base. else null. a readonly collection is NOT assignable to its mutable form, so the
-// conditional-infer matcher gates the true branch when the check is the readonly view of the pattern's
-// container. peels a leading TSTypeAnnotation and TSParenthesized (oxc keeps `(readonly T[])` parens
-// where babel strips them - without the peel the gate misfires on the oxc path)
-export function readonlyCollectionBase(node) {
-  const n = peelTSParenthesized(isTypeAnnotationWrapper(node) ? node.typeAnnotation : node);
-  if (n?.type === 'TSTypeOperator' && n.operator === 'readonly') return 'Array';
-  if (n?.type !== 'TSTypeReference') return null;
-  const name = typeRefName(n);
-  // `$ReadOnlyArray` is Flow's spelling of `ReadonlyArray`, and `$ReadOnly` of `Readonly` - the same
-  // types, so the same answer: a name-keyed reader that knows only the TS half tags one dialect and
-  // not the other, and a readonly-discriminating conditional then flips by which dialect wrote it
-  if (name === 'ReadonlyArray' || name === '$ReadOnlyArray') return 'Array';
-  if (name === 'ReadonlySet') return 'Set';
-  if (name === 'ReadonlyMap') return 'Map';
-  // `Readonly<X>` is the readonly view of X - on a collection it IS that collection's readonly form
-  // (`Readonly<T[]>` === `readonly T[]`, `Readonly<[T, U]>` === `readonly [T, U]`), so its base is X's
-  // collection base (a tuple is array-family, matching the `readonly` operator form above)
-  if (name === 'Readonly' || name === '$ReadOnly') {
-    const arg = peelTSParenthesized(getTypeArgs(n)?.params?.[0]);
-    if (arg?.type === 'TSTupleType') return 'Array';
-    return mutableCollectionName(arg) ?? readonlyCollectionBase(arg);
-  }
-  return null;
-}
-
-// is the type node a READONLY array shape (`readonly T[]` / `ReadonlyArray<T>`)?
-export function isReadonlyArrayType(node) {
-  return readonlyCollectionBase(node) === 'Array';
+// These names are the standard collection views once their declaration has been resolved.
+export function isReadonlyCollectionName(name) {
+  return name === 'ReadonlyArray' || name === '$ReadOnlyArray' || name === 'ReadonlyMap' || name === 'ReadonlySet';
 }
 
 // --- Member modifier markers ---
@@ -99,24 +70,11 @@ export function modifierWrapperDelta(node) {
   return MODIFIER_WRAPPER_DELTAS.get(typeRefName(n)) ?? null;
 }
 
-// the readonly half of a mapped type's modifiers, applied to an already-resolved Type. a
-// HOMOMORPHIC readonly mapped type is the readonly VIEW of its source - `{ readonly [K in keyof
-// T]: T[K] }` over a collection is that collection's readonly form, the same type `Readonly<T>`
-// spells - so it carries the same marker, and `-readonly` takes it back off. both resolution
-// lanes call this at their mapped-type arm, where the passthrough is already in hand; the
-// name-keyed `readonlyCollectionBase` cannot answer it, since the source is behind a type param
+// Only arrays gain or lose mutability when their properties are mapped readonly.
 export function markMappedReadonly(resolved, node) {
   const { readonly } = mappedModifierDelta(node);
-  if (!resolved || resolved.primitive || readonly === undefined) return resolved;
+  if (resolved?.constructor !== 'Array' || readonly === undefined) return resolved;
   return readonly ? resolved.mark('readonly') : resolved.unmark('readonly');
-}
-
-// the readonly post-pass BOTH resolution lanes run on their own result: a readonly-collection
-// SPELLING resolves to the mutable constructor, and only this marker keeps a readonly-discriminating
-// conditional on the false branch. the plain and substitution lanes carried a byte-identical copy
-// each; one name so a new readonly spelling reaches both by construction
-export function markReadonlyCollection(resolved, node) {
-  return resolved && !resolved.primitive && readonlyCollectionBase(node) ? resolved.mark('readonly') : resolved;
 }
 
 // a mapped type's modifier slots: `?` / `+?` add, `-?` remove, absent leaves the source member's
@@ -140,7 +98,7 @@ export function mappedModifierDelta(node) {
 export function composeModifierDeltas(outer, inner) {
   if (!outer) return inner;
   if (!inner) return outer;
-  return { ...inner, ...outer };
+  return { optional: outer.optional ?? inner.optional, readonly: outer.readonly ?? inner.readonly };
 }
 
 // the ONE marker writer of the ANNOTATION channel: a member's `optional` descriptor flag lives
@@ -172,24 +130,7 @@ export function applyMemberModifierDelta(members, delta) {
   return members.map(m => m.optional === delta.optional ? m : { ...m, optional: delta.optional });
 }
 
-// a subtype may add any key its type does not name, so the value an OPEN type parameter holds at a
-// `keyof` key is bounded by its constraint only through a `string` index signature: named members
-// alone bound nothing, the extra key of a subtype reads whatever it holds
-export function hasStringIndexSignature(members) {
-  return members.some(member => {
-    if (member.type !== 'TSIndexSignature') return false;
-    const key = member.parameters?.[0]?.typeAnnotation;
-    return peelTSParenthesized(isTypeAnnotationWrapper(key) ? key.typeAnnotation : key)?.type === 'TSStringKeyword';
-  });
-}
-
-// the MUTABLE collection name a type node denotes: `T[]` / `Array<T>` -> 'Array', `Set<T>` -> 'Set',
-// `Map<K, V>` -> 'Map'. else null (readonly forms return null - they are not the mutable collection).
-// paired with `readonlyCollectionBase`: a readonly check is not assignable to the mutable form of the
-// SAME base, so a conditional `<readonly X> extends <mutable X>` takes the FALSE branch. the pair is
-// symmetric for the three collection REFERENCES and the `readonly` operator; a tuple has no mutable
-// arm here because `readonly [A, B]` vs `[A, B]` is decided a layer down, where both sides carry a
-// resolved Array Type-Object and only the readonly marker differs
+// Mutable collection spelled by this annotation, used when comparing guarded receiver types.
 export function mutableCollectionName(node) {
   const n = peelTSParenthesized(isTypeAnnotationWrapper(node) ? node.typeAnnotation : node);
   if (n?.type === 'TSArrayType') return 'Array';

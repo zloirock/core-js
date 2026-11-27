@@ -109,7 +109,7 @@ export function createStructuralKey({
   // shape have to produce one string
   function memberSetKey(members) {
     const entries = [];
-    for (const [name, entry] of members) entries.push(`${ name }${ entry.optional ? '?' : '' }:${ entry.key }`);
+    for (const [name, entry] of members) entries.push(`${ JSON.stringify(name) }${ entry.optional ? '?' : '' }:${ entry.key }`);
     return `{${ entries.sort().join(';') }}`;
   }
 
@@ -145,7 +145,7 @@ export function createStructuralKey({
     switch (target.type) {
       case 'TSLiteralType': {
         const value = literalNodeValue(target.literal);
-        return value === undefined ? null : `${ typeof value }!${ String(value) }`;
+        return value === undefined ? null : `${ typeof value }!${ typeof value === 'string' ? JSON.stringify(value) : String(value) }`;
       }
       case 'TSArrayType': return listKey({ head: 'Array', nodes: [target.elementType], walk, depth });
       case 'TSTupleType':
@@ -186,15 +186,16 @@ export function createStructuralKey({
   // since an implicit `any` says exactly what every other top says
   function signatureKey(target, walk, depth) {
     const keys = [];
-    for (const param of target.params ?? []) {
+    for (const param of target.params ?? target.parameters ?? []) {
       const annotation = param?.typeAnnotation && unwrapTypeAnnotation(param.typeAnnotation);
       const key = annotation && keyOf(annotation, walk, depth + 1);
       if (!key) return null;
-      keys.push(`${ param.type === 'RestElement' ? '...' : '' }${ param.optional ? '?' : '' }${ key }`);
+      keys.push(`${ param.name === 'this' ? 'this:' : '' }${ param.type === 'RestElement' ? '...' : '' }${ param.optional ? '?' : '' }${ key }`);
     }
-    const returned = target.returnType && unwrapTypeAnnotation(target.returnType);
+    const returned = unwrapTypeAnnotation(target.returnType ?? target.typeAnnotation);
     const returnKey = returned && keyOf(returned, walk, depth + 1);
-    return returnKey ? `${ target.type === 'TSConstructorType' ? 'new' : 'fn' }(${ keys.join(',') })=>${ returnKey }` : null;
+    const kind = target.type === 'TSConstructorType' ? (target.abstract ? 'abstract new' : 'new') : 'fn';
+    return returnKey ? `${ kind }(${ keys.join(',') })=>${ returnKey }` : null;
   }
 
   // tri-state assignability of two shapes read as MEMBER SETS. Every member the extends side REQUIRES
@@ -209,16 +210,19 @@ export function createStructuralKey({
     const extendMembers = checkMembers && (extend instanceof Map ? extend : structuralMembers(extend, scope));
     if (!checkMembers || !extendMembers) return null;
     let verdict = true;
+    let shared = false;
     for (const [name, wanted] of extendMembers) {
       const held = checkMembers.get(name);
       if (!held) {
         if (wanted.optional) continue;
         return false;
       }
+      shared = true;
       if (held.optional && !wanted.optional) return false;
       if (held.key !== wanted.key) verdict = null;
     }
-    return verdict;
+    // A nonempty source must overlap a nonempty target consisting entirely of optional members.
+    return !shared && checkMembers.size && extendMembers.size ? false : verdict;
   }
 
   return {

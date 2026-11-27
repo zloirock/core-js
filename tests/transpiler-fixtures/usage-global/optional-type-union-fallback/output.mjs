@@ -1,3 +1,4 @@
+import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.string.includes";
 // The optional field can select a string fallback, even through a shared composite type.
@@ -8,4 +9,7 @@ type A = {
 type X<T> = A | A;
 export function read<T>(x: Partial<X<T>>) {
   return (x.list ?? 'cat').includes('at');
+}
+export function first<T>(x: Partial<X<T>>) {
+  return (x.list ?? ['cat']).at(0);
 }

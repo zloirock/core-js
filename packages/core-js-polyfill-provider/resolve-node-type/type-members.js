@@ -31,7 +31,6 @@ import {
   interfaceBodyMembers,
   internedTypeRef,
   isInterfaceDeclaration,
-  isReadonlyArrayType,
   isTypeAlias,
   isUnionType,
   literalTypeAnnotation,
@@ -50,6 +49,7 @@ import {
 } from '../helpers/ast-patterns.js';
 
 export function createTypeMembers({
+  isGlobalTypeName,
   typeAnswer,
   memoize,
   unwrapTypeAnnotation,
@@ -75,6 +75,8 @@ export function createTypeMembers({
   applySubstToTypeRefArgs,
   findTupleElement,
   followTypeAliasChain,
+  flattenUnionBranches,
+  matchArrayInferPattern,
   unwrapMappedTypePassthrough,
   expandMappedTypeMembers,
   isUnconstrainedTypeShape,
@@ -544,24 +546,20 @@ export function createTypeMembers({
 
   // element AST of an array-shaped type (`X[]` / `Array<X>` / `ReadonlyArray<X>`, readonly-peeled)
   // -> X, else null. shared by the infer matcher and the check-element extraction in the thread
-  function arrayElementType(node) {
+  function arrayElementType(node, scope) {
     let n = unwrapTypeAnnotation(node);
+    const name = typeRefName(n);
+    if (name && !isGlobalTypeName(name, scope)) {
+      const alias = followTypeAliasChain(n, scope);
+      n = unwrapTypeAnnotation(applySubst(alias.node, alias.subst));
+    }
     if (n?.type === 'TSTypeOperator' && n.operator === 'readonly') n = n.typeAnnotation;
     if (n?.type === 'TSArrayType') return n.elementType;
-    if (n?.type === 'TSTypeReference' && (typeRefName(n) === 'Array' || typeRefName(n) === 'ReadonlyArray')) {
+    if (n?.type === 'TSTypeReference' && (typeRefName(n) === 'Array' || typeRefName(n) === 'ReadonlyArray')
+      && isGlobalTypeName(typeRefName(n), scope)) {
       return getTypeArgs(n)?.params?.[0] ?? null;
     }
     return null;
-  }
-
-  // infer name of an array-element-bare-infer extends (`(infer U)[]` / `Array<infer U>` /
-  // `ReadonlyArray<infer U>`), else null - the only conditional shape the numeric-index thread in
-  // findConditionalTypeMember handles (narrower than the conditional evaluator's container matcher)
-  function arrayElementInferName(extendsType) {
-    const element = arrayElementType(extendsType);
-    if (peelTSParenthesized(unwrapTypeAnnotation(element || null))?.type !== 'TSInferType') return null;
-    const names = collectInferredNames(extendsType);
-    return names.size === 1 ? [...names][0] : null;
   }
 
   // pick the firing branch of a TSConditionalType for member lookup, recursing with the
@@ -569,8 +567,7 @@ export function createTypeMembers({
   //   1) AST equality (literal-vs-literal pairs only)
   //   2) structural eval - resolve substituted check + extends to Type Objects, ask
   //      `pickConditionalBranch` for the branch INDEX (true/false/null)
-  //   3) undecidable - fold both branches into a synthetic union for findTypeMember's
-  //      union path
+  //   3) undecidable - query the member in each live branch and combine the answers
   // keeping the BRANCH INDEX (steps 1-2) and recursing with the AST trueType/falseType is
   // crucial: AST-driven member lookup works for TSTypeLiteral / TSArrayType / etc. shapes
   // where Type Object inputs would silently null
@@ -596,45 +593,38 @@ export function createTypeMembers({
     // path AST-only, avoiding the Type-Object boundary an evaluated-conditional return would hit.
     // gated on arrayCheckElement being non-null - i.e. the check IS an array, so it genuinely
     // extends Array<infer U> and the true branch is the firing one
-    const inferName = arrayElementInferName(aliased.extendsType);
-    // a readonly check side (`readonly string[]`) is NOT assignable to a MUTABLE `Array<infer U>` pattern -
-    // TS picks the FALSE branch. bind U only when the pattern is itself readonly OR the check is mutable;
-    // else arrayElementType's readonly-peel would wrongly match and fire the TRUE branch (over-resolve)
-    const inferElement = inferName
-      && (isReadonlyArrayType(aliased.extendsType) || !isReadonlyArrayType(checkSubst))
-      ? arrayElementType(checkSubst) : null;
-    if (inferElement) {
-      const threadedSubst = new Map(innerSubst);
-      threadedSubst.set(inferName, inferElement);
-      const trueObjectType = applySubst(unwrapTypeAnnotation(aliased.trueType), threadedSubst);
-      return lookup({ objectType: trueObjectType, key, scope, depth: depth + 1, modifiers });
-    }
-    // POST-AST-subst path: extendSubst already carries the substitution. pickConditionalBranchVia
-    // resolves via resolveTypeAnnotation and reads `isUnconstrained` from the post-subst AST -
-    // typeparam refs that resolved to a concrete shape no longer read as unconstrained
-    const branch = pickConditionalBranchVia({
-      checkAST: checkSubst,
-      distributive: isDistributiveConditional(aliased, subst),
-      extendsAST: extendSubst,
-      resolveOne: ast => resolveTypeAnnotation(ast, scope, depth + 1),
-      isUnconstrained: isUnconstrainedTypeShape(extendSubst),
-      scope,
-    });
-    if (branch !== null) {
-      return lookup({
-        objectType: innerWithSubst(branch ? aliased.trueType : aliased.falseType), key, scope, depth: depth + 1, modifiers,
+    const pattern = matchArrayInferPattern(extendSubst, scope);
+    const arrayPattern = pattern && !pattern.head && (pattern.container === 'Array' || pattern.container === 'ReadonlyArray');
+    const inferElement = arrayPattern ? arrayElementType(checkSubst, scope) : null;
+    function choose(checkAST, extendsAST, distributive = false) {
+      return pickConditionalBranchVia({
+        checkAST, extendsAST, distributive, scope,
+        resolveOne: ast => resolveTypeAnnotation(ast, scope, depth + 1),
+        isUnconstrained: isUnconstrainedTypeShape(extendsAST),
       });
     }
-    const trueResult = lookup({ objectType: innerWithSubst(aliased.trueType), key, scope, depth: depth + 1, modifiers });
-    const falseResult = lookup({ objectType: innerWithSubst(aliased.falseType), key, scope, depth: depth + 1, modifiers });
-    // strip nullable/never branches the way the value-side conditional fold does - otherwise
-    // `K extends string ? Foo : never` post-subst can return a synth union carrying the
-    // never branch as a member, which would interfere with downstream member dispatch
-    const trueViable = trueResult && !isNullableOrNeverAnnotation(trueResult) ? trueResult : null;
-    const falseViable = falseResult && !isNullableOrNeverAnnotation(falseResult) ? falseResult : null;
-    if (!trueViable) return falseViable;
-    if (!falseViable) return trueViable;
-    return unionAnnotationOf([trueViable, falseViable]);
+    let branch;
+    let trueType = innerWithSubst(aliased.trueType);
+    if (inferElement) {
+      const mutablePattern = pattern.container === 'Array' && !pattern.readonlyPattern;
+      const { constraint } = pattern;
+      branch = mutablePattern && resolveTypeAnnotation(checkSubst, scope, depth + 1)?.readonly ? false
+        : constraint ? choose(inferElement, constraint) : true;
+      const threaded = new Map(innerSubst);
+      threaded.set(pattern.name, inferElement);
+      trueType = applySubst(unwrapTypeAnnotation(aliased.trueType), threaded);
+    } else branch = choose(checkSubst, extendSubst, isDistributiveConditional(aliased, subst));
+    const falseType = innerWithSubst(aliased.falseType);
+    function read(objectType) {
+      return lookup({ objectType, key, scope, depth: depth + 1, modifiers });
+    }
+    if (branch !== null) return read(branch ? trueType : falseType);
+    if (isNullableOrNeverAnnotation(trueType)) return read(falseType);
+    if (isNullableOrNeverAnnotation(falseType)) return read(trueType);
+    // Query each declared branch directly so aliases that share a child reuse its answer.
+    const yes = read(trueType);
+    const no = yes && read(falseType);
+    return no ? unionAnnotationOf([yes, no]) : null;
   }
 
   // method-member lookups (TSMethodSignature, ClassMethod, TSDeclareMethod, MethodDefinition,
@@ -679,7 +669,7 @@ export function createTypeMembers({
           ? findTupleElement(aliased, index, scope, depth, findRuntimeTypeMember, modifiers) : null;
       }
     }
-    const element = aliased?.type === 'ArrayTypeAnnotation' ? aliased.elementType : arrayElementType(aliased);
+    const element = aliased?.type === 'ArrayTypeAnnotation' ? aliased.elementType : arrayElementType(aliased, scope);
     if (!element || canonicalArrayIndex(key) === null) return null;
     if (aliased.type === 'TSTypeReference' && findTypeDeclaration(typeRefName(aliased), scope)) return null;
     return withMarkers(applySubst(element, subst), null, runtime);
@@ -763,14 +753,25 @@ export function createTypeMembers({
       // union: `(A | B)['k']` is `A['k'] | B['k']`.
       // intersection: `(A & B)['k']` is `A['k'] & B['k']` - a key declared in several constituents
       // contributes the INTERSECTION of its per-constituent member types, not the first hit. both
-      // are the SAME resolution - map the constituents, drop the misses, rebuild the composite under
+      // share the constituent walk. A missing member of a live union arm keeps the reading open;
+      // an intersection can inherit its member from any constituent. Rebuild the composite under
       // the original node type - so they share one branch; the downstream `foldIntersectionTypes`
       // prefers the array / string-like constituent over a bare object, so a non-array member listed
       // before an array member no longer shadows the array polyfill
       if (isUnionType(aliased) || aliased?.type === 'TSIntersectionType'
         || aliased?.type === 'IntersectionTypeAnnotation') {
         return typeAnswer(lookup, aliased, { scope, depth, map: subst, key, modifiers }, () => {
-          const found = aliased.types.map(resolveBranch).filter(Boolean);
+          const union = isUnionType(aliased);
+          const found = [];
+          // Ignore only back-edges and receivers that cannot reach a property read.
+          // A live opaque branch can hold a different member family.
+          const arms = union ? flattenUnionBranches(aliased.types.map(withSubst), scope, false) : aliased.types;
+          for (const arm of arms) {
+            if (union && isNullableOrNeverAnnotation(arm)) continue;
+            const member = union ? lookup({ objectType: arm, key, scope, depth: depth + 1, modifiers }) : resolveBranch(arm);
+            if (member) found.push(member);
+            else if (union) return null;
+          }
           return found.length ? compositeAnnotationOf(found, aliased.type) : null;
         });
       }

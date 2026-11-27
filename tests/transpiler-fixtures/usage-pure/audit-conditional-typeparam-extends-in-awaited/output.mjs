@@ -1,10 +1,10 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// conditional under Awaited: `Awaited<T extends U ? Promise<X> : Y>` - the conditional
-// branch picker resolves its extends side post-subst. raw `extendsType=U` looks
-// unconstrained, but at the call-site U substitutes to a concrete shape and the
-// disjoint-inner case must NOT fire the wrong branch
-type Pick<T, U> = T extends U ? Promise<string[]> : Promise<number[]>;
+import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
+// Awaited unwraps the branch selected by the instantiated right-hand type.
+type Pick<T, U> = T extends U ? Promise<string> : Promise<number[]>;
 declare function probe<T, U>(): Awaited<Pick<T, U>>;
-const r = await probe<Array<number>, Array<string>>();
-_atMaybeArray(r).call(r, 0);
+const data = await probe<Array<number>, Array<string>>();
+const text = await probe<Array<string>, Array<string>>();
+_atMaybeArray(data).call(data, 0);
+_includesMaybeString(text).call(text, 'x');
 export {};

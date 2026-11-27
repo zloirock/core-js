@@ -16,7 +16,7 @@
 // (`unwrapMappedTypePassthrough`, `evaluateConditionalType`) the handlers call into.
 import { $Object, MAX_DEPTH, firstTypeParamIsInner } from './base.js';
 import { getTypeArgs, IMPORT_SPECIFIER_TYPES } from '../helpers/ast-patterns.js';
-import { markMappedReadonly, markReadonlyCollection } from './ast-shapes.js';
+import { markMappedReadonly } from './ast-shapes.js';
 
 // shared accessor for the first type-arg slot on a TS/Flow ref node. `getTypeArgs` returns
 // a wrapper carrying `.params` or null when the ref carries no `<...>`; `firstTypeArg`
@@ -133,7 +133,8 @@ export function createTypeResolveDispatch({
   // TSTypeOperator: `keyof T` opaque, other operators (e.g. `readonly`) transparent
   function substTypeOperatorAsType(node, typeParamMap, scope, depth, seen) {
     if (node.operator === 'keyof') return resolveTypeAnnotation(node, scope, depth, seen);
-    return substRecurse({ node: node.typeAnnotation, typeParamMap, scope, depth, seen });
+    const inner = substRecurse({ node: node.typeAnnotation, typeParamMap, scope, depth, seen });
+    return node.operator === 'readonly' ? inner?.mark('readonly') ?? null : inner;
   }
 
   // transparent wrapper: TSParenthesizedType
@@ -197,12 +198,7 @@ export function createTypeResolveDispatch({
     node = unwrapTypeAnnotation(node);
     if (!node) return null;
     const handler = SUBST_TYPE_DISPATCH[node.type];
-    const result = handler ? handler(node, typeParamMap, scope, depth, seen) : resolveTypeAnnotation(node, scope, depth, seen);
-    // same outer readonly stamp as the plain lane (`resolveTypeAnnotation`): without it a
-    // `readonly T[]` / `ReadonlyArray<T>` resolved through generic substitution loses
-    // `.readonly`, flipping a readonly-discriminating conditional to the wrong family.
-    // idempotent - the plain-lane fallthrough above may have stamped already
-    return markReadonlyCollection(result, node);
+    return handler ? handler(node, typeParamMap, scope, depth, seen) : resolveTypeAnnotation(node, scope, depth, seen);
   }
 
   return { substituteTypeParams };

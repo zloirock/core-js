@@ -28,7 +28,6 @@ import {
   isTypeObject,
 } from './base.js';
 import {
-  hasStringIndexSignature,
   isMethodShapeMember,
   isObjectTypeLiteral,
   isTypeReferenceNode,
@@ -36,7 +35,7 @@ import {
   keywordPrimitiveKind,
   literalTypeValueNode,
   markMappedReadonly,
-  markReadonlyCollection,
+  isReadonlyCollectionName,
   topKeywordAnnotationKind,
   typeRefSegments,
   withMemberModifiers,
@@ -88,19 +87,17 @@ function keyDomainEntry(param, entry) {
   return keywordPrimitiveKind(peelTSParenthesized(param)) ? entry : null;
 }
 
-// the intrinsic string transformers are COMPUTABLE on a literal argument, and TS keeps the result
-// a literal type: `Uppercase<'a'>` is `'A'`, not `string`. dropping the stamp makes every
-// conditional that discriminates on it (`Uppercase<'a'> extends 'A'`) read as wide-vs-narrow and
-// take the FALSE branch - the wrong family, silently. the table is the one the mapped-rename lane
-// evaluates its `as` clauses with. a folded literal UNION is opaque: its members are
-// unrecoverable, so there is nothing to transform and the result stays a bare keyword
+// TypeScript distributes these intrinsics over each known string literal.
 function intrinsicStringTransform(name, resolved) {
-  const literal = resolved?.primitive && !resolved.literalUnion && typeof resolved.literal === 'string'
-    ? INTRINSIC_STRING_TRANSFORMERS[name](resolved.literal) : undefined;
-  return new $Primitive('string', literal);
+  const members = resolved?.type === 'string' && literalMembers(resolved);
+  if (!members) return new $Primitive('string').mark('literalUnion');
+  const values = new Set([...members].map(INTRINSIC_STRING_TRANSFORMERS[name]));
+  return values.size === 1 ? new $Primitive('string', values.values().next().value)
+    : new $Primitive('string').mark('literalUnion').withLiterals(values);
 }
 
 export function createTypeAnnotationResolve({
+  isGlobalTypeName,
   typeAnswer,
   t,
   babelNodeType,
@@ -114,7 +111,7 @@ export function createTypeAnnotationResolve({
   STRUCTURE_PRESERVING_WRAPPERS,
   MAX_DEPTH,
   isAmbientClassNode,
-  typeRefSegmentsEqual,
+  sameTypeSource,
   typeRefName,
   findTypeParameter,
   getScopeBinding,
@@ -182,6 +179,7 @@ export function createTypeAnnotationResolve({
       for (const arm of targetArms) {
         const verdict = pickConditionalBranchVia({
           checkAST,
+          typeParamMap,
           extendsAST: arm,
           resolveOne: resolve,
           isUnconstrained: isUnconstrainedTypeShape(arm, typeParamMap),
@@ -262,13 +260,17 @@ export function createTypeAnnotationResolve({
     // position undecided and the rest still decide, which is how `Map<number, { a: 1 }>` is told
     // apart from `Map<string, { b: 2 }>` on its keys alone
     const params = getTypeArgs(node)?.params;
-    if (!params?.length) return known;
-    const resolved = firstTypeParamIsInner(name)
-      ? elementContainerType(known, params[0], innerResolver(params[0]))
-      : known.withArgs(params.map(param => argumentEntry(param, innerResolver)));
-    // A substituted parameter's raw spelling names no concrete shape; its resolved container
-    // already carries any proof obtained where the caller wrote the argument.
-    return scope ? resolved.withArgumentMembers(params.map(param => structuralMembers(param, scope, typeParamMap))) : resolved;
+    let resolved = known;
+    if (params?.length) {
+      resolved = firstTypeParamIsInner(name)
+        ? elementContainerType(known, params[0], innerResolver(params[0]))
+        : known.withArgs(params.map(param => argumentEntry(param, innerResolver)));
+      if (scope) resolved = resolved.withArgumentMembers(params.map(param => structuralMembers(param, scope, typeParamMap)));
+    }
+    // Keep the source view for assignability. Await uses the same payload for both promise forms.
+    const spelling = typeRefName(node);
+    if (isReadonlyCollectionName(spelling)) return resolved.mark('readonly');
+    return PROMISE_SYNONYMS.has(spelling) ? resolved.mark('promiseLike') : resolved;
   }
 
   // the ASSIGNABILITY reading of a TS-only structural container. `Iterable<T>` / `ArrayLike<T>` name
@@ -370,14 +372,8 @@ export function createTypeAnnotationResolve({
     if (STRUCTURE_PRESERVING_WRAPPERS.has(name) && !shadowedUtilityName) {
       const arg = firstArg();
       const resolved = arg ? resolveArg(arg) ?? (spellsClosedObject(arg) ? new $Object('Object') : null) : null;
-      // `Readonly<collection>` is a readonly collection - tag it like `ReadonlyArray` so a conditional-
-      // infer check picks the FALSE branch. `readonlyCollectionBase` can't see this at the AST level when
-      // the collection is behind a type-param (`Readonly<T>`), so key off the resolved constructor here.
-      // only `Readonly` implies readonly (Partial / Pick / ... do not). marker-set, not a rebuild:
-      // `Readonly<T[] | null>` resolves through the union fold, so the result may already carry
-      // mayBeNullish - reconstructing from the identity fields would drop it
-      return name === 'Readonly' && resolved && !resolved.primitive
-        && (resolved.constructor === 'Array' || resolved.constructor === 'Set' || resolved.constructor === 'Map')
+      // Readonly makes array elements readonly. Map and Set retain their callable mutators.
+      return (name === 'Readonly' || name === '$ReadOnly') && resolved?.constructor === 'Array'
         ? resolved.mark('readonly') : resolved;
     }
     // lib.d.ts writes these as a NAKED conditional over their first parameter, which makes them
@@ -512,7 +508,8 @@ export function createTypeAnnotationResolve({
       // Flow $ReadOnlyArray<T> -> Array with inner type (equivalent to ReadonlyArray<T>)
       case '$ReadOnlyArray': {
         const arg = firstArg();
-        return new $Object('Array', arg ? resolveNonNullableAnnotation({ node: arg, scope, depth, typeParamMap, seen }) : null);
+        const inner = arg ? resolveNonNullableAnnotation({ node: arg, scope, depth, typeParamMap, seen }) : null;
+        return new $Object('Array', inner).mark('readonly');
       }
       // conservative: unknown for Flow variants we don't model structurally
       case '$Values':
@@ -552,30 +549,51 @@ export function createTypeAnnotationResolve({
     return null;
   }
 
-  // does `idx` (the indexType of `T[idx]`) collapse to `keyof T` against `target`?
-  //   - direct `keyof T` operator
-  //   - generic-constrained ref `K` where K's TypeParameter declaration constrains to
-  //     `keyof T` on the same target. `function f<T, K extends keyof T>(o: T, k: K)
-  //     { return o[k]; }` routes through this second branch
-  function isKeyofTargeting(idx, target, scope) {
-    if (idx?.type === 'TSTypeOperator' && idx.operator === 'keyof'
-      && typeRefSegmentsEqual(idx.typeAnnotation, target)) return true;
-    if (idx?.type !== 'TSTypeReference') return false;
-    const name = typeRefName(idx);
-    if (!name) return false;
-    const param = findTypeParameter(name, scope);
-    return param?.constraint?.type === 'TSTypeOperator'
-      && param.constraint.operator === 'keyof'
-      && typeRefSegmentsEqual(param.constraint.typeAnnotation, target);
+  // An unrestricted keyof includes symbols, even on a subtype with a string index signature.
+  function keyofTargetDomain(index, target, scope) {
+    let node = peelTSParenthesized(index);
+    if (isTypeReferenceNode(node)) node = peelTSParenthesized(findTypeParameter(typeRefName(node), scope)?.constraint);
+    function matches(key) {
+      return key?.type === 'TSTypeOperator' && key.operator === 'keyof'
+        && sameTypeSource(key.typeAnnotation, target, null, scope);
+    }
+    if (node?.type !== 'TSIntersectionType') return matches(node) ? 'all' : null;
+    let found = false;
+    let domain = 'all';
+    for (const part of node.types) {
+      const key = peelTSParenthesized(part);
+      if (matches(key)) found = true;
+      const kind = keywordPrimitiveKind(key);
+      if (kind === 'string' || kind === 'number' || kind === 'symbol') domain = kind;
+    }
+    return found ? domain : null;
   }
 
-  // the members a `keyof` fold reads off a type PARAMETER, which has none of its own: its
-  // constraint's, and only when they carry a `string` index signature - the one bound a constraint
-  // puts on the keys a subtype adds, the keys it names saying nothing of the rest. null otherwise
-  function typeParamKeyofMembers(param) {
+  function isKeyofTargeting(index, target, scope) {
+    return keyofTargetDomain(index, target, scope) !== null;
+  }
+
+  function typeParamKeyofMembers(param, domain) {
     if (!param.constraint) return null;
     const members = getTypeMembers({ objectType: unwrapTypeAnnotation(param.constraint), scope: param.scope });
-    return members && hasStringIndexSignature(members) ? members : null;
+    if (!members) return null;
+    const signatures = new Set();
+    const matching = [];
+    for (const member of members) {
+      if (member.type !== 'TSIndexSignature') continue;
+      const key = peelTSParenthesized(unwrapTypeAnnotation(member.parameters?.[0]?.typeAnnotation));
+      for (const part of isUnionType(key) ? key.types : [key]) {
+        const kind = keywordPrimitiveKind(part);
+        const all = typeRefName(part) === 'PropertyKey' && isGlobalTypeName('PropertyKey', param.scope);
+        if (all || kind === 'string' || kind === 'symbol') signatures.add(all ? 'all' : kind);
+        if (all || kind === domain || kind === 'string' && domain === 'number') {
+          matching.push(member);
+          break;
+        }
+      }
+    }
+    if (domain !== 'all') return matching.length ? matching : null;
+    return signatures.has('all') || signatures.has('string') && signatures.has('symbol') ? members : null;
   }
 
   // `InstanceType<A | B>` IS `InstanceType<A> | InstanceType<B>`, but the union hides INSIDE the
@@ -611,10 +629,11 @@ export function createTypeAnnotationResolve({
   // takes the peeled INDEX rather than the access node it came off: the node's own `objectType`
   // is the unpeeled twin of the operand passed alongside, and nothing here ever read it
   function resolveKeyofSelfValueUnion(indexType, objectType, scope, depth) {
-    if (!isKeyofTargeting(indexType, objectType, scope)) return undefined;
+    const domain = keyofTargetDomain(indexType, objectType, scope);
+    if (!domain) return undefined;
     // the parameter outranks a declaration of the same name, the one `getTypeMembers` would read
     const param = objectType.type === 'TSTypeReference' ? findTypeParameter(typeRefName(objectType), scope) : null;
-    const members = param ? typeParamKeyofMembers(param) : getTypeMembers({ objectType, scope });
+    const members = param ? typeParamKeyofMembers(param, domain) : getTypeMembers({ objectType, scope });
     if (!members) return null;
     const memberScope = param?.scope ?? scope;
     const valueAnnotations = [];
@@ -747,21 +766,9 @@ export function createTypeAnnotationResolve({
     return member ? resolveTypeAnnotation(member, scope, depth + 1) : null;
   }
 
-  // tag readonly-collection forms with `.readonly` so a conditional-infer check can distinguish a
-  // readonly collection from its mutable form after resolution drops the syntactic readonly-ness -
-  // recovers the FALSE branch for readonly checks behind an alias / type-param / `Readonly<X>`
-  // indirection, where the AST-level check no longer sees the readonly keyword. idempotent (mark
-  // no-ops on an already-tagged result); readonlyCollectionBase is null for every non-readonly form
-  // so mutable collections are never tagged (over-fire-safe). marker-set, not a rebuild: the inner
-  // resolution may have union-folded (`Readonly<T[] | null>`) and already carry mayBeNullish
   function resolveTypeAnnotation(node, scope, depth = 0, seen = null) {
-    const result = resolveTypeAnnotationInner(node, scope, depth, seen);
-    return markReadonlyCollection(result, node);
-  }
-
-  function resolveTypeAnnotationInner(node, scope, depth = 0, seen = null) {
     if (depth > MAX_DEPTH) return null;
-    node = unwrapTypeAnnotation(node);
+    node = peelTSParenthesized(unwrapTypeAnnotation(node));
     if (!node) return null;
     switch (babelNodeType(node)) {
       // TS / Flow primitive keywords + literal-typeof + TSTemplateLiteralType (`prefix_${string}`)
@@ -872,12 +879,9 @@ export function createTypeAnnotationResolve({
         // file, and re-deriving the name here cost 15% on a reference-dense source
         const asUnion = segments.length === 1 && DISTRIBUTIVE_UTILITIES.has(segments[0])
           ? distributiveUtilityAsUnion(node, scope) : node;
-        if (asUnion !== node) return resolveTypeAnnotation(asUnion, scope, depth + 1);
+        if (asUnion !== node) return foldUnionTypes(asUnion.types, arm => resolveTypeAnnotation(arm, scope, depth + 1, seen));
         return resolveNamedType({ name: segments.join('.'), node, scope, depth, seen });
       }
-      // transparent wrapper - unwrap and resolve the inner type
-      case 'TSParenthesizedType':
-        return resolveTypeAnnotation(node.typeAnnotation, scope, depth + 1, seen);
       // nullish-admitting wrappers: Flow `?T` admits null | undefined, a tuple optional
       // slot (`[T?]`) admits undefined. the inner value shape resolves for receiver
       // narrowing, but the runtime value may still be nullish, so the result is marked
@@ -888,8 +892,11 @@ export function createTypeAnnotationResolve({
         return inner && !isNullableOrNever(inner) ? inner.mark('mayBeNullish') : inner;
       }
       // TS type operator: `readonly T[]`, `unique symbol` - but NOT `keyof T`
-      case 'TSTypeOperator':
-        return node.operator === 'keyof' ? null : resolveTypeAnnotation(node.typeAnnotation, scope, depth + 1, seen);
+      case 'TSTypeOperator': {
+        if (node.operator === 'keyof') return null;
+        const inner = resolveTypeAnnotation(node.typeAnnotation, scope, depth + 1, seen);
+        return node.operator === 'readonly' ? inner?.mark('readonly') ?? null : inner;
+      }
       // TS typeof in type position: `typeof variable`. the budget crosses the cluster boundary
       // with it - a `typeof` naming its own binding resolves right back here, and the annotation
       // lane's budget is the only thing that ends that loop

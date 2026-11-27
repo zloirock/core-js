@@ -515,3 +515,36 @@ QUnit.test('a tuple element of type any does not fit a never rest', assert => {
   function read(value: Selected) { return value.includes('or'); }
   assert.true(read('word'));
 });
+
+QUnit.test('conditional and mapped types retain both live receiver families', assert => {
+  type Copy<T> = { readonly [K in keyof T]: T[K] };
+  function first(value: Copy<Partial<{ rows: number[] }>>) {
+    return (value.rows ?? 'empty').at(0);
+  }
+  function entry<T extends Record<string, string>>(value: T, key: keyof T) {
+    return value[key].at(0);
+  }
+  const key = Symbol('rows');
+  const record = { title: 'ab', [key]: [7] };
+  assert.same(first({}), 'e');
+  assert.same(first({ rows: [8] }), 8);
+  assert.same(entry(record, 'title'), 'a');
+  assert.same(entry(record, key), 7);
+});
+
+QUnit.test('conditional receivers distinguish Map entries and PromiseLike', assert => {
+  type Entry<T> = T extends Iterable<infer E extends string> ? string : number[];
+  type Awaitable<T> = T extends Promise<infer E> ? E : number[];
+  function fromMap(value: Entry<Map<string, number>>) { return value.at(0); }
+  function fromThenable(value: Awaitable<PromiseLike<string>>) { return value.at(0); }
+  assert.same(fromMap([3]), 3);
+  assert.same(fromThenable([7]), 7);
+});
+
+QUnit.test('selecting only array length does not preserve the array interface', assert => {
+  type Choose<T> = T extends readonly unknown[] ? string : number[];
+  function lengthOnly(value: Choose<Pick<string[], 'length'>>) { return value.at(0); }
+  function whole(value: Choose<Pick<string[], keyof string[]>>) { return value.at(0); }
+  assert.same(lengthOnly([7]), 7);
+  assert.same(whole('word'), 'w');
+});

@@ -999,7 +999,7 @@ export function createDiscriminantNarrow({
   // is expanded once instead of re-descended per reference. both are keyed on the resolved union node:
   // the recursion runs on that node's OWN types and each caller applies its own `subst` afterwards, so
   // the expansion itself carries no substitution and one entry serves every reference to it
-  function flattenUnionBranches(types, scope, visited = new Set(), expanded = new Map()) {
+  function flattenUnionBranches(types, scope, keepCycles = true, visited = new Set(), expanded = new Map()) {
     const out = [];
     const pushed = new Set();
     // an expansion that had to CUT a cycle carries a branch left unflattened only because its target
@@ -1021,7 +1021,7 @@ export function createDiscriminantNarrow({
         continue;
       }
       if (visited.has(resolved)) {
-        take(branch);
+        if (keepCycles) take(branch);
         cutCycle = true;
         continue;
       }
@@ -1029,7 +1029,7 @@ export function createDiscriminantNarrow({
       if (!inners) {
         visited.add(resolved);
         try {
-          inners = flattenUnionBranches(resolved.types, scope, visited, expanded);
+          inners = flattenUnionBranches(resolved.types, scope, keepCycles, visited, expanded);
           if (cutTaintedExpansions.has(inners)) cutCycle = true;
           else expanded.set(resolved, inners);
         } finally {

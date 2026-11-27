@@ -1065,7 +1065,7 @@ function createResolveNodeType(babelNodeType, t, {
   });
 
   // Type questions share answers only until the enclosing read-only question returns.
-  const { typeAnswer, typeGuardHas } = createTypeQueryCache(currentLookupPath, map => spelledTypeArgsOf(map));
+  const { typeAnswer, typeGuardHas } = createTypeQueryCache(currentLookupPath, (...args) => spelledTypeArgsOf(...args));
 
   // global-resolve cluster: bare-Identifier / global-proxy / `<Cls>.prototype` resolution +
   // `extends` chain walker. `resolveClassInheritance` needs forward-decl thunks for
@@ -1120,16 +1120,26 @@ function createResolveNodeType(babelNodeType, t, {
     unwrapMappedTypePassthrough,
     expandMappedTypeMembers,
     evaluateConditionalType,
+    matchArrayInferPattern,
     pickConditionalBranchVia,
     isUnconstrainedTypeShape,
     collectInferredNames,
     matchTemplatePattern,
-    typeRefSegmentsEqual,
+    sameTypeSource,
     dropMapKeys,
     trueBranchSubst,
   } = createTypeExpansion({
     typeAnswer,
+    arrayMethods: KNOWN_INSTANCE_METHOD_RETURN_TYPES.Array,
+    staticKeySet: node => typeMembersCluster.staticKeySet(node),
+    spelledTypeArgsOf: map => spelledTypeArgsOf(map, true),
+    withTypeReferenceScope,
+    findTypeParameter,
     literalKeyValue,
+    literalExactValue,
+    resolveComputedKeyName,
+    isGlobalTypeName,
+    followTypeAliasChain: (...args) => followTypeAliasChain(...args),
     applyAliasSubstDeep: (...args) => applyAliasSubstDeep(...args),
     unwrapTypeAnnotation,
     getTypeMembers: (...args) => getTypeMembers(...args),
@@ -2740,6 +2750,7 @@ function createResolveNodeType(babelNodeType, t, {
   // outputs (all just-destructured). assigns the factory's forward-declared `let`s for
   // `resolveTypeAnnotation` / `resolveConstructorType` / `resolveConstructorCallType`
   const typeAnnotationResolveCluster = createTypeAnnotationResolve({
+    isGlobalTypeName,
     typeAnswer,
     structuralMembers,
     flattenUnionBranches,
@@ -2755,7 +2766,7 @@ function createResolveNodeType(babelNodeType, t, {
     STRUCTURE_PRESERVING_WRAPPERS,
     MAX_DEPTH,
     isAmbientClassNode,
-    typeRefSegmentsEqual,
+    sameTypeSource,
     typeRefName,
     findTypeParameter,
     findTypeDeclaration,
@@ -2818,6 +2829,9 @@ function createResolveNodeType(babelNodeType, t, {
   // direct (awaited destructured early); the forward-decl `let`s `findTypeMember` /
   // `getTypeMembers` are this cluster's OUTPUTS, populated by the destructure assignment below
   const typeMembersCluster = createTypeMembers({
+    isGlobalTypeName,
+    matchArrayInferPattern,
+    flattenUnionBranches,
     typeAnswer,
     matchTemplatePattern,
     memoize,

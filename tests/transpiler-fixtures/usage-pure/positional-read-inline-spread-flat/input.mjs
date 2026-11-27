@@ -6,4 +6,5 @@ function pp({ x }) { return x; }
 // NEGATIVES: a spread of a binding at or before the slot - no static position, the generic dispatch
 const viaPatternParamAlias = pp(...wrapped);
 viaPatternParamAlias.flat();
+viaPatternParamAlias.at(0);
 export { viaPatternParamAlias };

@@ -42,7 +42,9 @@ export function createTypeQueryCache(currentLookupPath, spelledTypeArgsOf) {
     return withCanonQuestion(() => {
       const context = [typeAnswer, currentLookupPath(), scope, depth, typeSpelling(key),
         modifiers?.optional, modifiers?.readonly, selfKeyof];
-      for (const bindings of [map, spelledTypeArgsOf(map)]) {
+      const written = spelledTypeArgsOf(map);
+      const effective = spelledTypeArgsOf(map, true);
+      for (const bindings of [map, written, effective === written ? null : effective]) {
         context.push(bindings?.size ?? -1);
         if (bindings) for (const [name, value] of bindings) context.push(name, typeSpelling(value));
       }

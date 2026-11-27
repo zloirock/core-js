@@ -4,4 +4,5 @@
 const box = [[1]];
 const [viaCensus] = [...[box]];
 viaCensus.push('s');
+for (const item of box) item.at(0);
 export { viaCensus };

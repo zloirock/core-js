@@ -1,10 +1,9 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// conditional with typeparam-extends-typeparam: `T extends U` where U is also a
-// typeparam. raw `extendsType=U` AST has no typeArguments and reads as unconstrained,
-// but at the call-site U substitutes to a concrete shape (`Array<string>`). branch
-// picker must see the post-subst shape, not the pre-subst typeparam ref - otherwise
-// the empty-tuple / disjoint-inner case fires the wrong (true) branch
-type Cond<T, U> = T extends U ? string[] : number[];
+import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
+var _ref, _ref2;
+// The type argument on the right is concrete at the call site.
+type Cond<T, U> = T extends U ? string : number[];
 declare function probe<T, U>(): Cond<T, U>;
-const r = probe<Array<number>, Array<string>>();
-_atMaybeArray(r).call(r, 0);
+_atMaybeArray(_ref = probe<Array<number>, Array<string>>()).call(_ref, 0);
+_includesMaybeString(_ref2 = probe<Array<string>, Array<string>>()).call(_ref2, 'x');
+export {};

@@ -1,4 +1,5 @@
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _at from "@core-js/pure/actual/instance/at";
 // every POSITIONAL read of a literal list expands an inline-array spread the same way: the type
 // layer's element reads, the call-argument reads a return type follows, the presence of a slot
 // value, the proxy-global pairing, a common element type. one method per row, so a row's narrowing
@@ -11,4 +12,5 @@ function pp({
 // NEGATIVES: a spread of a binding at or before the slot - no static position, the generic dispatch
 const viaPatternParamAlias = pp(...wrapped);
 _flatMaybeArray(viaPatternParamAlias).call(viaPatternParamAlias);
+_at(viaPatternParamAlias).call(viaPatternParamAlias, 0);
 export { viaPatternParamAlias };

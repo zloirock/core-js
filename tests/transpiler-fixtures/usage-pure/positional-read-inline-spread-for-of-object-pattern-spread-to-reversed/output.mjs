@@ -1,3 +1,4 @@
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _toReversedMaybeArray from "@core-js/pure/actual/array/instance/to-reversed";
 for (const {
   x: viaMemberCommon
@@ -5,4 +6,7 @@ for (const {
   x: [1]
 }], {
   x: [2]
-}]) _toReversedMaybeArray(viaMemberCommon).call(viaMemberCommon);
+}]) {
+  _toReversedMaybeArray(viaMemberCommon).call(viaMemberCommon);
+  _atMaybeArray(viaMemberCommon).call(viaMemberCommon, 0);
+}

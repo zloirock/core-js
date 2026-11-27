@@ -11553,6 +11553,38 @@ function * generateGuardKinds(cases) {
   }
 }
 
+function * generateConditionalMappedTypes() {
+  for (const [name, source, receiver, value] of [
+    ['array-length-only', "type V = Pick<string[], 'length'>; type R = V extends unknown[] ? string : number[];", 'v', '[7]'],
+    ['weak', 'type R = { size: number } extends { text?: string } ? number[] : string;', 'v', "'ab'"],
+    ['map-properties', 'type R = Readonly<Map<string, number>> extends Map<infer K, infer V> ? K[] : string;', 'v', "['ok']"],
+    ['thenable', 'type R = PromiseLike<string> extends Promise<infer V> ? V : number[];', 'v', '[7]'],
+    ['nested-object-keyword', 'type E<T> = T extends Array<infer U> ? U : never; type R = string extends E<object[] | Object[]> ? string : number[];',
+      'v', "'ab'"],
+    ['map-entry', 'type R = Map<string, number> extends Iterable<infer E extends string> ? string : number[];', 'v', '[7]'],
+    ['case-union', "type R = Uppercase<'a' | 'b'> extends 'A' | 'B' ? string : number[];", 'v', "'ab'"],
+    ['constrained-member', 'type Pick<T> = T extends (infer U extends string)[] ? { item: U } : { item: number[] }; type R = Pick<number[]>;', 'v.item', '{ item: [7] }'],
+    ['optional', 'type Src = Partial<{ item: number[] }>; type R = { readonly [K in keyof Src]: Src[K] };', "(v.item ?? 'xy')", '{}'],
+    ['optional-present', 'type Src = Partial<{ item: number[] }>; type R = { readonly [K in keyof Src]: Src[K] };', "(v.item ?? 'xy')", '{ item: [7] }'],
+    ['string-key', "type Src = { '0': string; 1: number[] }; type R = { [K in keyof Src as K extends number ? 'num' : 'text']: Src[K] };",
+      'v.text', "{ num: [7], text: 'ab' }"],
+  ]) {
+    yield { ...snippet(`conditional-mapped/${ name }`, `(() => {
+      ${ source }
+      function read(v: R) { return ${ receiver }.at((log.push('index'), 0)); }
+      return read(${ value });
+    })()`), ts: true, strip: true };
+  }
+  for (const [name, type, actual] of [['string', 'string', "'xy'"], ['array', 'string[]', "['xy']"]]) {
+    yield { ...snippet(`conditional-mapped/symbol-${ name }`, `(() => {
+      const key = Symbol('data');
+      function read<T extends Record<string, string>>(v: T, k: keyof T) { return v[k].at(0); }
+      const v = { name: 'ok', [key]: ${ actual } as ${ type } };
+      return read(v, key);
+    })()`), ts: true, strip: true };
+  }
+}
+
 function * generateTupleAndArrayElements() {
   for (const [name, binding] of [['array', '[item]'], ['object', '{ 0: item }']]) {
     yield { ...snippet(`array-slot-flow/missing-${ name }`, `(() => {
@@ -29404,5 +29436,6 @@ export function * generate() {
   yield * generateGuardKinds(GUARD_NARROWING_TS);
   yield * generateNumericUpdateReads();
   yield * generateNumericUpdateReads(true);
+  yield * generateConditionalMappedTypes();
   yield * generateTupleAndArrayElements();
 }

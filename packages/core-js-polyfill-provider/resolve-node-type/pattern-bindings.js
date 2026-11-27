@@ -1147,11 +1147,11 @@ export function createPatternBindings({
         // a positional leaf over a call on the generic dispatcher where its index spelling was typed
         if (!t.isArrayExpression(objPath.node)) {
           if (unionHints) return null;
-          let type = typedIndexElement(rawPath, rawPath);
+          let type = typedIndexElement(rawPath, rawPath, step);
           for (const [at, next] of rest.entries()) {
             if (!type || typeof next !== 'number') return null;
             if (next < 0) return at === rest.length - 1 ? new $Object('Array') : null;
-            type = arrayElementOfType(type);
+            type = arrayElementOfType(type, next);
           }
           return type;
         }

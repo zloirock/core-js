@@ -28,8 +28,16 @@
 // `functionTypeReturnAnnotation` thunk through forward-decl `let` bindings
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import {
-  MAX_DEPTH, $Object, $Primitive, canonicalArrayIndex, dropLeadingThisParam, hasLeadingThisParam, isNumericIndexName,
-  nodePathInScope, nodeRangeContains,
+  MAX_DEPTH,
+  $Object,
+  $Primitive,
+  canonicalArrayIndex,
+  dropLeadingThisParam,
+  hasLeadingThisParam,
+  isNumericIndexName,
+  isTypeObject,
+  nodePathInScope,
+  nodeRangeContains,
 } from './base.js';
 import {
   collectQualifiedSegments,
@@ -1335,22 +1343,28 @@ export function createMemberResolve({
     // a receiver whose RESOLVED type carries an element type (a rest-slice, an inner-typed
     // binding) yields it for a non-negative integer index: the value route above needs a
     // literal array node, but the element family is already proven by the receiver's type
-    return arrayElementOfType(resolveNodeType(objectPath));
+    return arrayElementOfType(resolveNodeType(objectPath), index);
   }
 
   // the element an Array TYPE carries, or null for any other type - the one reading of an index
   // step off a value rather than a literal, shared by the index spelling above and the pattern walk
-  function arrayElementOfType(type) {
-    return type?.constructor === 'Array' ? resolveInnerType(type)?.mark('mayBeNullish') ?? null : null;
+  function arrayElementOfType(type, index) {
+    if (type?.constructor !== 'Array') return null;
+    const { tuple } = type;
+    if (tuple?.slots && (tuple.rest < 0 || index < tuple.rest)) {
+      const slot = tuple.slots[index];
+      if (isTypeObject(slot)) return slot.mark('mayBeNullish');
+    }
+    return resolveInnerType(type)?.mark('mayBeNullish') ?? null;
   }
 
   // the element type an index step reads off a container NO literal holds - a call result, an
   // inner-typed binding, a rest slice - unless a writer may have retyped the elements of the binding
   // it is rooted at: the two questions `resolveArrayIndexAccess` asks past its literal route, asked
   // for the positional pattern step (`[{ at }] = f()`) that reads the very slot `f()[0]` reads
-  function typedIndexElement(objectPath, anchorPath) {
+  function typedIndexElement(objectPath, anchorPath, index) {
     if (arrayElementsMayBeRetyped(objectPath, anchorPath)) return null;
-    return arrayElementOfType(resolveNodeType(resolveRuntimeExpression(objectPath)));
+    return arrayElementOfType(resolveNodeType(resolveRuntimeExpression(objectPath)), index);
   }
 
   // The file index groups writes by field. For a numeric read with an unknown key,

@@ -52,7 +52,6 @@ import {
   MEMBER_ANNOTATION_SLOTS,
   MODIFIER_WRAPPER_DELTAS,
   NULLABLE_NEVER_ANNOTATIONS,
-  NUMERIC_KEY_SHAPE_RE,
   PATTERN_WRAPPERS,
   PLACEHOLDER_VALIDATORS,
   PRIMITIVES,
@@ -1242,7 +1241,7 @@ runBoth('keyof-self union: a type parameter outranks the declaration its name sh
    }`, (adapter, prog, lbl) => {
     const [decl] = adapter.collectPaths(prog, 'VariableDeclarator', p => p.node.id?.name === 'r');
     const resolver = adapter.makeResolver();
-    checkType(lbl, resolver.resolveNodeType(decl.get('init')), { primitive: true, kind: 'string' });
+    check(lbl, resolver.resolveNodeType(decl.get('init')), null);
   });
 
 // --- Member-access object-type resolution (`resolvePropertyObjectType`) ---
@@ -2483,20 +2482,19 @@ runBoth('mutable Set check binds U against `Set<infer U>` (TRUE control)',
     checkType(lbl, type, { primitive: false, ctor: 'Array' });
   });
 
-// the `Readonly<X>` utility applied to a collection is that collection's readonly form (`Readonly<T[]>`
-// === `readonly T[]`), so it is not assignable to the mutable pattern either - array, tuple, Set and
-// Map spellings all take the FALSE branch; a `Readonly<{...}>` object is not a collection (unaffected)
-for (const [label, checkExpr, pattern, trueBranch] of [
-  ['Readonly array', 'Readonly<number[]>', 'Array<infer U>', 'U[]'],
-  ['Readonly tuple', 'Readonly<[number]>', 'Array<infer U>', 'U[]'],
-  ['Readonly Set', 'Readonly<Set<number>>', 'Set<infer U>', 'U[]'],
-  ['Readonly Map', 'Readonly<Map<string, number>>', 'Map<infer K, infer V>', 'K[]'],
+// Readonly arrays lose their mutable interface. Readonly<Map> and Readonly<Set>
+// still expose the ordinary methods; ReadonlyMap and ReadonlySet above exclude mutators.
+for (const [label, checkExpr, pattern, trueBranch, array] of [
+  ['array', 'Readonly<number[]>', 'Array<infer U>', 'U[]', false],
+  ['tuple', 'Readonly<[number]>', 'Array<infer U>', 'U[]', false],
+  ['Set', 'Readonly<Set<number>>', 'Set<infer U>', 'U[]', true],
+  ['Map', 'Readonly<Map<string, number>>', 'Map<infer K, infer V>', 'K[]', true],
 ]) {
-  runBoth(`\`${ label }\` check picks FALSE against its mutable pattern`,
+  runBoth(`Readonly properties of a ${ label } against its mutable pattern`,
     `type T = ${ checkExpr } extends ${ pattern } ? ${ trueBranch } : string; let r: T;`,
     (adapter, prog, lbl) => {
       const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
-      checkType(lbl, type, { primitive: true, kind: 'string' });
+      checkType(lbl, type, array ? { primitive: false, ctor: 'Array' } : { primitive: true, kind: 'string' });
     });
 }
 
@@ -5868,17 +5866,6 @@ runBoth('the subclass own namespace export outranks the parent one',
   // empty-string fallback
   check('base helpers: quasiText empty', quasiText(null), '');
   check('base helpers: quasiText missing value', quasiText({}), '');
-
-  // NUMERIC_KEY_SHAPE_RE: integer / float / scientific
-  checkTruthy('base regex: NUMERIC_KEY_SHAPE_RE int', NUMERIC_KEY_SHAPE_RE.test('42'));
-  checkTruthy('base regex: NUMERIC_KEY_SHAPE_RE neg int', NUMERIC_KEY_SHAPE_RE.test('-5'));
-  checkTruthy('base regex: NUMERIC_KEY_SHAPE_RE float', NUMERIC_KEY_SHAPE_RE.test('1.5'));
-  checkTruthy('base regex: NUMERIC_KEY_SHAPE_RE scientific',
-    NUMERIC_KEY_SHAPE_RE.test('1e10'));
-  check('base regex: NUMERIC_KEY_SHAPE_RE rejects letter',
-    NUMERIC_KEY_SHAPE_RE.test('1a'), false);
-  check('base regex: NUMERIC_KEY_SHAPE_RE rejects empty',
-    NUMERIC_KEY_SHAPE_RE.test(''), false);
 
   for (const segment of ['42', '1.5', '.5', '01', '-0', '0x10', '1e2', ' ']) {
     checkTruthy(`numeric template accepts ${ JSON.stringify(segment) }`, PLACEHOLDER_VALIDATORS.TSNumberKeyword(segment));
@@ -12510,8 +12497,13 @@ for (const [label, source, want] of [
   ['a union body keeps the argument', `${ ALIAS_C }type M<T> = T[keyof T] | null; declare const v: M<C>; const out = v!;`, ARRAY],
   ['an open parameter as the argument stays open', `${ ALIAS_C }type V<T> = T[keyof T]; function f<T extends C>(v: V<T>) { const out = v; }`, null],
   [
-    'an open parameter under a string index signature folds it',
+    'a string index leaves a subtype free to add a symbol',
     'type V<T> = T[keyof T]; function f<T extends Record<string, number[]>>(v: V<T>) { const out = v; }',
+    null,
+  ],
+  [
+    'an open parameter bounded at every key',
+    'type V<T> = T[keyof T]; function f<T extends Record<PropertyKey, number[]>>(v: V<T>) { const out = v; }',
     ARRAY,
   ],
   ['a defaulted parameter is not spelled', `${ ALIAS_C }type V<T = C> = T[keyof T]; declare const v: V; const out = v;`, null],
@@ -12527,13 +12519,13 @@ for (const [label, source, want] of [
 // a generic callee's indexed return over an argument whose declared type names no keys one by one - an
 // index signature, an open parameter - folds that type in the argument's own scope
 const PICK = 'declare function pick<T>(o: T): T[keyof T]; ';
-for (const [label, source] of [
-  ['an index-signature argument', `${ PICK }declare const r: Record<string, number[]>; const out = pick(r);`],
-  ['an open parameter argument', `${ PICK }function f<U extends Record<string, number[]>>(u: U) { const out = pick(u); }`],
+for (const [label, source, expected] of [
+  ['an index-signature argument', `${ PICK }declare const r: Record<string, number[]>; const out = pick(r);`, 'Array'],
+  ['an open parameter argument', `${ PICK }function f<U extends Record<string, number[]>>(u: U) { const out = pick(u); }`, null],
 ]) {
   runBoth(`callee indexed return: ${ label }`, source, (adapter, prog, lbl) => {
     const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
-    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), ARRAY);
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init'))?.constructor ?? null, expected);
   });
 }
 
@@ -14155,32 +14147,18 @@ runBoth('awaited: a union of promises still peels',
     checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
   });
 
-// a key-remap `as` clause matches the key as TEXT. TS keeps `{ 0: T }` (number key) apart from
-// `{ '0': T }` (string key), but the pipeline stringifies both before the clause sees them - so a
-// CANONICAL numeric text is undecidable and the clause must bail. a non-canonical one is decided:
-// no number prints as `'01'` / `'1.0'` / `'1e10'`, so those are string keys, the filter below keeps
-// them, and the member's own type survives. reading them as numbers dropped the member entirely
-for (const key of ['01', '1.0', '1e10']) {
-  runBoth(`mapped as-clause: '${ key }' is a string key, so the member survives`,
+// A mapped key retains its source type until the property name is emitted.
+for (const key of ['01', '1.0', '1e10', '0', '42']) {
+  runBoth(`mapped as-clause: '${ key }' survives a number filter`,
     `type Src = { '${ key }': number[] };\n`
     + 'type M = { [K in keyof Src as K extends number ? never : K]: Src[K] };\n'
-    + `declare const m: M;\nm['${ key }'].at(0);`,
-    (adapter, prog, lbl) => {
-      checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
-    });
+    + `declare const m: M;\nm['${ key }'].at(0);`, arrayAtReceiver);
 }
-// the canonical text keeps its accepted conflation: `{ 0: T }` and `{ '0': T }` are one key by the
-// time the clause sees them, and the bare spelling these renames are written for wins
 for (const key of ['0', '42']) {
-  runBoth(`mapped as-clause: '${ key }' still reads as a number key`,
-    `type Src = { '${ key }': number[] };\n`
+  runBoth(`mapped as-clause: numeric ${ key } is removed`,
+    `type Src = { ${ key }: number[] };\n`
     + 'type M = { [K in keyof Src as K extends number ? never : K]: Src[K] };\n'
-    + `declare const m: M;\nm['${ key }'].at(0);`,
-    (adapter, prog, lbl) => {
-      const resolved = atReceiver(adapter, prog);
-      if (resolved?.constructor === 'Array') return fail(lbl, 'the numeric key survived a number-key filter');
-      pass();
-    });
+    + `declare const m: M;\nconst noKeys: keyof M extends never ? true : false = true;\nm['${ key }'].at(0);`, dropAtReceiver);
 }
 
 // A continuous chain short-circuits across a non-null assertion. Grouping the cast ends
@@ -14424,12 +14402,11 @@ const SCAN_ROOT_ROWS_ASSIGN = [
 for (const [label, source, want] of [...SCAN_ROOT_ROWS, ...SCAN_ROOT_ROWS_ASSIGN]) {
   runBoth(`class-field write flow: ${ label }`, source, want === 'Array' ? arrayAtReceiver : dropAtReceiver);
 }
-// isNumericKeyShape gates BOTH arms of a mapped-type `as` clause; the string arm is the one
-// a numeric-looking key reaches, and a canonical numeric spelling stays unresolved there
+// Quoting a numeric property makes it a string for a type-level test.
 const MAPPED_AS_STRING_ARM = 'type M = { [K in keyof Src as K extends string ? K : never]: Src[K] };\ndeclare const m: M;\n';
 const MAPPED_AS_STRING_ARM_ROWS = [
   ['non-canonical numeric key resolves', "type Src = { '01': number[] };\n", "m['01'].at(0);", 'Array'],
-  ['canonical numeric key bails', "type Src = { '0': number[] };\n", "m['0'].at(0);", 'drop'],
+  ['quoted numeric key resolves', "type Src = { '0': number[] };\n", "m['0'].at(0);", 'Array'],
   ['plain string key resolves', 'type Src = { a: number[] };\n', 'm.a.at(0);', 'Array'],
 ];
 for (const [label, src, use, want] of MAPPED_AS_STRING_ARM_ROWS) {

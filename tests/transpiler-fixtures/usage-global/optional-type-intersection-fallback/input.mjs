@@ -5,3 +5,6 @@ type X<T> = A & A;
 export function read<T>(x: Partial<X<T>>) {
   return (x.list ?? 'cat').includes('at');
 }
+export function first<T>(x: Partial<X<T>>) {
+  return (x.list ?? ['cat']).at(0);
+}

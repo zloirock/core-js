@@ -9,16 +9,17 @@
 //   mapped:      mappedTypeKeyName, mappedTypeConstraint, unwrapMappedTypePassthrough,
 //                expandMappedTypeMembers
 //   conditional: evaluateConditionalType, pickConditionalBranchVia, isUnconstrainedTypeShape
-//   shared:     typeRefSegmentsEqual, dropMapKeys, trueBranchSubst
+//   shared:     sameTypeSource, dropMapKeys, trueBranchSubst
 //
 // Service object carries the cross-cluster helpers used by both groups. Several deps
 // (`getTypeMembers`, `substituteTypeParams`, `applyAliasSubstDeep`, `resolveInnerType`)
 // reference factory functions that are declared later in the factory body but are
 // captured by closure via function-declaration hoisting at call time.
 import {
+  $Object,
   INTRINSIC_STRING_TRANSFORMERS,
   MAX_DEPTH,
-  NUMERIC_KEY_SHAPE_RE,
+  isNumericIndexName,
   PLACEHOLDER_VALIDATORS,
   RENAME_SKIP,
   STRUCTURAL_SUPERTYPES,
@@ -34,15 +35,16 @@ import {
   quasiText,
   typeIdentityElided,
 } from './base.js';
-import { getTypeArgs, isTupleRestElement, tupleElements, unwrapTupleMember } from '../helpers/ast-patterns.js';
+import { getTypeArgs, isTupleRestElement, staticKeyNames, tupleElements, unwrapTupleMember } from '../helpers/ast-patterns.js';
 import {
   isDistributiveConditional,
   isPrivateMemberNode,
   isTopKeywordAnnotation,
+  collectQualifiedSegments,
   isTypeReferenceNode,
+  literalTypeAnnotation,
+  keywordPrimitiveKind,
   mappedModifierDelta,
-  mutableCollectionName,
-  readonlyCollectionBase,
   unionAnnotationOf,
 } from './ast-shapes.js';
 
@@ -61,6 +63,15 @@ const DOMAIN_DESCRIBES_NOTHING = Symbol('domain-describes-nothing');
 export function createTypeExpansion({
   typeAnswer,
   literalKeyValue,
+  literalExactValue,
+  resolveComputedKeyName,
+  staticKeySet,
+  arrayMethods,
+  spelledTypeArgsOf,
+  withTypeReferenceScope,
+  findTypeParameter,
+  isGlobalTypeName,
+  followTypeAliasChain,
   applyAliasSubstDeep,
   unwrapTypeAnnotation,
   getTypeMembers,
@@ -81,20 +92,6 @@ export function createTypeExpansion({
   compareMemberShapes,
 }) {
   // --- Mapped types ---
-
-  // string-shaped numeric keys (`'0'`, `'42'`) are produced by `getKeyName` when iterating member
-  // lists of a `keyof T` source whose underlying T uses numeric indexers. the key reaching here is
-  // ALWAYS a string - both producers stringify (`String(...)` on the literal-union lane, `getKeyName`
-  // on the `keyof` lane, whose numeric arm converts) - so the question is whether this text COULD be
-  // the stringification of a number, and only its canonical form can be. `'01'`, `'1.0'` and `'1e10'`
-  // pass the shape but no number prints that way, so they are string keys and answer `K extends
-  // number` with false and `K extends string` with true, exactly as TS does. `'1e999'` falls out the
-  // same way - a number prints `Infinity`. the sibling `${number}` validator keeps its looser rule on
-  // purpose: TS admits `7e1` in a template placeholder, where canonicalizing would UNDER-resolve
-  function isNumericKeyShape(keyValue) {
-    return typeof keyValue === 'string' && NUMERIC_KEY_SHAPE_RE.test(keyValue)
-      && String(Number(keyValue)) === keyValue;
-  }
 
   // shared cross-parser key resolution for TSMappedType. babel: `node.typeParameter.name`
   // is an Identifier (`name.name` carries the string). oxc/TS-ESTree: `node.key` is the
@@ -153,31 +150,64 @@ export function createTypeExpansion({
     return null;
   }
 
-  // segment-by-segment equality for two TSTypeReference / GenericTypeAnnotation chains.
-  // both-non-ref returns true (both shapes "match" by being not-a-ref); ref-vs-non-ref
-  // and segment mismatch return false. avoids the typeRefSignature string-join allocation
-  // and short-circuits on length mismatch
-  function typeRefSegmentsEqual(a, b) {
-    const segA = typeRefSegments(a);
-    const segB = typeRefSegments(b);
-    if (!segA?.length) return !segB?.length;
-    if (!segB?.length || segA.length !== segB.length) return false;
-    for (let i = 0; i < segA.length; i++) if (segA[i] !== segB[i]) return false;
-    return true;
+  // The mapped key shadows an outer name only in the body. Compare nested arguments before delegating.
+  function sameTypeSource(a, b, key, scope, depth = 0) {
+    while (depth++ <= MAX_DEPTH) {
+      a = peelTSParenthesized(a);
+      b = peelTSParenthesized(b);
+      if (!a || !b || a.type !== b.type) return false;
+      if (a === b && !key) return true;
+      let left;
+      let right;
+      switch (a.type) {
+        case 'TSTypeReference':
+        case 'GenericTypeAnnotation':
+        case 'TSTypeQuery': {
+          const source = a.type === 'TSTypeQuery' ? collectQualifiedSegments(a.exprName) : typeRefSegments(a);
+          const target = b.type === 'TSTypeQuery' ? collectQualifiedSegments(b.exprName) : typeRefSegments(b);
+          if (!source || source.length !== target?.length || source.some((name, i) => name !== target[i])) return false;
+          if (key && isTypeReferenceNode(a) && source.length === 1 && source[0] === key) return false;
+          left = getTypeArgs(a)?.params;
+          right = getTypeArgs(b)?.params;
+          break;
+        }
+        case 'TSArrayType':
+          a = a.elementType;
+          b = b.elementType;
+          continue;
+        case 'TSTypeOperator':
+          if (a.operator !== b.operator) return false;
+          a = a.typeAnnotation;
+          b = b.typeAnnotation;
+          continue;
+        case 'TSTupleType':
+          left = tupleElements(a);
+          right = tupleElements(b);
+          break;
+        case 'TSUnionType':
+        case 'TSIntersectionType':
+          left = a.types;
+          right = b.types;
+          break;
+        case 'TSTypeLiteral':
+        case 'ObjectTypeAnnotation': {
+          if (key || !scope) return false;
+          const source = structuralKey(a, scope);
+          return source !== null && source === structuralKey(b, scope);
+        }
+        case 'TSLiteralType': {
+          const value = literalNodeValue(a.literal);
+          return value !== undefined && value === literalNodeValue(b.literal);
+        }
+        default: return keywordPrimitiveKind(a) !== null;
+      }
+      return left === right || !!left && left.length === right?.length
+        && left.every((arg, index) => sameTypeSource(arg, right[index], key, scope, depth));
+    }
+    return false;
   }
 
-  // detect the trivial passthrough mapped type `{ [K in keyof T]: T[K] }` and return T.
-  // `readonly` / `optional` / `-readonly` / `-?` modifiers don't change the member set, only
-  // descriptor flags, so we let them through; `nameType` (key remap via `as`) does rename and
-  // blocks. CRITICAL: when source is a TSTypeReference, verify body.objectType is the SAME
-  // ref by signature - without this, `{ [K in keyof T]: U[K] }` (with U a sibling type-param
-  // distinct from T) is mis-classified as passthrough to U; downstream member walk uses U's
-  // keys instead of synthesizing T-keyed members with U[K] values. for non-Ref source shapes
-  // (TSTypeLiteral / nested mapped / etc.) no structural-mismatch class exists in the same
-  // way - the `U[K]` capture relies on both sides being TYPE-PARAMETER refs that LOOK
-  // identical at the AST level but bind to different scopes. only `keyof` source needs this
-  // check; literal-union sources don't apply since the body shape would be `Source[K]` for
-  // a different K-source pair
+  // A homomorphic mapped type reads the same instantiation it took its keys from.
   function unwrapMappedTypePassthrough(node) {
     if (!node || node.type !== 'TSMappedType') return null;
     if (node.nameType || !node.typeAnnotation) return null;
@@ -192,63 +222,59 @@ export function createTypeExpansion({
     const indexParam = peelTSParenthesized(body.indexType);
     if (indexParam?.type !== 'TSTypeReference' || indexParam.typeName?.type !== 'Identifier'
       || indexParam.typeName.name !== shape.paramName) return null;
-    // the body must index the very type the keys are taken from - otherwise this is a cross-type
-    // projection (`{ [K in keyof A]: B[K] }`), whose members are A's keys carrying B's value types,
-    // and handing B back would walk B's keys instead. two type-REFS match by name; anything
-    // structural has to be the SAME node, because a caller may already have substituted a concrete
-    // type into the body: `{ x, y }` and `{ x, y, extra }` are then both non-refs yet different
-    // types. a structural source paired with a distinct structural body loses only the fast path -
-    // the per-key expansion below builds the same members from the source's own keys
-    const sourceIsRef = Boolean(typeRefSegments(shape.source)?.length);
-    if (sourceIsRef
-      ? !typeRefSegmentsEqual(shape.source, body.objectType)
-      : shape.source !== body.objectType) return null;
+    if (!sameTypeSource(shape.source, body.objectType, shape.paramName)) return null;
     return body.objectType ?? null;
   }
 
   // statically evaluate a mapped-type rename template against a single source key.
   // returns the renamed key string, RENAME_SKIP for `as never` / un-matched conditional
   // branches, or null when the template can't be resolved to a literal string
-  function evalRenameTemplate(template, paramName, keyValue) {
-    while (true) {
-      if (!template) return null;
+  function evalRenameTemplate(template, paramName, keyValue, scope, depth = 0) {
+    while (template && depth++ < MAX_DEPTH) {
       // entry peel: oxc keeps `as (Uppercase<K & string>)` (and parenthesized recursion
       // slots - intrinsic args, intersection members, conditional branches, which re-enter
       // here) as TSParenthesizedType where babel strips it
       template = peelTSParenthesized(template);
       if (template.type === 'TSNeverKeyword') return RENAME_SKIP;
-      if (template.type === 'TSStringKeyword') return keyValue;
+      if (template.type === 'TSStringKeyword') return null;
       // `\`prefix\${...}suffix\`` - cross-parser via templateLiteralTypeParts; concatenate
       // quasis interleaved with the per-expression evaluation results
       const parts = templateLiteralTypeParts(template);
       if (parts) {
         let out = quasiText(parts.quasis[0]);
         for (let i = 0; i < parts.exprs.length; i++) {
-          const sub = evalRenameTemplate(parts.exprs[i], paramName, keyValue);
-          if (typeof sub !== 'string') return sub;
+          const sub = evalRenameTemplate(parts.exprs[i], paramName, keyValue, scope, depth);
+          if (sub === RENAME_SKIP || sub === null) return sub;
           out += sub + quasiText(parts.quasis[i + 1]);
         }
         return out;
       }
       // `as 'fixed'` - direct string / numeric literal type
-      if (template.type === 'TSLiteralType') return literalKeyValue(template.literal);
+      if (template.type === 'TSLiteralType') return literalExactValue(template.literal);
       if (template.type === 'TSTypeReference' && template.typeName?.type === 'Identifier') {
         const { name } = template.typeName;
         if (name === paramName) return keyValue;
         const xform = INTRINSIC_STRING_TRANSFORMERS[name];
-        if (!xform) return null;
+        if (!xform || !isGlobalTypeName(name, scope)) {
+          const alias = followTypeAliasChain(template, scope);
+          const value = peelTSParenthesized(applyAliasSubstDeep(alias.node, alias.subst));
+          return value?.type === 'TSLiteralType' ? literalExactValue(value.literal)
+            : value?.type === 'TSNeverKeyword' ? RENAME_SKIP : null;
+        }
         const arg = getTypeArgs(template)?.params?.[0];
         if (!arg) return null;
-        const inner = evalRenameTemplate(arg, paramName, keyValue);
+        const inner = evalRenameTemplate(arg, paramName, keyValue, scope, depth);
         return typeof inner === 'string' ? xform(inner) : inner;
       }
       // `string & K` - drop the string-keyword half, evaluate the remaining type-level part
       if (template.type === 'TSIntersectionType') {
         let result = null;
+        const stringsOnly = template.types.some(part => peelTSParenthesized(part)?.type === 'TSStringKeyword');
         for (const part of template.types) {
-          if (part?.type === 'TSStringKeyword') continue;
-          const sub = evalRenameTemplate(part, paramName, keyValue);
-          if (typeof sub !== 'string') return sub;
+          if (peelTSParenthesized(part)?.type === 'TSStringKeyword') continue;
+          const sub = evalRenameTemplate(part, paramName, keyValue, scope, depth);
+          if (sub === RENAME_SKIP || sub === null) return sub;
+          if (typeof sub !== 'string' && stringsOnly) return RENAME_SKIP;
           if (result !== null && result !== sub) return null;
           result = sub;
         }
@@ -259,7 +285,7 @@ export function createTypeExpansion({
       // template that we can pattern-match against the concrete key
       if (template.type === 'TSConditionalType') {
         const matched = matchesConditionalPattern({
-          checkType: template.checkType, extendsType: template.extendsType, paramName, keyValue,
+          checkType: template.checkType, extendsType: template.extendsType, paramName, keyValue, scope,
         });
         if (matched === true) {
           template = template.trueType;
@@ -273,6 +299,7 @@ export function createTypeExpansion({
       }
       return null;
     }
+    return null;
   }
 
   // `K extends 'a' ? ... : ...` - true when keyValue equals the extendsType literal.
@@ -285,34 +312,27 @@ export function createTypeExpansion({
   // returns null when the pattern can't be statically decided (caller bails).
   // peel TSParenthesizedType on both sides - oxc preserves `(K) extends ('a') ? ...`
   // and the leading typeReference check would otherwise drop the wrapped form
-  function matchesConditionalPattern({ checkType, extendsType, paramName, keyValue }) {
+  function matchesConditionalPattern({ checkType, extendsType, paramName, keyValue, scope, depth = 0 }) {
+    if (depth > MAX_DEPTH) return null;
     checkType = peelTSParenthesized(checkType);
     extendsType = peelTSParenthesized(extendsType);
     if (checkType?.type !== 'TSTypeReference' || checkType.typeName?.name !== paramName) return null;
-    if (isTopKeywordAnnotation(extendsType)) return true;
-    if (extendsType?.type === 'TSStringKeyword') {
-      if (typeof keyValue !== 'string') return false;
-      // upstream coerces numeric-literal mapped sources (`[K in 0 | 1]`) to string repr
-      // before reaching here, so a stringified numeric `'0'` is indistinguishable from a
-      // real string key. per TS spec `0 extends string` is false; signal undecidable so
-      // the caller folds both branches rather than over-returning true
-      return isNumericKeyShape(keyValue) ? null : true;
+    if (isTypeReferenceNode(extendsType)) {
+      const { node, subst } = followTypeAliasChain(extendsType, scope);
+      if (node && node !== extendsType && !isTypeReferenceNode(node)) extendsType = applyAliasSubstDeep(node, subst);
     }
-    // TS keeps the two spellings apart - `{ 0: T }` has a NUMBER key, `{ '0': T }` a string one -
-    // but the pipeline stringifies both before this sees them. the canonical text keeps answering
-    // TRUE: bare numeric keys are what these renames are written for, and the `'0' | 1` conflation
-    // is the accepted over-emit. a NON-canonical text is not conflated with anything - no number
-    // prints as `'01'` / `'1.0'` / `'1e10'` - so those are string keys and answer false
-    if (extendsType?.type === 'TSNumberKeyword') return isNumericKeyShape(keyValue);
-    if (templateLiteralTypeParts(extendsType)) return matchTemplatePattern(extendsType, keyValue);
+    if (isTopKeywordAnnotation(extendsType)) return true;
+    if (extendsType?.type === 'TSStringKeyword') return typeof keyValue === 'string';
+    if (extendsType?.type === 'TSNumberKeyword') return typeof keyValue === 'number';
+    if (templateLiteralTypeParts(extendsType)) return typeof keyValue === 'string' && matchTemplatePattern(extendsType, keyValue);
     if (extendsType?.type === 'TSLiteralType') {
-      const expected = literalKeyValue(extendsType.literal);
+      const expected = literalExactValue(extendsType.literal);
       return expected === null ? null : keyValue === expected;
     }
     if (extendsType?.type === 'TSUnionType') {
       let result = false;
       for (const branch of extendsType.types) {
-        const m = matchesConditionalPattern({ checkType, extendsType: branch, paramName, keyValue });
+        const m = matchesConditionalPattern({ checkType, extendsType: branch, paramName, keyValue, scope, depth: depth + 1 });
         if (m === true) return true;
         if (m === null) result = null;
       }
@@ -356,31 +376,14 @@ export function createTypeExpansion({
     return true;
   }
 
-  // synth an AST literal type node wrapping a string key - used as the substitution value
-  // for paramName when expanding `[K in source]` mapped types. mirrors the shape of an
-  // explicit `'key'` literal-type so subsequent applyAliasSubstDeep into body / nameType
-  // sees the same structure regardless of whether the source was `keyof T` or `'a' | 'b'`
-  function literalTypeFromKeyName(keyName) {
-    return { type: 'TSLiteralType', literal: { type: 'StringLiteral', value: keyName } };
-  }
-
-  // synth a property signature for one expanded mapped key. shared between literal-union
-  // and keyof source paths - only the keyof lane can pass `sourceMember`, since a literal-union
-  // source names keys rather than carrying members to inherit flags from.
-  // nameType present but unevaluable splits into two outcomes:
-  //   RENAME_SKIP        - explicit `as never` / mismatched conditional, drop key
-  //   non-string (null)  - rename undecidable for THIS key (e.g. union with a partially-
-  //                        unresolvable TypeReference branch). drop key from the partial
-  //                        expansion: decidable keys still narrow, undecidable fall through
-  //                        to generic dispatch. safe upper bound - never includes a key that
-  //                        user-rename would exclude
-  function buildMappedMember({ node, paramName, keyName, substValue, body, sourceMember = null }) {
-    const renamed = node.nameType ? evalRenameTemplate(node.nameType, paramName, keyName) : keyName;
-    if (renamed === RENAME_SKIP || typeof renamed !== 'string') return null;
+  // An unknown rename may collide with any known member; only an explicit never drops a key.
+  function buildMappedMember({ node, paramName, keyName, substValue, body, scope, domain, sourceMember = null }) {
+    const renamed = node.nameType && !domain ? evalRenameTemplate(node.nameType, paramName, keyName, scope) : keyName;
+    if (renamed === RENAME_SKIP || renamed === null) return renamed;
     const subst = new Map([[paramName, substValue]]);
     return {
       type: 'TSPropertySignature',
-      key: { type: 'Identifier', name: renamed },
+      key: { type: 'Identifier', name: String(renamed) },
       computed: false,
       // the synthesized member inherits the SOURCE member's optionality unless the mapped type's
       // own `?` / `-?` modifier overrides it - dropping both is how a hand-written `Partial`
@@ -418,14 +421,14 @@ export function createTypeExpansion({
   // `${string}` placeholder) does NOT mint per-key members in TS - the result is an INDEX SIGNATURE
   // whose value is `T[keyof T]`. minting concrete keys with per-key value types is narrower than the
   // real type, so a read off one of them over-resolves; fold them into one signature over the union
-  function foldRenameToIndexSignature(members) {
+  function foldRenameToIndexSignature(members, keyType) {
     const types = members.map(m => m.typeAnnotation.typeAnnotation);
     if (!types.length) return [];
     return [{
       type: 'TSIndexSignature',
       parameters: [{
         type: 'Identifier',
-        typeAnnotation: { type: 'TSTypeAnnotation', typeAnnotation: { type: 'TSStringKeyword' } },
+        typeAnnotation: { type: 'TSTypeAnnotation', typeAnnotation: keyType },
       }],
       typeAnnotation: {
         type: 'TSTypeAnnotation',
@@ -434,13 +437,17 @@ export function createTypeExpansion({
     }];
   }
 
-  // is the rename clause a bare `string` widening? peeled because oxc keeps the parens
-  function renameWidensToString(nameType) {
-    return peelTSParenthesized(nameType)?.type === 'TSStringKeyword';
+  // A template independent of the source key has one value domain for every matching name.
+  function openRenameDomain(nameType) {
+    const key = peelTSParenthesized(nameType);
+    if (key?.type === 'TSStringKeyword') return key;
+    const parts = templateLiteralTypeParts(key);
+    return parts?.exprs.length === 1 && peelTSParenthesized(parts.exprs[0])?.type === 'TSStringKeyword' ? key : null;
   }
 
   function expandMappedTypeMembers({ node, scope, depth, visited }) {
     if (!node.typeAnnotation) return null;
+    const domain = openRenameDomain(node.nameType);
     const shape = parseMappedTypeShape(node);
     if (!shape) return null;
     const body = unwrapTypeAnnotation(node.typeAnnotation);
@@ -458,11 +465,12 @@ export function createTypeExpansion({
       const literals = (sourceType.type === 'TSLiteralType' ? [sourceType] : sourceType.types)
         .map(m => peelTSParenthesized(m));
       for (const lit of literals) {
-        const keyName = String(literalKeyValue(lit.literal));
-        const member = buildMappedMember({ node, paramName: shape.paramName, keyName, substValue: lit, body });
-        if (member) pushMappedMember(out, member);
+        const keyName = literalExactValue(lit.literal);
+        const member = buildMappedMember({ node, paramName: shape.paramName, keyName, substValue: lit, body, scope, domain });
+        if (member === null) return null;
+        if (member !== RENAME_SKIP) pushMappedMember(out, member);
       }
-      return node.nameType && renameWidensToString(node.nameType) ? foldRenameToIndexSignature(out) : out;
+      return domain ? foldRenameToIndexSignature(out, domain) : out;
     }
     // `keyof T` constraint: enumerate T's members, synth literal-type for each key name
     const sourceType = unwrapTypeAnnotation(shape.source);
@@ -470,25 +478,17 @@ export function createTypeExpansion({
     const sourceMembers = getTypeMembers({ objectType: sourceType, scope, depth: depth + 1, visited });
     if (!sourceMembers) return null;
     for (const m of sourceMembers) {
-      // computed (Symbol-keyed / dynamic-key) members are EXCLUDED from `keyof T` per TS
-      // spec - skip-but-continue so they don't sink the rest of the expansion. only null
-      // statically-named keys (`getKeyName` returned null) signal indeterminate, bail
-      if (m.computed) continue;
-      // private (`#priv`) members are EXCLUDED from `keyof T` per TS spec, so skip-but-continue:
-      // they don't leak through mapped expansion and shouldn't sink the rest of the result.
-      // privacy keys on the AST discriminator - a PUBLIC member SPELLED `'#foo'` (string-literal
-      // key) is a normal key and must survive, though `getKeyName` returns the same string
       if (isPrivateMemberNode(m)) continue;
-      const keyName = getKeyName(m.key);
-      // null key signals "not statically evaluable" - bail entire expansion (a member we
-      // can't name leaves the mapped result indeterminate)
-      if (keyName === null) return null;
+      const keyName = m.computed ? resolveComputedKeyName(m.key, scope, literalExactValue)
+        : literalExactValue(m.key) ?? getKeyName(m.key);
+      if (typeof keyName !== 'string' && typeof keyName !== 'number') return null;
       const member = buildMappedMember({
-        node, paramName: shape.paramName, keyName, substValue: literalTypeFromKeyName(keyName), body, sourceMember: m,
+        node, paramName: shape.paramName, keyName, substValue: literalTypeAnnotation(keyName), body, scope, domain, sourceMember: m,
       });
-      if (member) pushMappedMember(out, member);
+      if (member === null) return null;
+      if (member !== RENAME_SKIP) pushMappedMember(out, member);
     }
-    return node.nameType && renameWidensToString(node.nameType) ? foldRenameToIndexSignature(out) : out;
+    return domain ? foldRenameToIndexSignature(out, domain) : out;
   }
 
   // --- Conditional types ---
@@ -524,16 +524,6 @@ export function createTypeExpansion({
     return into;
   }
 
-  // a readonly collection (`readonly T[]` / `ReadonlyArray` / `ReadonlySet` / `ReadonlyMap`) is NOT
-  // assignable to the MUTABLE form of the SAME base - a conditional whose check is the readonly view
-  // of the extends clause's mutable container takes the FALSE branch. single rule, applied both in the
-  // single-element infer fast-path (resolveInferElementPattern) and the general branch decider below
-  // (which handles the multi-param `Map<infer K, infer V>` the fast-path never matches)
-  function readonlyCheckVsMutablePattern(checkAST, extendsAST) {
-    const roBase = readonlyCollectionBase(checkAST);
-    return roBase !== null && roBase === mutableCollectionName(extendsAST);
-  }
-
   // AST-level conditional branch picker for findTypeMember (which works on AST nodes,
   // not resolved $Primitive / $Object types). complementary to `pickConditionalBranch` -
   // operates on AST shape after subst applied, so literal-type precision (`'narrow'`
@@ -550,9 +540,6 @@ export function createTypeExpansion({
     if (structural !== null) return structural;
     const checkKey = structuralKey(check, scope);
     if (checkKey !== null && checkKey === structuralKey(extend, scope)) return true;
-    // readonly check is not assignable to its mutable-form pattern -> FALSE branch (covers containers
-    // the single-element fast-path doesn't, e.g. two-param `Map<infer K, infer V>`)
-    if (readonlyCheckVsMutablePattern(check, extend)) return false;
     // template-literal extends (`prefix_${string}`): can't statically decide without a
     // concrete check side. resolveTypeAnnotation maps both check and extend to $Primitive
     // ('string'), so the Type-Object equality below would over-return true. signal
@@ -693,8 +680,8 @@ export function createTypeExpansion({
     if (narrowKind === 'literals') {
       const members = literalMembers(narrow);
       if (wideKind === 'literals') {
-        const held = literalMembers(wide);
-        return [...members].every(member => held.has(member));
+        const held = new Set([...literalMembers(wide)].map(String));
+        return [...members].every(member => held.has(String(member)));
       }
       if (wideKind === 'string' || wideKind === 'number') {
         return [...members].every(member => typeof member === wideKind);
@@ -705,7 +692,8 @@ export function createTypeExpansion({
     if (wideKind === 'empty' || wideKind === 'symbol' && narrowKind !== 'symbol') return DOMAIN_DESCRIBES_NOTHING;
     if (narrowKind === 'symbol') return wideKind === 'symbol' ? true : DOMAIN_DESCRIBES_NOTHING;
     if (narrowKind === 'number' && wideKind === 'literals') {
-      return [...literalMembers(wide)].some(member => typeof member === 'number') ? true : DOMAIN_DESCRIBES_NOTHING;
+      return [...literalMembers(wide)].some(member => isNumericIndexName(member))
+        ? true : DOMAIN_DESCRIBES_NOTHING;
     }
     return true;
   }
@@ -858,10 +846,10 @@ export function createTypeExpansion({
     if (check.literal !== undefined && extend.literal !== undefined) return check.literal === extend.literal;
     // A naked boolean parameter represents true | false. A partial overlap can select
     // either arm; an ordinary wide boolean check still takes the non-distributive false arm.
-    if (distributive && check.primitive && check.type === 'boolean' && !checkNarrow
+    if (check.primitive && check.type === 'boolean' && !checkNarrow
       && extendNarrow && extend.type === 'boolean') {
       const members = literalMembers(extend);
-      return members?.has(true) && members.has(false) ? true : null;
+      return members?.has(true) && members.has(false) ? true : distributive ? null : false;
     }
     // wide-vs-narrow: a bare-keyword (or otherwise non-narrow) check is NOT assignable to a NARROWER target
     // - a single literal (`string extends "a"`) OR a literal union (`string extends 'a' | 'b'`) - so it
@@ -871,7 +859,10 @@ export function createTypeExpansion({
     // MUTABLE form of the same constructor - FALSE. covers the multi-param `Map<infer K, infer V>` the
     // single-element fast-path never matches, and readonly collections reached through indirection. a
     // readonly extend (a `ReadonlyX` pattern) is also tagged, so readonly-to-readonly still binds
-    if (check.readonly && !extend.readonly && check.constructor === extend.constructor) return false;
+    if (check.constructor === extend.constructor && !extend.readonly && !extend.promiseLike && !extend.mixedView) {
+      if (check.mixedView) return distributive ? null : false;
+      if (check.readonly || check.promiseLike) return false;
+    }
     if (typesEqual(check, extend)) {
       // the `Function` KEYWORD is the top of the callable types: reaching here means the check is of
       // that family too, and every function value extends it whatever signature it was written with.
@@ -974,12 +965,50 @@ export function createTypeExpansion({
     return null;
   }
 
+  // A type parameter's constraint cannot supply the exact keys of an instantiation.
+  function concreteShape(node, scope) {
+    node = peelTSParenthesized(node);
+    const name = typeRefName(node);
+    if (name && findTypeParameter(name, scope)) return null;
+    const alias = followTypeAliasChain(node, scope);
+    return peelTSParenthesized(applyAliasSubstDeep(alias.node, alias.subst));
+  }
+
+  // A projection has the keys of its domain, even when its values come from an array.
+  // An unknown filter (null) cannot prove array membership. Other shapes (undefined)
+  // still go through the normal structural comparison, including a complete array.
+  function finitePropertyKeys(node, scope) {
+    for (let depth = 0; node && depth <= MAX_DEPTH; depth++) {
+      const shape = concreteShape(node, scope);
+      if (shape?.type === 'TSTypeLiteral') {
+        const keys = staticKeyNames(shape.members);
+        return keys && new Set(keys);
+      }
+      let domain;
+      if (shape?.type === 'TSMappedType') {
+        if (shape.nameType) return staticKeySet(shape.nameType);
+        domain = mappedTypeConstraint(shape);
+      } else {
+        const name = typeRefName(shape);
+        if ((name !== 'Pick' && name !== 'Record') || !isGlobalTypeName(name, scope)) return undefined;
+        domain = getTypeArgs(shape)?.params?.[name === 'Pick' ? 1 : 0];
+      }
+      domain = concreteShape(domain, scope);
+      if (domain?.type === 'TSUnionType') {
+        return staticKeySet({ ...domain, types: domain.types.map(t => concreteShape(t, scope)) });
+      }
+      if (domain?.type !== 'TSTypeOperator' || domain.operator !== 'keyof') return staticKeySet(domain);
+      node = domain.typeAnnotation;
+    }
+    return null;
+  }
+
   // shared 2-step conditional-branch picker: AST-equality shortcut, then resolved-type
   // structural pick. callers vary only in (a) which resolver maps an AST node to a Type
   // object and (b) whether the extendsAST is already post-AST-subst or raw + a Type-object
   // substitution map. all 3 conditional-branch sites (`findConditionalTypeMember`,
   // `evaluateConditionalType`, `pickAwaitedConditionalBranch`) flow through this helper
-  function pickConditionalBranchVia({ checkAST, extendsAST, resolveOne, isUnconstrained, scope, distributive = false }) {
+  function pickConditionalBranchVia({ checkAST, extendsAST, resolveOne, isUnconstrained, scope, typeParamMap, distributive = false }) {
     // resolveOne collapses TSTemplateLiteralType to $Primitive('string') - downstream
     // pickConditionalBranch then sees string-vs-string and returns true. short-circuit
     // to undecidable on either side so the caller folds both branches instead of
@@ -993,6 +1022,13 @@ export function createTypeExpansion({
     function resolveSide(node) {
       return resolveOne(node) ?? resolveStructuralContainerType(node, resolveOne);
     }
+    // A spelled argument keeps its caller's scope. An inferred argument has no exact syntax.
+    function readOperand(ast, read) {
+      const param = typeRefName(peelTSParenthesized(ast));
+      const spelled = spelledTypeArgsOf(typeParamMap);
+      const arg = typeParamMap?.has(param) ? spelled?.get(param) : applyAliasSubstDeep(ast, spelled);
+      return arg && withTypeReferenceScope(arg, scope, at => read(arg, at));
+    }
     const check = resolveSide(checkAST);
     // a check the union fold marked `mayBeNullish` is the SURVIVOR of a dropped nullish arm, not a
     // certainty: the value may take the arm that was stripped, so a branch picked on the survivor
@@ -1000,9 +1036,29 @@ export function createTypeExpansion({
     // INNER type - `Array<string | null>` folds the arm inside the container and the container's own
     // flag stays clear - so the whole chain is asked, not just the top
     if (carriesStrippedNullish(check)) return null;
+    const extend = resolveSide(extendsAST);
+    if (extend?.constructor === 'Array') {
+      // A filtered array on the right is itself a projection, so the family alone cannot certify the target.
+      const keys = readOperand(checkAST, finitePropertyKeys);
+      if (keys !== undefined && readOperand(extendsAST, (ast, at) => {
+        let target = concreteShape(ast, at);
+        if (target?.type === 'TSTypeOperator' && target.operator === 'readonly') target = peelTSParenthesized(target.typeAnnotation);
+        const name = typeRefName(target);
+        return target?.type === 'TSArrayType' || target?.type === 'TSTupleType'
+          || (name === 'Array' || name === 'ReadonlyArray') && isGlobalTypeName(name, at);
+      })) {
+        // Even a readonly array has length and array-producing methods such as slice.
+        // Matching a name alone cannot prove the projection has the full array interface.
+        if (!keys) return null;
+        return keys.has('length') && keys.values().some(key => {
+          const method = arrayMethods[key];
+          return (method?.type ?? method) === 'Array';
+        }) ? null : false;
+      }
+    }
     return pickConditionalBranch({
       check,
-      extend: resolveSide(extendsAST),
+      extend,
       extendIsUnconstrained: isUnconstrained,
       distributive,
       extendIsConcreteEmpty: isConcreteEmptyShape(extendsAST),
@@ -1117,6 +1173,7 @@ export function createTypeExpansion({
     }
     const branch = pickConditionalBranchVia({
       checkAST: node.checkType,
+      typeParamMap,
       distributive: isDistributiveConditional(node, typeParamMap),
       extendsAST: node.extendsType,
       resolveOne: ast => recurse(ast, typeParamMap),
@@ -1233,8 +1290,14 @@ export function createTypeExpansion({
     return family === 'iterable' && checkType.type === 'string' ? 'match' : false;
   }
 
+  function mapEntryType(map) {
+    const slots = map.args?.length === 2 ? map.args : null;
+    const inner = slots && foldUnionTypes(slots, type => isTypeObject(type) ? type : null);
+    return new $Object('Array', inner).withTuple({ min: 2, max: 2, rest: -1, slots });
+  }
+
   function resolveInferElementPattern({ node, typeParamMap, scope, depth, seen }) {
-    const match = matchArrayInferPattern(node.extendsType);
+    const match = matchArrayInferPattern(node.extendsType, scope);
     if (!match) return null;
     const checkType = substituteTypeParams(node.checkType, typeParamMap, scope, depth + 1, seen);
     if (!checkType) return null;
@@ -1252,8 +1315,21 @@ export function createTypeExpansion({
     // the AST form catches the direct spelling; the resolved `checkType.readonly` marker catches a
     // readonly collection reached through an alias / type-param indirection (`match.container` is the
     // mutable base name, so a `ReadonlyX<infer U>` pattern - container `ReadonlyX` - never matches)
-    if (readonlyCheckVsMutablePattern(node.checkType, node.extendsType)
-      || (checkType.readonly && !match.readonlyPattern && checkType.constructor === match.container)) return INFER_PATTERN_FALSE;
+    if (!match.readonlyPattern && checkType.constructor === match.container) {
+      if (checkType.mixedView) return isDistributiveConditional(node, typeParamMap) ? null : INFER_PATTERN_FALSE;
+      if (checkType.readonly || checkType.promiseLike) return INFER_PATTERN_FALSE;
+    }
+    if (familyVerdict !== 'match') return null;
+    if (match.parameters) {
+      if (!checkType.args || checkType.args.length !== match.parameters.length) return null;
+      const map = new Map(typeParamMap);
+      for (const [index, name] of match.parameters.entries()) {
+        const value = checkType.args[index];
+        if (!isTypeObject(value)) return null;
+        map.set(name, value);
+      }
+      return substituteTypeParams(node.trueType, map, scope, depth + 1, seen);
+    }
     // constraint AST (TSStringKeyword / TSNumberKeyword / ...) must pass through
     // resolveTypeAnnotation first; `substituteTypeParams` inserts the value as-is, and
     // downstream consumers expect the internal `$Primitive` / `$Object` shape rather than
@@ -1269,7 +1345,8 @@ export function createTypeExpansion({
       : null;
     if (match.head && !checkType.tuple) return null;
     if (match.head && !checkType.tuple.min) return INFER_PATTERN_FALSE;
-    const concreteInner = match.head ? checkType.tuple.slots?.[0] : resolveInnerType(checkType);
+    let concreteInner = match.head ? checkType.tuple.slots?.[0]
+      : match.family === 'iterable' && checkType.constructor === 'Map' ? mapEntryType(checkType) : resolveInnerType(checkType);
     if (match.head && (!isTypeObject(concreteInner) || checkType.tuple.rest === 0)) return null;
     // `infer U extends C`: when the matched element is concrete, TS evaluates the candidate
     // against the constraint - a candidate definitively NOT assignable to C makes the conditional
@@ -1277,17 +1354,19 @@ export function createTypeExpansion({
     // `Array<infer U extends string>`) wrongly fires the true branch and binds the disqualified
     // element, keying a polyfill to a foreign receiver. only the cheaply-decidable disjoint case
     // bails; an undecidable (null) relation stays permissive / over-emit-safe
-    if (concreteInner && fromConstraint
-      && pickConditionalBranch({ check: concreteInner, extend: fromConstraint }) === false) return INFER_PATTERN_FALSE;
+    if (!concreteInner && node.falseType.type === 'TSNeverKeyword') concreteInner = fromConstraint;
+    if (match.constraint) {
+      const verdict = pickConditionalBranch({ check: concreteInner, extend: fromConstraint });
+      if (verdict !== true) return verdict === false ? INFER_PATTERN_FALSE : null;
+    }
     // the CONSTRAINT may stand in for an unresolved element only when the conditional is
     // established: a check side merely POSSIBLY assignable (structural object / unknown
     // container) has not taken the true branch, and binding `U` from its constraint keys a
     // narrow to a receiver family the value may never have - the throwing direction. an
     // undecided conditional degrades to no narrow instead
-    const inner = concreteInner ?? (familyVerdict === 'match' ? fromConstraint : null);
-    if (!inner) return null;
+    if (!concreteInner) return null;
     const inferMap = typeParamMap ? new Map(typeParamMap) : new Map();
-    inferMap.set(match.name, inner);
+    inferMap.set(match.name, concreteInner);
     return substituteTypeParams(node.trueType, inferMap, scope, depth + 1, seen);
   }
 
@@ -1320,10 +1399,16 @@ export function createTypeExpansion({
   // `Container<infer U>` where Container is a known single-element generic. returns null
   // otherwise. constraint is the optional `extends C` annotation (TS 4.7+); plain
   // `infer U` returns `constraint: null`
-  function matchArrayInferPattern(extendsType) {
+  function matchArrayInferPattern(extendsType, scope) {
     // oxc keeps a parenthesized extends-clause (`(Array<infer U>)`) as TSParenthesizedType where
     // babel strips it - peel so both parsers reach the inner pattern shape
     let node = peelTSParenthesized(unwrapTypeAnnotation(extendsType));
+    const reference = typeRefName(node);
+    if (reference && !isGlobalTypeName(reference, scope)) {
+      const alias = followTypeAliasChain(node, scope);
+      if (!alias.node || alias.node === node) return null;
+      node = peelTSParenthesized(applyAliasSubstDeep(alias.node, alias.subst));
+    }
     // peel `readonly X` modifier (TSTypeOperator operator='readonly') but REMEMBER it: the
     // operator form `readonly (infer U)[]` is a readonly pattern like `ReadonlyArray<infer U>`,
     // and a readonly CHECK is assignable to it (TRUE branch) - peeling without the flag made
@@ -1350,7 +1435,12 @@ export function createTypeExpansion({
     }
     if (node?.type === 'TSTypeReference') {
       const name = typeRefName(node);
-      if (firstTypeParamIsInner(name)) {
+      const args = getTypeArgs(node)?.params;
+      if (args?.length === 2 && (name === 'Map' || name === 'ReadonlyMap' || name === 'WeakMap') && isGlobalTypeName(name, scope)) {
+        const parameters = args.map(arg => arg.type === 'TSInferType' && !arg.typeParameter.constraint && typeParamName(arg.typeParameter));
+        if (parameters.every(Boolean) && parameters[0] !== parameters[1]) return { parameters, family: 'collection', container: name };
+      }
+      if (firstTypeParamIsInner(name) && isGlobalTypeName(name, scope)) {
         // peeled like the array-sugar entry above: oxc keeps `Array<(infer U)>` type-arg
         // as TSParenthesizedType where babel strips it
         return extractInferTarget(peelTSParenthesized(getTypeArgs(node)?.params?.[0]), containerInferFamily(name), name);
@@ -1371,12 +1461,13 @@ export function createTypeExpansion({
     expandMappedTypeMembers,
     // conditional
     evaluateConditionalType,
+    matchArrayInferPattern,
     pickConditionalBranchVia,
     isUnconstrainedTypeShape,
     collectInferredNames,
     matchTemplatePattern,
     // shared
-    typeRefSegmentsEqual,
+    sameTypeSource,
     dropMapKeys,
     trueBranchSubst,
   };

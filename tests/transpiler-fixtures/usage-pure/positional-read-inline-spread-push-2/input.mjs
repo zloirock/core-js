@@ -4,4 +4,5 @@
 const box = [[1]];
 const [viaCensusShifted] = [...wrapped, box];
 viaCensusShifted.push('s');
+for (const item of box) item.at(0);
 export { viaCensusShifted };

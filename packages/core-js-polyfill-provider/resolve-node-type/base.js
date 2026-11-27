@@ -242,10 +242,9 @@ export function callArgumentPaths(callPath) {
 
 // --- Type classes ---
 //
-// markers QUALIFY a type without changing its family identity. equality / merging
-// (typesEqual / innersEqual / commonType) compare the identity fields only and ignore
-// markers; each marker is consulted exclusively by its dedicated gate, and is set ONLY
-// via `.mark()`. the prototype slots below are the marker REGISTRY: a `false` slot both
+// Markers qualify a type without changing its family identity. When reusing a nested
+// type, the union fold also checks its markers, so it cannot keep a proof from one arm.
+// Markers are set via `.mark()`. The prototype slots form their registry: a `false` slot both
 // documents the marker and backs unmarked instances (an instance carries a marker as an
 // own prop only once set), and `.mark()` accepts nothing outside these slots - a typo'd
 // name throws instead of silently minting a dead field
@@ -254,6 +253,10 @@ const TypePrototype = {
   // resolution collapses all of them to the mutable constructor, the marker lets a
   // conditional-infer check still pick the FALSE branch for readonly probes
   readonly: false,
+  // Distribution may distinguish two views of one family, e.g. Promise and PromiseLike.
+  mixedView: false,
+  // A structural thenable provides the awaited payload but need not implement Promise.
+  promiseLike: false,
   // a fold DROPPED a statically null / undefined arm (union fold, nullable ternary-branch
   // fold): sound for RECEIVER narrowing (a nullish receiver throws the same TypeError
   // transformed or not), unsound for TRUTHINESS - the runtime value may still be nullish,
@@ -410,7 +413,7 @@ export function $Primitive(type, literal) {
   // source literal value when widened from a literal type (`2` -> number with literal 2).
   // undefined for bare keyword primitives (`number`). lets conditional-type evaluation keep
   // `2 extends 1` = false even though both sides widen to the same primitive family. ignored
-  // by typesEqual / innersEqual for family-level equality, but READ by commonType (distinct
+  // by typesEqual for family-level equality, but read by innersEqual and commonType (distinct
   // literal arms fold into one family stamped `literalUnion`) and by the conditional
   // branch-picker (a `literalUnion` check stays undecidable)
   this.literal = literal;
@@ -668,11 +671,6 @@ export const INTRINSIC_STRING_TRANSFORMERS = assign(create(null), {
 export function quasiText(q) {
   return q?.value?.cooked ?? q?.value?.raw ?? '';
 }
-
-// numeric-shape detection: actual numbers OR strings matching JS numeric literal grammar
-// (integer / float / scientific). used by `K extends number` predicate against numeric-keyed
-// sources after stringification through the expand-mapped pipeline
-export const NUMERIC_KEY_SHAPE_RE = /^-?(?:\d+|\d*\.\d+)(?:e[+-]?\d+)?$/i;
 
 // A numeric template placeholder accepts every nonempty text that converts to a finite number.
 export const PLACEHOLDER_VALIDATORS = {
