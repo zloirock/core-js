@@ -34,7 +34,7 @@ export async function checkWebKitRejections() {
     `${ name }.js`, await readFile(new URL(`../e2e-libs/harness/${ name }.js`, import.meta.url), 'utf8'),
   ])));
   scripts.set('cell.js', "window.E2E_CELL = { label: 'cell', expected: ['one'], timeout: 5000 };");
-  const tags = ['trap', 'bundle', 'cell', 'shared', 'frame'].map(name => `<script src="${ name }.js"></script>`);
+  const tags = ['trap', 'shared', 'bundle', 'cell', 'frame'].map(name => `<script src="${ name }.js"></script>`);
   const html = `<!doctype html><body>${ tags.join('') }`;
 
   const server = createServer((request, response) => {
@@ -53,14 +53,16 @@ export async function checkWebKitRejections() {
     const page = await browser.newPage();
     let attempt = 0;
     const rejection = 'Promise.reject(new Error("independent"))';
-    for (const [setup, reason, runs, delayed] of [
+    for (const [setup, reason, runs, delayed, startup = ''] of [
       ['', null, 1],
+      ['', null, 1, false, 'Array.isArray = function () { return false; };'],
       [`${ rejection }.catch(function () {});`, null, 1],
       [`${ rejection };`, 'run() threw - unhandled rejection - independent', 20],
       [`${ rejection };`, 'run() threw - unhandled rejection - independent', 1, true],
     ]) {
       if (delayed) scripts.set('trap.js', `(${ delayRejections })();\n${ scripts.get('trap.js') }`);
-      scripts.set('bundle.js', `window.E2E = { run: function () {
+      scripts.set('bundle.js', `${ startup }
+      window.E2E = { run: function () {
         ${ setup }
         return { checks: [{ label: 'one', pass: true }] };
       } };`);

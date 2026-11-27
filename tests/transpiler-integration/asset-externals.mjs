@@ -1,15 +1,14 @@
 // Asset discovery and external loading belong to the real host's dependency graph.
 import { strict as assert } from 'node:assert';
 import { createRequire } from 'node:module';
-import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { join, resolve as resolvePath } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { runInNewContext } from 'node:vm';
 import unplugin from '../../packages/core-js-unplugin/index.js';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
-import { withCleanup } from './runtime.mjs';
+import { withCleanup, withTmpDir } from './runtime.mjs';
 import { runInWorker } from '../transpiler-differential/realm-runner.mjs';
 
 const root = resolvePath(import.meta.dirname, '../..');
@@ -67,8 +66,8 @@ export async function assetExternals(run) {
       await assert.rejects(() => assert.rejects(() => compile(errors, closeError), accepts), { name: 'AssertionError' });
     }
   });
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'core-js-asset-externals-')));
-  await withCleanup(async () => {
+  await withTmpDir(async temp => {
+    const dir = await realpath(temp);
     await symlink(join(root, 'node_modules'), join(dir, 'node_modules'), 'dir');
     const esbuild = await import('esbuild');
     const rolldown = await import('rolldown');
@@ -331,5 +330,5 @@ export async function assetExternals(run) {
         assert.ok(text.every(contents => !contents.includes(pathToFileURL(input).href)), 'no build-machine URL leaks into the bundle');
       });
     }
-  }, () => rm(dir, { recursive: true, force: true }));
+  }, 'core-js-asset-externals-');
 }

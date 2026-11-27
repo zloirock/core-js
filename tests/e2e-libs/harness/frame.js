@@ -25,5 +25,5 @@
     send(checks, null);
   }, function (err) {
     send(null, 'run() threw - ' + window.e2eReason(err));
-  });
+  }, { forQUnit: true });
 }());

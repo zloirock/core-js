@@ -28,7 +28,15 @@ export async function withCleanup(work, cleanup) {
 
 export async function withTmpDir(fn, prefix = 'transpiler-test-') {
   const dir = await mkdtemp(join(tmpdir(), prefix));
-  return withCleanup(() => fn(dir), () => rm(dir, { recursive: true, force: true }));
+  try {
+    return await fn(dir);
+  } finally {
+    try {
+      await rm(dir, { recursive: true, force: true });
+    } catch (error) {
+      console.warn(`could not remove ${ dir }: ${ error.message }`);
+    }
+  }
 }
 
 // Catch unbound temporaries even in branches the runtime probe cannot reach.

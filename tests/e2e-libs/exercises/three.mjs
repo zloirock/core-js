@@ -320,10 +320,9 @@ export function run() {
   skinned.skeleton.update();
   const skinnedVertex = new THREE.Vector3().fromBufferAttribute(skinned.geometry.getAttribute('position'), 0);
   skinned.applyBoneTransform(0, skinnedVertex);
-  // the second half is `skeleton.update()`'s OWN product: it fills `boneMatrices` from the posed
-  // bones, `applyBoneTransform` reads the matrices rather than those, and nothing else here touches
-  // them - so without this element that call is dead code sitting above a passing check. Element 13
-  // is the Y translation of bone 0's column-major 4x4, which is the axis the pose above moved
+  // applyBoneTransform reads each bone's world matrix and bind-pose inverse.
+  // The second assertion checks skeleton.update() independently: element 13 of
+  // boneMatrices is the Y translation of bone 0's column-major matrix.
   check('skin_bone_transform', [arr(skinnedVertex), round(skinned.skeleton.boneMatrices[13])], [[0.5, 3, 0.5], 1]);
 
   // --- Cache keys go through `new URL()` inside three's isBlobURL ---

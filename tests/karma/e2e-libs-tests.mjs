@@ -4,6 +4,7 @@ import { once } from 'node:events';
 import { link, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import './e2e-libs-qunit-test.mjs';
 import { checkWebKitRejections } from './e2e-libs-rejections-test.mjs';
 import config from './e2e-libs.conf.js';
 import { browserOutcome, hasLoggedFailure, hasUnexpectedBrowserFailure, selectRunnableCells } from './e2e-libs-results.mjs';

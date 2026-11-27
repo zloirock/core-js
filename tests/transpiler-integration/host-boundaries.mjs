@@ -1,9 +1,8 @@
 // Exercise the host's loader and module rules, not only transformInclude in isolation.
 import { strict as assert } from 'node:assert';
-import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile, realpath, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { withCleanup } from './runtime.mjs';
+import { withCleanup, withTmpDir } from './runtime.mjs';
 import { runInNewContext } from 'node:vm';
 import unplugin from '../../packages/core-js-unplugin/index.js';
 import { closeRollupBundle } from './warning-policy.mjs';
@@ -28,8 +27,8 @@ function verify(code, value = 3, stripped = true) {
 }
 
 export async function hostBoundaries(run) {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'core-js-host-')));
-  await withCleanup(async () => {
+  await withTmpDir(async temp => {
+    const dir = await realpath(temp);
     const esbuild = await import('esbuild');
     await run('esbuild declining parse leaves the next loader', async () => {
       const file = join(dir, 'unparsed.js');
@@ -235,6 +234,6 @@ export async function hostBoundaries(run) {
         }
       });
     }
-  }, () => rm(dir, { recursive: true, force: true }));
+  }, 'core-js-host-');
 }
 

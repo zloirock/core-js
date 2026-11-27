@@ -38,7 +38,7 @@ function inputOf(method) {
 // stops yielding prints the same final line and exits 0 (measured: 19 cells instead of 93).
 // Missing or outdated Bun skips its seven cells; every other cell remains required.
 let cells = 0;
-const CELL_FLOOR = 238;
+const CELL_FLOOR = 247;
 
 const expected = {
   clamp: 4,
@@ -166,6 +166,9 @@ if (missingAdapter.length || unknownAdapter.length) {
 
 // Every chunk loader in the adapter matrix needs a dynamic-import cell and separate lazy chunk.
 const DYNAMIC_LEG = new Set(['esbuild', 'rollup', 'rolldown', 'vite', 'webpack', 'rspack', 'rsbuild', 'farm']);
+const missingDynamic = adapters.filter(name => !DYNAMIC_LEG.has(name));
+if (missingDynamic.length) throw new Error(`missing dynamic-import cells: ${ missingDynamic.join(', ') }`);
+
 const SPLIT_DYNAMIC_LEG = new Set(['webpack', 'rspack', 'rsbuild', 'farm']);
 const differentChunkLoaders = adapters.filter(name => isChunkLoaderBundler(name) !== SPLIT_DYNAMIC_LEG.has(name));
 if (differentChunkLoaders.length) {

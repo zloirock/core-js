@@ -48,11 +48,9 @@ export function phasesFor(method, provider = 'unplugin') {
 // the bump added.
 export function pluginOpts(method, phase, extra) {
   checkAxis('method', method, METHODS);
-  // without this an unrecognised phase splits two ways, and only one of them is loud: a falsy one is
-  // dropped by the `&&` below and lands on the plugin's own default `pre` - the weakest phase, and
-  // the one cell e2e-libs deliberately does not gate - so the typo becomes a green cell measuring
-  // something other than what its label says, while a truthy one gets the plugin's own message,
-  // which names an option rather than the axis this file owns
+  // A falsy invalid phase would silently select the plugin's default pre phase and
+  // mislabel the result. This matters in e2e-libs, where a stripped-realm exercise
+  // exception in pre is diagnostic. Reject invalid values at the shared matrix boundary.
   if (!isPhase(phase)) throw new Error(`unknown phase '${ phase }' - this matrix covers ${ PHASES.join(', ') }`);
   return { method, version: 'node_modules', mode: 'full', ...extra, ...phase && { phase } };
 }

@@ -2,13 +2,14 @@
 // on the toolchain rather than on the fixture. Each exercise runs in a child process under a deadline.
 //
 // Usage:  npm run test-e2e-libs-check-exercise [exercisePathOrLibName]
+import { deepEqual } from 'node:assert/strict';
 import './suite-tests.mjs';
 import { errorReason } from './diagnostics.mjs';
 import { librariesMatching } from './libraries.mjs';
 import { announceExercise, announceExerciseRun, announceScopedRun, reportExercise,
   reportExerciseFailure, reportExerciseTally } from './output.mjs';
 import { HERE } from './paths.mjs';
-import { rawChecks } from './raw-exercise.mjs';
+import { assertRawCheckFloor, rawChecks } from './raw-exercise.mjs';
 
 const { basename, resolve } = path;
 
@@ -33,6 +34,10 @@ for (const target of targets) {
   let checks;
   try {
     checks = await rawChecks(target, { repeat: true });
+    if (target === resolve(HERE, 'exercises/echarts.mjs') && checks.every(check => check.pass)) {
+      const shifted = await rawChecks(resolve(HERE, 'echarts-grid-test.mjs'));
+      deepEqual(shifted.filter(check => !check.pass).map(check => check.label), ['bars: each intersects the grid']);
+    }
   } catch (error) {
     broken.push(name);
     reportExerciseFailure(name, errorReason(error));
@@ -44,5 +49,6 @@ for (const target of targets) {
   reportExercise({ checks, failingChecks });
 }
 
+if (!failing && !broken.length) assertRawCheckFloor(total, arg !== undefined);
 reportExerciseTally({ total, targets: targets.length, failing, broken });
 if (failing || broken.length) process.exitCode = 1;

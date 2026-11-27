@@ -1,5 +1,7 @@
 import { fileURLToPath } from 'node:url';
-import { access, mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
+import { syncBuiltinESMExports } from 'node:module';
+import { mock } from 'node:test';
+import fs, { access, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { deepEqual, rejects, strictEqual } from 'node:assert/strict';
 import { rollup } from '@core-js/unplugin';
@@ -73,6 +75,31 @@ await rejects(withTmpDir(async dir => {
 }, "transpiler runtime's control-"), /cleanup control/u);
 await rejects(access(temporary), { code: 'ENOENT' });
 checks += 2;
+
+const retainedDirs = [];
+const removeError = Object.assign(new Error('directory is busy'), { code: 'EBUSY' });
+const workError = new Error('bundle assertion failed');
+const remove = mock.method(fs, 'rm', async dir => {
+  retainedDirs.push(dir);
+  throw removeError;
+});
+const removeWarnings = [];
+const warnOnRemove = mock.method(console, 'warn', warning => {
+  removeWarnings.push(warning);
+});
+syncBuiltinESMExports();
+try {
+  strictEqual(await withTmpDir(() => 1), 1);
+  await rejects(withTmpDir(() => { throw workError; }), error => error === workError);
+  strictEqual(retainedDirs.length, 2);
+  deepEqual(removeWarnings, retainedDirs.map(dir => `could not remove ${ dir }: ${ removeError.message }`));
+} finally {
+  remove.mock.restore();
+  warnOnRemove.mock.restore();
+  syncBuiltinESMExports();
+  for (const dir of retainedDirs) await rm(dir, { recursive: true, force: true });
+}
+checks += 4;
 const bundlers = makeBundlers({ root: import.meta.dirname, unpluginName: 'fixture' });
 const warnings = [];
 const { warn } = console;

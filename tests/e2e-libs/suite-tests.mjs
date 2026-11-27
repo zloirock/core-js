@@ -18,6 +18,7 @@ import { cellScript } from './page.mjs';
 import { HERE, ROOT, isCoreJsModule } from './paths.mjs';
 import { isSnapshotName } from './snapshots.mjs';
 import { tsSources } from './ts-sources.mjs';
+import { assertRawCheckFloor } from './raw-exercise.mjs';
 import { assertWorkspacePayload } from './payload.mjs';
 import { selectRunnableCells } from '../karma/e2e-libs-results.mjs';
 
@@ -433,23 +434,24 @@ try {
   Number.isNaN = isNaN;
 }
 
+throws(() => assertRawCheckFloor(22), /22 checks, under the floor of 520/u);
+throws(() => assertRawCheckFloor(519), /519 checks, under the floor of 520/u);
+assertRawCheckFloor(520);
+assertRawCheckFloor(1, true);
+
 const previousRun = await mkdtemp(join(tmpdir(), 'e2e-libs-artifacts-'));
-let prepareTestError;
 try {
   const manifest = join(previousRun, 'manifest.json');
   await writeFile(manifest, JSON.stringify({ cells: [] }));
   await rejects(prepare(176, 220, previousRun), /176 cells, under the floor of 220/u);
   await rejects(access(manifest), { code: 'ENOENT' });
-} catch (error) {
-  prepareTestError = error;
+} finally {
+  try {
+    await rm(previousRun, { recursive: true, force: true });
+  } catch (error) {
+    console.warn(`could not remove ${ previousRun }: ${ error.message }`);
+  }
 }
-try {
-  await rm(previousRun, { recursive: true, force: true });
-} catch (cleanupError) {
-  if (!prepareTestError) throw cleanupError;
-  throw new AggregateError([prepareTestError, cleanupError], 'manifest preparation test and cleanup both failed', { cause: prepareTestError });
-}
-if (prepareTestError) throw prepareTestError;
 
 const first = { label: 'first', runtime: 'passed', snapshotState: 'ok', checks: 3 };
 const second = { label: 'second', runtime: 'failed', error: 'bundle failed' };
@@ -546,6 +548,26 @@ function browserRun() {
 await rejects(browserRun, /did not return a checks array/u);
 E2E.run = () => ({ checks: sparse });
 await rejects(browserRun, /malformed check at index 0/u);
+let diagnosticReads = 0;
+const diagnosticSymbol = Symbol('slot');
+const symbolArray = [];
+Object.defineProperty(symbolArray, diagnosticSymbol, {
+  enumerable: true,
+  get() { diagnosticReads++; },
+});
+const nestedAccessor = {
+  symbolArray,
+  '[Symbol(slot)]': 'existing key',
+  get [diagnosticSymbol]() {
+    diagnosticReads++;
+    throw new Error('symbol getter');
+  },
+  get slot() {
+    diagnosticReads++;
+    throw new Error('diagnostic getter');
+  },
+};
+diagnostic.check('nested accessor', { extra: nestedAccessor }, {});
 E2E.run = () => diagnostic;
 const browserRows = await browserRun();
 const pushed = [];
@@ -555,7 +577,7 @@ runInNewContext(await readFile(join(HERE, 'harness/qunit.js'), 'utf8'), {
   document: {
     getElementsByTagName: () => [{ src: '/test/frames.js' }],
     createElement: () => ({}),
-    body: { appendChild() { driver.e2eFrameDone('cell', ['length', 'removed'], undefined, browserRows, null); } },
+    body: { appendChild() { driver.e2eFrameDone('cell', ['length', 'removed', 'nested accessor'], undefined, browserRows, null); } },
   },
   QUnit: {
     config: {},
@@ -571,10 +593,17 @@ runInNewContext(await readFile(join(HERE, 'harness/qunit.js'), 'utf8'), {
     },
   },
 });
-deepEqual(pushed, [
+deepEqual(structuredClone(pushed), [
   { message: 'cell - length at [length]', result: false, actual: 128, expected: 129 },
   { message: 'cell - removed at [x] (missing on expected)', result: false, actual: '<removed during enumeration>', expected: '<missing>' },
+  { message: 'cell - nested accessor at [extra] (missing on expected)', result: false, actual: {
+    slot: '<accessor>', '[Symbol(slot)]': 'existing key', '[Symbol(slot)]#': '<accessor>',
+    symbolArray: { length: 0, '[Symbol(slot)]': '<accessor>' },
+  }, expected: '<missing>' },
 ]);
+strictEqual(pushed[2].actual[diagnosticSymbol], '<accessor>');
+strictEqual(pushed[2].actual.symbolArray[diagnosticSymbol], '<accessor>');
+strictEqual(diagnosticReads, 0);
 const valid = [{ label: 'working', pass: true }];
 E2E.run = () => ({ checks: valid });
 strictEqual((await browserRun())[0].label, valid[0].label);
@@ -666,7 +695,7 @@ const shorterDiagnostic = window.e2eCheckResult((await browserRun())[0]).actual;
 strictEqual(shorterDiagnostic.length, 1);
 strictEqual(shorterDiagnostic[1], 18);
 let reflected = 0;
-const opaque = new Proxy({ field: 17 }, {
+const opaque = new Proxy({ field: 17, second: 18 }, {
   getOwnPropertyDescriptor(target, key) {
     if (++reflected === 2) throw new Error('descriptor unavailable');
     return Reflect.getOwnPropertyDescriptor(target, key);
@@ -999,12 +1028,35 @@ const probe = `
       + 'const actual = new Proxy([42], { get(target, key) { return key === "length" ? observedLength : target[key]; } });'
       + 'return { checks: [{ label: "array", pass: true, actual }] }; }');
     await rejects(rawChecks(observed, { repeat: true }), /at .*length.*0 on the first run and at .*length.*1 on the second/);
-    await writeFile(observed, 'export function run() { let reads = 0; const array = new Array(1000000);'
-      + 'Object.defineProperty(array, 42, { value: 1 });'
-      + 'const actual = new Proxy(array, { getOwnPropertyDescriptor(target, key) {'
-      + 'if (++reads > 10) throw Error("scanned a sparse array"); return Reflect.getOwnPropertyDescriptor(target, key);'
-      + '} }); return { checks: [{ label: "sparse", pass: true, actual }] }; }');
-    deepEqual(await rawChecks(observed, { repeat: true }), [{ label: 'sparse', pass: true, failure: null }]);
+    await writeFile(observed, 'export function run() { const actual = new Array(0xffffffff);'
+      + 'Object.defineProperty(actual, 42, { value: 1 });'
+      + 'return { checks: [{ label: "sparse", pass: true, actual }] }; }');
+    deepEqual(await rawChecks(observed, { repeat: true, timeout: 2000 }), [{ label: 'sparse', pass: true, failure: null }]);
+    await writeFile(observed, 'const names = Object.getOwnPropertyNames; const actual = []; let reads = 0;'
+      + 'for (let i = 0; i < 1024; i++) actual[i * 2048] = { nested: { n: i } };'
+      + 'Object.getOwnPropertyNames = value => {'
+      + 'if (value === actual && ++reads > 8) throw Error("repeated sparse enumeration"); return names(value); };'
+      + 'export function run() { return { checks: [{ label: "records", pass: true, actual }] }; }');
+    deepEqual(await rawChecks(observed, { repeat: true }), [{ label: 'records', pass: true, failure: null }]);
+    // One accessor can add a distant slot. Finding it must not require probing every hole.
+    await writeFile(observed, 'const actual = []; let version = 0;'
+      + 'for (let i = 0; i < 1024; i++) actual[i * 1024] = i;'
+      + 'Object.defineProperty(actual, 0, { get() { actual[900001] = version; return 0; } });'
+      + 'const descriptor = Object.getOwnPropertyDescriptor; let probes = 0;'
+      + 'Object.getOwnPropertyDescriptor = (target, key) => {'
+      + 'if (target === actual && ++probes > 8192) throw Error("unbounded sparse probes"); return descriptor(target, key); };'
+      + 'export function run() { version++; return { checks: [{ label: "sparse getter", pass: true, actual }] }; }');
+    await rejects(rawChecks(observed, { repeat: true }), /900001.*1 on the first run.*2 on the second/);
+    for (const actualCode of [
+      'new Proxy([1, ++value], { ownKeys: () => ["0", "length"] })',
+      'Object.defineProperty(Array(2), "0", { get() { this[1] = ++value; return 1; } })',
+      'Object.assign(Array(0xffffffff), { 0: { inner: { get field() { actual[1] = ++value; return null; } } } })',
+      'Object.assign(Array(0xffffffff), { 0: { toJSON() { actual[1] = ++value; return null; } } })',
+    ]) {
+      await writeFile(observed, 'let value = 1; export function run() { const actual = ' + actualCode
+        + '; return { checks: [{ label: "index", pass: true, actual }] }; }');
+      await rejects(rawChecks(observed, { repeat: true, timeout: 2000 }), /index.*at \\[1\\] 2 on the first run and at \\[1\\] 3 on the second/);
+    }
     await writeFile(observed, 'let count = 0; export function run() { const actual = new Array(1000000);'
       + 'if (++count === 2) Object.defineProperty(actual, 42, { value: undefined });'
       + 'return { checks: [{ label: "sparse", pass: true, actual }] }; }');
@@ -1013,6 +1065,86 @@ const probe = `
       + 'const actual = { get [Symbol.toStringTag]() { throw Error("tag unavailable"); } };'
       + 'return { checks: [{ label: "mismatch", pass: false, actual, expected: {} }] }; }');
     deepEqual(await rawChecks(observed, { repeat: true }), await rawChecks(observed));
+    for (const label of ['cost', 'Symbol.for("cost")']) {
+      const key = label === 'cost' ? 'cost' : '[' + label + ']';
+      await writeFile(observed, 'import { checker } from '
+        + JSON.stringify(${ JSON.stringify(new URL('./exercises/checks.mjs', import.meta.url).href) })
+        + '; export function run() { const result = checker();'
+        + ' result.check("price", { get ' + key + '() { throw Error("unreadable cost"); } }, {}); return result; }');
+      const [row] = await rawChecks(observed, { repeat: true });
+      deepEqual(row.pass, false);
+      match(row.failure, /price.*cost.*<accessor>.*<missing>/);
+    }
+    await writeFile(observed, 'import { checker } from '
+      + JSON.stringify(${ JSON.stringify(new URL('./exercises/checks.mjs', import.meta.url).href) })
+      + '; let price = 0; export function run() { const result = checker();'
+      + ' result.check("price", { price: ++price, get cost() { throw Error("unreadable"); } }, { price: 0, cost: null });'
+      + ' return result; }');
+    await rejects(rawChecks(observed, { repeat: true }), /price.*1 on the first run.*2 on the second/);
+    await writeFile(observed, 'export function run() { let reads = 0; const difference = {'
+      + ' get pair() { if (++reads > 1) throw Error("read the recorded pair twice"); return [1, 2]; } };'
+      + ' return { checks: [{ label: "captured", pass: false, difference }] }; }');
+    deepEqual(await rawChecks(observed, { repeat: true }), [{ label: 'captured', pass: false, failure: 'captured actual=1 expected=2' }]);
+    // The checker observes a different price each run. Both later snapshots read the same value.
+    await writeFile(observed, 'import { checker } from '
+      + JSON.stringify(${ JSON.stringify(new URL('./exercises/checks.mjs', import.meta.url).href) })
+      + '; let version = 0; export function run() { const result = checker(); let reads = 0; version++;'
+      + ' result.check("quote", { get price() { return ++reads === 1 ? version : 7; } }, { price: 0 });'
+      + ' return result; }');
+    await rejects(rawChecks(observed, { repeat: true }), /quote.*reported at \\[price\\].*1 on the first run.*2 on the second/);
+    await writeFile(observed, 'import { checker } from '
+      + JSON.stringify(${ JSON.stringify(new URL('./exercises/checks.mjs', import.meta.url).href) })
+      + '; let version = 0; export function run() { const result = checker(); let reads = 0; version++;'
+      + ' result.check("quote", { get price() { return ++reads === 1 ? "x".repeat(4096) + version : "stable"; } }, { price: 0 });'
+      + ' return result; }');
+    await rejects(rawChecks(observed, { repeat: true }), /quote.*reported.*offset 4096.*1.*first run.*offset 4096.*2.*second/);
+    const checkerImport = 'import { checker } from '
+      + JSON.stringify(${ JSON.stringify(new URL('./exercises/checks.mjs', import.meta.url).href) }) + ';';
+    await writeFile(observed, checkerImport + 'let version = 0; export function run() { const result = checker();'
+      + ' const extra = ++version === 1 ? { a: 1, b: 2 } : { b: 2, a: 1 };'
+      + ' result.check("order", { extra }, {}); result.check("error", { extra: new Error("bad input") }, {}); return result; }');
+    const stable = await rawChecks(observed, { repeat: true });
+    deepEqual(stable.map(check => check.pass), [false, false]);
+    match(stable[1].failure, /bad input/);
+    // Replaying the root getter changes the object the checker already observed.
+    await writeFile(observed, checkerImport + 'export function run() { const result = checker(); const item = { price: 1 }; let reads = 0;'
+      + ' result.check("price", { get item() { if (++reads > 1) item.price = 2; return item; } }, { item: null }); return result; }');
+    const originalPrice = await rawChecks(observed);
+    match(originalPrice[0].failure, /price: 1/);
+    deepEqual(await rawChecks(observed, { repeat: true }), originalPrice);
+    await writeFile(observed, checkerImport + 'let version = 0; export function run() { const result = checker(); let reads = 0;'
+      + ' const item = new Proxy({ before: 1, opaque: 0, price: ++version }, { getOwnPropertyDescriptor(target, key) {'
+      + ' if (key === "opaque") throw Error("unavailable descriptor"); return Reflect.getOwnPropertyDescriptor(target, key); } });'
+      + ' result.check("partial", { get item() { return ++reads === 1 ? item : 7; } }, { item: null }); return result; }');
+    const [partial] = await rawChecks(observed);
+    match(partial.failure, /before: 1/);
+    match(partial.failure, /price: 1/);
+    await rejects(rawChecks(observed, { repeat: true }), /partial.*price.*1 on the first run.*2 on the second/);
+    // Reuse the same backing store so a live view cannot preserve the first run's bytes.
+    await writeFile(observed, checkerImport + 'const bytes = new Uint8Array(1); export function run() { const result = checker();'
+      + ' bytes[0]++; result.check("binary", { extra: bytes.buffer }, {}); return result; }');
+    await rejects(rawChecks(observed, { repeat: true }), /binary.*1 on the first run.*2 on the second/);
+    // Formatting the first failure would read the tag and change the second exercise.
+    await writeFile(observed, checkerImport + 'let formatted = 0; export function run() { const result = checker();'
+      + ' const extra = Object.defineProperty({}, Symbol.toStringTag, { get() { formatted++; return "Tag"; } }); result.check("tag read", { extra }, {});'
+      + ' result.check("before formatting", formatted, 0); return result; }');
+    deepEqual((await rawChecks(observed, { repeat: true })).map(check => check.pass), [false, true]);
+    await writeFile(observed, checkerImport + 'let version = 0; let touched = false; export function run() { const result = checker();'
+      + ' if (touched) throw Error("observer invoked an accessor");'
+      + ' const record = { get hidden() { touched = true; }, text: "x".repeat(4096) + ++version };'
+      + ' record.self = record; let reads = 0;'
+      + ' result.check("record", { get field() { return ++reads === 1 ? record : 7; } }, { field: null }); return result; }');
+    await rejects(rawChecks(observed, { repeat: true }), /record.*reported.*text.*offset 4096.*1.*first run.*2.*second/);
+    for (const operand of ['new Map([[1, new Set([version])]])', 'new Date(version)', 'new RegExp(String(version))',
+      'version === 1 ? new TypeError("invalid") : new RangeError("invalid")']) {
+      await writeFile(observed, checkerImport + 'let version = 0; export function run() { const result = checker(); let reads = 0;'
+        + ' version++; result.check("builtin", { get field() { return ++reads === 1 ? (' + operand + ') : 7; } }, { field: null });'
+        + ' return result; }');
+      await rejects(rawChecks(observed, { repeat: true }), /builtin.*reported.*first run.*second/);
+    }
+    await writeFile(observed, 'export function run() { return { checks: [{ label: "price", pass: true,'
+      + ' actual: { get cost() { throw Error("unreadable passing value"); } } }] }; }');
+    await rejects(rawChecks(observed, { repeat: true }), /unreadable passing value/);
     await writeFile(observed, 'let runCount = 0; export function run() { const tag = String(++runCount);'
       + 'const actual = { get [Symbol.toStringTag]() { return tag; } };'
       + 'return { checks: [{ label: "tag", pass: true, actual }] }; }');

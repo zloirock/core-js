@@ -56,11 +56,12 @@ const VALUES = [5, 20, 36];
 const CATEGORIES = ['a', 'b', 'c'];
 const WIDTH = 600;
 const HEIGHT = 400;
+const GRID = { left: 40, right: 300, top: 30, bottom: 30 };
 
 function option(values) {
   return {
     animation: false,
-    grid: { left: 40, right: 300, top: 30, bottom: 30 },
+    grid: { left: GRID.left, right: GRID.right, top: GRID.top, bottom: GRID.bottom },
     xAxis: { type: 'category', data: CATEGORIES },
     yAxis: { type: 'value' },
     series: [
@@ -256,6 +257,8 @@ export function run() {
   const bars = seriesOf(elements, 0);
   const boxes = VALUES.map((value, index) => boxAt(bars, index));
   check('bars: a shape per datum', bars.length === VALUES.length && boxes.every(box => box.right > box.left), true);
+  check('bars: each intersects the grid', boxes.every(box => box.right > GRID.left && box.left < WIDTH - GRID.right
+    && box.bottom > GRID.top && box.top < HEIGHT - GRID.bottom), true);
   const ratios = boxes.map((box, index) => (box.bottom - box.top) / VALUES[index]);
   check('bars: height is proportional to value',
     ratios.every(ratio => near(ratio, ratios[0], 0.01)), true);

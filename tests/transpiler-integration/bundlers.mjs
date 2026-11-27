@@ -1,7 +1,7 @@
 // The bundler adapters, one entry per supported tool. The caller supplies the plugins it wants
 // registered - unplugin's adapter for a bundler, or a sibling beside it - and gets the bundle back as
-// text. Everything a tool needs to produce one node-loadable file is set here, so the matrix in
-// `runner.mjs` stays about methods and phases.
+// text. The adapters configure Node-loadable output, including separate chunks for split cases,
+// so `runner.mjs` can focus on the matrix.
 //
 // The shape as a table, because the eight do not share it exactly and a dropped option changes no
 // result - it changes what a leg covers:
@@ -9,9 +9,11 @@
 //   in   input    string entry path, or - esbuild only - the esbuild input option itself
 //        plugins  registered as given, in order
 //        extra    inlineDynamic for single-file cells, or splitDynamic for real chunk loaders
-//   out  code     the bundle, as text                         (every adapter)
-//        ext      the extension the runner must write it under (esbuild, farm - both emit CommonJS)
-//        map      the output sourcemap                         (rollup, vite - `assertMapShape` reads it)
+//   out  code     the entry, as text (every adapter)
+//        ext      the entry extension (.mjs by default, .cjs for esbuild and Farm)
+//        map      the output sourcemap (Rollup, Vite)
+//        chunks   additional script outputs from split builds
+//        dynamicImports  the entry's dynamic import targets (Rollup)
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -74,7 +76,7 @@ export function makeBundlers({
     return withTmpDir(async dir => {
       const filename = 'out.mjs';
       const all = [...plugins];
-      // the dynamic-import leg must stay a single node-loadable file - fold async chunks back in
+      // Fold async chunks into the entry for inlineDynamic.
       if (inlineDynamic) all.push(new compiler.optimize.LimitChunkCountPlugin({ maxChunks: 1 }));
       const instance = compiler({
         mode: 'production',
@@ -189,8 +191,8 @@ export function makeBundlers({
       return webpackLike('rspack', rspack, input, plugins, extra);
     },
 
-    // rsbuild drives rspack: same chunk-loader semantics, plugin passed through unplugin's rsbuild
-    // adapter. environments-based config keeps the output a single node-loadable file
+    // Rsbuild drives Rspack and receives the plugin through unplugin's Rsbuild adapter.
+    // The output targets Node, including any chunks emitted for dynamic imports.
     async rsbuild(input, plugins = [], { inlineDynamic, splitDynamic } = {}) {
       const { createRsbuild } = await import('@rsbuild/core');
       return withTmpDir(async dir => {
@@ -214,7 +216,7 @@ export function makeBundlers({
                 config.output = { ...config.output, module: true, library: { type: 'module' } };
                 if (splitDynamic) Object.assign(config.output, { chunkFilename: 'chunk-[id].mjs', chunkLoading: 'import' });
                 config.experiments = { ...config.experiments, outputModule: true };
-                // the dynamic-import leg must stay a single node-loadable file
+                // Fold async chunks into the entry for inlineDynamic.
                 if (inlineDynamic) {
                   const { rspack } = await import('@rspack/core');
                   config.plugins.push(new rspack.optimize.LimitChunkCountPlugin({ maxChunks: 1 }));

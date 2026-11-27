@@ -7,9 +7,18 @@
   var nextTurn = typeof setTimeout === 'function' && setTimeout;
   var isArray = Array.isArray;
   var prototypeOf = Object.getPrototypeOf;
-  var ownKeys = Object.keys;
   var ownNames = Object.getOwnPropertyNames;
+  // eslint-disable-next-line es/no-reflect -- use one key enumeration when the engine supports Proxy
+  var allKeys = typeof Reflect === 'object' && Reflect.ownKeys;
+  // eslint-disable-next-line es/no-object-getownpropertysymbols -- optional on engines with native symbol keys
+  var ownSymbols = Object.getOwnPropertySymbols;
   var ownDescriptor = Object.getOwnPropertyDescriptor;
+  var dateText = Date.prototype.toString;
+  var functionText = Function.prototype.toString;
+  var regexpSource = ownDescriptor(RegExp.prototype, 'source');
+  var regexpFlags = [];
+  var flagNames = ['hasIndices', 'global', 'ignoreCase', 'multiline', 'dotAll', 'unicode', 'unicodeSets', 'sticky'];
+  for (var f = 0; f < flagNames.length; f++) regexpFlags[f] = ownDescriptor(RegExp.prototype, flagNames[f]);
   var create = Object.create;
   var define = Object.defineProperty;
   function errorField(err, key) {
@@ -67,56 +76,125 @@
     return null;
   };
 
-  // Preserve data in the usual diagnostic containers without calling their getters.
-  function snapshotDiagnostic(value, copies) {
-    if (!value || typeof value !== 'object') return value;
+  function diagnosticKeys(value) {
+    if (allKeys) return allKeys(value);
+    var keys = ownNames(value);
+    if (ownSymbols) {
+      var symbols = ownSymbols(value);
+      for (var i = 0; i < symbols.length; i++) keys[keys.length] = symbols[i];
+    }
+    return keys;
+  }
+
+  // QUnit infers DOM and builtin types from property names. Give it data fields
+  // in a separate namespace, including array slots, so a field cannot select a formatter.
+  function reportKey(copy, key) {
+    if (typeof key !== 'symbol') return '.' + key;
+    var label = '[' + String(key) + ']';
+    while (ownDescriptor(copy, label)) label += '#';
+    return label;
+  }
+
+  // QUnit normally displays Date and RegExp by value. Read their native slots
+  // without consulting an instance's toString, flags, or Symbol.toStringTag.
+  function reportBuiltin(copy, value) {
+    try {
+      copy['[[Date]]'] = dateText.call(value);
+      return;
+    } catch (error) { /* not a Date */ }
+    if (!regexpSource || !regexpSource.get) return; // Older engines store the fields on the instance.
+    try {
+      var source = regexpSource.get.call(value);
+      var flags = '';
+      for (var i = 0; i < regexpFlags.length; i++) {
+        var flag = regexpFlags[i];
+        if (flag && flag.get && flag.get.call(value)) flags += 'dgimsuvy'.charAt(i);
+      }
+      copy['[[RegExp]]'] = '/' + source + '/' + flags;
+    } catch (error) { /* not a RegExp */ }
+  }
+
+  function functionDescriptor(fn, key) {
+    try {
+      return ownDescriptor(fn, key);
+    } catch (error) { return undefined; } // A function proxy can hide one field and expose the other.
+  }
+
+  function snapshotDiagnostic(value, copies, forQUnit) {
+    var callable = typeof value === 'function';
+    if (!value || typeof value !== 'object' && !(forQUnit && callable)) return value;
     for (var i = 0; i < copies.length; i += 2) if (copies[i] === value) return copies[i + 1];
     var slot = copies.length + 1;
+    var fallback = forQUnit ? '<uninspectable>' : value;
     copies[slot - 1] = value;
-    copies[slot] = value;
+    copies[slot] = fallback;
     try {
+      if (callable) {
+        var fn = create(null);
+        var fnName = functionDescriptor(value, 'name');
+        // IE11 can expose the declaration name only in the native source text.
+        var declaration = !fnName && /^\s*function\s+([^\s(]+)/.exec(functionText.call(value));
+        fn['[[Function]]'] = fnName && typeof fnName.value === 'string' ? fnName.value : declaration ? declaration[1] : '';
+        var fnLength = functionDescriptor(value, 'length');
+        if (fnLength && typeof fnLength.value === 'number') fn['.length'] = fnLength.value;
+        copies[slot] = fn;
+        return fn;
+      }
       var array = isArray(value);
       var prototype = prototypeOf(value);
-      if (!array && prototype && prototypeOf(prototype) !== null) return value;
-      var keys = array ? ownNames(value) : ownKeys(value);
-      var copy = array ? [] : create(prototype);
-      if (array) {
-        var length = value.length;
-        // A Proxy can report a length inconsistent with its own indices. A record
-        // keeps both observations without growing an array as the slots are copied.
-        if ((length >>> 0) !== length) copy = create(null);
-        else for (var j = 0; j < keys.length; j++) {
-          if (arrayIndex(keys[j]) && +keys[j] >= length) {
-            copy = create(null);
-            break;
-          }
-        }
-        copy.length = length;
-      }
+      var instance = !array && prototype && prototypeOf(prototype) !== null;
+      if (instance && !forQUnit) return value;
+      var keys = diagnosticKeys(value);
       // Complete reflection before making the copy visible to another reference.
       var descriptors = [];
+      var length = array ? value.length : 0;
+      var asArray = !forQUnit && array && (length >>> 0) === length;
       for (var k = 0; k < keys.length; k++) {
-        descriptors[k] = ownDescriptor(value, keys[k]);
+        var name = keys[k];
+        var descriptor = ownDescriptor(value, name);
+        descriptors[k] = descriptor;
+        if (typeof name === 'symbol') {
+          if (descriptor && descriptor.enumerable) asArray = false;
+        } else if (asArray && arrayIndex(name) && +name >= length) asArray = false;
       }
+      var copy = asArray ? [] : create(forQUnit || array ? null : prototype);
       copies[slot] = copy;
+      if (instance) reportBuiltin(copy, value);
+      if (array) {
+        if (forQUnit) {
+          copy['[[Array]]'] = true;
+          copy['.length'] = snapshotDiagnostic(length, copies, true);
+        } else copy.length = length;
+      }
       for (var n = 0; n < keys.length; n++) {
         var key = keys[n];
         var field = descriptors[n];
-        var index = array && arrayIndex(key);
-        if (field && 'value' in field && (field.enumerable || index)) {
-          define(copy, key, { enumerable: field.enumerable, value: snapshotDiagnostic(field.value, copies) });
+        var index = array && typeof key === 'string' && arrayIndex(key);
+        var builtinField = instance && (key === 'message' || key === 'name' || !regexpSource && (
+          key === 'source' || key === 'global' || key === 'ignoreCase' || key === 'multiline'
+        ));
+        if (field && (field.enumerable || index || builtinField)) {
+          var observed = 'value' in field ? snapshotDiagnostic(field.value, copies, forQUnit) : '<accessor>';
+          define(copy, forQUnit ? reportKey(copy, key) : key, { enumerable: forQUnit || field.enumerable, value: observed });
+        }
+      }
+      if (!forQUnit) for (var j = 0; j < keys.length; j++) {
+        var symbol = keys[j];
+        if (typeof symbol === 'symbol' && descriptors[j] && descriptors[j].enumerable) {
+          define(copy, reportKey(copy, symbol), { enumerable: true, value: copy[symbol] });
         }
       }
       return copy;
     } catch (error) {
-      copies[slot] = value;
-      return value;
+      copies[slot] = fallback;
+      return fallback;
     }
   }
 
   // `then` is the one replaceable method these programs may call, and the rejection handler goes to
   // that same `then` rather than a later `.catch`, which a substituted implementation could drop.
-  window.e2eRun = function (onChecks, onError) {
+  window.e2eRun = function (onChecks, onError, options) {
+    var forQUnit = options && options.forQUnit;
     var settled = false;
     var reported = false;
     var jobs = 0;
@@ -164,12 +242,15 @@
           if (!pass) {
             var difference = check.difference;
             var pair = difference && difference.pair;
+            var copies = [];
             if (isArray(pair)) {
-              var copies = [];
               rows[i].difference = {
                 path: difference.path, missing: difference.missing,
-                pair: [snapshotDiagnostic(pair[0], copies), snapshotDiagnostic(pair[1], copies)],
+                pair: [snapshotDiagnostic(pair[0], copies, forQUnit), snapshotDiagnostic(pair[1], copies, forQUnit)],
               };
+            } else if (forQUnit) {
+              rows[i].actual = snapshotDiagnostic(rows[i].actual, copies, true);
+              rows[i].expected = snapshotDiagnostic(rows[i].expected, copies, true);
             }
           }
         }
