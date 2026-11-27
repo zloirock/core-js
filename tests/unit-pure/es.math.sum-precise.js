@@ -2,7 +2,6 @@
 import sumPrecise from '@core-js/pure/es/math/sum-precise';
 
 import { createIterable } from '../helpers/helpers.js';
-import { PROTO } from '../helpers/constants.js';
 import getIterator from '@core-js/pure/es/get-iterator';
 import setPrototypeOf from '@core-js/pure/es/object/set-prototype-of';
 import ITERATOR from '@core-js/pure/es/symbol/iterator';
@@ -83,7 +82,7 @@ QUnit.test('Math.sumPrecise', assert => {
   }
 
   // https://issues.chromium.org/issues/500536164
-  if (PROTO) {
+  {
     const array = [10, 20, 30];
     const iterator = getIterator([10, 20, 30]);
     const prototype = {

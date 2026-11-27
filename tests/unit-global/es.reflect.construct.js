@@ -1,5 +1,3 @@
-import { PROTO } from '../helpers/constants.js';
-
 QUnit.test('Reflect.construct', assert => {
   const { construct } = Reflect;
   const { defineProperty, getPrototypeOf } = Object;
@@ -55,7 +53,7 @@ QUnit.test('Reflect.construct', assert => {
   assert.throws(() => construct(function () { /* empty */ }), TypeError, 'throws when the second argument is not an object');
 });
 
-if (PROTO) QUnit.test('Reflect.construct, transpiled built-in subclasses', assert => {
+QUnit.test('Reflect.construct, transpiled built-in subclasses', assert => {
   class SubArray extends Array {
     static create() {
       return super.of?.(10, 20, 30);
