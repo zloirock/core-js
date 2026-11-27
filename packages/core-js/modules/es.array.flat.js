@@ -19,7 +19,7 @@ $({ target: 'Array', proto: true, forced: !HAS_SPECIES_SUPPORT }, {
     var sourceLen = lengthOfArrayLike(O);
     var depthNum = depthArg === undefined ? 1 : toIntegerOrInfinity(depthArg);
     var A = arraySpeciesCreate(O, 0);
-    flattenIntoArray(A, O, O, sourceLen, 0, depthNum);
+    flattenIntoArray(A, O, sourceLen, 0, depthNum);
     return A;
   }
 });

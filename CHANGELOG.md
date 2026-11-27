@@ -96,6 +96,7 @@
   - Added missed detection of native `Array.prototype.fill` reading the `length` of array-likes without `ToLength` in V8 ~ Chrome 45-47
   - Added missed detection of native `Array.prototype.{ flat, flatMap }` without `@@species` support in Hermes and Rhino < 1.9, like for the rest of `Array.prototype` methods creating arrays
   - Added missed detection of [native `Array.prototype.flatMap` keeping holes of arrays returned by the callback in Rhino](https://github.com/mozilla/rhino/issues/2588)
+  - Fixed the `Array.prototype.flat` polyfill running out of call stack on deeply nested arrays
   - Fixed symbol keys of groups leaking out to `for-in` and `Object.keys` in obsolete `Array.prototype.{ group, groupBy }` and `%TypedArray%.prototype.groupBy` together with `Symbol` polyfill, like it was fixed for `Object.groupBy`
   - Added a workaround for an SWC optimization that rewrites `Array(1)` to `[,]` and hides [the `Array.prototype.includes` bug in Firefox 99-101](https://bugzilla.mozilla.org/show_bug.cgi?id=1767541)
   - Added a workaround for native `%TypedArray%.prototype.{ indexOf, lastIndexOf }` returning `-0` when a search starting at `-0` matches the first element
