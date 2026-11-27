@@ -23,6 +23,11 @@ if (process.env.CI || findInternetExplorer()) {
   browsers.push('IE_NFM');
 }
 
+function SummaryReporter(baseReporterDecorator) {
+  baseReporterDecorator(this);
+  this.onBrowserComplete = browser => this.write('%s\n', this.renderBrowser(browser));
+}
+
 module.exports = config => {
   const target = process.argv.find(it => it.startsWith('-f='));
 
@@ -35,6 +40,7 @@ module.exports = config => {
       'karma-*',
       playwrightLauncher,
       { 'middleware:echo': ['factory', createEchoMiddleware] },
+      { 'reporter:summary': ['type', SummaryReporter] },
     ],
     files: ['../unit-browser/qunit-dump.js', ...target.slice(3).split(',')],
     middleware: ['echo'],
@@ -54,6 +60,8 @@ module.exports = config => {
     pingTimeout: 6e4,
     processKillTimeout: 1e4,
     retryLimit: 3,
+    // A synchronous write per passing test can stall the echo server on Windows CI.
+    reporters: [process.env.CI ? 'summary' : 'dots'],
     // restarting a browser is cheaper than losing the run, but on CI it has to be visible - it is
     // the difference between a suite that passed and one that only passed on the third attempt
     logLevel: process.env.CI ? config.LOG_INFO : config.LOG_ERROR,
