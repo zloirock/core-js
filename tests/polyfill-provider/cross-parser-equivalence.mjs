@@ -189,6 +189,14 @@ await runEquivalence('dynamic import', 'import("./mod");', USAGE_GLOBAL_IE11);
 await runEquivalence('usage-pure Array.from', 'Array.from(arr);', USAGE_PURE);
 await runEquivalence('usage-pure Promise', 'Promise.resolve(1);', USAGE_PURE);
 await runEquivalence('usage-pure includes', '[1].includes(2);', USAGE_PURE);
+await runEquivalence('discarded asserted mutator', "const rows = ['word']; void (rows.fill!); rows[0].at(0);", USAGE_PURE, {
+  inspect: code => importsAgree(extractPolyfillImports(code).filter(entry => entry.endsWith('/at')), ['@core-js/pure/actual/string/instance/at']),
+});
+const prototypeAliases = Array.from({ length: 96 }, (_, index) => `const p${ index + 1 } = p${ index };`).join(' ');
+await runEquivalence('inherited getter through a long prototype alias chain', `
+  const rows = ['word']; const p0 = Array.prototype; ${ prototypeAliases }
+  installGetter(0, p96); void rows.slot; rows[0].at(0);
+`, USAGE_PURE, { parserPlugins: [], inspect: code => extractPolyfillImports(code).includes('@core-js/pure/actual/instance/at') });
 
 // TS type annotation on declaration: a Promise<T> reference must register Promise
 // for entry detection - both walkers must reach the TSTypeReference uniformly

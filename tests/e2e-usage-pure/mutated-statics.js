@@ -12,6 +12,7 @@ import './mutation-cases/guarded-shims-stay-dead-on-the-enriched-constructor.js'
 import './mutation-cases/or-shim-on-a-missing-key-assigns-and-serves-the-shim.js';
 import './mutation-cases/prototype-patch-flows-through-routed-instances.js';
 import './mutation-cases/prototype-patch-does-not-displace-the-instance-polyfill.js';
+import './mutation-cases/array-element-after-inherited-getter.js';
 import './mutation-cases/optional-delete-routes-through-the-constructor.js';
 import './mutation-cases/slot-mutated-ctor-shares-one-object-across-surfaces.js';
 import './mutation-cases/nested-proxy-destructure-reads-through-the-routed-constructor.js';

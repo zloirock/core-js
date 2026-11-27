@@ -1,8 +1,7 @@
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
-// Enum member dispatch only fires when `key.object.type === 'Identifier'`. Namespace-
-// qualified `NS.E.A` has `key.object` = MemberExpression(NS,E), so the enum lookup is
-// skipped: receiver dispatch falls through to generic, computed key bails to dynamic.
-// Distinct methods (at / findLast) probe the resolution.
+import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
+var _ref;
+// String conversion fixes the receiver of both reads. The reverse lookup reads the qualified enum itself.
 namespace NS {
   export enum E {
     A,
@@ -14,3 +13,4 @@ const tag = String(v);
 _atMaybeString(tag).call(tag, 0);
 // @ts-expect-error the member read is the probe, and the right answer is a type without it
 tag.findLast(c => c === 'A');
+_includesMaybeString(_ref = NS.E[NS.E.B]).call(_ref, 'B');

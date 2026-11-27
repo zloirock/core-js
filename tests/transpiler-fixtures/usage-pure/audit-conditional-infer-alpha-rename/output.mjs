@@ -1,8 +1,5 @@
-import _at from "@core-js/pure/actual/instance/at";
-// `infer U` shadows outer `U` in trueType per TS spec - outer `string` must NOT
-// leak in. `Wrap<[number[], boolean], string>` has tuple-head infer competing with
-// outer `U=string`; correct evaluation keeps inferred binding so `a.at` dispatches
-// generically (string-narrow leak would emit a String polyfill instead)
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+// The inferred tuple head shadows the outer U. Its array supplies the receiver.
 type Wrap<T, U> = T extends [infer U, ...any[]] ? U : never;
 declare const a: Wrap<[number[], boolean], string>;
-_at(a).call(a, 0);
+_atMaybeArray(a).call(a, 0);

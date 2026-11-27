@@ -11553,6 +11553,146 @@ function * generateGuardKinds(cases) {
   }
 }
 
+function * generateTupleAndArrayElements() {
+  for (const [name, binding] of [['array', '[item]'], ['object', '{ 0: item }']]) {
+    yield { ...snippet(`array-slot-flow/missing-${ name }`, `(() => {
+      function read(rows: number[][]) { const ${ binding } = rows; return (item ?? 'word').at(0); }
+      return [read([]), read([[7]])];
+    })()`), ts: true, strip: true };
+  }
+  for (const [name, type, access] of [
+    ['readonly', 'Readonly<number[][]>', 'const item = rows[0];'],
+    ['mixed', 'number[][] | { 0: number[] }', 'const { 0: item } = rows;'],
+  ]) {
+    yield { ...snippet(`array-slot-flow/missing-${ name }`, `(() => {
+      function read(rows: ${ type }) { ${ access } return (item ?? 'word').at(-1); }
+      return [read([]), read([[7]])];
+    })()`), ts: true, strip: true };
+  }
+  for (const [name, effect] of [
+    ['callback-read', 'rows.forEach((value, index, source) => { log.push(source[index][0]); });'],
+    ['callback-write', 'rows.forEach((value, index, source) => { source[index] = [7]; });'],
+    ['find-callback-write', 'rows.find((value, index, source) => { source[index] = [7]; return true; });'],
+    ['nested-callback', 'rows.forEach((value, index, source) => source.forEach((item, at, again) => { again[at] = [7]; }));'],
+    ['stored-alias', 'const alias = box.rows; alias.unshift([9]);'],
+    ['sibling-slot', 'box.other.unshift([4]);'],
+  ]) {
+    yield { ...snippet(`array-slot-flow/${ name }`, `(() => {
+      const rows = ['word']; const box = { rows, other: ['other'] };
+      ${ effect }
+      return [rows[0].at(0), box.rows[0].at(0)];
+    })()`), strip: true };
+  }
+  yield { ...snippet('array-slot-flow/replaced-reverse', `(() => {
+    const saved = Array.prototype.reverse;
+    const rows = [[1], [2]];
+    try {
+      Array.prototype.reverse = function () { this[0] = 'xy'; return this; };
+      rows.reverse();
+      return rows[0].at(-1);
+    } finally {
+      Array.prototype.reverse = saved;
+    }
+  })()`), strip: true };
+  yield { ...snippet('array-slot-flow/callback-this-param', `(() => {
+    const rows = ['word'];
+    rows.find(function (this: void, value, index, source) { source[0] = [7]; return true; });
+    return rows[0].at(0);
+  })()`), ts: true, strip: true };
+  for (const [name, call] of [
+    ['asserted-mutator', 'rows.reduce((n, v, i, s) => { (s.fill as Function)([7]); return n; }, 0);'],
+    ['asserted-reducer', '(rows.reduce as Function)((n, v, i, s) => { s[i] = [7]; return n; }, 0);'],
+    ['tagged-reverse', 'rows.reverse`tag`;'],
+  ]) {
+    yield { ...snippet(`array-slot-flow/${ name }`, `(() => {
+      const rows = ['word', [7]]; ${ call } return rows[0].at(0);
+    })()`), ts: true, strip: true };
+  }
+  for (const [name, read] of [
+    ['getter', 'void rows.slotProbe;'],
+    ['callback-getter', 'rows.reduce((n, v, i, s) => { void s.slotProbe; return n; }, 0);'],
+  ]) {
+    yield { ...snippet(`array-slot-flow/${ name }`, `(() => {
+      const rows = ['word'];
+      try {
+        Object.defineProperty(Array.prototype, 'slotProbe', { configurable: true, get() { log.push('read'); this[0] = [7]; } });
+        ${ read } return rows[0].at(0);
+      } finally { delete Array.prototype.slotProbe; }
+    })()`), strip: true };
+  }
+  yield { ...snippet('array-slot-flow/inherited-getter-through-prototype-alias', `(() => {
+    const rows = ['word'];
+    const proto = Array.prototype;
+    const base = Object.getPrototypeOf(proto);
+    try {
+      Object.setPrototypeOf(proto, { __proto__: base, get slotProbe() { this.fill([7]); } });
+      void rows.slotProbe;
+      return rows[0].at(0);
+    } finally { Object.setPrototypeOf(proto, base); }
+  })()`), strip: true };
+  yield {
+    name: 'enum-reverse-slot/inherited-numeric-index',
+    code: `namespace N { export enum E { First } } const { E: saved } = N; void saved;
+      function read(i: number) { return N.E[i].at(0); }
+      let value; try { Object.defineProperty(Object.prototype, 84, { configurable: true, writable: true, value: [7] }); value = read(84); }
+      finally { delete (Object.prototype as any)[84]; } export const r = value; export const effects = [];`,
+    ts: true,
+    strip: true,
+  };
+  yield { ...snippet('enum-reverse-slot/repeated-read', `(() => {
+    enum E { First }
+    function read() { const result = E[0].at(0); Reflect.set(E, 0, [7]); return result; }
+    return [read(), read()];
+  })()`), ts: true, strip: true };
+  for (const condition of [true, false]) {
+    yield {
+      name: `enum-reverse-slot/conditional-alias-${ condition }`,
+      code: `namespace N { export enum E { Ready } }
+        const { E: saved } = N;
+        const before = N.E[0].at(0);
+        if (JSON.parse('${ condition }')) Reflect.set(saved, 0, [7]);
+        export const r = [before, N.E[0].at(0)]; export const effects = [];`,
+      ts: true,
+      strip: true,
+    };
+  }
+  for (const [name, mutation] of [
+    ['reflect', 'Reflect.set(E, 0, [9]);'],
+    ['computed', 'const key = 0; (E as any)[key] = [9];'],
+    ['shadow', '{ const E: any = {}; E[0] = [9]; }'],
+  ]) {
+    yield { ...snippet(`enum-reverse-slot/${ name }`, `(() => {
+      enum E { A } ${ mutation } return E[E.A].at(0);
+    })()`), ts: true, strip: true };
+  }
+  for (const [name, write] of [
+    ['reflect', "Reflect.set(N.E, 0, ['updated']);"],
+    ['destructured', "const { E: alias } = N; (alias as any)[0] = ['updated'];"],
+    ['method', "(N.E as any).change = function () { this[0] = ['updated']; }; (N.E as any).change();"],
+    ['other', "Reflect.set(N.Other, 0, ['updated']);"],
+  ]) {
+    yield {
+      name: `enum-reverse-slot/namespace-${ name }`,
+      code: `namespace N { export enum E { Item } export enum Other { Another } }
+        const before = N.E[0]; ${ write } export const r = [before.at(0), N.E[0].at(0)]; export const effects = [];`,
+      ts: true,
+      strip: true,
+    };
+  }
+  for (const [name, type] of [
+    ['optional', '[string] extends [string, number?] ? number[] : string'],
+    ['finite-spread', '[1, ...[2, 3]] extends [1, 2, 3] ? number[] : string'],
+    ['bottom-rest', '[any] extends [...never[]] ? string : number[]'],
+    ['rest', '[1, 2, 3] extends [number, ...number[]] ? number[] : string'],
+    ['order', "['x', 'y'] extends ['y', 'x'] ? string : number[]"],
+    ['length', "[number, string?]['length'] extends 1 | 2 ? number[] : string"],
+  ]) {
+    yield { ...snippet(`tuple-selection/${ name }`, `(() => {
+      type Row = ${ type }; function read(row: Row) { return row.at(0); } return read([7]);
+    })()`), ts: true, strip: true };
+  }
+}
+
 function * generateNumericUpdateReads(asserted = false) {
   const target = asserted ? '(value as any)' : 'value';
   for (const op of ['++', '--']) for (const prefix of [false, true]) {
@@ -29264,4 +29404,5 @@ export function * generate() {
   yield * generateGuardKinds(GUARD_NARROWING_TS);
   yield * generateNumericUpdateReads();
   yield * generateNumericUpdateReads(true);
+  yield * generateTupleAndArrayElements();
 }

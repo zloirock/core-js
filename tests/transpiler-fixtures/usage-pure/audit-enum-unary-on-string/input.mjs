@@ -1,8 +1,5 @@
-// enum-member kind classification treats a UnaryExpression with operator +/-/~ as 'number'
-// regardless of operand shape. `+'42'` evaluates to a number at runtime, so the kind is
-// correctly 'number'. TS would actually reject this as a non-constant expression for numeric
-// enums but we stay permissive on operand-shape inference. distinct methods per line probe the
-// narrowed type.
+// Unary numeric operators produce numbers, including when the operand is a string.
+// Only the two explicit String reads use string helpers.
 enum N {
   A = +'42',
   B = -3,
@@ -12,3 +9,5 @@ declare const v: N;
 const tag = String(v);
 tag.at(0);
 tag.includes('A');
+// @ts-expect-error probe a method absent from at least one enum member
+typeof v.at;

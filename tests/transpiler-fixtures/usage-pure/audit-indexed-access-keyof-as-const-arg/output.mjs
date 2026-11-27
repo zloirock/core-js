@@ -6,7 +6,7 @@ var _ref;
 // case, and the rewrite drops, leaving K opaque
 type Items = {
   a: string[];
-  b: number[];
+  b: string;
 };
 declare function pick<K extends keyof Items>(k: K): Items[K];
 _atMaybeArray(_ref = pick('a' as const)).call(_ref, 0);

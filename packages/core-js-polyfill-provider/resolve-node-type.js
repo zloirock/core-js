@@ -1028,6 +1028,7 @@ function createResolveNodeType(babelNodeType, t, {
     t,
     resolveRuntimeExpression,
     effectiveParam,
+    functionTypeParams: (...args) => functionTypeParams(...args),
     resolveInnerType,
     substituteTypeParams: (...args) => substituteTypeParams(...args),
     applySubst: (...args) => applySubst(...args),
@@ -1677,11 +1678,15 @@ function createResolveNodeType(babelNodeType, t, {
       // the array) - the sentinel cannot prove whole-RHS coverage there
       if (keyPath.some(step => typeof step === 'number' && step < 0)) {
         return keyPath.length === 1 && keyPath[0] === -1
-          && resolveNodeType(initPath)?.constructor === 'Array' ? initPath : null;
+          && resolveNodeType(initPath)?.constructor === 'Array' && !restIteratorWritten(initPath, 'Array') ? initPath : null;
       }
       return followKeyPathInRhs(initPath, keyPath) ?? null;
     }
     return initPath;
+  }
+
+  function restIteratorWritten(path, family) {
+    return isMutatedStatic(`${ family }.prototype`, 'Symbol.iterator') || pathSlotWritten(path, [Symbol.iterator]);
   }
 
   // a dominating var-redecl binding the name through an array-REST has no single RHS node
@@ -1702,7 +1707,9 @@ function createResolveNodeType(babelNodeType, t, {
     const sliceStart = -keyPath[0] - 1;
     const initNode = initPath.node;
     if (initNode?.type === 'ArrayExpression' && initNode.elements?.length >= 0) {
-      if (initNode.elements.some(el => !el || el.type === 'SpreadElement')) return new $Object('Array');
+      if (restIteratorWritten(initPath, 'Array') || initNode.elements.some(el => !el || el.type === 'SpreadElement')) {
+        return new $Object('Array');
+      }
       let inner = null;
       const elements = cachedContainerPaths(initPath, 'elements');
       for (let i = sliceStart; i < elements.length; i++) {
@@ -1714,7 +1721,9 @@ function createResolveNodeType(babelNodeType, t, {
       return new $Object('Array', safeInnerType(inner));
     }
     // spreading a STRING builds an Array of its chars
-    if (resolveNodeType(initPath)?.type === 'string') return new $Object('Array', new $Primitive('string'));
+    if (resolveNodeType(initPath)?.type === 'string' && !restIteratorWritten(initPath, 'String')) {
+      return new $Object('Array', new $Primitive('string'));
+    }
     return new $Object('Array');
   }
 
@@ -2537,6 +2546,7 @@ function createResolveNodeType(babelNodeType, t, {
     extractElementAnnotation,
     resolveElementType,
     findTupleElement,
+    findRuntimeTypeMember: (...args) => typeMembersCluster.findRuntimeTypeMember(...args),
     resolveObjectMember,
     resolveObjectFieldFlow,
     resolveGlobalSurfaceKeyPath: (value, keys) => resolveGlobalSurfaceKeyPath(value, keys, false),
@@ -2863,13 +2873,16 @@ function createResolveNodeType(babelNodeType, t, {
   // `findExpressionAnnotation` / `functionTypeReturnAnnotation` (both from the call-resolution
   // cluster above) and the hoisted `resolveNodeType` function declaration
   const memberResolveCluster = createMemberResolve({
+    findProgramPath,
+    isBindingExportedByName: bindingAnalysisCluster.isBindingExportedByName,
+    resolveStaticCalleePair,
+    findRuntimeTypeMember: typeMembersCluster.findRuntimeTypeMember,
     withTypeReferenceScope,
     t,
     typeofSource,
-    getModuleFieldIndex,
+    programCensus,
     namespaceExportReturn,
     findNamespacedValuePath,
-    KNOWN_INSTANCE_METHOD_RETURN_TYPES,
     // forward-decl thunk: narrow-by-guards instantiates later in the factory body
     findAnnotationGuard: path => findAnnotationGuard(path),
     getScopeBinding,

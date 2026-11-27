@@ -90,17 +90,20 @@ function isArgumentIndexList(list) {
   return Array.isArray(list) && list.length > 0 && list.every(i => Number.isInteger(i) && i >= 0);
 }
 
-function isValidHint(hint) {
+function isValidHint(hint, instanceMethod = false) {
   if (isDirectiveName(hint)) return true;
-  // normalized hint:
-  // always { type, element?, resolved?, mutatesArgument?, exposesArgument?, inert?, mutatesElements?, nullable?, partial? }
   if (typeof hint !== 'object' || hint === null) return false;
   // a directive may be wrapped in object form to carry qualifiers (`{ type: 'inherit', nullable: true }` -
   // `find` / `at` / `pop` return element | undefined per spec);
   // a wrapped directive carries no inner hint of its own
   const isDirective = isDirectiveName(hint.type);
   if (isDirective && (hint.element !== undefined || hint.resolved !== undefined)) return false;
-  if (!isDirective && !VALID_TYPES.has(hint.type)) return false;
+  const hasEffects = 'callbackReceiverArgument' in hint || 'mutatesElements' in hint;
+  if (hasEffects && !instanceMethod) return false;
+  if (hint.type === undefined) {
+    if (!hasEffects) return false;
+    if (hint.element !== undefined || hint.resolved !== undefined || hint.nullable || hint.partial) return false;
+  } else if (!isDirective && !VALID_TYPES.has(hint.type)) return false;
   const validKeys = new Set([
     'type',
     'element',
@@ -109,6 +112,7 @@ function isValidHint(hint) {
     'exposesArgument',
     'inert',
     'mutatesElements',
+    'callbackReceiverArgument',
     'nullable',
     'partial',
   ]);
@@ -121,9 +125,10 @@ function isValidHint(hint) {
   if ('exposesArgument' in hint && !isArgumentIndexList(hint.exposesArgument)) return false;
   // inert: the method runs no code of its arguments; only the `true` form is emitted
   if ('inert' in hint && hint.inert !== true) return false;
-  // mutatesElements: an instance method that writes the receiver's elements in place;
-  // only the `true` form is emitted
-  if ('mutatesElements' in hint && hint.mutatesElements !== true) return false;
+  if ('mutatesElements' in hint && hint.mutatesElements !== true && hint.mutatesElements !== 'existing') return false;
+  if ('callbackReceiverArgument' in hint && !(Number.isInteger(hint.callbackReceiverArgument) && hint.callbackReceiverArgument >= 0)) {
+    return false;
+  }
   // partial: a type guard true for only part of its type; only the `true` form is emitted
   if ('partial' in hint && hint.partial !== true) return false;
   const innerHint = hint.element ?? hint.resolved ?? null;
@@ -133,7 +138,7 @@ function isValidHint(hint) {
   // own type is a single hint, and a member that is itself a list fails the member check
   const union = Array.isArray(innerHint);
   if (union && innerHint.length < 2) return false;
-  return (union ? innerHint : [innerHint]).every(isValidHint);
+  return (union ? innerHint : [innerHint]).every(member => isValidHint(member));
 }
 
 // structural validation — every entry in every table has a valid shape
@@ -203,7 +208,7 @@ throws(() => checkGuardQualifier('probe', 'staticMethods', { type: 'boolean', pa
 checkGuardQualifier('control', 'staticTypeGuards', { type: 'number', partial: true });
 
 function checkHint(label, kind, hint) {
-  ok(isValidHint(hint), `${ label }: hint '${ JSON.stringify(hint) }' is valid`);
+  ok(isValidHint(hint, kind === 'instanceMethods'), `${ label }: invalid ${ kind } hint '${ JSON.stringify(hint) }'`);
   checkLane(label, kind, hint);
   checkArgumentQualifiers(label, kind, hint);
   checkGuardQualifier(label, kind, hint);
@@ -310,6 +315,8 @@ ok(isValidHint('argument'), 'control - a directive the vocabulary carries is a h
 // normalizer refuses the key outright, so the schema must not keep accepting it either
 ok(!isValidHint({ type: 'Object', returnsArgument: 0 }), 'the retired returnsArgument key is refused');
 ok(isValidHint({ type: 'Object', mutatesArgument: [0] }), 'control - the live qualifier is accepted');
+ok(isValidHint({ callbackReceiverArgument: 0 }, true), 'a callback may receive the receiver first');
+throws(() => checkHint('probe', 'staticMethods', { type: 'number', callbackReceiverArgument: 0 }), /invalid staticMethods hint/);
 
 // every remaining rule of the shape check, each on the shape it exists to reject. a rule only ever
 // run against data that satisfies it cannot be told apart from a rule that does nothing
@@ -330,6 +337,12 @@ for (const [label, hint] of [
   ['exposesArgument with a negative index', { type: 'boolean', exposesArgument: [-1] }],
   ['inert spelled false', { type: 'boolean', inert: false }],
   ['inert spelled as anything else', { type: 'boolean', inert: 1 }],
+  ['unknown return without effects', {}],
+  ['unknown return with a resolved type', { callbackReceiverArgument: 2, resolved: 'inherit' }],
+  ['receiver argument nested in a union', { type: 'Array', element: [{ type: 'number' }, { type: 'string', callbackReceiverArgument: 2 }] }],
+  ['unknown mutation kind', { type: 'Array', mutatesElements: 'all' }],
+  ['negative callback slot', { type: 'boolean', callbackReceiverArgument: -1 }],
+  ['fractional callback slot', { type: 'boolean', callbackReceiverArgument: 0.5 }],
   ['mutatesElements spelled false', { type: 'Array', mutatesElements: false }],
   ['partial spelled false', { type: 'number', partial: false }],
   ['partial spelled as anything else', { type: 'number', partial: 1 }],
@@ -340,7 +353,7 @@ for (const [label, hint] of [
   // directive. this is the rule that says so
   ['a bare type name, which the normalizer never emits', 'Array'],
 ]) {
-  ok(!isValidHint(hint), `${ label } is rejected`);
+  ok(!isValidHint(hint, true), `${ label } is rejected`);
 }
 for (const [label, hint] of [
   ['nullable spelled true', { type: 'Object', nullable: true }],
@@ -351,7 +364,7 @@ for (const [label, hint] of [
   ['a two-member union', { type: 'Array', element: [{ type: 'string' }, { type: 'symbol' }] }],
   ['a directive with a qualifier but no inner', { type: 'inherit', nullable: true }],
 ]) {
-  ok(isValidHint(hint), `control - ${ label } is accepted`);
+  ok(isValidHint(hint, true), `control - ${ label } is accepted`);
 }
 
 // the constructor shape has a validator of its own, and its three rules were never shown to reject
@@ -384,7 +397,7 @@ deepEqual(knownBuiltInReturnTypes.staticMethods.Object.getOwnPropertyDescriptor,
   { type: 'Object', nullable: true, exposesArgument: [0] });
 deepEqual(knownBuiltInReturnTypes.instanceProperties.Element.firstElementChild, { type: 'Element', nullable: true });
 // 'inherit' directive
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.filter, { type: 'Array', element: 'inherit' });
+deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.filter, { type: 'Array', element: 'inherit', callbackReceiverArgument: 2 });
 // resolved 'inherit'
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Promise.finally, { type: 'Promise', resolved: 'inherit' });
 // resolved nullable 'inherit' (AsyncIterator#find resolves to element | undefined)
@@ -409,7 +422,7 @@ deepEqual(knownBuiltInReturnTypes.staticMethods.Object.assign, { type: 'argument
 deepEqual(knownBuiltInReturnTypes.staticMethods.Reflect.set, { type: 'boolean', mutatesArgument: [0, 3], exposesArgument: [2] });
 // mutatesElements annotation (in-place element mutators)
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.push, { type: 'number', mutatesElements: true });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.sort, { type: 'Array', element: 'inherit', mutatesElements: true });
+deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.sort, { type: 'Array', element: 'inherit', mutatesElements: 'existing' });
 // splice mutates the receiver but returns the removed elements, so it inherits despite the flag
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.splice, { type: 'Array', element: 'inherit', mutatesElements: true });
 deepEqual(knownBuiltInReturnTypes.instanceMethods.TypedArray.set, { type: 'undefined', mutatesElements: true });
@@ -423,11 +436,37 @@ function flaggedMutators(className) {
 deepEqual(flaggedMutators('Array'),
   ['copyWithin', 'fill', 'pop', 'push', 'reverse', 'shift', 'sort', 'splice', 'unshift']);
 deepEqual(flaggedMutators('TypedArray'), ['copyWithin', 'fill', 'reverse', 'set', 'sort']);
-for (const [className, members] of Object.entries(knownBuiltInReturnTypes.instanceMethods)) {
-  if (className === 'Array' || className === 'TypedArray') continue;
-  for (const [member, hint] of Object.entries(members)) {
-    ok(!hint.mutatesElements, `instanceMethods.${ className }.${ member }: mutatesElements only applies to indexed receivers`);
+const { instanceMethods } = knownBuiltInReturnTypes;
+const arrayCallbacks = [
+  'every', 'filter', 'find', 'findIndex', 'findLast', 'findLastIndex', 'flatMap', 'forEach', 'map', 'reduce', 'reduceRight', 'some',
+];
+for (const [owner, receiver, expected] of [
+  ['Array', [1, 2], arrayCallbacks],
+  ['TypedArray', new Uint8Array([1, 2]), arrayCallbacks.filter(name => name !== 'flatMap')],
+  ['Map', new Map([[1, 2]]), ['forEach']],
+  ['Set', new Set([1]), ['forEach']],
+  ['URLSearchParams', new URLSearchParams('a=b'), ['forEach']],
+]) {
+  const methods = instanceMethods[owner];
+  deepEqual(Object.keys(methods).filter(name => methods[name].callbackReceiverArgument !== undefined).sort(), expected, owner);
+  for (const name of expected) {
+    let observed;
+    receiver[name]((...args) => {
+      observed = args.indexOf(receiver);
+      return true;
+    });
+    deepEqual(methods[name].callbackReceiverArgument, observed, `${ owner }#${ name } passes its receiver`);
   }
+}
+for (const owner of ['NodeList', 'DOMTokenList']) deepEqual(instanceMethods[owner].forEach.callbackReceiverArgument, 2);
+for (const owner of ['Iterator', 'AsyncIterator']) deepEqual(instanceMethods[owner].forEach.callbackReceiverArgument, undefined);
+for (const [owner, expected] of [
+  ['Array', ['copyWithin', 'pop', 'reverse', 'shift', 'sort']],
+  ['TypedArray', ['copyWithin', 'reverse', 'sort']],
+]) {
+  const methods = instanceMethods[owner];
+  deepEqual(Object.keys(methods).filter(name => methods[name].mutatesElements === 'existing').sort(), expected);
+  for (const name of ['reduce', 'reduceRight']) deepEqual(methods[name], { callbackReceiverArgument: 3 });
 }
 // Object.create is intentionally absent - its result type is indeterminate (proto-from-arg)
 ok(!('create' in knownBuiltInReturnTypes.staticMethods.Object), 'Object.create has no return-type hint (indeterminate)');

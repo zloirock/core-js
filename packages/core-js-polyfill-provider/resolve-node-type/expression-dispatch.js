@@ -18,7 +18,7 @@ import { $Object, $Primitive, primitiveTypeOf } from './base.js';
 import {
   NO_PROTOTYPE_VALUE,
   ancestorChainDetached,
-  nodePositionKey,
+  liveSourceIdentifierPaths,
   bindingLoopAnchor,
   cachedContainerPaths,
   installedPrototypeValueAt,
@@ -244,22 +244,6 @@ export function createExpressionDispatch({
     return { values, undefinedShadowed };
   }
 
-  // A guard may clone a source argument into its replacement calls. Recover those
-  // live paths before asking about the installer and prototype value; their cached
-  // parent may already hold the guard. A removed call has no matching source argument.
-  function liveInstallReferences(ref) {
-    if (!ancestorChainDetached(ref)) return [ref];
-    const position = nodePositionKey(ref.node);
-    if (!position) return [];
-    let anchor = ref.parentPath;
-    while (anchor && (!anchor.node || ancestorChainDetached(anchor))) anchor = anchor.parentPath;
-    const found = [];
-    anchor?.traverse({ Identifier(path) {
-      if (path.node.name === ref.node.name && nodePositionKey(path.node) === position) found.push(path);
-    } });
-    return found;
-  }
-
   // The binding's prototype installs are source facts. A guard renderer copies a
   // setter call into its branches; detaching the original call does not undo the
   // installation while its source argument survives in the replacement. An install
@@ -287,7 +271,7 @@ export function createExpressionDispatch({
     const adapter = getDecisionAdapter();
     const installs = [];
     let descriptors;
-    for (const sourceRef of refs) for (const ref of liveInstallReferences(sourceRef)) {
+    for (const sourceRef of refs) for (const ref of liveSourceIdentifierPaths(sourceRef)) {
       const value = installedPrototypeValuePathAt(ref, shadowed);
       if (!value || writeNeverRuns({ write: ref.node, usagePath: ref, adapter })) continue;
       const arms = installCalleeArms(ref);

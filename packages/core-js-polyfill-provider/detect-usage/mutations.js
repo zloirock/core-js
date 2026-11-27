@@ -4645,7 +4645,7 @@ export function escapedCtorReferencesReducer({
     CTOR_ALIAS_INITS.set(node, aliasInit);
     CENSUS_STATIC_RECEIVERS.delete(node);
     CENSUS_KEY_NAMES.set(node, (key, requireServed = false) => censusKeyNames(key, 0, requireServed));
-    CENSUS_ENUM_RECEIVERS.set(node, member => enumMemberKey(member, true));
+    CENSUS_ENUM_RECEIVERS.set(node, { blocks: enumBlocks, owns: (member, reverse = false) => enumMemberKey(member, true, reverse) });
     RECORDED_MUTATION_ROOTS.delete(node);
     ALIAS_SCOPE_FACTS.set(aliasInit, {
       declarations,
@@ -4955,7 +4955,10 @@ export function escapedCtorReferencesReducer({
       // A method handed the enum as its receiver can replace an own slot or install an accessor.
       if (enumBlocks.size && node.type !== 'NewExpression' && isMemberAccessNode(spelled)) {
         const receiver = unwrapRuntimeExpr(spelled.object);
-        if (receiver?.type === 'Identifier' && enumBlocks.has(receiver.name)) (invokedEnums ??= new Set()).add(receiver.name);
+        if (isMemberAccessNode(receiver) || receiver?.type === 'Identifier' && enumBlocks.has(receiver.name)) {
+          (invokedEnums ??= new Set()).add(receiver);
+          if (receiver.type === 'Identifier') invokedEnums.add(receiver.name);
+        }
       }
       const analyzable = spelled?.type === 'Identifier' || FUNCTION_LIKE_NODE_TYPES.has(spelled?.type)
         || CLASS_NODE_TYPES.has(spelled?.type) || isMemberAccessNode(spelled) || spelled?.type === 'Super';
@@ -5388,14 +5391,54 @@ export function escapedCtorReferencesReducer({
     if (values?.some(held => hasStaticDefinitionKey(String(held)))) proof.served = false;
     return values;
   }
+  let exposedEnumValues;
+  function enumReceiverExposed(object) {
+    function binding(id) {
+      return aliasBindingKey(aliasInit, id.name, aliasReferenceScopes(aliasInit, id));
+    }
+    if (!exposedEnumValues) {
+      exposedEnumValues = new Set();
+      for (const refs of bareReadRefs.values()) for (const ref of refs) exposedEnumValues.add(binding(ref));
+      // A prefix only navigates to the next property. Passing the selected namespace or enum
+      // itself to a call exposes its members, including reverse slots written through an alias.
+      for (const member of memberUses) {
+        const receiver = unwrapRuntimeExpr(member.object);
+        if (isMemberAccessNode(receiver)) memberObjects.add(receiver);
+        if (receiver?.type === 'Identifier' && invokedEnums?.has(receiver)) exposedEnumValues.add(binding(receiver));
+      }
+      for (const [pattern, source] of retainedPatterns) {
+        const { root, keys } = memberChainKeys(source);
+        if (root?.type !== 'Identifier') continue;
+        for (const path of patternRootKeyPathsFor(pattern, null, null) ?? [[null]]) {
+          exposedEnumValues.add(containerSlotKey(binding(root), slotPathKeys([...keys, ...path])));
+        }
+      }
+      for (const member of memberUses) {
+        if (memberObjects.has(member) && !invokedEnums?.has(member) && !invokedReceivers.has(member)) continue;
+        const { root, keys } = memberSlotPath(member);
+        if (keys) exposedEnumValues.add(containerSlotKey(binding(root), keys));
+      }
+    }
+    const { root, keys } = memberChainKeys(object);
+    return slotPathPrefixes(binding(root), keys).some((prefix, index) => exposedEnumValues.has(prefix)
+      || index < keys.length && exposedEnumValues.has(`${ prefix }.*`));
+  }
+
   // One enum declaration proof serves key values and own receivers. Value reads reject every
   // slot write; a receiver proof permits ordinary value replacements but rejects removal.
   // Qualified receivers retain the same raw mutation gates and delegate declaration lookup.
-  function enumMemberKey(member, receiverOnly = false) {
+  function enumMemberKey(member, receiverOnly = false, reverse = false) {
     const object = isMemberAccessNode(member) ? unwrapRuntimeExpr(member.object) : null;
     if (receiverOnly && !enumBlocks.size) return false;
     const name = object && (receiverOnly || object.type === 'Identifier') ? staticMemberKeyName(member) : null;
     const root = receiverOnly && object ? memberChainKeys(member).root : null;
+    // The type resolver already established the enum declaration for a reverse lookup.
+    // Only a handout of its object or a write to the indexed slot can invalidate the name.
+    if (reverse) {
+      if (root?.type !== 'Identifier' || guardedAliases.has(root.name)) return false;
+      if (object === root && !bareReadRefs.has(root.name) && !invokedEnums?.has(root.name)) return true;
+      return !enumReceiverExposed(object) && (object === root || !censusSlotWritten(programNode, aliasInit, object));
+    }
     if (receiverOnly && (name === null || root?.type !== 'Identifier' || guardedAliases.has(root.name)
       || bareReadRefs.has(root.name) || censusSlotWritten(programNode, aliasInit, member, true))) return false;
     if (receiverOnly && isMemberAccessNode(object)) return null;
@@ -7240,7 +7283,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
   }
   // one record per mutation target: the node whose chain the naming walk reads, plus the facts
   // only the visit frame / the push site knows. `viaTopLevelThis` says a `this` root IS the
-  // global object here; `installsUnknownKeys` marks a MUTATOR-CALL receiver, whose written keys
+  // global object here; `mutatorCall` identifies a MUTATOR-CALL receiver, whose written keys
   // live in the call's source argument and never in the target's own chain; `bareCallee` names
   // the identifier such a call was made through, which decides whether it can be a mutator at all
   const targets = [];
@@ -7251,10 +7294,11 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
   let markTopLevelThis = false;
   function pushTarget(node, { installsUnknownKeys = false, bareCallee = null } = {}) {
     if (!node) return;
+    const mutatorCall = installsUnknownKeys ? currentMutationSite : null;
     targets.push(mutationCandidateNodes ? {
       node, site: currentMutationSite, scopes: currentScopes,
-      viaTopLevelThis: markTopLevelThis, installsUnknownKeys, bareCallee,
-    } : { node, viaTopLevelThis: markTopLevelThis, installsUnknownKeys, bareCallee });
+      viaTopLevelThis: markTopLevelThis, mutatorCall, bareCallee,
+    } : { node, viaTopLevelThis: markTopLevelThis, mutatorCall, bareCallee });
   }
   const valueBound = new Set();
   // names this file binds to a FUNCTION literal - the only callees the scoped stage's inline-call
@@ -7592,6 +7636,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
   // when the gate cannot tell and the point query must open
   const aliasSourceRoot = new Map();
   let restCopies;
+  let exposedAliases;
 
   // the map is flat and scope-blind, so one name may be recorded from several declarations and
   // several writes (`a ||= box` keeps what `a` already held). those are ALTERNATIVES, not a
@@ -7601,6 +7646,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
   function recordAliasSource(name, sources) {
     const known = aliasSourceRoot.get(name);
     if (known === null) return;
+    if (!exposedAliases && sources?.some(source => source.keys?.at(-1) === 'prototype')) exposedAliases = new Set();
     if (sources === null) aliasSourceRoot.set(name, null);
     else if (known === undefined) aliasSourceRoot.set(name, [...sources]);
     else for (const source of sources) known.push(source);
@@ -8187,6 +8233,8 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
   // questions and conflating them cost a live narrow in each direction
   const rootNames = new Set();
   const globalSlots = new Set();
+  let prototypeWrites;
+  let exposedPrototypes;
 
   // the value a chain reads IS the global object - not a namespace on it
   const GLOBAL_OBJECT = Symbol('global-object');
@@ -8325,19 +8373,19 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
 
   // record what ONE firing write target replaces; false where the walk cannot tell and the caller
   // must open the point query
-  function publishWrite(root, installsUnknownKeys) {
+  function publishWrite(root, mutatorCall) {
     // a BARE target replaces the slot its own name spells, whatever that name is bound to -
     // exactly what the scoped stage records for `Promise = Bluebird` / `[Promise] = arr`
-    if (!root.keys.length && !installsUnknownKeys) {
+    if (!root.keys.length && !mutatorCall) {
       if (!root.name) return false;
       globalSlots.add(root.name);
       return true;
     }
     // a MUTATOR CALL's receiver is the whole chain, and the keys it writes are spelled in the
     // call's source argument; every other write consumes its last key as the slot it lands on
-    const writtenKey = installsUnknownKeys ? null : root.keys.at(-1);
+    const writtenKey = mutatorCall ? null : root.keys.at(-1);
     const receiver = [];
-    const value = chainValueNames(root, installsUnknownKeys ? root.keys : root.keys.slice(0, -1), new Set(), receiver);
+    const value = chainValueNames(root, mutatorCall ? root.keys : root.keys.slice(0, -1), new Set(), receiver);
     if (!value) return false;
     // landing ON the global object, the write replaces one of its SLOTS - and a mutator call
     // names none of them here
@@ -8346,7 +8394,13 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
       globalSlots.add(writtenKey);
       return true;
     }
-    for (const name of receiver) rootNames.add(name);
+    for (const name of receiver) {
+      rootNames.add(name);
+      if (name.endsWith('.prototype')) {
+        (prototypeWrites ??= new Set()).add(mutatorCall ?? writtenKey);
+        if (writtenKey === '__proto__') (exposedPrototypes ??= new Set()).add(name);
+      }
+    }
     // a key the write does not name deopts its receiver's members WHOLE - a PROTOTYPE receiver's
     // included, which leaves its constructor's own slot standing (the scoped stage's rule)
     return true;
@@ -8400,7 +8454,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
       });
     }
     let open = false;
-    for (const { node, site, scopes, viaTopLevelThis, installsUnknownKeys, bareCallee } of targets) {
+    for (const { node, site, scopes, viaTopLevelThis, mutatorCall, bareCallee } of targets) {
       // a BARE callee reaches the mutators only through a binding that HOLDS one - an extracted
       // or destructured `Object.defineProperty`, or an import of its pure entry. a callee this
       // file binds to nothing of the sort (`foo(bar())`, in half of real files) classifies as no
@@ -8420,7 +8474,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
         else if (root.thisRooted) {
           fires = firstKey === null ? !root.keys.length
             : (firstKey[0] >= 'A' && firstKey[0] <= 'Z') || POSSIBLE_GLOBAL_OBJECTS.has(firstKey);
-        } else if (!root.keys.length && !installsUnknownKeys) {
+        } else if (!root.keys.length && !mutatorCall) {
           // a BARE write target replaces the SLOT its own name spells, and the scoped stage
           // records one only for a global-shaped name - an ordinary local reassignment
           // (`a = obj.k`, `[a] = arr`) is no mutation there, so it is none here either
@@ -8461,7 +8515,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
         }
         if (!fires) continue;
         hasMutationShapes = true;
-        if (!publishWrite(root, installsUnknownKeys)) open = true;
+        if (!publishWrite(root, mutatorCall)) open = true;
       }
     }
     mutationRoots = { names: rootNames, globalSlots, open, restCopies };
@@ -8505,7 +8559,21 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
       });
       const store = builtins?.get(node);
       const writes = store && explicitStoreWrites(store);
-      if (!writes) continue;
+      // Resolve a prototype store's keys only after the census has identified the callee.
+      if (prototypeWrites?.delete(node)) {
+        const entries = writes?.entries.length ? writes.entries
+          : store && mutatorInstalledValues(store.namespace, store.method, store.args);
+        if (!entries?.length) prototypeWrites.add(null);
+        else for (const { key } of entries) prototypeWrites.add(key);
+        if (!writes && entries?.length) continue;
+      }
+      if (!writes) {
+        // Calling a method on a built-in prototype or handing it to an opaque operation
+        // can install an inherited getter without an explicit property definition.
+        exposePrototype(node.callee?.object);
+        for (const argument of node.arguments) exposePrototype(argument);
+        continue;
+      }
       // ... the target and the dominance proof stay a named target's, whose keys they read from the root
       const named = writes.target.type === 'Identifier';
       if (named && writes.owned) ownedStoreTargets.set(node, writes.target);
@@ -8527,6 +8595,28 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
       rawSlotWrites.splice(at, 0, ...filed);
     }
     return { ownedStoreTargets, assignStores };
+  }
+
+  function exposePrototype(target) {
+    target = unwrapRuntimeExpr(target);
+    if (target?.type === 'Identifier') {
+      if (!exposedAliases || !aliasSourceRoot.has(target.name) || exposedAliases.has(target.name)) return;
+    } else if (!isMemberAccessNode(target) || memberKeyName(target) !== 'prototype') return;
+    const names = [];
+    const pending = collectGateRoots(target, [], programNode);
+    while (pending.length) {
+      const root = pending.pop();
+      if (!root.keys.length && root.name && !root.callRooted && !root.thisRooted && exposedAliases) {
+        // Every opaque consumer shares this monotone question. Visit each alias's sources once.
+        if (exposedAliases.has(root.name)) continue;
+        exposedAliases.add(root.name);
+        for (const source of aliasSourceRoot.get(root.name) ?? []) {
+          // Object-pattern slots name their source by key; ordinary aliases already carry a root.
+          pending.push(typeof source === 'string' ? { name: source, keys: [] } : source);
+        }
+      } else chainValueNames(root, root.keys, new Set(), names);
+    }
+    for (const name of names) if (name.endsWith('.prototype')) (exposedPrototypes ??= new Set()).add(name);
   }
 
   // the aliases a binding is published as only where the escape census sees writes through its alias class: a
@@ -8720,6 +8810,11 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
 
   function result() {
     const { writtenContainerSlots, containers, containerSlotIndex } = fileContainerRecords();
+    mutationRoots.exposedPrototypes = exposedPrototypes;
+    // An unresolved call, dynamic key or prototype replacement can affect any inherited read.
+    if (prototypeWrites && !prototypeWrites.has('__proto__') && [...prototypeWrites].every(key => typeof key === 'string')) {
+      mutationRoots.prototypeKeys = prototypeWrites;
+    }
     stampContainers(containers, writtenContainerSlots, containerSlotIndex);
     return {
       hasMutationShapes,
@@ -10174,10 +10269,13 @@ export function createDetectionAdapter({
       // the reader the SAME three readings `isMutatedStaticPair` gives - the namespace whose member was replaced, the
       // namespace whose own global SLOT was replaced, and, where the reader itself names the
       // global object, the KEY that write landed on (`globalThis.atob = patch`)
-      if (method === 'usage-pure') return adapter.isMutatedStatic(object, key, read);
       const roots = getMutationRoots();
+      if (read?.inheritedGetter && roots?.exposedPrototypes?.has(object)) return true;
+      if (method === 'usage-pure') return adapter.isMutatedStatic(object, key, read);
       if (!roots) return false;
-      return roots.open || roots.names.has(object) || (!isCanonicalGlobalObject(object) && roots.globalSlots.has(object))
+      return roots.open || roots.names.has(object) && (!read?.inheritedGetter || !object.endsWith('.prototype')
+        || !roots.prototypeKeys || key === MUTATED_STATIC_PINNED || roots.prototypeKeys.has(key))
+        || (!isCanonicalGlobalObject(object) && roots.globalSlots.has(object))
         || (POSSIBLE_GLOBAL_OBJECTS.has(object) && roots.globalSlots.has(key));
     },
     // the scoped set itself, for the ONE consumer that needs more than a yes/no about a pair: the

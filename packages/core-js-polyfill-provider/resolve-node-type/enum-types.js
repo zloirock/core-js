@@ -40,6 +40,25 @@ export function findEnumMember(declaration, name) {
   return enumMembers(declaration)?.find(m => enumMemberName(m) === name) ?? null;
 }
 
+// The unmodified forward slot names this numeric reverse key. An initializer whose
+// value is unknown also makes the following implicit ordinal unknown.
+export function numericEnumSlots(declaration) {
+  const names = new Map();
+  const slots = new Set();
+  let value = -1;
+  for (const member of enumMembers(declaration)) {
+    const init = unwrapParens(member.initializer);
+    if (init) value = typeof init.value === 'number' ? init.value : null;
+    else if (value !== null) value++;
+    if (value !== null) {
+      const key = String(value);
+      names.set(enumMemberName(member), key);
+      slots.add(key);
+    }
+  }
+  return { names, slots };
+}
+
 export function createEnumTypes({ babelNodeType }) {
   // ESTree preserves ParenthesizedExpression wrappers (babel strips them); unwrap so
   // `enum E { A = (1 + 2) }` resolves through the operator table. the operand recursion needs

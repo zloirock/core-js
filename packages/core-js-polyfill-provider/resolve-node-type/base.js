@@ -333,12 +333,9 @@ const TypePrototype = {
   // Complete member maps of written container arguments, used only by assignability. They retain
   // the fields an unmodelled element loses without giving member dispatch a new receiver type.
   argumentMembers: null,
-  // how many elements the TUPLE this box collapsed from wrote, where it came from one. The collapse
-  // to `Array<commonElement>` is what makes a tuple readable at all here, and it drops the length:
-  // `[string]` and `[string, string]` become one type, and an array of the same element becomes it
-  // too. Read by assignability alone, like `args` - every dispatch reader wants the element, which
-  // the collapse already gives them
-  tupleArity: null,
+  // A tuple's minimum and maximum length and its positional arguments. Ordinary array
+  // dispatch uses the common element family; conditional types also compare positions.
+  tuple: null,
   // own-prop copy on the same prototype: `instanceof`, the prototype `primitive` flag and
   // every marker survive
   clone() {
@@ -377,11 +374,10 @@ const TypePrototype = {
     carried.identity = declaration;
     return carried;
   },
-  // and for the length a collapsed tuple carries. `null` takes it back off, which is what a fold of
-  // two arms that disagree about the length owes
-  withTupleArity(arity) {
+  // Drop positional evidence when a union no longer identifies the tuple.
+  withTuple(tuple) {
     const carried = this.clone();
-    carried.tupleArity = arity;
+    carried.tuple = tuple;
     return carried;
   },
   // set a marker on a CLONE, no-op when already set: fold / resolve inputs may come from
@@ -678,20 +674,16 @@ export function quasiText(q) {
 // sources after stringification through the expand-mapped pipeline
 export const NUMERIC_KEY_SHAPE_RE = /^-?(?:\d+|\d*\.\d+)(?:e[+-]?\d+)?$/i;
 
-// per-placeholder segment validators. table is the single source of truth for which
-// `${T}` placeholder types are statically decidable. extending support to `${bigint}` /
-// `${boolean}` is one entry each. `${number}` regex enforces TS number-literal syntax,
-// `Number.isFinite` guards Infinity / NaN edge cases the regex alone would mis-classify.
-// for a PURE INTEGER segment the canonical `String(Number) === segment` then rejects a leading-zero
-// form (`'01'` / `'00'`) that the regex admits but TS's `${number}` does not - matching it renames a
-// per-TS-absent member and injects a wrong Maybe (over-resolve). exponential (`'7e1'`) and decimal
-// forms are left to the regex - TS admits those, so canonicalizing them would UNDER-resolve real matches
-export const NUMBER_LITERAL_RE = /^-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
+// A numeric template placeholder accepts every nonempty text that converts to a finite number.
 export const PLACEHOLDER_VALIDATORS = {
   TSStringKeyword: () => true,
-  TSNumberKeyword: segment => NUMBER_LITERAL_RE.test(segment) && Number.isFinite(Number(segment))
-    && (!/^-?\d+$/.test(segment) || String(Number(segment)) === segment),
+  TSNumberKeyword: segment => segment !== '' && Number.isFinite(Number(segment)),
 };
+
+// A number index signature accepts only a key that is the canonical spelling of a number.
+export function isNumericIndexName(key) {
+  return typeof key === 'number' || typeof key === 'string' && String(Number(key)) === key;
+}
 
 // the canonical array-index for a key, or null. a string index counts ONLY in its canonical form
 // (`String(n) === key`), so non-canonical strings that `Number()` would coerce to a valid index

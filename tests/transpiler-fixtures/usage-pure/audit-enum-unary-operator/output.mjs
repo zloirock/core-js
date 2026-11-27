@@ -1,8 +1,10 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// TS enum initializer with unary operator: the inner operand is still scanned for
-// polyfill rewrites independently of the operator.
+import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
+var _ref;
+// The method inside the initializer must be visited.
 enum E {
   A = +1,
+  Extra = +_includesMaybeArray(_ref = [7]).call(_ref, 7),
   B = -2,
   C = ~3
 }

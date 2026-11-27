@@ -24,6 +24,8 @@ import {
   MAX_DEPTH,
   MAX_LITERAL_UNION_MEMBERS,
   NULLABLE_NEVER_ANNOTATIONS,
+  TOP_ARGUMENT,
+  UNKNOWN_ARGUMENT,
   $Object,
   $Primitive,
   literalMembers,
@@ -32,14 +34,17 @@ import {
   isTypeObject,
 } from './base.js';
 import {
-  composeModifierDeltas, isUnionType, modifierWrapperDelta, topKeywordAnnotationKind, typeRefName, withMemberModifiers,
+  composeModifierDeltas, isUnionType, modifierWrapperDelta, topKeywordAnnotationKind, typeRefName, unionAnnotationOf, withMemberModifiers,
 } from './ast-shapes.js';
-import { classConstructorFunction, getTypeArgs, isTupleRestElement, tupleElements, unwrapTupleMember } from '../helpers/ast-patterns.js';
+import {
+  classConstructorFunction, getTypeArgs, isTupleRestElement, tupleBounds, tupleElements, unwrapTupleMember,
+} from '../helpers/ast-patterns.js';
 
 export function createTypeFolding({
   t,
   resolveRuntimeExpression,
   effectiveParam,
+  functionTypeParams,
   resolveInnerType,
   substituteTypeParams,
   applySubst,
@@ -60,24 +65,44 @@ export function createTypeFolding({
     return { ...node, [slot]: node[slot].map(mapper) };
   }
 
-  // collapse TSTupleType / TupleTypeAnnotation to Array<commonInner> via resolveTupleInner.
+  // Keep the positional evidence used by conditionals separately from the common dispatch family.
   // empty tuple -> Array<null> (no inner). shared by resolveTypeAnnotation,
   // substituteTypeParams, resolveAwaitedAnnotation - same shape, different per-element resolver
   function tupleAsArrayType(node, resolver) {
     const elements = tupleElements(node) ?? [];
-    // elements that do not fold to one type are DROPPED, and the absence they leave is the one a
-    // bare `Array` has - which means `Array<any>` and matches any element. `[number, string]` and
-    // `[string, number]` both end there, and taking the two absences for agreement picks a branch.
-    // the LENGTH is the other thing the collapse drops, and the box carries it out
+    const values = elements.map(element => {
+      const member = unwrapTupleMember(element);
+      const annotation = member.type === 'TSOptionalType' ? member.typeAnnotation : member;
+      const top = topKeywordAnnotationKind(annotation);
+      return top ? top === 'any' ? TOP_ARGUMENT : UNKNOWN_ARGUMENT : resolver(annotation);
+    });
+    const bounds = tupleBounds(elements, undefined, (_, index) => values[index]?.tuple);
+    let positions = [];
+    let rest = -1;
+    const families = values.map((value, index) => {
+      if (!isTupleRestElement(elements[index])) {
+        const optional = elements[index].optional || elements[index].type === 'TSOptionalType';
+        positions?.push(optional && isTypeObject(value) ? value.mark('mayBeNullish') : value);
+        return value;
+      }
+      const nested = value?.tuple;
+      const inner = resolveInnerType(value);
+      if (positions && nested && nested.rest < 0 && nested.slots && positions.length + nested.slots.length <= MAX_DEPTH) {
+        positions.push(...nested.slots);
+      } else if (!nested && rest < 0 && positions && value?.constructor === 'Array') {
+        rest = positions.length;
+        // Dispatch drops bottom and top element types; assignability still distinguishes them.
+        const position = value.innerUnconstrained
+          ? value.innerUnknown ? UNKNOWN_ARGUMENT : TOP_ARGUMENT
+          : inner ?? value.droppedInner;
+        positions.push(position);
+      } else positions = null;
+      return inner;
+    });
+    const inner = families.length === 1 && bounds.min === 1 ? families[0]
+      : foldTypes(families, slot => slot, slot => !isTypeObject(slot) ? 0 : isNullableOrNever(slot) ? 1 : 2);
     const box = new $Object('Array');
-    if (!elements.length) return box.withTupleArity(0);
-    // The assignability check needs the bottom type of a required singleton, even though
-    // it supplies no dispatch hint. A rest or optional member need not be present.
-    const [first] = elements;
-    const member = unwrapTupleMember(first);
-    const inner = elements.length === 1 && !first.optional && member.type !== 'TSOptionalType' && !isTupleRestElement(first)
-      ? resolver(member) : resolveTupleInner(elements, resolver);
-    return elementContainerType(box, null, inner).withTupleArity(elements.length);
+    return (elements.length ? elementContainerType(box, null, inner) : box).withTuple({ ...bounds, rest, slots: positions });
   }
 
   // a container built from ONE written element argument, with the confession its absence owes.
@@ -129,7 +154,7 @@ export function createTypeFolding({
     const { arg, signature: inline, subst: aliasSubst } = utilityArgumentSignature(typeRef, scope);
     const inlineKind = name === 'Parameters' ? 'TSFunctionType' : 'TSConstructorType';
     if (inline?.type === inlineKind || (name === 'Parameters' && inline?.type === 'FunctionTypeAnnotation')) {
-      const params = dropLeadingThisParam(inline.params ?? null);
+      const params = dropLeadingThisParam(functionTypeParams(inline));
       // a GENERIC alias binds its own parameters on the hop (`type F<T> = (a: T) => void`), so the
       // binding is carried into each parameter's ANNOTATION - the list elements are parameter nodes,
       // and a deep-subst handed the node itself leaves the free `T` sitting inside untouched
@@ -181,7 +206,8 @@ export function createTypeFolding({
     // which spellings they understand
     const { arg, signature, subst: aliasSubst } = utilityArgumentSignature(typeRef, scope);
     if (signature?.type === 'TSFunctionType' || signature?.type === 'FunctionTypeAnnotation') {
-      const thisParam = hasLeadingThisParam(signature.params) ? signature.params[0] : null;
+      const params = functionTypeParams(signature);
+      const thisParam = hasLeadingThisParam(params) ? params[0] : null;
       const annotation = thisParam?.typeAnnotation ?? null;
       return annotation && aliasSubst ? applyAliasSubstDeep(annotation, aliasSubst) : annotation;
     }
@@ -198,11 +224,10 @@ export function createTypeFolding({
       ? annotation : withMemberModifiers(annotation, { optional: modifiers.optional });
   }
 
-  function findTupleElement(objectType, index, scope, depth = 0) {
+  function findTupleElement(objectType, index, scope, depth = 0, lookupRest = null, modifiers = null) {
     // a modifier wrapper over a TUPLE changes its elements' optionality exactly as it changes an
     // object's members (`Partial<[A, B]>` is `[A?, B?]`), and both peels below make the wrapper
     // invisible - accumulate the delta the same way the member walk does
-    let modifiers = null;
     while (true) {
       // self-recursive alias behind a structure-preserving wrapper (`type R<T> = Readonly<R<T>>;
       // R<number>[0]`) re-enters with a FRESH followTypeAliasChain on each peel, escaping that
@@ -234,12 +259,15 @@ export function createTypeFolding({
           // `Parameters<typeof f>[N]` of an optional param is `T | undefined` - the flag sits on
           // the param node, so the tuple element has to carry it forward like a member does
           const annotation = withMemberModifiers(param?.typeAnnotation?.typeAnnotation,
-            { optional: Boolean(param?.optional) });
+            { optional: Boolean(param?.optional || params[i].type === 'AssignmentPattern') });
           if (!isRest && i === index) return withTupleElementDelta(applyAliasSubstDeep(annotation, subst) ?? null, modifiers);
-          if (isRest) {
-            return i <= index
-              ? withTupleElementDelta(applyAliasSubstDeep(extractElementAnnotation(annotation, scope, 0), subst) ?? null, modifiers)
-              : null;
+          if (isRest && i <= index) {
+            if (lookupRest) {
+              return lookupRest({ objectType: applyAliasSubstDeep(annotation, subst), key: index - i, scope, depth: depth + 1, modifiers });
+            }
+            const element = findTupleElement(annotation, index - i, scope, depth + 1)
+              ?? extractElementAnnotation(annotation, scope, depth + 1);
+            return withTupleElementDelta(applyAliasSubstDeep(element, subst) ?? null, modifiers);
           }
         }
         return null;
@@ -261,11 +289,17 @@ export function createTypeFolding({
       // rest element NOT at the last position (`[...string[], number][1]` leading;
       // `[string, ...number[], boolean][2]` middle) makes positional indexing semantically
       // ambiguous - the rest's runtime length is unknown, so any index at or past the rest
-      // position could be either the rest's element type or a later fixed element. bail to
-      // the generic path so dispatch widens. trailing rest stays positional: indices before
+      // position could be either the rest's element type or a later fixed element. A value read
+      // can use their common family; an exact type lookup cannot. Trailing rest stays positional: indices before
       // the rest hit fixed slots, indices at-or-past extend the rest's element type
       const restIndex = elements.findIndex(isTupleRestElement);
-      if (restIndex !== -1 && restIndex !== elements.length - 1 && index >= restIndex) return null;
+      if (restIndex !== -1 && restIndex !== elements.length - 1 && index >= restIndex) {
+        if (!lookupRest) return null;
+        // A value read after a variable spread can narrow when every possible slot agrees.
+        const possible = elements.slice(restIndex).map(item => isTupleRestElement(item)
+          ? extractElementAnnotation(unwrapTupleMember(item), scope, depth + 1) : unwrapTupleMember(item));
+        return possible.every(Boolean) ? withTupleElementDelta(applyAliasSubstDeep(unionAnnotationOf(possible), subst), modifiers) : null;
+      }
       const element = index < elements.length ? elements[index]
         // beyond tuple length: fall back to rest element if present - [string, ...number[]][5] -> number
         : isTupleRestElement(elements.at(-1)) ? elements.at(-1) : null;
@@ -302,13 +336,24 @@ export function createTypeFolding({
     return a.every((arg, index) => innersEqual(arg, b[index]));
   }
 
+  // Separate resolutions of the same primitive tuple can keep their positional proof.
+  // Structural and union slots share it only when their evidence is identical.
+  function tupleShapesEqual(a, b) {
+    return a === b || !!a && !!b && a.min === b.min && a.max === b.max && a.rest === b.rest
+      && !!a.slots && a.slots.length === b.slots?.length && a.slots.every((slot, index) => {
+      const other = b.slots[index];
+      return slot === other || slot?.primitive && other?.primitive && slot.type === other.type
+          && slot.literal === other.literal && !slot.literalUnion && !other.literalUnion && slot.mayBeNullish === other.mayBeNullish;
+    });
+  }
+
   // deep equality of inner type hints (string hints or type objects)
   function innersEqual(a, b) {
     if (a === b) return true;
     if (!a || !b) return false;
     if (typeof a === 'string' || typeof b === 'string') return a === b;
     // Keeping one nested arm must not keep its structural proof for a different alternative.
-    if (a.identity !== b.identity || a.argumentMembers !== b.argumentMembers) return false;
+    if (a.identity !== b.identity || a.argumentMembers !== b.argumentMembers || !tupleShapesEqual(a.tuple, b.tuple)) return false;
     return typesEqual(a, b) && innersEqual(a.inner, b.inner);
   }
 
@@ -340,11 +385,9 @@ export function createTypeFolding({
     // arm order but not the other - so the single-readonly merge STRIPS, not just skips-add
     if (existing && existing.readonly && incoming.readonly) merged = merged.mark('readonly');
     else if (existing && merged.readonly) merged = merged.unmark('readonly');
-    // the collapsed LENGTH survives only where both arms wrote the same one. The inner fold returns
-    // `existing` by IDENTITY when the elements agree, so folding a tuple with an array of its
-    // element type kept the tuple's length for a union that is no tuple of that length
-    if (existing && merged.tupleArity !== null && existing.tupleArity !== incoming.tupleArity) {
-      merged = merged.withTupleArity(null);
+    // Preserve positions only when every incoming value has the same tuple shape.
+    if (existing && merged.tuple && !tupleShapesEqual(existing.tuple, incoming.tuple)) {
+      merged = merged.withTuple(null);
     }
     return merged;
   }
@@ -441,7 +484,14 @@ export function createTypeFolding({
 
   // fold intersection members: weak constituent -> skip, rest -> fold
   function foldIntersectionTypes(types, resolve) {
-    return foldTypes(types, resolve, r => isWeakIntersectionMember(r) ? 1 : 2);
+    let definitelyPresent = false;
+    const result = foldTypes(types, resolve, r => {
+      if (isWeakIntersectionMember(r)) return 1;
+      // An intersection must satisfy every arm, including a required, non-nullish slot.
+      if (!r.mayBeNullish && !isNullableOrNever(r)) definitelyPresent = true;
+      return 2;
+    });
+    return definitelyPresent && result?.mayBeNullish ? result.unmark('mayBeNullish') : result;
   }
 
   // compute common inner type from tuple elements using a parameterized resolver

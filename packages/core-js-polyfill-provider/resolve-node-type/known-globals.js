@@ -124,11 +124,10 @@ export function createKnownGlobals({
   }
 
   function typeFromHint(hint, objectType, callPath) {
-    // a union hint (`Reflect.ownKeys` -> string | symbol) has no Type representation here;
-    // decoding it as unknown keeps the container's element unresolved rather than picking a
-    // member. the escape analysis reads the union off the registry instead
-    if (Array.isArray(hint)) return null;
     if (typeof hint === 'string') return typeFromDirective(hint, objectType, callPath) ?? decodeTypeName(hint);
+    // A union has no single Type representation. The escape analysis can still read its members.
+    // An instance method may likewise record effects without claiming a result type.
+    if (Array.isArray(hint) || hint.type === undefined) return null;
     let base;
     // a directive as the hint's OWN type means the directive IS the answer, so an unreadable one
     // leaves nothing rather than falling back to a container the data never promised

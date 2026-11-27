@@ -1,5 +1,4 @@
-// `${number}` placeholder accepts signed/decimal/exponent forms but rejects hex/BigInt literals.
-// Matched keys narrow via the value type; rejected keys fall back to generic instance polyfills.
+// Decimal and hexadecimal strings match a numeric template. A BigInt suffix does not.
 type Tag<T> = { [K in keyof T as K extends `v_${ number }` ? K : never]: T[K] };
 declare const r: Tag<{ 'v_-1': number[]; 'v_3.14': string[]; 'v_0x10': boolean; 'v_42n': symbol }>;
 r['v_-1'].at(0);

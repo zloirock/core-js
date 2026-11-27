@@ -231,6 +231,7 @@ export function createPatternBindings({
   extractElementAnnotation,
   resolveElementType,
   findTupleElement,
+  findRuntimeTypeMember,
   resolveObjectMember,
   resolveMemberOfObjectPath,
   typedIndexElement,
@@ -623,8 +624,10 @@ export function createPatternBindings({
       const unwrapped = unwrapTypeAnnotation(annotation);
       if (!unwrapped) return null;
       const tupleElem = findTupleElement(unwrapped, index, scope);
-      if (tupleElem) return resolveTypeAnnotation(tupleElem, scope);
-      return resolveElementType(unwrapped, scope, 0);
+      if (tupleElem) {
+        return resolveAnnotatedMember(unwrapped, index, scope) ?? resolveTypeAnnotation(tupleElem, scope);
+      }
+      return resolveElementType(unwrapped, scope, 0)?.mark('mayBeNullish') ?? null;
     }
     const keyPath = findArrayPatternKeyPath(arrayPattern, varName, scope);
     if (!keyPath) return null;
@@ -867,14 +870,14 @@ export function createPatternBindings({
         if (type) return type;
       }
     }
-    const memberType = findTypeMember({ objectType: unwrapped, key: keyName, scope });
+    const memberType = findRuntimeTypeMember({ objectType: unwrapped, key: keyName, scope });
     if (!memberType) return null;
     // key the subst by the CHAIN's terminal alias (capture-avoiding), not the top alias: a
     // destructured member of `Outer<string>` where `type Outer<A> = Inner<A>` belongs to Inner, so
     // its default must resolve in Inner's scope instead of being captured by Outer's `A` binding
-    const defaultMap = followTypeAliasChain(unwrapped, scope).subst;
-    return withTypeReferenceScope(memberType, scope, at => defaultMap
-      ? substituteTypeParams(memberType, defaultMap, at, depth + 1)
+    const { subst } = followTypeAliasChain(unwrapped, scope);
+    return withTypeReferenceScope(memberType, scope, at => subst
+      ? substituteTypeParams(memberType, subst, at, depth + 1)
       : resolveTypeAnnotation(memberType, at, depth + 1));
   }
 

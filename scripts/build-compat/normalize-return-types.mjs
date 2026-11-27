@@ -22,11 +22,8 @@ import { RESOLUTION_DIRECTIVES } from '../../packages/core-js-polyfill-provider/
 
 const { hasOwn } = Object;
 
-// the qualifiers a hint may carry beside its `type`, each with its own treatment below. an
-// unknown key is a REFUSAL, not a drop, the same way `built-in-definitions` refuses one: this
-// normalizer is the only writer of the generated artifact, so a key it does not handle
-// disappears before the schema gate ever sees it - a typo (`mutatesArgumnt`) silently loses the
-// annotation it was meant to declare
+// Reject unknown hint fields here. Otherwise a typo such as `mutatesArgumnt` disappears
+// from the generated artifact before the schema tests can see it.
 const VALID_HINT_KEYS = new Set([
   'type',
   'element',
@@ -35,6 +32,7 @@ const VALID_HINT_KEYS = new Set([
   'exposesArgument',
   'inert',
   'mutatesElements',
+  'callbackReceiverArgument',
   'nullable',
   'partial',
 ]);
@@ -53,32 +51,12 @@ export function normalizeHint(hint) {
     if (hasOwn(RESOLUTION_DIRECTIVES, hint)) return hint;
     return { type: hint };
   }
-  for (const key of Object.keys(hint)) {
+  const result = {};
+  for (const [key, value] of Object.entries(hint)) {
     if (!VALID_HINT_KEYS.has(key)) throw new Error(`unknown hint key: '${ key }'`);
+    // Only nested return types have shorthand of their own. Effects pass through as written.
+    if (value !== undefined) result[key] = key === 'element' || key === 'resolved' ? normalizeHint(value) : value;
   }
-  const result = { type: hint.type };
-  if (hint.element !== undefined) result.element = normalizeHint(hint.element);
-  if (hint.resolved !== undefined) result.resolved = normalizeHint(hint.resolved);
-  // mutatesArgument: list of zero-based arg indices a static method mutates in place
-  // (e.g. Object.assign -> [0] target). passed through unchanged - no inner hint
-  if (hint.mutatesArgument !== undefined) result.mutatesArgument = hint.mutatesArgument;
-  // exposesArgument: list of zero-based arg indices a static method hands on - into another
-  // argument (`Reflect.set` value), as a callback's `this` (`Array.from` thisArg) or through a
-  // result its type does not show (`Object.getOwnPropertyDescriptor`). passed through unchanged
-  if (hint.exposesArgument !== undefined) result.exposesArgument = hint.exposesArgument;
-  // inert: a static method that runs no code of its arguments - no coercion, iteration, accessor
-  // or callback (`Object.keys`, `Array.isArray`). passed through unchanged
-  if (hint.inert !== undefined) result.inert = hint.inert;
-  // mutatesElements: an instance method that writes the receiver's elements in place
-  // (`push` / `fill` / `sort` / TypedArray `set` / ...). the resolver invalidates
-  // element-type precision across such calls. passed through unchanged - no inner hint
-  if (hint.mutatesElements !== undefined) result.mutatesElements = hint.mutatesElements;
-  // nullable: the spec return admits undefined / null (`find` / `at` / `pop` / `exec` / ...);
-  // the resolver marks the decoded type so the logical truthy-fold keeps the operand union
-  if (hint.nullable !== undefined) result.nullable = hint.nullable;
-  // partial: a type guard true for only part of its `type` (`Number.isFinite` fails `NaN`), so its
-  // false answer proves nothing about the argument. passed through unchanged
-  if (hint.partial !== undefined) result.partial = hint.partial;
   return result;
 }
 

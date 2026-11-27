@@ -16,7 +16,9 @@
 // their own dynamic-key pick, and that is a cross-reference, not a call.
 import {
   canonicalArrayIndex,
+  isNumericIndexName,
   KEY_FILTERING_WRAPPERS,
+  MAX_LITERAL_UNION_MEMBERS,
   MAX_DEPTH,
   MODIFIER_WRAPPER_DELTAS,
   STRUCTURE_PRESERVING_WRAPPERS,
@@ -32,6 +34,7 @@ import {
   isReadonlyArrayType,
   isTypeAlias,
   isUnionType,
+  literalTypeAnnotation,
   memberTypeQuery,
   modifierWrapperDelta,
   synthInterfaceExtendsRef,
@@ -42,7 +45,9 @@ import {
   unionAnnotationOf,
   withMemberModifiers,
 } from './ast-shapes.js';
-import { getHeritageTypeArgs, getTypeArgs, staticKeyNames } from '../helpers/ast-patterns.js';
+import {
+  getHeritageTypeArgs, getTypeArgs, staticKeyNames, tupleBounds, tupleElements, unwrapTupleMember,
+} from '../helpers/ast-patterns.js';
 
 export function createTypeMembers({
   typeAnswer,
@@ -531,11 +536,10 @@ export function createTypeMembers({
         default: if (indexSignatureAdmitsKey(keyNode, key)) patternSig ??= member.typeAnnotation;
       }
     }
-    const isNumericKey = typeof key === 'number' || /^-?\d+$/.test(String(key));
     // a number-only / symbol-only index type has no member for a non-numeric string key, so
     // returning the number / symbol value type there would be over-emission, not a real member.
     // a matched pattern outranks the permissive string signature - it named this key
-    return isNumericKey ? (numberSig ?? patternSig ?? stringSig) : (patternSig ?? stringSig);
+    return isNumericIndexName(key) ? (numberSig ?? patternSig ?? stringSig) : (patternSig ?? stringSig);
   }
 
   // element AST of an array-shaped type (`X[]` / `Array<X>` / `ReadonlyArray<X>`, readonly-peeled)
@@ -570,7 +574,7 @@ export function createTypeMembers({
   // keeping the BRANCH INDEX (steps 1-2) and recursing with the AST trueType/falseType is
   // crucial: AST-driven member lookup works for TSTypeLiteral / TSArrayType / etc. shapes
   // where Type Object inputs would silently null
-  function findConditionalTypeMember({ aliased, subst, key, scope, depth, withSubst, modifiers }) {
+  function findConditionalTypeMember({ aliased, subst, key, scope, depth, withSubst, modifiers, lookup }) {
     const checkSubst = withSubst(aliased.checkType);
     const extendSubst = withSubst(aliased.extendsType);
     // alpha-rename guard: trueType / falseType reference `infer X` declarations bound in
@@ -603,7 +607,7 @@ export function createTypeMembers({
       const threadedSubst = new Map(innerSubst);
       threadedSubst.set(inferName, inferElement);
       const trueObjectType = applySubst(unwrapTypeAnnotation(aliased.trueType), threadedSubst);
-      return findTypeMember({ objectType: trueObjectType, key, scope, depth: depth + 1, modifiers });
+      return lookup({ objectType: trueObjectType, key, scope, depth: depth + 1, modifiers });
     }
     // POST-AST-subst path: extendSubst already carries the substitution. pickConditionalBranchVia
     // resolves via resolveTypeAnnotation and reads `isUnconstrained` from the post-subst AST -
@@ -617,12 +621,12 @@ export function createTypeMembers({
       scope,
     });
     if (branch !== null) {
-      return findTypeMember({
+      return lookup({
         objectType: innerWithSubst(branch ? aliased.trueType : aliased.falseType), key, scope, depth: depth + 1, modifiers,
       });
     }
-    const trueResult = findTypeMember({ objectType: innerWithSubst(aliased.trueType), key, scope, depth: depth + 1, modifiers });
-    const falseResult = findTypeMember({ objectType: innerWithSubst(aliased.falseType), key, scope, depth: depth + 1, modifiers });
+    const trueResult = lookup({ objectType: innerWithSubst(aliased.trueType), key, scope, depth: depth + 1, modifiers });
+    const falseResult = lookup({ objectType: innerWithSubst(aliased.falseType), key, scope, depth: depth + 1, modifiers });
     // strip nullable/never branches the way the value-side conditional fold does - otherwise
     // `K extends string ? Foo : never` post-subst can return a synth union carrying the
     // never branch as a member, which would interfere with downstream member dispatch
@@ -645,24 +649,49 @@ export function createTypeMembers({
   }
 
   // numeric-index access on tuple / array shapes. tuple: `[T, U][0]` -> T, `[T][length]` ->
-  // number (static arity). array: `T[][i]` -> T regardless of index. non-numeric / out-of-range
+  // the possible lengths. array: `T[][i]` -> T regardless of index. non-numeric / out-of-range
   // keys return null so the caller can continue through the generic member walk
-  function tryIndexedElementMember({ aliased, key, scope, subst }) {
+  function tryIndexedElementMember({ aliased, key, scope, subst, modifiers, depth, runtime, withMarkers }) {
     if (aliased?.type === 'TSTupleType' || aliased?.type === 'TupleTypeAnnotation') {
-      if (key === 'length') return TS_NUMBER_TYPE;
+      function bounds() {
+        return tupleBounds(tupleElements(aliased), modifiers?.optional, element => {
+          const annotation = applySubst(unwrapTupleMember(element), subst);
+          return resolveTypeAnnotation(annotation, scope, depth + 1)?.tuple;
+        });
+      }
+      if (key === 'length') {
+        const { min, max } = bounds();
+        if (!Number.isFinite(max) || max - min >= MAX_LITERAL_UNION_MEMBERS) return withMarkers(TS_NUMBER_TYPE);
+        if (min === max) return withMarkers(literalTypeAnnotation(min));
+        const lengths = Array.from({ length: max - min + 1 }, (_, index) => literalTypeAnnotation(min + index));
+        return withMarkers(unionAnnotationOf(lengths));
+      }
       const index = canonicalArrayIndex(key);
       if (index === null) return null;
-      const element = findTupleElement(aliased, index, scope);
-      return element ? applySubst(element, subst) : null;
+      const element = findTupleElement(aliased, index, scope, depth, runtime ? findRuntimeTypeMember : undefined);
+      return element && withMarkers(applySubst(element, subst), null, runtime && index >= bounds().min);
     }
-    if ((aliased?.type === 'TSArrayType' || aliased?.type === 'ArrayTypeAnnotation')
-      && canonicalArrayIndex(key) !== null && aliased.elementType) {
-      return applySubst(aliased.elementType, subst);
+    if (runtime && aliased?.type === 'TSTypeReference') {
+      const name = typeRefName(aliased);
+      if (name === 'Parameters' || name === 'ConstructorParameters') {
+        const index = canonicalArrayIndex(key);
+        return index !== null && !findTypeDeclaration(name, scope)
+          ? findTupleElement(aliased, index, scope, depth, findRuntimeTypeMember, modifiers) : null;
+      }
     }
-    return null;
+    const element = aliased?.type === 'ArrayTypeAnnotation' ? aliased.elementType : arrayElementType(aliased);
+    if (!element || canonicalArrayIndex(key) === null) return null;
+    if (aliased.type === 'TSTypeReference' && findTypeDeclaration(typeRefName(aliased), scope)) return null;
+    return withMarkers(applySubst(element, subst), null, runtime);
   }
 
-  function findTypeMember({ objectType, key, scope, depth = 0, modifiers = null }) {
+  // Only a value read can miss a runtime slot. Carry that question through wrappers and
+  // into each union arm, before their member annotations are folded together.
+  function findRuntimeTypeMember(args) {
+    return findTypeMember(args, findRuntimeTypeMember);
+  }
+
+  function findTypeMember({ objectType, key, scope, depth = 0, modifiers = null }, lookup = findTypeMember) {
     while (true) {
       if (!objectType || depth > MAX_DEPTH) return null;
       // peel a leading TSParenthesizedType (`(A | B)['k']`) so the union / intersection / structural
@@ -710,11 +739,11 @@ export function createTypeMembers({
       // is returned. every member-annotation return point goes through here, so a getter or
       // method return is marked on the same terms as a property - and a modifier wrapper
       // peeled above overrides the member's own flags, which is what `Partial<T>` means
-      function withMarkers(annotation, member = null) {
+      function withMarkers(annotation, member = null, missing = false) {
         // THREE states, not two: a wrapper delta decides, else the member's own flag decides, and
         // with NEITHER the annotation is left alone. `optional: false` is a REMOVAL in the marker
         // contract, so passing it as "nothing known" would strip a slot's own source-level `?`
-        const optional = modifiers?.optional ?? (member ? Boolean(member.optional) : undefined);
+        const optional = missing || (modifiers?.optional ?? (member ? Boolean(member.optional) : undefined));
         return optional === undefined ? annotation : withMemberModifiers(annotation, { optional });
       }
       // conditional types route through dedicated helper: extracts the branch-pick logic
@@ -723,13 +752,13 @@ export function createTypeMembers({
       // max-statements lint threshold and the member-lookup-on-conditional path becomes
       // hard to reason about
       if (aliased?.type === 'TSConditionalType') {
-        return typeAnswer(findConditionalTypeMember, aliased, { scope, depth, map: subst, key, modifiers },
-          () => findConditionalTypeMember({ aliased, subst, key, scope, depth, withSubst, modifiers }));
+        return typeAnswer(lookup, aliased, { scope, depth, map: subst, key, modifiers },
+          () => findConditionalTypeMember({ aliased, subst, key, scope, depth, withSubst, modifiers, lookup }));
       }
       function resolveBranch(member) {
         // Apply the outer modifier in each arm: Required must remove the member's own optionality
         // before annotations are folded, while Partial makes every surviving member optional.
-        return findTypeMember({ objectType: withSubst(unwrapTypeAnnotation(member)), key, scope, depth: depth + 1, modifiers });
+        return lookup({ objectType: withSubst(unwrapTypeAnnotation(member)), key, scope, depth: depth + 1, modifiers });
       }
       // union: `(A | B)['k']` is `A['k'] | B['k']`.
       // intersection: `(A & B)['k']` is `A['k'] & B['k']` - a key declared in several constituents
@@ -740,7 +769,7 @@ export function createTypeMembers({
       // before an array member no longer shadows the array polyfill
       if (isUnionType(aliased) || aliased?.type === 'TSIntersectionType'
         || aliased?.type === 'IntersectionTypeAnnotation') {
-        return typeAnswer(findTypeMember, aliased, { scope, depth, map: subst, key, modifiers }, () => {
+        return typeAnswer(lookup, aliased, { scope, depth, map: subst, key, modifiers }, () => {
           const found = aliased.types.map(resolveBranch).filter(Boolean);
           return found.length ? compositeAnnotationOf(found, aliased.type) : null;
         });
@@ -749,8 +778,10 @@ export function createTypeMembers({
       // so it owes the accumulated wrapper delta: `Partial<[T, U]>[0]` reached here without it and
       // served the element's own family to a slot the wrapper made optional. `length` is a number
       // and carries no optionality, which the marker writer already answers by node type
-      const indexedElement = tryIndexedElementMember({ aliased, key, scope, subst });
-      if (indexedElement) return withMarkers(indexedElement);
+      const indexedElement = tryIndexedElementMember({
+        aliased, key, scope, subst, modifiers, depth, runtime: lookup === findRuntimeTypeMember, withMarkers,
+      });
+      if (indexedElement) return indexedElement;
       // walk through trivial mapped passthroughs / aliases when looking up members
       const members = getTypeMembers({ objectType: aliased ?? objectType, scope, depth });
       if (!members) return null;
@@ -851,6 +882,7 @@ export function createTypeMembers({
 
   return {
     arrayElementType,
+    findRuntimeTypeMember,
     findTypeMember,
     getTypeMembers,
     staticKeySet,

@@ -1173,15 +1173,13 @@ throwsWith('validateOptions/no args throws on method missing',
   () => validateOptions(),
   '`method` must be one of');
 
-// the element-narrow whitelist reads `mutatesElements` off the Array instance-method registry, and
-// only the OBJECT value form can carry that marker. lock the premise: every in-place Array mutator
-// is registry-marked, so the whitelist admits exactly the non-mutating names
-{
-  const arrayHints = knownBuiltInReturnTypes.instanceMethods?.Array ?? {};
-  for (const name of ['push', 'pop', 'shift', 'unshift', 'splice', 'fill', 'copyWithin', 'sort', 'reverse']) {
-    const hint = arrayHints[name];
-    checkTruthy(`known-built-in-return-types/Array#${ name } is marked as mutating`,
-      hint !== null && typeof hint === 'object' && hint.mutatesElements === true);
+// Every in-place mutator must tell the element resolver whether it can introduce new values.
+for (const [effect, names] of [
+  [true, ['fill', 'push', 'splice', 'unshift']],
+  ['existing', ['copyWithin', 'pop', 'reverse', 'shift', 'sort']],
+]) {
+  for (const name of names) {
+    check(`known-built-in-return-types/Array#${ name } mutation`, knownBuiltInReturnTypes.instanceMethods.Array[name]?.mutatesElements, effect);
   }
 }
 

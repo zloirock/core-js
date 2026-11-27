@@ -26,7 +26,11 @@
 //
 // `findExpressionAnnotation` / `substituteTypeParams` / `applySubst` / `applyAliasSubstDeep` /
 // `functionTypeReturnAnnotation` thunk through forward-decl `let` bindings
-import { MAX_DEPTH, $Object, $Primitive, canonicalArrayIndex, dropLeadingThisParam, nodePathInScope } from './base.js';
+import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
+import {
+  MAX_DEPTH, $Object, $Primitive, canonicalArrayIndex, dropLeadingThisParam, hasLeadingThisParam, isNumericIndexName,
+  nodePathInScope, nodeRangeContains,
+} from './base.js';
 import {
   collectQualifiedSegments,
   isQualifiedNameNode,
@@ -37,13 +41,22 @@ import { isAmbientFunctionNode } from './name-resolution.js';
 import {
   arrayLiteralSlotValue,
   bindingLoopAnchor,
+  cachedContainerPaths,
   calleeYieldedContainer,
   climbTransparentWrapperPath,
+  findNearestVarScopeOwner,
+  liveSourceIdentifierPaths,
+  invocationCalleeOf,
   getTypeArgs,
   isDestructurePattern,
+  isGeneratedMemoDeclarator,
   isMemberWriteHost,
+  isTypeAnnotationNodeType,
+  isTypeOnlyImportEquals,
   isReassignedBeyondDeclarator,
+  isMemberAccessNode,
   memberKeyName,
+  referencesArgumentsObject,
   nodeHoldsChild,
   noReassignmentReachesUsage,
   pathOfNode,
@@ -57,15 +70,67 @@ import {
   staticMemberKeyName,
   writeNeverRuns,
   writesPastCeiling,
+  valueIsDroppedAt,
   ESCAPED_CONTAINER_NAMES,
   CENSUS_ENUM_RECEIVERS,
+  CENSUS_KEY_NAMES,
+  MUTATED_STATIC_PINNED,
   rootProgramOf,
 } from '../helpers/ast-patterns.js';
-import { memberWriteTargetPath } from './class-member-shapes.js';
+import { numericEnumSlots } from './enum-types.js';
+import { pushMultimap } from '../helpers/pattern-matching.js';
+import { memberWriteReceiverPath, memberWriteTargetPath } from './class-member-shapes.js';
 
+// Each source-reference list belongs to one name and one census epoch.
+const reverseWritesByReferences = new WeakMap();
 const CLASS_PATH_TYPES = ['ClassDeclaration'];
+const ARRAY_METHODS = new Map(Object.entries(knownBuiltInReturnTypes.instanceMethods.Array));
+
+// The last write must run before the read and after all competing writes in this activation.
+function lastMemberWriteBefore(writes, path, adapter) {
+  const write = writes.reduce((last, next) => next.node.end > last.node.end ? next : last);
+  return provablyPrecedes(write.node, path.node)
+    && reassignmentDominatesUsage({ reassignmentNodes: [write.node], usagePath: path, adapter })
+    && writes.every(other => other === write || noReassignmentReachesUsage({
+      reassignmentNodes: [write.node], usagePath: other,
+    })) ? write : null;
+}
+
+// collect runtime member-expression segments: bare `E` -> ['E'], non-computed dotted chain
+// `N.E` -> ['N', 'E'], deeper `N.M.E` -> ['N', 'M', 'E']. computed / non-Identifier links
+// bail to null. parallel to type-level `collectQualifiedSegments` (which walks
+// TSQualifiedName) - this one walks runtime MemberExpression chains.
+// `unwrapRuntimeExpr` peels ChainExpression / ParenthesizedExpression / TS_EXPR_WRAPPERS
+// so optional-chained (`N?.E.A`) and cast-wrapped (`(N as typeof N).E.A`) shapes resolve
+// through the enum lookup. OptionalMemberExpression (babel-typed optional chain shape)
+// handled alongside MemberExpression below. without the peels,
+// `resolveEnumMemberAccess` for `N?.E.A` bails on the first hop because `path.node.object`
+// is a ChainExpression / OptionalMember wrapping the chain
+function collectMemberSegments(node) {
+  node = unwrapRuntimeExpr(node);
+  if (node?.type === 'Identifier') return [node.name];
+  if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
+  if (node.computed) return null;
+  const left = collectMemberSegments(node.object);
+  if (!left || node.property?.type !== 'Identifier') return null;
+  left.push(node.property.name);
+  return left;
+}
+
+// A qualified name can also initialize a runtime TS import alias.
+function erasedEnumReference(ref) {
+  let host = ref.parentPath;
+  while (isQualifiedNameNode(host?.node)) host = host.parentPath;
+  return isTypeAnnotationNodeType(host?.node.type) || isTypeOnlyImportEquals(host?.node);
+}
+
+function enumWriteReceiver(write) {
+  const receiver = unwrapRuntimeExpr(memberWriteReceiverPath(write)?.node);
+  return receiver && collectMemberSegments(receiver)?.at(-1);
+}
 
 export function createMemberResolve({
+  findRuntimeTypeMember,
   withTypeReferenceScope,
   t,
   typeofSource,
@@ -74,7 +139,6 @@ export function createMemberResolve({
   unwrapTypeAnnotation,
   getTypeMembers,
   keyMatchesName,
-  KNOWN_INSTANCE_METHOD_RETURN_TYPES,
   findNameAnnotation,
   bindingAnnotationPath,
   findExpressionAnnotation,
@@ -127,7 +191,10 @@ export function createMemberResolve({
   findAllEnumDeclarations,
   enumIsNearestValue,
   bindingDeclaratorPath,
-  getModuleFieldIndex,
+  programCensus,
+  findProgramPath,
+  isBindingExportedByName,
+  resolveStaticCalleePair,
   namespaceExportReturn,
   findNamespacedValuePath,
   resolveEnumMemberType,
@@ -562,10 +629,10 @@ export function createMemberResolve({
       const { subst } = aliasChain();
       return withTypeReferenceScope(p, scope, at => subst ? substituteTypeParams(p, subst, at, 0) : resolveTypeAnnotation(p, at));
     }
-    // property access (not a call): delegate to findTypeMember
+    // A value read also accounts for a missing runtime index.
     if (!callPath) {
-      const memberType = findTypeMember({ objectType: annotation, key: name, scope });
-      return memberType ? resolve(memberType) : null;
+      const memberType = findRuntimeTypeMember({ objectType: annotation, key: name, scope });
+      return memberType && resolve(memberType);
     }
     // method call: merge return types across overloads, recursing into union branches
     return resolveMemberCallReturn({ annotation, name, scope, resolve, callPath, chain: aliasChain });
@@ -658,9 +725,8 @@ export function createMemberResolve({
       const infos = target.types
         .map(b => applySubst(unwrapTypeAnnotation(b), subst))
         .filter(b => !isNullableOrNeverAnnotation(b))
-        .map(lookup)
-        .filter(Boolean);
-      if (!infos.length) return resolveKeyofSelfMember(path, callPath, unwrapped, objInfo.scope);
+        .map(lookup);
+      if (!infos.length || infos.some(info => !info)) return resolveKeyofSelfMember(path, callPath, unwrapped, objInfo.scope);
       const vals = [];
       for (const info of infos) {
         const v = resolveIndexValue(info);
@@ -958,6 +1024,24 @@ export function createMemberResolve({
     return null;
   }
 
+  // Built-in effects only apply while the receiver still dispatches to that method.
+  function arrayMethodIsOverridden(key, path, node = path?.node) {
+    const member = key ?? MUTATED_STATIC_PINNED;
+    const read = path && { node, path, inheritedGetter: true };
+    return isMutatedStatic('Array.prototype', member, read) || isMutatedStatic('Object.prototype', member, read)
+      || !read && isWrittenContainerSlot(null, [key]);
+  }
+
+  // A Babel rewrite can detach the original callee or clone an argument. Only the callee
+  // invokes the method on the array. Both parsers also keep the reference through TS wrappers.
+  function callsArrayMember(value, node) {
+    const host = value.parentPath?.node;
+    if (!host || host.type === 'NewExpression') return false;
+    if (invocationCalleeOf(host) === node) return true;
+    return value.listKey !== 'arguments' && (!Number.isInteger(host.start) || !Number.isInteger(node.start) || host.start === node.start)
+      && !nodeHoldsChild(host, node);
+  }
+
   // arr[0], arr[1] - numeric index access on array literals
   // element-type precision follows the initializer or the final dominating element assignment.
   // Other writers between creation and the read - a mutating method
@@ -966,25 +1050,46 @@ export function createMemberResolve({
   // only as a member-access READ off the binding with a non-mutating key. the object-field
   // twin consults its external-write fold the same way; destructure-time element reads
   // (`const [x] = a`) copy the value at execution and stay exempt.
-  // which methods mutate is registry data (`mutatesElements` markers), not local knowledge;
-  // the safe direction is a WHITELIST of known non-mutating methods - a method the registry
-  // does not know may be any mutator at runtime, so it bails like a dynamic key. the generated data
-  // normalises every entry to an object EXCEPT a bare resolution directive (`'inherit'`, the
-  // `argument` trio),
-  // which carries no marker slot at all - such an entry is "not known non-mutating" and stays out,
-  // since reading the marker off a shape that cannot hold one would admit it unconditionally
-  const ARRAY_METHOD_HINTS = KNOWN_INSTANCE_METHOD_RETURN_TYPES.Array ?? {};
-  const ELEMENT_SAFE_METHODS = new Set(Object.entries(ARRAY_METHOD_HINTS)
-    .filter(([, hint]) => hint !== null && typeof hint === 'object' && !hint.mutatesElements)
-    .map(([key]) => key));
-  // ... and the mutators that only MOVE or drop elements the array already holds: after one, an index
-  // may read any element, but never a value the literal did not spell (`permutes`)
-  const ELEMENT_PERMUTING_METHODS = new Set(['copyWithin', 'pop', 'reverse', 'shift', 'sort']);
+  // An unknown or patched method can change the elements. Even a property read may run a getter.
+  function arrayMethodMayRetype(key, hint = ARRAY_METHODS.get(key)) {
+    // A bare resolution directive describes a return value only.
+    return typeof hint !== 'object' || !!hint.mutatesElements || arrayMethodIsOverridden(key);
+  }
 
-  // An unbound non-mutating method carries no receiver. Reading a patched method can run a getter.
-  function arrayMethodMayRetype(key) {
-    return !ELEMENT_SAFE_METHODS.has(key) || isMutatedStatic('Array.prototype', key)
-      || isMutatedStatic('Object.prototype', key) || isWrittenContainerSlot(null, [key]);
+  // Array iteration methods pass the source array to the callback. An unused parameter
+  // or a read of one element cannot replace it; passing the array on can.
+  function callbackMayRetype(call, hint) {
+    const runtimeIndex = hint?.callbackReceiverArgument;
+    if (runtimeIndex === undefined || !call?.node.arguments?.length) return false;
+    const callee = call.get('callee');
+    const offset = memberKeyName(callee.node) === 'call' ? 1 : 0;
+    const arg = cachedContainerPaths(call, 'arguments')[offset];
+    if (!arg) return false;
+    const fn = resolveRuntimeExpression(arg);
+    if (!fn?.node.params) return true;
+    if (fn.node.type !== 'ArrowFunctionExpression' && referencesArgumentsObject(fn.node)) return true;
+    const index = runtimeIndex + (hasLeadingThisParam(fn.node.params) ? 1 : 0);
+    if (fn.node.params.slice(0, index + 1).some(param => param.type === 'RestElement')) return true;
+    const param = fn.node.params[index];
+    if (!param) return false;
+    if (param.type !== 'Identifier') return true;
+    const params = liveSourceIdentifierPaths(cachedContainerPaths(fn, 'params')[index]);
+    return !params.length || params.some(path => {
+      const binding = getScopeBinding({ scope: path.scope, name: param.name, path });
+      const refs = binding && collectBindingReferences(binding, path);
+      return !refs || refs.some(callbackArrayReferenceMayRetype);
+    });
+  }
+
+  function callbackArrayReferenceMayRetype(ref) {
+    const use = climbTransparentWrapperPath(ref);
+    const member = use.parentPath;
+    if (!isMemberLike(member) || member.node.object !== use.node || isMemberWriteHost(member)) return true;
+    const name = memberKeyName(member.node);
+    const value = climbTransparentWrapperPath(member, true);
+    if (!callsArrayMember(value, value.node)) return arrayMethodIsOverridden(name, member);
+    const hint = ARRAY_METHODS.get(name);
+    return arrayMethodMayRetype(name, hint) || hint?.callbackReceiverArgument !== undefined;
   }
 
   // A cached reference keeps its source call role when a rewrite clones its receiver into a helper.
@@ -993,15 +1098,6 @@ export function createMemberResolve({
   // Recrawls of that scope, changed reference bags and resets invalidate it; captured uses and
   // positional writes never enter it, since a child crawl can preserve the outer bag's identity.
   let arrayElementReadProofs = new WeakMap();
-
-  // descend a member chain to the identifier it is rooted at; anything else returns as-is
-  function memberChainRootPath(path) {
-    let cur = path;
-    while (cur?.node?.type === 'MemberExpression' || cur?.node?.type === 'OptionalMemberExpression') {
-      cur = cur.get('object');
-    }
-    return cur;
-  }
 
   // The operand of ordinary iteration is consumed by the protocol. Object spread enumerates keys.
   function iteratesValues(use) {
@@ -1018,23 +1114,22 @@ export function createMemberResolve({
   function arrayElementsMayBeRetyped(objectPath, anchorPath, {
     elementWrites = null, permutes = null, followed = null, literalPath = null, dispatchOnly = false,
   } = {}) {
-    // a receiver that is a STORED SLOT rather than a binding (`o.xs[0]`) is UNKNOWN, not clean: this
-    // walk enumerates a binding's references and finds nothing for a member path, so answering "no
-    // retype" kept the element narrow over writes nobody looked for - `o.xs[0] = "abc"` then
-    // `o.xs[0].at(0)` handed the array helper a string. every OTHER non-binding receiver keeps the
-    // clean answer on purpose: a call result (`a.splice(0, 1)[0]`) takes its element from the
-    // resolved TYPE, which no element write into some other array can invalidate. an ALIAS needs no
-    // hop of its own - `const a = arr` is itself a retentive reference of `arr` below; a read THROUGH the
-    // alias asks the source too (`aliasedElementsMayBeRetyped`)
-    // a member-chain receiver (`o.xs[0]`, `nested[0][0]`) names no binding of its own, so this walk
-    // found nothing for it and answered "clean" - the element narrow then survived `o.xs[0] = "abc"`.
-    // its ROOT binding is what the writes go through, so ask about that instead of bailing: the
-    // reference walk below sees the same writes from the root and keeps a literal chain nobody
-    // writes (`nested[0][0]`) precise
-    objectPath = memberChainRootPath(objectPath);
+    // Follow the holder's references only along the path to this array.
+    let heldKeys;
+    objectPath = peelSkippableWrapperPath(objectPath);
+    while (isMemberAccessNode(objectPath?.node)) {
+      (heldKeys ??= []).push(memberKeyName(objectPath.node));
+      objectPath = peelSkippableWrapperPath(objectPath.get('object'));
+    }
     if (!t.isIdentifier(objectPath?.node)) return false;
     const binding = getScopeBinding({ scope: objectPath.scope, name: objectPath.node.name, path: objectPath });
     if (!binding) return true;
+    if (heldKeys && !heldKeys.includes(null)) {
+      // A slot initialized from a named array sees writes through that original binding as well.
+      let slot = objectPath;
+      for (let i = heldKeys.length - 1; slot && i >= 0; i--) slot = walkObjectLiteralPropertyPath(slot, heldKeys[i]);
+      if (t.isIdentifier(slot?.node) && arrayElementsMayBeRetyped(slot, anchorPath, { followed: slot.node })) return true;
+    }
     const sourceName = elementWrites && objectBindingName(literalPath);
     const sourceBinding = sourceName && getScopeBinding({ scope: literalPath.scope, name: sourceName, path: literalPath });
     if (sourceName && !sourceBinding) return true;
@@ -1067,9 +1162,9 @@ export function createMemberResolve({
         && ref.parentPath.node.right === ref.node)) readOnly = false;
       if (ref.node === followed) continue;
       const receiver = climbTransparentWrapperPath(ref);
-      const member = receiver.parentPath;
+      let member = receiver.parentPath;
       // Babel keeps the source parent on the binding reference after replacing a method read with its helper.
-      const memberNode = receiver.parent ?? member?.node;
+      let memberNode = receiver.parent ?? member?.node;
       // a WHOLE-binding write (plain reassign / update / for-x head) is the FLOW layer's
       // domain: it replaces the value the element read resolves from, so it is not an
       // element retype - a conditional / undominated form already bails upstream, and a
@@ -1109,6 +1204,47 @@ export function createMemberResolve({
         (iterations ??= []).push(receiver);
         continue;
       }
+      // Only a use of this particular stored array can replace its elements. Follow an
+      // alias from the matching slot, and keep independent sibling slots out of its flow.
+      if (heldKeys) {
+        let matches = true;
+        for (let i = heldKeys.length - 1; i >= 0; i--) {
+          const expected = heldKeys[i];
+          if (!isMemberAccessNode(memberNode)) return true;
+          const key = memberKeyName(memberNode);
+          if (key !== null && expected !== null && key !== expected) {
+            matches = false;
+            break;
+          }
+          if (isMemberWriteHost(member)) return true;
+          const use = climbTransparentWrapperPath(member);
+          const parent = use.parentPath;
+          if (parent?.node.type === 'VariableDeclarator' && parent.node.init === use.node && t.isIdentifier(parent.node.id)) {
+            if (i || arrayElementsMayBeRetyped(parent.get('id'), anchorPath, { followed: use.node })) return true;
+            matches = false;
+            break;
+          }
+          if (!i && parent?.node.type === 'AssignmentExpression' && parent.node.right === use.node
+            && isGeneratedMemoDeclarator(bindingDeclaratorPath(parent.node.left.name, parent.scope)?.node)) {
+            const dispatch = parent.parentPath;
+            const callee = dispatch?.parentPath;
+            const pair = pairedInstanceDispatcher(callee, dispatch);
+            if (pair?.capture === parent.node && !arrayMethodMayRetype(pair.method)
+              && !callbackMayRetype(callee.parentPath, ARRAY_METHODS.get(pair.method))) {
+              matches = false;
+              break;
+            }
+          }
+          if (!isMemberLike(parent) || parent.node.object !== use.node) {
+            if (!valueIsDroppedAt(use)) return true;
+            matches = false;
+            break;
+          }
+          member = parent;
+          memberNode = parent.node;
+        }
+        if (!matches) continue;
+      }
       if (isMemberWriteHost(member)) {
         readOnly = false;
         const write = member.parentPath;
@@ -1137,33 +1273,25 @@ export function createMemberResolve({
         up = up.parentPath;
         if (isMemberWriteHost(up)) return true;
       }
-      // canonical key extraction so a computed-literal spelling (`a["unshift"]`) hits the
-      // registry exactly like the dotted form; a CALL through an UNRESOLVED dynamic key
-      // (`a[m]("x")`) may be any mutator at runtime, so it bails too - a dynamic-key pure
-      // READ stays safe (reading cannot retype)
-      const parentOfMember = member.parentPath?.node;
-      const calleeOfParent = (parentOfMember?.type === 'CallExpression'
-        || parentOfMember?.type === 'OptionalCallExpression')
-        && parentOfMember.callee === memberNode;
-      // a parent that no longer HOLDS the member was REWIRED by an earlier in-place rewrite
-      // (a folded call reuses the CallExpression node and swaps its callee; an optional-chain
-      // fold rewires into non-call shapes too). the detached member keeps its original key
-      // and the original shape was a use of that member, so a rewired parent classifies
-      // exactly like a live callee position. a text-emit pipeline never mutates the tree,
-      // so rewired parents cannot occur there
-      // ... but only a slot the member could have LED may claim it. a callee starts exactly
-      // where its call does, while an ARGUMENT or a declarator init starts past its parent -
-      // a rewritten `use(a.sort)` still extracts sort. Only an actual call may record a permutation.
-      // A parent the parser gave no position keeps the permissive verdict.
-      const rewiredParent = !calleeOfParent && parentOfMember
-        && (!Number.isInteger(parentOfMember.start) || !Number.isInteger(memberNode.start)
-          || parentOfMember.start === memberNode.start)
-        && !nodeHoldsChild(parentOfMember, memberNode);
-      const callsMember = arrayMemberCallRoles.get(memberNode) ?? Boolean(calleeOfParent || rewiredParent);
+      // A call can change elements through its method or callback. An ordinary read
+      // can change them through an installed getter.
+      const value = climbTransparentWrapperPath(member, true);
+      const callsMember = arrayMemberCallRoles.get(memberNode) ?? callsArrayMember(value, value === member ? memberNode : value.node);
       arrayMemberCallRoles.set(memberNode, callsMember);
       const key = memberKeyName(memberNode);
-      if (callsMember && permutes && ELEMENT_PERMUTING_METHODS.has(key)) permutes.push(key);
-      else if ((callsMember || Object.hasOwn(ARRAY_METHOD_HINTS, key)) && arrayMethodMayRetype(key)) return true;
+      const hint = ARRAY_METHODS.get(key);
+      if (callsMember && permutes && hint?.mutatesElements === 'existing' && !arrayMethodIsOverridden(key)) permutes.push(key);
+      else if (callsMember ? arrayMethodMayRetype(key, hint) || callbackMayRetype(value.parentPath, hint)
+        : hint?.mutatesElements && !valueIsDroppedAt(value)
+        || arrayMethodIsOverridden(key, member, memberNode) && !arrayLiteralSlotValue(literalPath?.node, key)) {
+        // A later call in the same activation cannot affect this read. Its proof is local to this site.
+        if (!noReassignmentReachesUsage({
+          reassignmentNodes: [memberNode],
+          usagePath: anchorPath,
+          bindingScopeNode: lifetimeBinding.scope?.block ?? lifetimeBinding.scope?.path?.node,
+        })) return true;
+        readOnly = false;
+      }
     }
     if (cacheable && readOnly) arrayElementReadProofs.set(literalPath.node, {
       binding, references: nativeReferences, size: nativeReferences.length, iterations,
@@ -1178,16 +1306,6 @@ export function createMemberResolve({
   // other one is. `permutes` as `arrayElementsMayBeRetyped` takes it
   function aliasedElementsMayBeRetyped(hops, anchorPath, permutes = null) {
     return hops.slice(1).some(hop => arrayElementsMayBeRetyped(hop, anchorPath, { permutes, followed: hop.node }));
-  }
-
-  // The last write must run before the read and after all competing writes in this activation.
-  function lastMemberWriteBefore(writes, path, adapter) {
-    const write = writes.reduce((last, next) => next.node.end > last.node.end ? next : last);
-    return provablyPrecedes(write.node, path.node)
-      && reassignmentDominatesUsage({ reassignmentNodes: [write.node], usagePath: path, adapter })
-      && writes.every(other => other === write || noReassignmentReachesUsage({
-        reassignmentNodes: [write.node], usagePath: other,
-      })) ? write : null;
   }
 
   function resolveArrayIndexAccess(path, dispatchOnly = false) {
@@ -1223,7 +1341,7 @@ export function createMemberResolve({
   // the element an Array TYPE carries, or null for any other type - the one reading of an index
   // step off a value rather than a literal, shared by the index spelling above and the pattern walk
   function arrayElementOfType(type) {
-    return type?.constructor === 'Array' ? resolveInnerType(type) : null;
+    return type?.constructor === 'Array' ? resolveInnerType(type)?.mark('mayBeNullish') ?? null : null;
   }
 
   // the element type an index step reads off a container NO literal holds - a call result, an
@@ -1235,41 +1353,32 @@ export function createMemberResolve({
     return arrayElementOfType(resolveNodeType(resolveRuntimeExpression(objectPath)));
   }
 
-  // collect runtime member-expression segments: bare `E` -> ['E'], non-computed dotted chain
-  // `N.E` -> ['N', 'E'], deeper `N.M.E` -> ['N', 'M', 'E']. computed / non-Identifier links
-  // bail to null. parallel to type-level `collectQualifiedSegments` (which walks
-  // TSQualifiedName) - this one walks runtime MemberExpression chains.
-  // `unwrapRuntimeExpr` peels ChainExpression / ParenthesizedExpression / TS_EXPR_WRAPPERS
-  // so optional-chained (`N?.E.A`) and cast-wrapped (`(N as typeof N).E.A`) shapes resolve
-  // through the enum lookup. OptionalMemberExpression (babel-typed optional chain shape)
-  // handled alongside MemberExpression below. without the peels,
-  // `resolveEnumMemberAccess` for `N?.E.A` bails on the first hop because `path.node.object`
-  // is a ChainExpression / OptionalMember wrapping the chain
-  function collectMemberSegments(node) {
-    node = unwrapRuntimeExpr(node);
-    if (node?.type === 'Identifier') return [node.name];
-    if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
-    if (node.computed) return null;
-    const left = collectMemberSegments(node.object);
-    if (!left || node.property?.type !== 'Identifier') return null;
-    left.push(node.property.name);
-    return left;
-  }
-
-  // The field index is shared by unrelated receivers. Match the enum's spelling here,
-  // then check binding identity before using any write as a replacement value.
+  // The file index groups writes by field. For a numeric read with an unknown key,
+  // group its numeric and wildcard writes by receiver once per immutable field index.
+  const numericWritesByEnum = new WeakMap();
   function * enumSlotWrites(path, enumName, memberName) {
     let program = path;
     while (program && program.node?.type !== 'Program') program = program.parentPath;
     if (!program?.node) return;
-    for (const writePath of getModuleFieldIndex(program).writesByField.get(memberName) ?? []) {
-      // the index stores the WRITE (an assignment / update / pattern member), not the member
-      // itself - `memberWriteTargetPath` is the canon that lands on the member for every shape
-      // and peels the wrappers a cast puts in the way (`(S as any).Ready = ...`)
-      const target = memberWriteTargetPath(writePath);
-      const receiver = target?.node?.object ? unwrapRuntimeExpr(target.node.object) : null;
-      const receiverSegments = receiver ? collectMemberSegments(receiver) : null;
-      if (receiverSegments?.at(-1) === enumName) yield writePath;
+    const fields = programCensus(program).writesByField;
+    if (memberName === null) {
+      let byEnum = numericWritesByEnum.get(fields);
+      if (!byEnum) {
+        byEnum = new Map();
+        for (const [field, writes] of fields) {
+          if (field === null || isNumericIndexName(field)) {
+            for (const write of writes) pushMultimap(byEnum, enumWriteReceiver(write), write);
+          }
+        }
+        numericWritesByEnum.set(fields, byEnum);
+      }
+      yield * byEnum.get(enumName) ?? [];
+    } else {
+      for (const group of [fields.get(memberName), isNumericIndexName(memberName) && fields.get(null)]) {
+        if (group) for (const write of group) {
+          if (enumWriteReceiver(write) === enumName) yield write;
+        }
+      }
     }
   }
 
@@ -1277,7 +1386,7 @@ export function createMemberResolve({
   // wildcard write or handout leaves the runtime member open. Anchor at the key's own read.
   function enumKeyAfterWrites(path, key, memberName, declaredKey, literalKeyValue) {
     const { name } = key.object;
-    const own = CENSUS_ENUM_RECEIVERS.get(rootProgramOf(path))?.(key);
+    const own = CENSUS_ENUM_RECEIVERS.get(rootProgramOf(path))?.owns(key);
     if (!own && declaredKey === null) return null;
     const writes = [];
     for (const write of enumSlotWrites(path, name, memberName)) {
@@ -1304,6 +1413,153 @@ export function createMemberResolve({
     return literalKeyValue(unwrapRuntimeExpr(write.node.right));
   }
 
+  // Follow the closed uses of a runtime enum or its namespace. A const binding retains the
+  // selected object; handing it to other code, calling its methods or changing its descriptors
+  // can prevent even a later Reflect.set from installing its value.
+  function reverseEnumWrites(program, refs, declaration, segments) {
+    const [name, ...prefix] = segments;
+    let cached = reverseWritesByReferences.get(refs);
+    if (!cached) reverseWritesByReferences.set(refs, cached = new WeakMap());
+    if (cached.has(declaration)) return cached.get(declaration);
+    cached.set(declaration, null);
+    const writes = new Map();
+    const seen = new Set();
+    function closedUse(ref, rest) {
+      if (!ref.node) return false;
+      if (erasedEnumReference(ref)) return true;
+      let value = climbTransparentWrapperPath(ref);
+      let at = 0;
+      while (at < rest.length && isMemberAccessNode(value.parentPath?.node) && value.parentPath.node.object === value.node) {
+        const field = staticMemberKeyName(value.parentPath.node);
+        if (field === null) return false;
+        value = climbTransparentWrapperPath(value.parentPath);
+        if (field !== rest[at]) {
+          return value.parentPath?.node.callee !== value.node && value.parentPath?.node.tag !== value.node;
+        }
+        at++;
+      }
+      const host = value.parentPath;
+      if (host?.node.type === 'VariableDeclarator' && host.node.init === value.node) {
+        if (host.parentPath.node.kind !== 'const' || host.parentPath.parentPath?.node.type === 'ExportNamedDeclaration') return false;
+        let { id } = host.node;
+        if (at < rest.length && id.type === 'ObjectPattern' && id.properties.length === 1) {
+          const [prop] = id.properties;
+          if (prop.computed || prop.key?.name !== rest[at]) return false;
+          id = prop.value;
+          at++;
+        }
+        if (id.type !== 'Identifier' || isBindingExportedByName(id.name, program)) return false;
+        const binding = getScopeBinding({ scope: host.scope, name: id.name, path: host });
+        if (!binding || isReassignedBeyondDeclarator(binding) || seen.has(binding) || seen.size >= MAX_DEPTH) return false;
+        seen.add(binding);
+        const uses = collectBindingReferences(binding, host);
+        const remaining = rest.slice(at);
+        return uses && uses.every(use => closedUse(use, remaining));
+      }
+      if (isMemberAccessNode(host?.node) && host.node.object === value.node && at === rest.length) {
+        const member = climbTransparentWrapperPath(host);
+        const parent = member.parentPath;
+        if (parent?.node.callee === member.node || parent?.node.tag === member.node) return false;
+        if (!isMemberWriteHost(member)) return true;
+        const key = staticMemberKeyName(host.node);
+        if (key === null || parent.node.operator !== '=') return false;
+        pushMultimap(writes, key, { path: parent, value: parent.get('right') });
+      } else if (at === rest.length && host?.node.type === 'CallExpression' && !host.node.optional
+        && host.node.arguments.length === 3 && host.node.arguments[0] === value.node
+        && host.node.arguments.every(arg => arg.type !== 'SpreadElement')
+        && resolveStaticCalleePair({ node: host.node.callee, ctx: { scope: host.scope, path: host } }, {
+          method: 'set',
+        })?.constructor === 'Reflect'
+        && !getDecisionAdapter()?.isMutatedStaticSlot?.('Reflect', 'set')) {
+        const [, key, rhs] = host.get('arguments');
+        if (!isLiteralOf(key.node, 'Numeric') && !isLiteralOf(key.node, 'String')) return false;
+        pushMultimap(writes, String(key.node.value), { path: host, value: rhs });
+      } else return valueIsDroppedAt(value);
+      return true;
+    }
+    // Namespace bodies can also refer to the enum under its local name.
+    const local = prefix.at(-1);
+    const locals = local && programCensus(program).referenceIdentifiersByName.get(local);
+    const localUses = locals?.some(ref => !erasedEnumReference(ref)
+      && withLookupPath(ref, () => findAllEnumDeclarations(local, ref.scope).includes(declaration)));
+    const closed = !localUses && !isBindingExportedByName(name, program) && refs.every(ref => withLookupPath(ref, () => {
+      const root = bindingDeclaratorPath(name, ref.scope);
+      return findAllEnumDeclarations(segments, ref.scope)[0] !== declaration
+        || !enumIsNearestValue(segments, ref.scope, root) || closedUse(ref, prefix);
+    }));
+    const result = closed ? {
+      writes,
+      numericWrite: writes.keys().some(isNumericIndexName),
+      keys: writes.size ? numericEnumSlots(declaration) : null,
+    } : null;
+    cached.set(declaration, result);
+    return result;
+  }
+
+  // A fresh enum owns its declared numeric slots. A setter inherited by a missing slot
+  // can accept a write without installing the RHS. A surviving slot also needs one
+  // dominating write in the read's activation.
+  function writtenReverseEnumType(path, declaration, segments, key, facts) {
+    if (!facts) return null;
+    const { writes, keys } = facts;
+    if (key === null && keys) {
+      const prop = unwrapRuntimeExpr(path.node.property);
+      const member = isMemberAccessNode(prop) && staticMemberKeyName(prop);
+      if (member && !writes.has(member) && collectMemberSegments(prop.object)?.join('.') === segments.join('.')) {
+        key = keys.names.get(member) ?? null;
+      }
+    }
+    if (key === null && facts.numericWrite || isMutatedStatic('Object.prototype', key ?? MUTATED_STATIC_PINNED)) return null;
+    const entries = writes.get(key);
+    if (entries) {
+      const owner = findNearestVarScopeOwner(pathOfNode(path, declaration))?.node;
+      if (!owner || !keys.slots.has(key) || writesPastCeiling(entries)) return null;
+      const live = entries.filter(({ path: write, value }) => !noReassignmentReachesUsage({
+        reassignmentNodes: [write.node], usagePath: path, bindingScopeNode: owner,
+        deferredWriteFollows: () => nodeRangeContains(value.node, path.node)
+          && findNearestVarScopeOwner(value)?.node === findNearestVarScopeOwner(path)?.node,
+      }));
+      if (live.length) {
+        const last = lastMemberWriteBefore(live.map(entry => entry.path), path, getDecisionAdapter());
+        if (!last || !provablyPrecedes(declaration, last.node)) return null;
+        return resolveNodeType(live.find(entry => entry.path === last).value);
+      }
+    }
+    return new $Primitive('string').mark('mayBeNullish');
+  }
+
+  // Resolve a numeric read through the same plain const aliases as the write proof.
+  // Anchor each declaration lookup at its initializer, even when the read shadows that name.
+  function reverseEnumAlias(path, segments, key) {
+    if (CENSUS_ENUM_RECEIVERS.get(rootProgramOf(path))?.blocks.size === 0) return null;
+    let anchor = path;
+    for (let depth = 0; depth < MAX_DEPTH; depth++) {
+      const [name, ...rest] = segments;
+      const binding = bindingDeclaratorPath(name, anchor.scope);
+      if (binding?.node.type !== 'VariableDeclarator' || binding.parentPath?.node.kind !== 'const') return null;
+      const { id, init } = binding.node;
+      const source = collectMemberSegments(init);
+      if (!source) return null;
+      if (id.type === 'ObjectPattern') {
+        const [prop] = id.properties;
+        if (id.properties.length !== 1 || prop.computed || prop.value?.name !== name || !prop.key?.name) return null;
+        source.push(prop.key.name);
+      } else if (id.name !== name) return null;
+      segments = source.concat(rest);
+      anchor = binding.get('init');
+      const decls = withLookupPath(anchor, () => findAllEnumDeclarations(segments, anchor.scope));
+      if (decls.length) {
+        const bindingPath = bindingDeclaratorPath(segments[0], anchor.scope);
+        const nearest = withLookupPath(anchor, () => enumIsNearestValue(segments, anchor.scope, bindingPath));
+        if (decls.length !== 1 || resolveEnumType(decls)?.type !== 'number' || !nearest) return null;
+        const program = findProgramPath(path);
+        const refs = programCensus(program).referenceIdentifiersByName.get(segments[0]);
+        return refs && writtenReverseEnumType(path, decls[0], segments, key, reverseEnumWrites(program, refs, decls[0], segments));
+      }
+    }
+    return null;
+  }
+
   // member access on a TSEnumDeclaration receiver. covers two shapes:
   //   - non-computed `E.A` / `N.E.A` -> enum value-kind primitive (the member's resolved
   //     kind via `resolveEnumMemberKind`, defaulting to number for implicit auto-numbered)
@@ -1315,14 +1571,17 @@ export function createMemberResolve({
   // namespace-qualified receiver: `findAllEnumDeclarations` accepts segment-array form to walk
   // through TSModuleDeclaration anchors so `namespace N { export enum E {...} }` resolves
   function resolveEnumMemberAccess(path, receiverOnly = false) {
-    const receiverProof = receiverOnly ? CENSUS_ENUM_RECEIVERS.get(rootProgramOf(path))?.(path.node) : undefined;
+    const receiverProof = receiverOnly ? CENSUS_ENUM_RECEIVERS.get(rootProgramOf(path))?.owns(path.node) : undefined;
     if (receiverProof !== undefined && receiverProof !== null) return receiverProof ? new $Object('Object') : null;
     const segments = collectMemberSegments(path.node.object);
     if (!segments) return null;
     // findAllEnumDeclarations accepts both string and segment array. TS merges multiple `enum E {}`
     // blocks, so a member may live in any block - search them all (a single-block enum yields one)
     const enumDecls = findAllEnumDeclarations(segments, path.scope);
-    if (!enumDecls.length) return null;
+    if (!enumDecls.length) {
+      const key = !receiverOnly && path.node.computed && staticMemberKeyName(path.node);
+      return key && isNumericIndexName(key) ? reverseEnumAlias(path, segments, key) : null;
+    }
     if (!enumIsNearestValue(segments, path.scope, bindingDeclaratorPath(segments[0], path.scope))) return null;
     if (receiverOnly && ESCAPED_CONTAINER_NAMES.get(rootProgramOf(path))?.has(segments[0])) return null;
     // `E.A` (Identifier) / `E['A']` (computed StringLiteral / ESTree Literal) / `` E[`A`] `` / a
@@ -1337,7 +1596,7 @@ export function createMemberResolve({
     // only KNOWN GLOBALS (measured, which is why a gate written in its image was dead). ask the same
     // per-program write index the fold asks, and DECLINE instead of folding: over-reporting a write
     // only degrades the read to generic, the safe direction in both methods
-    if (memberName !== null) {
+    if (memberName !== null && !isNumericIndexName(memberName)) {
       if (receiverOnly && receiverProof === null) {
         return resolveEnumMemberType(enumDecls, memberName) ? new $Object('Object') : null;
       }
@@ -1347,7 +1606,22 @@ export function createMemberResolve({
     // `E[E.A]` numeric reverse-map: numeric enum + numeric-typed computed key -> string
     if (!path.node.computed) return null;
     if (resolveEnumType(enumDecls)?.type !== 'number') return null;
-    return resolveNodeType(path.get('property'))?.type === 'number' ? new $Primitive('string') : null;
+    if (!isNumericIndexName(memberName) && resolveNodeType(path.get('property'))?.type !== 'number') return null;
+    const program = rootProgramOf(path);
+    const known = memberName === null && CENSUS_KEY_NAMES.get(program)?.(path.node.property);
+    const key = known?.length === 1 ? known[0] : memberName;
+    const owner = findProgramPath(path);
+    const refs = programCensus(owner).referenceIdentifiersByName.get(segments[0]);
+    if (enumDecls.length === 1 && refs) {
+      const facts = reverseEnumWrites(owner, refs, enumDecls[0], segments);
+      return writtenReverseEnumType(path, enumDecls[0], segments, key, facts);
+    }
+    const pristine = CENSUS_ENUM_RECEIVERS.get(program)?.owns(path.node, true);
+    const open = pristine === false || segments.length > 1 && pathSlotWritten(path.get('object'), [key])
+      || enumSlotWrites(path, segments.at(-1), key).some(write => enumIsNearestValue(
+        segments, write.scope, bindingDeclaratorPath(segments[0], write.scope),
+      ));
+    return open || pristine !== true ? null : new $Primitive('string').mark('mayBeNullish');
   }
 
   return {

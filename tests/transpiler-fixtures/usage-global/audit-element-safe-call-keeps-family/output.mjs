@@ -1,9 +1,8 @@
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.array.with";
-// Registry-known non-mutating calls keep the resolver's element-family precision.
-// Value flow through library callbacks is an accepted model boundary: a callback can
-// retype this array through its third argument. This row locks the current Array-only inference.
+import "core-js/modules/es.string.at";
+// An external forEach callback can replace an element. Reads and copying methods preserve the source family.
 const scanned = [[1], [2]];
 scanned.forEach(f);
 export const viaSafeCall = scanned[0].at(1);

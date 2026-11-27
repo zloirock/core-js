@@ -458,3 +458,60 @@ QUnit.test('receiver precision: Promise.try settles an annotated array thenable 
   assert.same((await Promise.try<Job, []>(make)).at(0), 'x');
   assert.deepEqual(calls, ['make', 'then']);
 });
+
+namespace EnumSlot { export enum Status { Ready } }
+
+QUnit.test('reverse enum reads follow the write through a namespace alias', assert => {
+  const { Status: saved } = EnumSlot;
+  assert.same(saved[0].at(0), 'R');
+  for (const enabled of [false, true]) {
+    if (enabled) Reflect.set(saved, 0, [7]);
+    assert.same(EnumSlot.Status[0].at(0), enabled ? 7 : 'R');
+  }
+});
+
+QUnit.test('a source array passed to a callback or retained in a property may change element families', assert => {
+  const rows: (number[] | string)[] = ['before'];
+  rows.forEach((_, index, source) => { source[index] = [7]; });
+  assert.same(rows[0].at(0), 7);
+  const box = { rows: ['text'] as (number[] | string)[] };
+  const alias = box.rows;
+  assert.same(box.rows[0].at(0), 't');
+  alias.unshift([9]);
+  assert.same(box.rows[0].at(0), 9);
+});
+
+QUnit.test('a callback may call its source array method through a type assertion', assert => {
+  const rows = ['word'];
+  rows.reduce((sum, value, index, source) => {
+    (source.fill as Function)([7]);
+    return sum;
+  }, 0);
+  assert.same(rows[0].at(0), 7);
+});
+
+QUnit.test('the selected tuple slot and the missing array slot use their respective receivers', assert => {
+  type Matched = ['a'] extends [string, number?] ? number[] : string;
+  type Reversed = [1, 2] extends [2, 1] ? string : number[];
+  function read(a: Matched, b: Reversed, rows: number[][]) {
+    const [item] = rows;
+    return [a.at(0), b.at(0), (rows[0] ?? 'missing').at(0), (item ?? 'missing').at(-1)];
+  }
+  assert.deepEqual(read([3], [7], []), [3, 7, 'm', 'g']);
+  assert.deepEqual(read([3], [7], [[9]]), [3, 7, 9, 9]);
+});
+
+QUnit.test('a wrapper or union can still admit a missing index', assert => {
+  function read(rows: Readonly<number[][]>) { return (rows[0] ?? 'word').at(-1); }
+  function bind(rows: string[][] | { 0: string[] }) {
+    const { 0: item } = rows;
+    return (item ?? 'word').includes('or');
+  }
+  assert.deepEqual([read([]), read([[8]]), bind([]), bind([['word']])], ['d', 8, true, false]);
+});
+
+QUnit.test('a tuple element of type any does not fit a never rest', assert => {
+  type Selected = [any] extends [...never[]] ? number[] : string;
+  function read(value: Selected) { return value.includes('or'); }
+  assert.true(read('word'));
+});

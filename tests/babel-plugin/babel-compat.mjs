@@ -1521,13 +1521,22 @@ for (const key of ['0', '1', '?.', 'v_-1', 'default', '\u03C0']) {
 {
   const exact = await fs.readFile(new URL('../transpiler-fixtures/usage-pure/audit-ctor-static-collapse-keeps-hop-key-effects/input.mjs',
     import.meta.url), 'utf8');
+  const leaf = await fs.readFile(new URL('../transpiler-fixtures/usage-pure/number-static-with-computed-leaf-key/input.mjs',
+    import.meta.url), 'utf8');
   for (const [label, source, observe, presentResult, absentResult] of [
     [
-      'exact below/at leaf',
+      'exact below leaf',
       exact,
-      '[belowLeaf, atLeaf, g, u === globalThis.window, c, e]',
-      ['9007199254740991.00', '9007199254740991.00', 2, true, 1, 2],
-      [undefined, undefined, 0, true, 1, 2],
+      '[belowLeaf, g, u === globalThis.window, c, e]',
+      ['9007199254740991.00', 1, true, 1, 2],
+      [undefined, 0, true, 1, 2],
+    ],
+    [
+      'exact leaf',
+      leaf,
+      '[atLeaf, g, u === globalThis.window]',
+      ['9007199254740991.00', 1, true],
+      [undefined, 0, true],
     ],
     [
       'ordered object/leaf keys',
@@ -2101,6 +2110,34 @@ for (const method of ['usage-global', 'usage-pure']) for (const createParenthesi
         imports.some(name => method === 'usage-global' ? name === 'core-js/modules/es.array.at' : name.endsWith('/at')), reads);
     }
   }
+}
+
+// Rewriting push clones its arguments. Merely reading an element there cannot replace it.
+for (const [expression, entry] of [['source[i]', 'string/instance/at'], ['source.fill([7])', 'instance/at']]) {
+  const { ast } = await transformAsync(`const rows = ['ab']; const log = [];
+    rows.reduceRight((n, v, i, source) => { log.push(${ expression }); return n; }, 0); rows[0].at(0);`, {
+    ast: true, code: false, configFile: false, babelrc: false,
+    plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+  });
+  const imports = ast.program.body.filter(node => node.type === 'ImportDeclaration').map(node => node.source.value);
+  checkDeep(`reducer receiver in rewritten argument/${ expression }`, imports.filter(name => name.endsWith('/at')), [`@core-js/pure/actual/${ entry }`]);
+}
+
+// A getter can replace an element only when the selected property is read.
+for (const method of ['usage-global', 'usage-pure']) for (const property of ['slot', 'other']) {
+  const { ast } = await transformAsync(`const rows = ['word'];
+    Object.defineProperty(Array.prototype, 'slot', { get() { this[0] = [7]; } });
+    void rows.${ property }; rows[0].at(0);`, {
+    ast: true, code: false, configFile: false, babelrc: false,
+    plugins: [[babelPlugin, { method, version: '4.0', targets: { ie: 11 } }]],
+  });
+  const imports = ast.program.body.filter(node => node.type === 'ImportDeclaration').map(node => node.source.value);
+  const entries = method === 'usage-global' ? imports.filter(name => name.endsWith('.at')) : imports.filter(name => name.endsWith('/at'));
+  const readsGetter = property === 'slot';
+  const expected = method === 'usage-global'
+    ? [...readsGetter ? ['core-js/modules/es.array.at'] : [], 'core-js/modules/es.string.at']
+    : [`@core-js/pure/actual/${ readsGetter ? '' : 'string/' }instance/at`];
+  checkDeep(`array getter/${ method }/${ property }`, entries, expected);
 }
 
 finish();

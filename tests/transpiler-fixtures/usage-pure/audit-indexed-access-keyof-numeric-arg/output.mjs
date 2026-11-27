@@ -6,7 +6,7 @@ var _ref;
 // dispatcher's member-by-key lookup.
 type Items = {
   0: string[];
-  1: number[];
+  1: string;
 };
 declare function pick<K extends keyof Items>(k: K): Items[K];
 _atMaybeArray(_ref = pick(0)).call(_ref, 0);

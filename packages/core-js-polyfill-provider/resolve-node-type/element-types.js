@@ -14,7 +14,7 @@
 // shared `resolveUserTypeElement` that's parametrized by the per-direction resolver
 // (raw-AST vs resolved-Type), keeping the alias/interface-extends walk identical for both
 // flavors.
-import { $Object, $Primitive, MAX_DEPTH, SINGLE_ELEMENT_COLLECTIONS } from './base.js';
+import { $Object, $Primitive, MAX_DEPTH, SINGLE_ELEMENT_COLLECTIONS, canonicalArrayIndex, literalNodeValue } from './base.js';
 import {
   isInterfaceDeclaration,
   isTypeAlias,
@@ -23,6 +23,18 @@ import {
   typeRefName,
 } from './ast-shapes.js';
 import { getTypeArgs, peelTSParenthesized } from '../helpers/ast-patterns.js';
+
+// Numeric data properties can constrain an indexed read but cannot supply an iterator.
+function intersectionElementSource({ types }) {
+  const sources = types.filter(arm => {
+    const members = arm.type === 'TSTypeLiteral' ? arm.members
+      : arm.type === 'ObjectTypeAnnotation' && !arm.indexers?.length ? arm.properties : null;
+    return !members || members.some(property => property.computed
+      || (property.type !== 'TSPropertySignature' && property.type !== 'ObjectTypeProperty')
+      || canonicalArrayIndex(literalNodeValue(property.key)) === null);
+  });
+  return sources.length === 1 ? sources[0] : null;
+}
 
 export function createElementTypes({
   withTypeReferenceScope,
@@ -58,6 +70,11 @@ export function createElementTypes({
       node = unwrapTypeAnnotation(node);
       if (!node) return null;
       switch (babelNodeType(node)) {
+        case 'TSIntersectionType':
+        case 'IntersectionTypeAnnotation':
+          node = intersectionElementSource(node);
+          depth += 1;
+          continue;
         // string[] -> element type
         case 'TSArrayType':
         case 'ArrayTypeAnnotation':
@@ -166,6 +183,11 @@ export function createElementTypes({
       node = unwrapTypeAnnotation(node);
       if (!node) return null;
       switch (babelNodeType(node)) {
+        case 'TSIntersectionType':
+        case 'IntersectionTypeAnnotation':
+          node = intersectionElementSource(node);
+          depth += 1;
+          continue;
         case 'TSArrayType':
         case 'ArrayTypeAnnotation':
           return node.elementType;

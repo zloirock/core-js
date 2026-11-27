@@ -56,6 +56,13 @@ const FUNCTION_WRITE = 'a write over a function declaration, which tsc forbids, 
 const KEY_COLLISION = 'a key collision, which tsc refuses, is the shape under test';
 const TUPLE_INDEX = 'a tuple index tsc refuses is the shape under test';
 const cases = [
+  ['reducer result family is unknown', 'const result = [1, 2].reduce(callback, "s");', null],
+  ['typed array reducer result family is unknown', 'const result = new Uint8Array(2).reduceRight(callback, "s");', null],
+  ['reducer reads the receiver', 'const xs = ["s"]; xs.reduce((a, v, i, source) => source[i], ""); const result = xs[0];', 'string'],
+  ['reducer writes the receiver', 'const xs = ["s"]; xs.reduceRight((a, v, i, source) => { source[i] = []; }, ""); const result = xs[0];', null],
+  ['asserted callback mutator', 'const xs = ["s"]; xs.reduce((a, v, i, s) => (s.fill as Function)([7]), 0); const result = xs[0];', null],
+  ['parenthesized reducer call', 'const xs = ["s"]; (xs.reduce)((a, v, i, s) => { s[i] = [7]; }, 0); const result = xs[0];', null],
+  ['unused mutator', 'const xs = ["s"]; void xs.fill; const result = xs[0];', 'string'],
   ['inherited function', 'const result = ({}).toString;', 'Function'],
   ['inherited function alias', 'const box = {}; const result = box.hasOwnProperty;', 'Function'],
   ['own override', 'const result = ({ toString: [1] }).toString;', 'Array'],
@@ -109,6 +116,21 @@ const cases = [
   ['namespaced enum value', 'namespace N { export enum E { at = "at" } } const result = N.E.at;', 'string'],
   ['namespaced enum shadow', 'namespace N { export enum E { at = "at" } } function f(N) { const result = N.E.at; }', null],
   ['namespaced enum reverse map', 'namespace N { export enum E { A } } const result = N.E[N.E.A];', 'string'],
+  ['reverse slot after a definite write', 'enum E { A } Reflect.set(E, 0, [7]); const result = E[E.A];', 'Array'],
+  ['reverse slot before a later write', 'enum E { A } const result = E[0]; Reflect.set(E, 0, [7]);', 'string'],
+  ['reverse slot after a conditional write', 'enum E { A } if (flag) Reflect.set(E, 0, [7]); const result = E[E.A];', null],
+  ['a prior call may have written the enum', 'enum E { A } function read() { const result = E[0]; Reflect.set(E, 0, [7]); }', null],
+  ['a fresh enum on each call', 'function read() { enum E { A } const result = E[0]; Reflect.set(E, 0, [7]); }', 'string'],
+  ['a write to an undeclared reverse slot may hit a setter', 'enum E { A } Reflect.set(E, 97, [7]); const result = E[97];', null],
+  ['read the alias before a write', 'namespace N { export enum E { A } } const { E: saved } = N; const result = saved[0];', 'string'],
+  ['a runtime TS import alias exposes its enum',
+    'namespace N { export enum E { A } } import Saved = N.E; Reflect.set(Saved, 0, [7]); const result = N.E[0];', null],
+  ['the alias in a TS assertion does not escape',
+    'enum E { A } const saved = E; Reflect.set((saved as typeof saved)!, 0, [7]); const result = E[0];', 'Array'],
+  ['read the written alias', 'enum E { A } const saved = E; Reflect.set(saved, 0, [7]); const result = saved[0];', 'Array'],
+  ['namespace enum alias alone', 'namespace N { export enum E { A } } const { E: saved } = N; const result = N.E[0];', 'string'],
+  ['namespace enum alias write', 'namespace N { export enum E { A } } const { E: saved } = N; Reflect.set(saved, 0, [7]); const result = N.E[0];', 'Array'],
+  ['namespace enum conditional alias write', 'namespace N { export enum E { A } } const { E: saved } = N; if (flag) Reflect.set(saved, 0, [7]); const result = N.E[0];', null],
   ['enum shadow', 'enum E { at = "at" } function f(E) { const result = E.at; }', null],
   ['enum member written', '// @ts-expect-error a write to an enum, which tsc forbids, is the shape under test\nenum E { at = "at" } E.at = other; const result = E.at;', null],
   ['locally caught value', 'const box = { data: [1] }; try { throw box; } catch (e) {} const result = box.data;', 'Array'],
@@ -466,7 +488,6 @@ runBoth('ordinary member reads skip scoped enum lookup',
     collectFileCensus(program.node, [escapedCtorReferencesReducer()]);
     let lookups = 0;
     const cluster = createMemberResolve({
-      KNOWN_INSTANCE_METHOD_RETURN_TYPES: {},
       findAllEnumDeclarations() { lookups++; return []; },
       enumIsNearestValue() { lookups++; return false; },
       bindingDeclaratorPath() { lookups++; return null; },
@@ -477,6 +498,33 @@ runBoth('ordinary member reads skip scoped enum lookup',
 
 // An alias closure is complete only when every binding in it has an enumerable reference set.
 // A missing set is unknown, not evidence that no write can retype the array's elements.
+runBoth('numeric enum reads share their field index until the file changes',
+  'enum E { A } function read(i: number) { return [E[i], E[i + 1]]; } (E as any)[0] = [];',
+  (adapter, program, name) => {
+    collectFileCensus(program.node, [escapedCtorReferencesReducer()]);
+    let scans = 0;
+    class Fields extends Map {
+      [Symbol.iterator]() { scans++; return super[Symbol.iterator](); }
+    }
+    let fields = new Fields([['unrelated', []]]);
+    const resolver = createMemberResolve({
+      findAllEnumDeclarations: () => [program.node.body[0]],
+      enumIsNearestValue: () => true,
+      bindingDeclaratorPath: () => null,
+      resolveMemberPropertyName: () => null,
+      resolveEnumType: () => ({ type: 'number' }),
+      resolveNodeType: () => ({ type: 'number' }),
+      findProgramPath: () => program,
+      programCensus: () => ({ writesByField: fields, referenceIdentifiersByName: new Map() }),
+    });
+    const reads = adapter.collectPaths(program, 'MemberExpression', path => path.node.object.name === 'E');
+    for (const read of reads) check(name, resolver.resolveEnumMemberAccess(read)?.type, 'string');
+    check(name, scans, 1);
+    fields = new Fields([['0', [adapter.pickPath(program, 'AssignmentExpression')]]]);
+    for (const read of reads) check(name, resolver.resolveEnumMemberAccess(read), null);
+    check(name, scans, 2);
+  });
+
 runBoth('an incomplete array alias reference set refuses element precision',
   'const rows = []; const alias = rows; rows[0];', (adapter, program, name) => {
     const rowsDecl = adapter.pickPath(program, 'VariableDeclarator', path => path.node.id?.name === 'rows');
@@ -502,7 +550,6 @@ runBoth('an incomplete array alias reference set refuses element precision',
         },
         objectBindingName: () => 'source',
         computeObjectAliasClosure: () => new Map([[binding, true]]),
-        KNOWN_INSTANCE_METHOD_RETURN_TYPES: { Array: {} },
       });
       check(`${ name }/${ label }`, cluster.arrayElementsMayBeRetyped(member.get('object'), member, {
         elementWrites: [], literalPath: rowsDecl.get('init'),

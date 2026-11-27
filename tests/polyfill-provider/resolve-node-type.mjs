@@ -52,7 +52,6 @@ import {
   MEMBER_ANNOTATION_SLOTS,
   MODIFIER_WRAPPER_DELTAS,
   NULLABLE_NEVER_ANNOTATIONS,
-  NUMBER_LITERAL_RE,
   NUMERIC_KEY_SHAPE_RE,
   PATTERN_WRAPPERS,
   PLACEHOLDER_VALIDATORS,
@@ -2161,7 +2160,7 @@ runBoth('TS conditional: one position that disagrees sinks a list whose other po
 for (const [what, decls, checkSide, extendSide, falseBranch] of [
   ['a Map key that is a box', 'interface A { a: string }\ninterface B { b: string }\n', 'Map<A, number>', 'Map<B, number>', true],
   ['a Map value that is the only disagreement and has no Type form', '', 'Map<string, { a: 1 }>', 'Map<string, { b: 2 }>', true],
-  ['tuple elements', '', 'Array<[number, string]>', 'Array<[string, number]>'],
+  ['reordered tuple elements', '', 'Array<[number, string]>', 'Array<[string, number]>', true],
 ]) {
   runBoth(`TS conditional: ${ what } ${ falseBranch ? 'picks false' : 'stays open' }`,
     `${ decls }type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
@@ -5881,13 +5880,12 @@ runBoth('the subclass own namespace export outranks the parent one',
   check('base regex: NUMERIC_KEY_SHAPE_RE rejects empty',
     NUMERIC_KEY_SHAPE_RE.test(''), false);
 
-  // NUMBER_LITERAL_RE: JS number literal shape
-  checkTruthy('base regex: NUMBER_LITERAL_RE 42', NUMBER_LITERAL_RE.test('42'));
-  checkTruthy('base regex: NUMBER_LITERAL_RE 1.5', NUMBER_LITERAL_RE.test('1.5'));
-  checkTruthy('base regex: NUMBER_LITERAL_RE .5', NUMBER_LITERAL_RE.test('.5'));
-  // requires digits in mantissa
-  check('base regex: NUMBER_LITERAL_RE rejects bare dot',
-    NUMBER_LITERAL_RE.test('.'), false);
+  for (const segment of ['42', '1.5', '.5', '01', '-0', '0x10', '1e2', ' ']) {
+    checkTruthy(`numeric template accepts ${ JSON.stringify(segment) }`, PLACEHOLDER_VALIDATORS.TSNumberKeyword(segment));
+  }
+  for (const segment of ['.', '', 'Infinity', '5n', '1_2', '1e999']) {
+    check(`numeric template rejects ${ JSON.stringify(segment) }`, PLACEHOLDER_VALIDATORS.TSNumberKeyword(segment), false);
+  }
 
   // PLACEHOLDER_VALIDATORS: per-type segment match
   // String accepts anything
@@ -11644,9 +11642,68 @@ runBoth('logical no-fold: nullable-element marker survives merge, marked arm sec
     check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
   });
 
-runBoth('logical fold: clean element access still folds under ??',
+runBoth('an open array index can reach the nullish fallback',
   'function f(a: number[][]) { const x = a[0] ?? "s"; }', (adapter, prog, lbl) => {
     const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+for (const [type, family] of [
+  ['Readonly<number[][]>', null],
+  ['Readonly<[number[]] | number[][]>', null],
+  ['{ 0: number[] } | number[][]', null],
+  ['number[][] & { 0?: number[] }', null],
+  ['number[][] & { 0: number[] }', 'Array'],
+  ['Readonly<[number[]] | [number[], string]>', 'Array'],
+  ['readonly [...number[][], number[]]', 'Array'],
+  ['Parameters<(head: number[], ...tail: number[][]) => void>', 'Array'],
+  ['Parameters<(...args: number[][]) => void>', null],
+]) {
+  for (const read of ['const item = rows[0];', 'const { 0: item } = rows;']) {
+    runBoth(`index presence before choosing a fallback/${ type }/${ read }`,
+      `function f(rows: ${ type }) { ${ read } const out = item ?? 'word'; }`, (parser, program, label) => {
+        const out = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.name === 'out');
+        check(label, parser.makeResolver().resolveNodeType(out.get('init'))?.constructor ?? null, family);
+      });
+  }
+}
+
+for (const [label, body, nullable] of [
+  ['array binding', 'const [item] = rows;', true],
+  ['numeric object binding', 'const { 0: item } = rows;', true],
+  ['nested binding', 'const { data: [item] } = { data: rows };', true],
+  ['tuple rest', 'const [, item] = tuple;', true],
+  ['required tuple slot', 'const [item] = tuple;', false],
+]) {
+  runBoth(`indexed binding can reach a fallback: ${ label }`,
+    `function f(rows: number[][], tuple: [number[], ...number[][]]) { ${ body } const out = item ?? "s"; }`,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', path => path.node.id.name === 'out');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (nullable) check(lbl, type, null);
+      else checkType(lbl, type, { primitive: false, kind: 'object', ctor: 'Array' });
+    });
+}
+
+for (const [name, signature] of [['Parameters', '() => void'], ['ConstructorParameters', 'new () => Date']]) {
+  runBoth(`a numeric member of a local ${ name } interface`,
+    `export {}; interface ${ name }<T> { 0: string } function read(x: ${ name }<${ signature }>) { const out = x[0]; }`,
+    (parser, program, label) => {
+      const out = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.name === 'out');
+      check(label, parser.makeResolver().resolveNodeType(out.get('init'))?.type, 'string');
+    });
+}
+
+runBoth('an iterable with a numeric property yields its declared iterator element',
+  'function f(row: Iterable<string> & { 0: number[] }) { const [item] = row; const out = item; }',
+  (parser, program, label) => {
+    const out = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.name === 'out');
+    check(label, parser.makeResolver().resolveNodeType(out.get('init'))?.type, 'string');
+  });
+
+runBoth('a present literal slot skips the nullish fallback',
+  'const a = [[7]]; const x = a[0] ?? "s";', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', path => path.node.id.name === 'x');
     checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
       { primitive: false, kind: 'object', ctor: 'Array' });
   });
@@ -16614,6 +16671,31 @@ for (const marker of ['export {};', "import type { Other } from './types';"]) {
       resolver.reset();
       check(`${ label }/reset after addition`, family(resolver), 'String');
       check(`${ label }/fresh after addition`, family(parser.makeResolver()), 'String');
+    });
+}
+
+for (const [name, type, family] of [
+  ['optional end', '[number] extends [number, string?] ? number[] : string', 'Array'],
+  ['unbounded end', '[1, 2, 3] extends [number, ...number[]] ? number[] : string', 'Array'],
+  ['reordered literals', "['a', 'b'] extends ['b', 'a'] ? string : number[]", 'Array'],
+  ['compatible positions', "['a', 'b'] extends [string, 'b'] ? number[] : string", 'Array'],
+  ['different rest after optional', '[string, ...number[]] extends [string, number?, ...string[]] ? string : number[]', 'Array'],
+  ['optional before required spread suffix', "[...[number, string?], string]['length'] extends 3 ? number[] : string", 'Array'],
+  ['any cannot fill a never rest', '[any] extends [...never[]] ? number[] : string', 'string'],
+  ['never can fill a never rest', '[never] extends [...never[]] ? number[] : string', 'Array'],
+  ['undefined rest against optional prefix', '[...undefined[]] extends [number?, ...number[]] ? number[] : string', null],
+  ['unknown cannot fill a typed rest', '[unknown] extends [...string[]] ? number[] : string', 'string'],
+  ['finite spread', '[1, ...[2, 3]] extends [1, 2, 3] ? number[] : string', 'Array'],
+  ['finite spread length', "[1, ...[2, 3]]['length'] extends 3 ? number[] : string", 'Array'],
+  ['required tuple head', "['word', 7] extends [infer W extends string, ...unknown[]] ? W : number[]", 'string'],
+  ['optional length', "(readonly [number, string?])['length'] extends 1 | 2 ? number[] : string", 'Array'],
+  ['unbounded length', "[number, ...string[]]['length'] extends 2 ? number[] : string", 'string'],
+]) {
+  runBoth(`tuple positions and lengths/${ name }`, `type Row = ${ type }; declare const value: Row; const result = value;`,
+    (parser, program, label) => {
+      const read = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.name === 'result');
+      const answer = parser.makeResolver().resolveNodeType(read.get('init'));
+      check(label, answer?.primitive ? answer.type : answer?.constructor ?? null, family);
     });
 }
 

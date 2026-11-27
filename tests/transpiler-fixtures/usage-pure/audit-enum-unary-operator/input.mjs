@@ -1,7 +1,7 @@
-// TS enum initializer with unary operator: the inner operand is still scanned for
-// polyfill rewrites independently of the operator.
+// The method inside the initializer must be visited.
 enum E {
   A = +1,
+  Extra = +[7].includes(7),
   B = -2,
   C = ~3,
 }

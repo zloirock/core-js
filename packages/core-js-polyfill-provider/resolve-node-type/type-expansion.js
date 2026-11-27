@@ -27,13 +27,14 @@ import {
   firstTypeParamIsInner,
   STRUCTURAL_WALK_SKIP_KEYS,
   isTopObjectShape,
+  isTypeObject,
   literalMembers,
   literalNodeValue,
   primitiveTypeOf,
   quasiText,
   typeIdentityElided,
 } from './base.js';
-import { getTypeArgs } from '../helpers/ast-patterns.js';
+import { getTypeArgs, isTupleRestElement, tupleElements, unwrapTupleMember } from '../helpers/ast-patterns.js';
 import {
   isDistributiveConditional,
   isPrivateMemberNode,
@@ -611,6 +612,32 @@ export function createTypeExpansion({
     return verdict;
   }
 
+  // Compare positions only where each spread has a known alignment.
+  function tupleAssignable(check, target) {
+    const source = check.tuple;
+    if (!source) return target.max === 0 && innerKnown(check) ? false : null;
+    if (!target.slots || !source.slots) return null;
+    if (source.min < target.min || source.max > target.max) return false;
+    // An interior spread can move its suffix between positions.
+    if (target.rest >= 0 && target.rest !== target.slots.length - 1
+      || source.rest >= 0 && source.rest !== source.slots.length - 1) return null;
+    let verdict = true;
+    const count = source.rest < 0 ? source.slots.length : Math.max(source.slots.length, target.slots.length);
+    for (let i = 0; i < count; i++) {
+      const from = source.slots[source.rest < 0 ? i : Math.min(i, source.rest)];
+      const to = target.slots[target.rest < 0 ? i : Math.min(i, target.rest)];
+      // An unbounded undefined source can be matched against an optional target prefix.
+      // Its assignability depends on exactOptionalPropertyTypes even if the target rest rejects undefined.
+      if (i === source.rest && to?.mayBeNullish && from?.type === 'undefined') return null;
+      // Explicit undefined in an optional position depends on exactOptionalPropertyTypes.
+      const match = from?.mayBeNullish && !to?.mayBeNullish || to?.mayBeNullish && from?.type === 'undefined'
+        ? null : compareArgSlot(from, to);
+      if (match === false) return false;
+      if (match === null) verdict = null;
+    }
+    return verdict;
+  }
+
   // one position of two written argument lists. A top argument constrains nothing, so an extends
   // side that wrote one accepts whatever the check holds. The mirror question this layer does not
   // answer: `any` is assignable in both directions and `unknown` in only one, and the list keeps
@@ -851,15 +878,7 @@ export function createTypeExpansion({
       // Asked off the marker rather than the AST for the reason its object-family twins are - the
       // box it shares with every unmodelled call signature says nothing else about which it is
       if (extend.functionKeyword) return true;
-      // two tuples that disagree on LENGTH are disjoint whatever their elements say, and a check
-      // side that is no tuple cannot be weighed against one at all - an array extends no tuple, but
-      // a parameter this layer resolved to a bare container may still be one. Only the recorded
-      // length can say: the collapse to `Array<commonElement>` left both sides looking alike, and
-      // the inner comparison below then read `string[]` and `[string, string]` as one type. The
-      // EMPTY tuple keeps the concrete-shape rule further down, which decides the same FALSE
-      if (extend.tupleArity && check.tupleArity !== extend.tupleArity) {
-        return check.tupleArity === null ? null : false;
-      }
+      if (extend.tuple) return tupleAssignable(check, extend.tuple);
       // asked BEFORE the inner comparison: an extends side that constrains no inner (the
       // unparameterised `Array`, or an all-top spelling like `Array<any>`) matches whatever the
       // check carries - an ELIDED check inner included, so the comparison below never sees it.
@@ -1149,11 +1168,8 @@ export function createTypeExpansion({
   // ? <body> : X` and structural synonyms. when checkType's substituted type is array-like,
   // bind U -> element type and substitute trueType through. covers bare U short-circuit
   // (`? U :`), wider compositions (`? U[] :`, `? Promise<U> :`, `? {x: U} :`), and any
-  // shape `substituteTypeParams` knows how to walk. tuple head-infer (`[infer H, ...any[]]`)
-  // is not handled - typeParamMap values are post-resolveTypeArgs, where tuple AST is
-  // already collapsed via `tupleAsArrayType` to `$Object('Array', commonInner)`, losing
-  // positional info needed to extract the head. unresolvable shape -> null, caller falls
-  // back to plain branch.
+  // shape `substituteTypeParams` knows how to walk. A tuple head uses its guaranteed first position; the unbounded
+  // tail of the pattern constrains no later value.
   // `infer U extends C` constraint (TS 4.7+): the inferred slot is bound to the constraint
   // when the element type is unresolvable / unknown - matches the TypeScript rule "constraint
   // narrows the inference candidate". precise candidate-vs-constraint intersection is out of
@@ -1251,7 +1267,10 @@ export function createTypeExpansion({
         ? substituteTypeParams(match.constraint, typeParamMap, scope, depth + 1, seen)
         : resolveTypeAnnotation(match.constraint, scope))
       : null;
-    const concreteInner = resolveInnerType(checkType);
+    if (match.head && !checkType.tuple) return null;
+    if (match.head && !checkType.tuple.min) return INFER_PATTERN_FALSE;
+    const concreteInner = match.head ? checkType.tuple.slots?.[0] : resolveInnerType(checkType);
+    if (match.head && (!isTypeObject(concreteInner) || checkType.tuple.rest === 0)) return null;
     // `infer U extends C`: when the matched element is concrete, TS evaluates the candidate
     // against the constraint - a candidate definitively NOT assignable to C makes the conditional
     // FALSE. without this, a constraint-violating concrete element (`Array<number>` against
@@ -1313,6 +1332,14 @@ export function createTypeExpansion({
     if (node?.type === 'TSTypeOperator' && node.operator === 'readonly') {
       readonlyPattern = true;
       node = peelTSParenthesized(node.typeAnnotation);
+    }
+    if (node?.type === 'TSTupleType') {
+      const elements = tupleElements(node);
+      if (elements.length !== 2 || !isTupleRestElement(elements[1])) return null;
+      const tail = unwrapTupleMember(elements[1]);
+      if (tail.type !== 'TSArrayType' || !isTopKeywordAnnotation(tail.elementType) || elements[0].optional) return null;
+      const head = extractInferTarget(unwrapTupleMember(elements[0]), 'collection', 'Array');
+      return head && { ...head, head: true, readonlyPattern };
     }
     if (node?.type === 'TSArrayType') {
       // babel wraps `(infer U)` in TSParenthesizedType; oxc collapses to bare TSInferType.

@@ -704,6 +704,24 @@ export function isTupleRestElement(element) {
   return unwrapped.type === 'TSRestType';
 }
 
+// The minimum and maximum lengths of a tuple. An unbounded spread has no fixed width.
+export function tupleBounds(elements, optional, spread) {
+  let min = 0;
+  let max = 0;
+  for (const [index, element] of elements.entries()) {
+    if (isTupleRestElement(element)) {
+      const nested = spread(element, index);
+      const required = optional === false && Number.isFinite(nested?.max) ? nested.max : nested?.min ?? 0;
+      if (required && optional !== true) min = (Number.isFinite(max) ? max : min) + required;
+      max += nested?.max ?? Infinity;
+    } else {
+      if (!(optional ?? (element.optional || element.type === 'TSOptionalType'))) min = (Number.isFinite(max) ? max : min) + 1;
+      max++;
+    }
+  }
+  return { min, max };
+}
+
 // The tuple element list in the TS and Flow dialects.
 export function tupleElements(node) {
   return node.elementTypes || node.types;
@@ -879,9 +897,11 @@ function isMemberAccessType(type) {
 // its host's slot (`(m as any) = v` -> the cast path, whose parent is the AssignmentExpression).
 // the canonical upward climb - identity gates that compare a host's `.left`/`.tag`/`.argument`
 // slot against a member must compare against THIS node, not the original member
-export function climbTransparentWrapperPath(path) {
+// A retained source path can still identify its expression slot after a helper replaced the child.
+export function climbTransparentWrapperPath(path, includeReplacedExpression = false) {
   let target = path;
-  while (SKIPPABLE_WRAPPER_TYPES.has(target?.parentPath?.node?.type) && target.parentPath.node.expression === target.node) {
+  while (SKIPPABLE_WRAPPER_TYPES.has(target?.parentPath?.node?.type)) {
+    if (target.parentPath.node.expression !== target.node && !(includeReplacedExpression && target.key === 'expression')) break;
     target = target.parentPath;
   }
   return target;
@@ -9730,6 +9750,19 @@ function isHeadMethodSlot(prop) {
   return prop?.type === 'ObjectMethod' ? prop.kind === 'method' : !!prop?.method;
 }
 
+// A method in each iteration has its own scope. Only closed literal results can
+// represent each other, including the element families of arrays returned by the method.
+function sameLiteralResult(left, right) {
+  left = unwrapRuntimeExpr(left);
+  right = unwrapRuntimeExpr(right);
+  if (left?.type === 'ArrayExpression' && right?.type === 'ArrayExpression') {
+    return left.elements.length === right.elements.length
+      && left.elements.every((item, index) => sameLiteralResult(item, right.elements[index]));
+  }
+  return PRIMITIVE_LITERAL_TYPES.has(left?.type) && PRIMITIVE_LITERAL_TYPES.has(right?.type)
+    && left.type === right.type && typeof literalNodeValue(left) === typeof literalNodeValue(right);
+}
+
 // Compare head-element receiver shapes: identifiers/proxy globals and matching container slots.
 // Primitive values are interchangeable for this shape test. With `sameCallee`, also admit
 // same-named calls whose arguments match recursively, and corresponding literal method slots.
@@ -9769,12 +9802,14 @@ function sameHeadElement(rawNode, rawFirst, sameCallee = false) {
     return node.properties.length === first.properties.length && node.properties.every((prop, index) => {
       const twin = first.properties[index];
       if (spelledSlotName(prop) === null || spelledSlotName(prop) !== spelledSlotName(twin)) return false;
-      // a METHOD slot is the one shape whose value is a function with no value NODE to read
-      // (`objectPropertyReadValue` declines it, having no expression to hand back). For a reader that
-      // RESOLVES the element rather than mirroring it, two method slots of the same name read the same:
-      // every claim below the slot reads a function, whatever the body was written to do. Accessors are
-      // excluded - what THEY read is whatever the body returns
-      if (sameCallee && isHeadMethodSlot(prop) && isHeadMethodSlot(twin)) return true;
+      // Resolving a call may inspect this method's return value. Two methods with the
+      // same name can return different families even when their holders have the same shape.
+      if (sameCallee && isHeadMethodSlot(prop) && isHeadMethodSlot(twin)) {
+        const left = prop.value ?? prop;
+        const right = twin.value ?? twin;
+        return left.async === right.async && left.generator === right.generator
+          && sameLiteralResult(singleReturnBodyExpression(left.body), singleReturnBodyExpression(right.body));
+      }
       return (prop.type === 'Property' || prop.type === 'ObjectProperty') && prop.type === twin.type
         && !!objectPropertyReadValue(prop)
         && sameHeadElement(prop.value, twin.value, sameCallee);
@@ -16458,6 +16493,20 @@ export function ancestorChainDetached(path) {
   }
   if (pending) for (const step of pending) answers.set(step, detached);
   return detached;
+}
+
+// A rewrite may copy a source identifier into one or more branches, each with its own binding.
+export function liveSourceIdentifierPaths(ref) {
+  if (!ancestorChainDetached(ref)) return [ref];
+  const position = nodePositionKey(ref.node);
+  if (!position) return [];
+  let anchor = ref.parentPath;
+  while (anchor && (!anchor.node || ancestorChainDetached(anchor))) anchor = anchor.parentPath;
+  const found = [];
+  anchor?.traverse({ Identifier(path) {
+    if (path.node.name === ref.node.name && nodePositionKey(path.node) === position) found.push(path);
+  } });
+  return found;
 }
 
 // the LIVE ancestry of `targetNode` under `rootNode`, as a minimal path-shaped chain

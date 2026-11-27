@@ -9,6 +9,5 @@ let g = 0;
 let e = 0;
 let c = 0;
 export const belowLeaf = null == (u = _globalThis.window) ? void 0 : _toFixedMaybeNumber((g++, _Number$MAX_SAFE_INTEGER)).call(_Number$MAX_SAFE_INTEGER, 2);
-export const atLeaf = null == (u = _globalThis.window) ? void 0 : _toFixedMaybeNumber((g++, _Number$MAX_SAFE_INTEGER)).call(_Number$MAX_SAFE_INTEGER, 2);
 export const seTailHopKey = (e++, _globalThis)[c++, 'self'].Map;
 export const seTailPlain = (e++, _Map);

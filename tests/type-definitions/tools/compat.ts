@@ -5,6 +5,17 @@ import getModulesListForTargetVersion from '@core-js/compat/get-modules-list-for
 
 const nonWritableValueGlobals: readonly string[] = compat.knownBuiltInReturnTypes.nonWritableValueGlobals;
 const nonWritableValueGlobal: string = knownBuiltInReturnTypes.nonWritableValueGlobals[0];
+const forEach = knownBuiltInReturnTypes.instanceMethods.Map.forEach;
+if (typeof forEach !== 'string') {
+  const index: number | undefined = forEach.callbackReceiverArgument;
+  // @ts-expect-error
+  forEach.callbackReceiverArgument = 0;
+}
+const sort = compat.knownBuiltInReturnTypes.instanceMethods.TypedArray.sort;
+if (typeof sort !== 'string') {
+  const mutation: true | 'existing' | undefined = sort.mutatesElements;
+  const result: string | undefined = sort.type;
+}
 
 // @ts-expect-error
 compat.knownBuiltInReturnTypes.nonWritableValueGlobals.push('Map');

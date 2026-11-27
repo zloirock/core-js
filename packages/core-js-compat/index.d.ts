@@ -38,6 +38,15 @@ type ReturnTypeHint = {
 /** a method / property return hint, or a bare resolution directive (`Array#at` -> `element`) */
 type ReturnTypeHintValue = ReturnTypeHint | ReturnTypeDirective;
 
+type InstanceMethodHint = Omit<ReturnTypeHint, 'type'> & {
+  /** Omitted when only the method's effects are known. */
+  type?: string,
+  /** Zero-based position at which the first argument's callback receives the method receiver. */
+  readonly callbackReceiverArgument?: number,
+  /** 'existing' only copies, moves or removes existing element values. */
+  mutatesElements?: true | 'existing',
+};
+
 type ConstructorReturnHint = {
   type: string | null,
   element?: ReturnTypeHint | ReturnTypeDirective,
@@ -48,7 +57,7 @@ type KnownBuiltInReturnTypes = {
   globalProperties: {[property: string]: ReturnTypeHintValue},
   staticMethods: {[className: string]: {[method: string]: ReturnTypeHintValue}},
   staticProperties: {[className: string]: {[property: string]: ReturnTypeHintValue}},
-  instanceMethods: {[className: string]: {[method: string]: ReturnTypeHintValue}},
+  instanceMethods: {[className: string]: {[method: string]: InstanceMethodHint | ReturnTypeDirective}},
   instanceProperties: {[className: string]: {[property: string]: ReturnTypeHintValue}},
   staticTypeGuards: {[className: string]: {[method: string]: ReturnTypeHintValue}},
   globalProxies: readonly string[],

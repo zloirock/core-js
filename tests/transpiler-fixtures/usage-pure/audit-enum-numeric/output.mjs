@@ -1,7 +1,5 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// numeric enum - each member has an implicit integer initialiser, so `c: Color` narrows
-// to `number`. using the enum value as an array index (`arr.at(c)`) is valid: `.at` accepts
-// a number, and the array's element type (`string[]`) picks the String-index-return path
+// A numeric enum is an argument to the array call. Reading its own at leaves the Number receiver alone.
 enum Color {
   Red,
   Green,
@@ -10,3 +8,5 @@ enum Color {
 declare const c: Color;
 const arr: string[] = ['a', 'b', 'c'];
 (_atMaybeArray(arr) || 0).call(arr, c);
+// @ts-expect-error probe a method absent from at least one enum member
+typeof c.at;

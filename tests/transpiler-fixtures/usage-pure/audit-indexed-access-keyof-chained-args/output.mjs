@@ -8,9 +8,10 @@ var _ref;
 type Items = {
   a: {
     x: string[];
-    y: number[];
+    y: string;
   };
   b: {
+    x: string;
     z: boolean[];
   };
 };

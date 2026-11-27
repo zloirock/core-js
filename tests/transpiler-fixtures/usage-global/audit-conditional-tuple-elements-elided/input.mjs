@@ -1,7 +1,4 @@
-// Tuple elements that do not fold to one type are dropped, so the check cannot be decided and BOTH
-// branches' families are injected - two modules where a decided check leaves one (`Array<number>
-// extends Array<string>` keeps `es.string.at` alone). The element ORDER is inert here: identical
-// tuples answer the same two modules.
+// The array elements are tuples with their positions reversed. The conditional selects string.
 type Sel<T> = T extends Array<[string, number]> ? number[] : string;
 declare const v: Array<[number, string]>;
 declare const r: Sel<typeof v>;

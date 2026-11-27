@@ -1,5 +1,4 @@
-// keyof T on a type alias - plugin explicitly returns null (not-supported branch).
-// Should not crash; receiver unknown => generic polyfill.
+// A keyof argument leaves the array receiver unchanged.
 type Shape = { a: string; b: number };
 declare const k: keyof Shape;
 const arr: string[] = ['x'];
