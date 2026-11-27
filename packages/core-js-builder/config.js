@@ -1,4 +1,4 @@
-import { dirname } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const version = '4.0.0-alpha.1';
@@ -13,17 +13,28 @@ export const banner = '/**\n' +
 /* eslint-enable prefer-template -- for better formatting */
 
 export function getRolldownOptions(input, output) {
-  // the entry template is generated in a temporary directory, from which walking up to `core-js` finds nothing,
-  // so the lookup starts where this package itself resolves it - lazily, since only the `bundle` format needs it
-  const coreJSRoot = dirname(fileURLToPath(import.meta.resolve('core-js/package.json')));
+  // The temporary entry is outside the installation. Resolve from the package Node selected,
+  // using its self-reference for exports or its own directory for a package without exports.
+  const manifest = fileURLToPath(import.meta.resolve('core-js/package.json'));
+  // eslint-disable-next-line node/no-sync -- the public options factory is synchronous
+  const { name = 'core-js', exports } = JSON.parse(readFileSync(manifest, 'utf8').replace(/^\uFEFF/, ''));
+  const prefix = exports === undefined ? '.' : name;
 
   return {
     input,
     platform: 'neutral',
     treeshake: false,
-    resolve: {
-      modules: [dirname(coreJSRoot), 'node_modules'],
-    },
+    plugins: [{
+      name: 'resolve-core-js',
+      resolveId: {
+        filter: { id: /^core-js(?:\/|$)/ },
+        async handler(id, importer, options) {
+          const resolved = await this.resolve(prefix + id.slice('core-js'.length), manifest, options);
+          if (!resolved) this.error(`Cannot resolve '${ id }' from @core-js/builder`);
+          return resolved;
+        },
+      },
+    }],
     // an unresolved specifier is not an error for the bundler - it turns the module into an external import
     // and drops it from the output, so a misresolved `core-js` would quietly produce an empty bundle
     onLog(level, log, defaultHandler) {
