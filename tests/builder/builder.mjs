@@ -1,4 +1,5 @@
-import { doesNotReject, ok, rejects, strictEqual, throws } from 'node:assert/strict';
+import { ok, rejects, strictEqual, throws } from 'node:assert/strict';
+import { pathToFileURL } from 'node:url';
 import { createContext, runInContext } from 'node:vm';
 import builder from '@core-js/builder';
 import { getRolldownOptions } from '@core-js/builder/config.js';
@@ -50,22 +51,15 @@ for (const targets of [{}, { esmodules: false }, 'kaios 2.5']) {
   strictEqual(await build({ targets, format: 'esm' }), allPolyfills, `empty targets: ${ JSON.stringify(targets) }`);
 }
 
-// the entry template of a `bundle` build is generated outside of the package, where the usual walk up to
-// `node_modules` does not find `core-js` - and an unresolved specifier is not a build error, it turns the
-// module into an external import and silently leaves it out of the output
+// Rolldown warns about unresolved imports even though the resulting bundle is incomplete.
 const options = getRolldownOptions('input.js', 'output.js');
-const [coreJSLookup] = options.resolve.modules;
-
-ok(path.isAbsolute(coreJSLookup), 'rolldown options #1');
-await doesNotReject(fs.access(join(coreJSLookup, 'core-js/package.json')), 'rolldown options #2');
-ok(options.resolve.modules.includes('node_modules'), 'rolldown options #3');
 throws(() => options.onLog('warn', { code: 'UNRESOLVED_IMPORT', message: 'dropped module' }, () => {
   throw new Error('delegated instead of failing');
-}), /dropped module/, 'rolldown options #4');
+}), /dropped module/, 'an unresolved import fails the build');
 
 let delegated = null;
 options.onLog('warn', { code: 'CIRCULAR_DEPENDENCY' }, (level, log) => delegated = log.code);
-strictEqual(delegated, 'CIRCULAR_DEPENDENCY', 'rolldown options #5');
+strictEqual(delegated, 'CIRCULAR_DEPENDENCY', 'other diagnostics reach the default handler');
 
 // point the OS temporary directory at one the test owns, so both the location of the scratch files and their
 // removal are observable - an unreachable one has to break the build, a writable one has to come back empty
@@ -106,5 +100,26 @@ strictEqual(runInContext('JSON.stringify(Object.groupBy([1, 2, 3], it => it % 2)
 strictEqual(runInContext('[1, 2, 3].at(-1)', context), 3, 'bundle ie 11 #6');
 strictEqual(runInContext('typeof structuredClone', context), 'undefined', 'bundle ie 11 #7');
 strictEqual(leftovers.length, 0, 'bundle ie 11 #8');
+
+// npm links node_modules/core-js to the workspace regardless of the workspace directory name.
+const workspace = await fs.mkdtemp(join(tmpdir(), 'core-js-builder-workspace-'));
+try {
+  const modules = join(workspace, 'app/node_modules');
+  const builderDir = join(modules, '@core-js/builder');
+  const polyfills = join(workspace, 'local-polyfills');
+  await fs.copy('packages/core-js-builder', builderDir, { filter: file => path.basename(file) !== 'node_modules' });
+  await fs.symlink(path.resolve('node_modules'), join(workspace, 'node_modules'), 'junction');
+  await fs.copy('packages/core-js/package.json', join(polyfills, 'package.json'));
+  await fs.outputFile(join(polyfills, 'modules/es.array.at.js'), "globalThis.loadedFrom = 'local-polyfills';");
+  await fs.symlink(polyfills, join(modules, 'core-js'), 'junction');
+
+  const { default: workspaceBuilder } = await import(pathToFileURL(join(builderDir, 'index.js')));
+  const { script: workspaceBundle } = await workspaceBuilder({ modules: 'es.array.at', targets: { ie: 11 } });
+  const workspaceGlobal = createContext({});
+  runInContext(workspaceBundle, workspaceGlobal);
+  strictEqual(workspaceGlobal.loadedFrom, 'local-polyfills', 'bundle loads core-js from the linked workspace');
+} finally {
+  await fs.remove(workspace);
+}
 
 echo(chalk.green('builder tested'));
