@@ -1,9 +1,16 @@
+import { GLOBAL } from '../helpers/constants.js';
 import getOwnPropertyDescriptor from '@core-js/pure/es/object/get-own-property-descriptor';
 import create from '@core-js/pure/es/object/create';
 import defineProperty from '@core-js/pure/es/reflect/define-property';
+import Reflect from '@core-js/pure/es/reflect/namespace';
 
 QUnit.test('Reflect.defineProperty', assert => {
   assert.isFunction(defineProperty);
+  assert.same(Reflect.defineProperty, defineProperty);
+  if (GLOBAL.Reflect?.defineProperty === defineProperty) {
+    const native = getOwnPropertyDescriptor(GLOBAL.Reflect, 'defineProperty');
+    assert.same(getOwnPropertyDescriptor(Reflect, 'defineProperty').writable, native.writable);
+  }
   assert.arity(defineProperty, 3);
   if ('name' in defineProperty) {
     assert.name(defineProperty, 'defineProperty');
