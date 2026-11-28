@@ -1,0 +1,3 @@
+@core-js/pure/full/array/instance/join
+@core-js/pure/full/array/instance/push
+@core-js/pure/full/function/instance/name

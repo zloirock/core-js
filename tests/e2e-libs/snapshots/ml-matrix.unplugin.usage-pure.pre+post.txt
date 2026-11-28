@@ -1,0 +1,2 @@
+-@core-js/pure/full/get-iterator
+-@core-js/pure/full/symbol/to-string-tag

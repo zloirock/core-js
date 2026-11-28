@@ -1,0 +1,16 @@
+core-js/modules/es.array.join
+core-js/modules/es.array.push
+core-js/modules/es.function.name
+core-js/modules/es.iterator.constructor
+core-js/modules/es.iterator.join
+core-js/modules/es.object.to-string
+core-js/modules/es.regexp.constructor
+core-js/modules/es.regexp.dot-all
+core-js/modules/es.regexp.exec
+core-js/modules/es.regexp.species
+core-js/modules/es.regexp.sticky
+core-js/modules/es.regexp.test
+core-js/modules/es.regexp.to-string
+core-js/modules/es.string.match
+core-js/modules/es.string.replace
+core-js/modules/es.string.split

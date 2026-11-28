@@ -1,0 +1,88 @@
+// highlight.js: every grammar without the `u` flag compiled, then nested scopes, a sub-language inside a
+// template literal, interpolation, case-insensitive matching, auto-detection over a subset and aliases. The
+// markup is highlight.js's own: its `hljs-` classes, the trailing underscores of a nested scope,
+// `language-` for a sub-language, `&quot;` for a quote.
+//
+// Its reason is TOPOLOGY: CommonJS at a width nothing else in the corpus has. The package's `import` entry
+// is a wrapper over `lib/index.js`, which `require`s the core and one module per grammar - 193 - and
+// registers each, which runs its definition at load. In the babel-plugin `usage-global` cell 90 of those
+// modules take an injection, the core and 89 grammars; the rest of the corpus has 19 CommonJS modules that
+// do, in three libraries. highlight.js fails quietly by default, so the checks read for it: a definition that throws
+// at load is registered as the plain-text stand-in, and an error while matching hands back the code
+// escaped, without markup. Compiling a grammar is outside that net - a pattern the engine refuses throws.
+//
+// Grammars that set `unicodeRegex` compile with the `u` flag, which IE11 refuses, so the compile pass
+// checks the exclusions against the known grammars for the pinned release.
+import hljs from 'highlight.js';
+import { checker } from './checks.mjs';
+
+// Canonical language names shipped by highlight.js 11.12.0.
+const LANGUAGES = ('1c abnf accesslog actionscript ada angelscript apache applescript arcade arduino '
+  + 'armasm asciidoc aspectj autohotkey autoit avrasm awk axapta bash basic bnf brainfuck c cal capnproto '
+  + 'ceylon clean clojure clojure-repl cmake coffeescript coq cos cpp crmsh crystal csharp csp css d dart '
+  + 'delphi diff django dns dockerfile dos dsconfig dts dust ebnf elixir elm erb erlang erlang-repl excel '
+  + 'fix flix fortran freedesktop fsharp gams gauss gcode gherkin glsl gml go golo gradle graphql groovy '
+  + 'haml handlebars haskell haxe hsp http hy inform7 ini irpf90 isbl java javascript jboss-cli json julia '
+  + 'julia-repl kotlin lasso latex ldif leaf less lisp livecodeserver livescript llvm lsl lua makefile '
+  + 'markdown mathematica matlab maxima mel mercury mipsasm mizar mojolicious monkey moonscript n1ql '
+  + 'nestedtext nginx nim nix node-repl nsis objectivec ocaml openscad oxygene parser3 perl pf pgsql php '
+  + 'php-template plaintext pony powershell processing profile prolog properties protobuf puppet purebasic '
+  + 'python python-repl q qml r reasonml rib roboconf routeros rsl ruby ruleslanguage rust sas scala scheme '
+  + 'scilab scss shell smali smalltalk sml sqf sql stan stata step21 stylus subunit swift taggerscript tap tcl '
+  + 'thrift tp twig typescript vala vbnet vbscript vbscript-html verilog vhdl vim wasm wren x86asm xl xml '
+  + 'xquery yaml zephir').split(' ');
+const UNICODE_REGEX_LANGUAGES = ['haskell', 'python', 'xml'];
+
+function html(code, language) {
+  return hljs.highlight(code, { language }).value;
+}
+
+export function run() {
+  const { checks, check } = checker();
+  const names = hljs.listLanguages();
+  check('grammar_registry', {
+    missing: LANGUAGES.filter(name => names.indexOf(name) === -1),
+    unexpected: names.filter(name => LANGUAGES.indexOf(name) === -1),
+  }, { missing: [], unexpected: [] });
+  check('registered', names.filter(name => hljs.getLanguage(name).name === 'Plain text'), ['plaintext']);
+  const failed = [];
+  const skipped = [];
+  names.forEach(name => {
+    if (hljs.getLanguage(name).unicodeRegex) {
+      skipped.push(name);
+      return;
+    }
+    try {
+      const { errorRaised } = hljs.highlight('', { language: name });
+      if (errorRaised) failed.push(`${ name }: ${ errorRaised.message }`);
+    } catch (error) {
+      failed.push(`${ name }: ${ error.message }`);
+    }
+  });
+  check('compiled', { failed, skipped: skipped.sort() }, { failed: [], skipped: UNICODE_REGEX_LANGUAGES });
+
+  const js = html('class A extends B { m() { return this; } }', 'javascript');
+  check('nested_scope', [
+    js.indexOf('<span class="hljs-title class_">A</span>') !== -1,
+    js.indexOf('<span class="hljs-title class_ inherited__">B</span>') !== -1,
+    js.indexOf('<span class="hljs-variable language_">this</span>') !== -1,
+  ], [true, true, true]);
+  const css = html('const s = css`a { color: red; }`;', 'javascript');
+  check('sublanguage', [css.indexOf('<span class="language-css">') !== -1, css.indexOf('<span class="hljs-attribute">color</span>') !== -1],
+    [true, true]);
+  check('interpolation', html('"s#{a}"', 'ruby'), '<span class="hljs-string">&quot;s<span class="hljs-subst">#{a}</span>&quot;</span>');
+  // two mechanisms: CSS property names are a pattern compiled with the `i` flag, SQL keywords a
+  // lower-cased table each word is folded into
+  check('case_insensitive', [html('a { COLOR: red; }', 'css'), html('SELECT a FROM t', 'sql')], [
+    '<span class="hljs-selector-tag">a</span> { <span class="hljs-attribute">COLOR</span>: red; }',
+    '<span class="hljs-keyword">SELECT</span> a <span class="hljs-keyword">FROM</span> t',
+  ]);
+  // two inputs with different winners over one subset, so neither the subset's order nor a constant
+  // answer picks both
+  check('auto', ['<?php echo $x; ?>', 'fn main() { let mut v: Vec<i32> = Vec::new(); println!("{}", v.len()); }']
+    .map(code => hljs.highlightAuto(code, ['go', 'ruby', 'php', 'rust']).language), ['php', 'rust']);
+  hljs.registerAliases(['rusty'], { languageName: 'rust' });
+  check('aliases', [hljs.getLanguage('rs') === hljs.getLanguage('rust'), hljs.getLanguage('rusty') === hljs.getLanguage('rust'), hljs.getLanguage('nope')],
+    [true, true, undefined]);
+  return { checks };
+}

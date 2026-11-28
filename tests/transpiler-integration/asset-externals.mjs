@@ -1,13 +1,14 @@
 // Asset discovery and external loading belong to the real host's dependency graph.
 import { strict as assert } from 'node:assert';
 import { createRequire } from 'node:module';
-import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { join, resolve as resolvePath } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { promisify } from 'node:util';
 import { runInNewContext } from 'node:vm';
 import unplugin from '../../packages/core-js-unplugin/index.js';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
+import { withCleanup, withTmpDir } from './runtime.mjs';
 import { runInWorker } from '../transpiler-differential/realm-runner.mjs';
 
 const root = resolvePath(import.meta.dirname, '../..');
@@ -26,22 +27,48 @@ function onlyEsbuildRequireErrors(error) {
     && errors.every(entry => entry?.pluginName === 'core-js-unplugin:pre' && externalRequireMessage.test(entry.text));
 }
 
+class CompilationError extends AggregateError {
+  name = 'CompilationError';
+}
+
 async function compileWebpack(compiler) {
-  try {
-    return await new Promise((resolve, reject) => compiler.run((error, stats) => {
-      if (error) reject(error);
-      else if (stats.hasErrors()) reject(new Error(stats.toString({ all: false, errors: true })));
-      else resolve(stats);
-    }));
-  } finally {
-    await new Promise((resolve, reject) => compiler.close(error => error ? reject(error) : resolve()));
-  }
+  return withCleanup(async () => {
+    const stats = await promisify(compiler.run.bind(compiler))();
+    if (stats.hasErrors()) throw new CompilationError(stats.compilation.errors, stats.toString({ all: false, errors: true }));
+    return stats;
+  }, () => promisify(compiler.close.bind(compiler))());
+}
+
+function expectedBuildError(pattern, compiler = false) {
+  return error => compiler
+    ? error instanceof CompilationError && error.errors.length > 0 && error.errors.every(({ message }) => pattern.test(message))
+    : !(error instanceof AggregateError) && pattern.test(error.message);
 }
 
 export async function assetExternals(run) {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'core-js-asset-externals-')));
-  await symlink(join(root, 'node_modules'), join(dir, 'node_modules'), 'dir');
-  try {
+  await run('webpack expected compilation error is the only failure', async () => {
+    const refusal = new Error('[core-js] injected require');
+    const unrelated = new Error('unrelated compilation error');
+    const accepts = expectedBuildError(/\[core-js\].*injected require/su, true);
+    function compile(errors, closeError) {
+      return compileWebpack({
+        /* eslint-disable promise/prefer-await-to-callbacks -- exercise webpack's callback protocol */
+        run(callback) {
+          callback(null, { hasErrors: () => errors.length !== 0, compilation: { errors }, toString: () => refusal.message });
+        },
+        close(callback) { callback(closeError); },
+        /* eslint-enable promise/prefer-await-to-callbacks -- end of the mock compiler */
+      });
+    }
+    await assert.rejects(() => compile([refusal]), accepts);
+    await assert.rejects(() => compile([refusal, refusal]), accepts);
+    for (const [errors, closeError] of [[[unrelated]], [[refusal, unrelated]], [[], refusal], [[refusal], unrelated]]) {
+      await assert.rejects(() => assert.rejects(() => compile(errors, closeError), accepts), { name: 'AssertionError' });
+    }
+  });
+  await withTmpDir(async temp => {
+    const dir = await realpath(temp);
+    await symlink(join(root, 'node_modules'), join(dir, 'node_modules'), 'dir');
     const esbuild = await import('esbuild');
     const rolldown = await import('rolldown');
     const vite = await import('vite');
@@ -215,11 +242,7 @@ export async function assetExternals(run) {
                   input: join(dir, 'entry.mjs'), external: id => external.test(id),
                   platform: compatible ? 'node' : 'neutral', plugins: [unplugin.rolldown(options(method))],
                 });
-                try {
-                  return await bundle.write({ file, format: 'es' });
-                } finally {
-                  await bundle.close();
-                }
+                return withCleanup(() => bundle.write({ file, format: 'es' }), () => bundle.close());
               }
               if (host === 'vite') return vite.build({
                 root: dir, configFile: false, logLevel: 'silent', plugins: [unplugin.vite(options(method))],
@@ -234,8 +257,11 @@ export async function assetExternals(run) {
                 plugins: [unplugin[host](options(method))],
               }));
             }
-            if (!compatible) await assert.rejects(build, host === 'esbuild' ? onlyEsbuildRequireErrors : externalRequireMessage);
-            else {
+            if (!compatible) {
+              const accepts = host === 'esbuild' ? onlyEsbuildRequireErrors
+                : expectedBuildError(externalRequireMessage, Object.hasOwn(compilers, host));
+              await assert.rejects(build, accepts);
+            } else {
               await build();
               assert.equal(await runInWorker(file), 'OK|2|[]');
             }
@@ -255,8 +281,9 @@ export async function assetExternals(run) {
           output: { path: out, filename: 'out.mjs', module: true, library: { type: 'module' } },
           plugins: [unplugin[host]({ ...options(method), phase: 'pre+post' })],
         });
-        if (method === 'usage-pure' && !member) await assert.rejects(() => compileWebpack(compiler), /\[core-js\].*injected require/s);
-        else {
+        if (method === 'usage-pure' && !member) {
+          await assert.rejects(() => compileWebpack(compiler), expectedBuildError(/\[core-js\].*injected require/su, true));
+        } else {
           await compileWebpack(compiler);
           assert.equal(await runInWorker(join(out, 'out.mjs')), 'OK|2|[]');
         }
@@ -303,7 +330,5 @@ export async function assetExternals(run) {
         assert.ok(text.every(contents => !contents.includes(pathToFileURL(input).href)), 'no build-machine URL leaks into the bundle');
       });
     }
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
+  }, 'core-js-asset-externals-');
 }

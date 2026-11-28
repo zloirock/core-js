@@ -94,3 +94,4 @@ import './sibling-claims.mjs';
 import './realm-probe-runtime.mjs';
 import './destructure-default-claims-runtime.mjs';
 import './standalone-imports.mjs';
+import './fixture-shard-protocol.mjs';

@@ -1,10 +1,11 @@
 // Exercise the host's loader and module rules, not only transformInclude in isolation.
 import { strict as assert } from 'node:assert';
-import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile, realpath, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { withCleanup, withTmpDir } from './runtime.mjs';
 import { runInNewContext } from 'node:vm';
 import unplugin from '../../packages/core-js-unplugin/index.js';
+import { closeRollupBundle } from './warning-policy.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const aliases = {
@@ -26,8 +27,8 @@ function verify(code, value = 3, stripped = true) {
 }
 
 export async function hostBoundaries(run) {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'core-js-host-')));
-  try {
+  await withTmpDir(async temp => {
+    const dir = await realpath(temp);
     const esbuild = await import('esbuild');
     await run('esbuild declining parse leaves the next loader', async () => {
       const file = join(dir, 'unparsed.js');
@@ -41,7 +42,7 @@ export async function hostBoundaries(run) {
           },
         }], logLevel: 'silent',
       });
-      try {
+      await withCleanup(async () => {
         const first = await context.rebuild();
         verify(first.outputFiles[0].text);
         assert.ok(first.warnings.some(warning => warning.text.includes('core-js')));
@@ -49,9 +50,7 @@ export async function hostBoundaries(run) {
         const second = await context.rebuild();
         verify(second.outputFiles[0].text);
         assert.equal(second.warnings.length, 0);
-      } finally {
-        await context.dispose();
-      }
+      }, () => context.dispose());
     });
     await run('esbuild non-code loader preserves text', async () => {
       const file = join(dir, 'text.js');
@@ -127,7 +126,7 @@ export async function hostBoundaries(run) {
         server: { watch: null, middlewareMode: true },
         optimizeDeps: { noDiscovery: true, include: ['@core-js/pure/actual/instance/at'] },
       });
-      try {
+      await withCleanup(async () => {
         const environment = server.environments.client;
         await environment.depsOptimizer.init();
         const pending = Object.values(environment.depsOptimizer.metadata.discovered);
@@ -143,9 +142,7 @@ export async function hostBoundaries(run) {
         await writeFile(join(dir, 'custom-cache-user.js'), code);
         const user = await server.transformRequest('/custom-cache-user.js');
         assert.ok(user.code.includes('core-js'));
-      } finally {
-        await server.close();
-      }
+      }, () => server.close());
     });
     for (const host of ['webpack', 'rspack']) {
       const mod = await import(host === 'webpack' ? 'webpack' : '@rspack/core');
@@ -160,13 +157,11 @@ export async function hostBoundaries(run) {
           module: { rules: [{ test: /lib\.js$/, ...rule }], ...noParse ? { noParse } : {} },
           plugins: [unplugin[host](opts(method))],
         });
-        try {
+        return withCleanup(async () => {
           const stats = await new Promise((resolveResult, reject) => compiler.run((error, value) => error ? reject(error) : resolveResult(value)));
           assert.equal(stats.hasErrors(), false, stats.toString({ all: false, errors: true }));
           return await readFile(join(dir, 'out/bundle.js'), 'utf8');
-        } finally {
-          await new Promise((resolveResult, reject) => compiler.close(error => error ? reject(error) : resolveResult()));
-        }
+        }, () => new Promise((resolveResult, reject) => compiler.close(error => error ? reject(error) : resolveResult())));
       }
       for (const method of ['usage-global', 'usage-pure']) {
         for (const strict of [false, true]) await run(`${ host } auto strictness/${ method }/${ strict }`, async () => {
@@ -208,27 +203,37 @@ export async function hostBoundaries(run) {
       await run(`compiled default/${ method }/${ ext }`, async () => {
         const file = join(dir, `view.${ ext }`);
         await writeFile(file, '<raw component>');
-        const build = await rollup({
-          input: file,
-          plugins: [unplugin.rollup(opts(method)), {
-            name: 'component-compiler',
-            resolveId(id) {
-              for (const [pkg, path] of Object.entries(aliases)) if (id.startsWith(`${ pkg }/`)) return `${ path }/${ id.slice(pkg.length + 1) }.js`;
-              return null;
-            },
-            transform(code, id) { return id === file ? source(method) : null; },
-          }, nodeResolve(), commonjs()],
-        });
-        try {
-          const result = await build.generate({ format: 'iife' });
-          verify(result.output[0].code);
-        } finally {
-          await build.close();
+        const entry = method === 'entry-global';
+        const options = { ...opts(method), ...entry && { exclude: ['es.json.is-raw-json'] } };
+        const compiled = source(method) + (entry
+          ? '\nimport "core-js/full/json/is-raw-json";'
+            + '\nif (typeof JSON.isRawJSON !== "undefined") throw new Error("provider did not exclude isRawJSON");'
+          : '');
+        async function compile(withProvider) {
+          const build = await rollup({
+            input: file,
+            plugins: [withProvider && unplugin.rollup(options), {
+              name: 'component-compiler',
+              resolveId(id) {
+                for (const [pkg, path] of Object.entries(aliases)) if (id.startsWith(`${ pkg }/`)) return `${ path }/${ id.slice(pkg.length + 1) }.js`;
+                return null;
+              },
+              transform(code, id) { return id === file ? compiled : null; },
+            }, nodeResolve(), commonjs()],
+          });
+          return withCleanup(async () => {
+            const result = await build.generate({ format: 'iife' });
+            return result.output[0].code;
+          }, () => closeRollupBundle(build));
+        }
+        const code = await compile(true);
+        verify(`delete JSON.isRawJSON;\n${ code }`);
+        if (entry && ext === 'vue') {
+          const uncontrolled = await compile(false);
+          assert.throws(() => verify(`delete JSON.isRawJSON;\n${ uncontrolled }`), /provider did not exclude isRawJSON/u);
         }
       });
     }
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
+  }, 'core-js-host-');
 }
 

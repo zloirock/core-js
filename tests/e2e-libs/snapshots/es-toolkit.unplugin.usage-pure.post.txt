@@ -1,0 +1,2 @@
++@core-js/pure/full/self
++@core-js/pure/full/symbol

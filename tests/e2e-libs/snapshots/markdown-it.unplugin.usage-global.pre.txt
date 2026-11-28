@@ -1,0 +1,4 @@
+-core-js/modules/es.object.get-own-property-descriptor
+-core-js/modules/es.object.get-own-property-descriptors
+-core-js/modules/es.object.get-prototype-of
+-core-js/modules/es.reflect.namespace

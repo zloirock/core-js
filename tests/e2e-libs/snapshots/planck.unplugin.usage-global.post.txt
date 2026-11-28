@@ -1,0 +1,2 @@
+-core-js/modules/es.object.assign
+-core-js/modules/es.reflect.namespace
