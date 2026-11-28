@@ -1,6 +1,5 @@
 /* eslint-disable import/no-dynamic-require, node/global-require -- required */
 import { deepEqual, ok, throws } from 'node:assert/strict';
-import { withTemporaryProperty } from '../helpers/restore-property.cjs';
 
 const entries = await fs.readJson('packages/core-js-compat/entries.json');
 const expected = new Set(Object.keys(entries));
@@ -16,47 +15,9 @@ function load(...components) {
   return require(path);
 }
 
-// Native statics keep their descriptors on either side of the namespace import.
-const reflectProperties = Object.getOwnPropertyDescriptors(Reflect);
-reflectProperties.has.configurable = false;
-reflectProperties.getPrototypeOf.configurable = false;
-reflectProperties.defineProperty.configurable = false;
-reflectProperties.defineProperty.value = Object.defineProperty;
-delete reflectProperties.ownKeys;
-withTemporaryProperty(globalThis, 'Reflect', Object.create(null, reflectProperties), () => {
-  require('@core-js/pure/es/reflect/has');
-  const ownKeys = require('@core-js/pure/es/reflect/own-keys');
-  const namespace = require('@core-js/pure/es/reflect/namespace');
-  deepEqual(Object.getOwnPropertyNames(namespace), [...Object.getOwnPropertyNames(Reflect), 'ownKeys']);
-  ok(namespace.ownKeys === ownKeys);
-  deepEqual(Object.getOwnPropertyDescriptor(namespace, 'has'), reflectProperties.has);
-  deepEqual(Object.getOwnPropertyDescriptor(namespace, 'getPrototypeOf'), reflectProperties.getPrototypeOf);
-  Object.defineProperty(namespace, 'prototype', { configurable: true, get() { throw new Error('static export read Reflect.prototype'); } });
-  try {
-    require('@core-js/pure/es/reflect/get-prototype-of');
-  } finally {
-    delete namespace.prototype;
-  }
-  deepEqual(Object.getOwnPropertyDescriptor(namespace, 'getPrototypeOf'), reflectProperties.getPrototypeOf);
-  const defineProperty = require('@core-js/pure/es/reflect/define-property');
-  ok(defineProperty(Object.freeze({}), 'x', { value: 1 }) === false);
-  deepEqual(Object.getOwnPropertyDescriptor(namespace, 'defineProperty'), { ...reflectProperties.defineProperty, value: defineProperty });
-});
-
 for (PATH of ['@core-js/pure', 'core-js']) {
   for (const NS of ['es', 'stable', 'actual', 'full']) {
     let O;
-    // Load these statics before another entry can initialize their constructors.
-    const maxSafeInteger = load(NS, 'number/max-safe-integer');
-    const dispose = load(NS, 'symbol/dispose');
-    const nativeIsFinite = Object.getOwnPropertyDescriptor(Number, 'isFinite');
-    try {
-      Object.defineProperty(Number, 'isFinite', { writable: false });
-      ok(load(NS, 'number/is-finite')(42.5));
-      deepEqual(Object.getOwnPropertyDescriptor(load(NS, 'number/constructor'), 'isFinite'), { ...nativeIsFinite, writable: false });
-    } finally {
-      Object.defineProperty(Number, 'isFinite', nativeIsFinite);
-    }
     ok(load(NS, 'global-this').Math === Math);
     ok(new (load(NS, 'aggregate-error/constructor'))([42]).errors[0] === 42);
     ok(load(NS, 'aggregate-error/is-error')(new Error()));
@@ -228,11 +189,12 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'number/constructor')('5') === 5);
     // eslint-disable-next-line math/prefer-number-epsilon -- test the value independently of the built-in
     ok(load(NS, 'number/epsilon') === 2 ** -52);
+    ok(load(NS, 'number/is-finite')(42.5));
     ok(load(NS, 'number/is-integer')(42.5) === false);
     ok(load(NS, 'number/is-nan')(NaN));
     ok(load(NS, 'number/is-safe-integer')(42));
     // eslint-disable-next-line math/prefer-number-max-safe-integer -- test the value independently of the built-in
-    ok(maxSafeInteger === 0x1FFFFFFFFFFFFF);
+    ok(load(NS, 'number/max-safe-integer') === 0x1FFFFFFFFFFFFF);
     // eslint-disable-next-line math/prefer-number-min-safe-integer, math/prefer-number-max-safe-integer -- test the value independently of the built-in
     ok(load(NS, 'number/min-safe-integer') === -0x1FFFFFFFFFFFFF);
     ok(load(NS, 'number/parse-float')('1.5') === 1.5);
@@ -246,9 +208,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'number/prototype/to-fixed').call(1, 1) === '1.0');
     ok(load(NS, 'number/prototype/to-precision').call(1.234, 3) === '1.23');
     ok(load(NS, 'number').isNaN(NaN) === true);
-    deepEqual(Object.getOwnPropertyDescriptor(load(NS, 'number'), 'MAX_SAFE_INTEGER'), {
-      value: maxSafeInteger, writable: false, enumerable: false, configurable: false,
-    });
     ok(typeof load(NS, 'reflect/namespace') == 'object');
     ok(load(NS, 'reflect/apply')((a, b) => a + b, null, [1, 2]) === 3);
     ok(load(NS, 'reflect/construct')(function () {
@@ -456,23 +415,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'is-iterable')([]));
     ok(load(NS, 'get-iterator-method')([]).call([42]).next().value === 42);
     ok(load(NS, 'get-iterator')([42]).next().value === 42);
-    if (PATH === '@core-js/pure' && NS === 'stable') {
-      const pure = load('es');
-      Object.defineProperty(pure, 'queueMicrotask', {
-        configurable: true,
-        get() { throw new Error('pure queueMicrotask getter called'); },
-      });
-      pure.self = { self: null };
-      withTemporaryProperty(globalThis, 'self', undefined, () => {
-        ok(load(NS, 'self') === globalThis);
-        ok(globalThis.self === undefined);
-      });
-      withTemporaryProperty(DOMException, 'sham', true, () => {
-        Object.defineProperty(DOMException, 'sham', { writable: false });
-        load(NS, 'dom-exception/constructor');
-        ok(!Object.getOwnPropertyDescriptor(DOMException, 'sham').writable);
-      });
-    }
     ok(new (load(NS).Map)([[1, 2]]).get(1) === 2);
     ok(typeof load(NS, 'iterator/constructor') == 'function');
     deepEqual([...load(NS, 'iterator/chunks')([1, 2, 3].values(), 2)], [[1, 2], [3]]);
@@ -540,10 +482,8 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'disposable-stack/constructor') === DisposableStack);
     ok(typeof load(NS, 'symbol/async-dispose') === 'symbol');
     ok(load(NS, 'symbol/async-dispose') === load(NS, 'symbol').asyncDispose);
-    ok(typeof dispose === 'symbol');
-    deepEqual(Object.getOwnPropertyDescriptor(load(NS, 'symbol'), 'dispose'), {
-      value: dispose, writable: false, enumerable: false, configurable: false,
-    });
+    ok(typeof load(NS, 'symbol/dispose') === 'symbol');
+    ok(load(NS, 'symbol/dispose') === load(NS, 'symbol').dispose);
     load(NS, 'async-iterator');
     const AsyncDisposableStack = load(NS, 'async-disposable-stack');
     const asyncStack = new AsyncDisposableStack();

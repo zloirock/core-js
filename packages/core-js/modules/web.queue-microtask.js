@@ -16,7 +16,7 @@ var WRONG_ARITY = fails(function () {
 
 // `queueMicrotask` method
 // https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#dom-queuemicrotask
-$({ global: true, enumerable: true, dontCallGetSet: true, forced: WRONG_ARITY }, {
+$({ global: true, enumerable: true, forced: WRONG_ARITY }, {
   queueMicrotask: function queueMicrotask(fn) {
     validateArgumentsLength(arguments.length, 1);
     microtask(aCallable(fn));

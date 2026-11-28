@@ -19,7 +19,6 @@ var defineGlobalProperty = require('../internals/define-global-property');
   options.enumerable      - export as enumerable property
   options.nonConfigurable - export as non-configurable property
   options.nonWritable     - export as non-writable property
-  options.dontCallGetSet  - prevent calling a getter on target
   options.name            - the .name of the function if it does not match the key
   options.arity           - the .length of the function if it does not match its parameters
 */
@@ -28,15 +27,10 @@ module.exports = function (options, source) {
   var target = options.global ? globalThis
     : options.stat ? globalThis[TARGET] || defineGlobalProperty(TARGET, {})
     : globalThis[TARGET] && globalThis[TARGET].prototype;
-  var targetProperty, sourceProperty, descriptor;
   if (target) Object.keys(source).forEach(function (key) {
-    sourceProperty = source[key];
-    if (options.dontCallGetSet) {
-      descriptor = Object.getOwnPropertyDescriptor(target, key);
-      targetProperty = descriptor && descriptor.value;
-    } else targetProperty = target[key];
+    var sourceProperty = source[key];
     // contained in target
-    if (!options.forced && typeof sourceProperty == typeof targetProperty) return;
+    if (!options.forced && typeof sourceProperty == typeof target[key]) return;
     // add a flag to not completely full polyfills
     if (options.sham) {
       createNonEnumerableProperty(sourceProperty, 'sham', true);

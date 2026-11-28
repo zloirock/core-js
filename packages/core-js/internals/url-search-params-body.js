@@ -101,7 +101,7 @@ var patchFetch = function (NATIVE_INSTANCES) {
     if (isCallable(nativeFetch)) {
       var Promise = getBuiltIn('Promise');
       var promiseReject = Promise.reject;
-      $({ global: true, enumerable: true, dontCallGetSet: true, forced: true }, {
+      $({ global: true, enumerable: true, forced: true }, {
         fetch: function fetch(input /* , init */) {
           try {
             validateArgumentsLength(arguments.length, 1);
@@ -131,7 +131,7 @@ var patchFetch = function (NATIVE_INSTANCES) {
       RequestConstructor.prototype = RequestPrototype;
       copyConstructorProperties(RequestConstructor, NativeRequest);
 
-      $({ global: true, constructor: true, dontCallGetSet: true, forced: true }, {
+      $({ global: true, constructor: true, forced: true }, {
         Request: RequestConstructor,
       });
     }
@@ -162,7 +162,7 @@ var patchFetch = function (NATIVE_INSTANCES) {
       ResponseConstructor.prototype = ResponsePrototype;
       copyConstructorProperties(ResponseConstructor, NativeResponse);
 
-      $({ global: true, constructor: true, dontCallGetSet: true, forced: true }, {
+      $({ global: true, constructor: true, forced: true }, {
         Response: ResponseConstructor,
       });
     }

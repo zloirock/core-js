@@ -16,12 +16,6 @@ var defineProperty = Object.defineProperty;
 var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 var getOwnPropertyNames = Object.getOwnPropertyNames;
 
-var getValue = function (object, key, options) {
-  if (!options.dontCallGetSet) return object[key];
-  var descriptor = getOwnPropertyDescriptor(object, key);
-  return descriptor && descriptor.value;
-};
-
 var wrapConstructor = function (NativeConstructor, arity) {
   var NativePrototype = NativeConstructor.prototype;
   var Wrapper = function (a, b, c) {
@@ -75,7 +69,6 @@ var copyOwnProperties = function (from, to, previous) {
   options.enumerable      - export as enumerable property
   options.nonConfigurable - export as non-configurable property
   options.nonWritable     - export as non-writable property
-  options.dontCallGetSet  - prevent calling a getter on target
   options.namespace       - the exported value is a namespace object
   options.name            - the .name of the function if it does not match the key
   options.arity           - the .length of the function if it does not match its parameters
@@ -98,11 +91,11 @@ module.exports = function (options, source) {
     var USE_NATIVE = !FORCED && nativeSource && hasOwn(nativeSource, key);
     // Forced constructor exports can still reuse a native.
     var nativeProperty;
-    if (nativeSource && (USE_NATIVE || options.constructor === true)) nativeProperty = getValue(nativeSource, key, options);
+    if (nativeSource && (USE_NATIVE || options.constructor === true)) nativeProperty = nativeSource[key];
     USE_NATIVE = USE_NATIVE && nativeProperty !== undefined;
     var baseResultProperty = USE_NATIVE ? nativeProperty : source[key];
 
-    var targetProperty = (canHaveStatics || checkExisting) && getValue(target, key, options);
+    var targetProperty = (canHaveStatics || checkExisting) && target[key];
     if (checkExisting && typeof targetProperty == typeof baseResultProperty) return;
 
     var previous = canHaveStatics && typeof targetProperty == 'object' && targetProperty;
@@ -150,7 +143,7 @@ module.exports = function (options, source) {
       // export virtual prototype methods
       createNonEnumerableProperty(path[VIRTUAL_PROTOTYPE], key, baseResultProperty);
       // export real prototype methods
-      if (targetPrototype && (FORCED || !getValue(targetPrototype, key, options))) {
+      if (targetPrototype && (FORCED || !targetPrototype[key])) {
         createNonEnumerableProperty(targetPrototype, key, baseResultProperty);
       }
     }
