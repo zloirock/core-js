@@ -15,16 +15,9 @@ import "core-js/modules/es.set.symmetric-difference";
 import "core-js/modules/es.set.union";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-// abstract class fields carry the same typeAnnotation slot as concrete ones, but their
-// declaration has no runtime body / initializer. visitor must still walk the annotation
-// so Map / Set polyfills are emitted - the declared type signals the subclass will need
-// the bound globals at runtime even though the abstract member itself never executes
+// Only the annotations name these collections. Neither abstract member has an initializer.
 abstract class C<T> {
   abstract bag: Map<string, T>;
   abstract accessor cache: Set<T>;
 }
-new class extends C<number> {
-  bag = new Map();
-  // @ts-expect-error a heritage tsc refuses is the shape under test
-  cache = new Set();
-}();
+export { C };

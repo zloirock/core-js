@@ -11613,6 +11613,85 @@ function * generateGuardKinds(cases) {
   }
 }
 
+function * generateOverloadInstantiations() {
+  const second = 'function second<T, U>(a: T, b: U, ...rest: unknown[]): U { return b; }';
+  const wrap = 'function wrap<T>(x: T): { v: T } { return { v: x }; }';
+  for (const [name, declarations, expression] of [
+    ['public-result-member', 'function read(): { v: number[] }; function read(): { v: any } { return { v: [3] }; }',
+      'read().v.at(0)'],
+    ['written-public-result-member', `function read(): { v: number[] }; function read(): { v: any } { return { v: [3] }; }
+      const box = read(); (box as { v: any }).v = 'xy';`, 'box.v.at(0)'],
+    ['closed-returned-holder', `const box = { v: [5], other: 0 };
+      function read(): { v: number[] }; function read(): any { return box; } box.other = 2;`,
+    '[box.v.at(0), read().v.at(0)]'],
+    ['escaping-returned-holder', `const box: { v: string | number[] } = { v: [5] };
+      function read() { return box; } function edit(value: typeof box) { value.v = 'xy'; }
+      const saved = read(); edit(saved);`, 'box.v.at(0)'],
+    ['shadowed-holder-factory', `const box: { v: string | number[] } = { v: [7] };
+      function loan(loan?: unknown) { return box; }
+      function edit(cb: typeof loan) { cb().v = 'xy'; } edit(loan);`, 'box.v.at(0)'],
+    ['public-member-shared-returns', `const a: any = { v: [4] }; const b: any = { v: [9] };
+      function read(k: boolean): { v: number[] };
+      function read(k: boolean): any { if (k) return a; return b; }
+      b.v = 'xy';`, '[read(true).v.at(0), read(false).v.at(0)]'],
+    ['forwarded-object-method', wrap, "wrap({ a: 1, at(_index: number) { log.push('at'); return this.a; } }).v.at(0)"],
+    ['forwarded-changed-prototype', 'function set(x: any): { v: any } { Object.setPrototypeOf(x, Array.prototype); return { v: x }; }',
+      'set({ 0: 11, length: 1 }).v.at(0)'],
+    ['forwarded-call-result', 'function set(x) { return { v: x }; }', 'set(() => [11]).v().at(0)'],
+    ['forwarded-array', wrap, 'wrap(Object.assign([7], { a: 1 })).v.at(0)'],
+    ['intersection', `type Api = { get(k: 'name'): string } & { get(k: 'values'): number[] };
+      function read(api: Api) { return api.get('values').at(0); }`,
+    "read({ get(k: string): any { return k === 'values' ? [7] : 'ab'; } })"],
+    ['union-in-intersection', `type Api = ({ get(): string } | { get(): number[] }) & { flag: boolean };
+      function read(api: Api) { return api.get().at(-1); }`,
+    "[read({ flag: true, get: () => 'ab' }), read({ flag: false, get: () => [7] })]"],
+    ['spread', second, "second(...['ab', 'cd'] as const, [7]).at(0)"],
+    ['stored-spread', `${ second } const xs = ['ab', 'cd'] as const;`, 'second(...xs, [7]).at(0)'],
+    ['written-spread', `${ second } const xs: [string, string | number[]] = ['ab', 'cd']; xs[1] = [9];`,
+      "second(...xs, 'ef').at(0)"],
+    ['shifted-argument', `function pick<T>(a: T, b: T = a, ...tail: unknown[]): T { return b; }
+      function read(xs: any[]) { return pick('ab', ...xs, 'cd').at(0); }`, '[read([]), read([[7]])]'],
+    ['homogeneous-shift', `function pick<T>(a: T, b: T = a, ...tail: unknown[]): { v: T } { return { v: b }; }
+      function read(xs: string[]) { return pick('ab', ...xs, 'cd', [7]).v.at(0); }`, "[read([]), read(['ef'])]"],
+    ['shifted-member', `function pick<T>(a: T, b: { v: T } = { v: a }, ...tail: unknown[]): { v: T } { return b; }
+      function read(xs: any[]) { return pick('ab', ...xs, { v: 'cd' }).v.at(0); }`, '[read([]), read([{ v: [7] }])]'],
+    ['rest-element', `function box<T>(...xs: T[]): { v: T } { return { v: xs[0] }; }
+      function read(xs: string[]) { return box(...xs, 'cd').v.at(0); }`, "[read([]), read(['ab'])]"],
+    ['reassigned-yield', `class Box { *values<T>(x: T, update = (x = JSON.parse('[37]'))) { yield x; } }
+      function read() { for (const x of new Box().values('ab')) return x.at(0); }`, 'read()'],
+    ['selected-written-member', `const box: any = { v: [5] };
+      const other = { v: [7] };
+      function read(flag: boolean): { v: number[] };
+      function read(flag: boolean): any { return flag ? box : other; }
+      box.v = 'xy';`, '[read(true).v.at(0), read(false).v.at(0)]'],
+    ['copied-written-member', `const box: any = { v: [5] }; box.v = 'xy';
+      function read(): { v: number[] };
+      function read(): any { return { get v() { return box.v; } }; }`, 'read().v.at(0)'],
+    ['yield-defined-argument', `class Box { *values<T>(x: T, update = (x = JSON.parse('[37]'))) { yield x; } }
+      function first(args: Iterable<string | number[]>) { for (const v of args) return v.at(0); }`,
+    "[first(new Box().values('ab')), first(new Box().values('ab', 'skip'))]"],
+    ['explicit-union', 'function last<T>(a: T, b: T): T { return b; }',
+      "[last<string | number[]>('ab', [7]).at(0), last<string | number[]>([7], 'ab').at(0)]"],
+    ['constructor', `class Box { constructor(v: number[]); constructor(v: string); constructor(v: unknown) {} }
+      function read(v: ConstructorParameters<typeof Box>[0]) { return v.at(-1); }`, "read('ab')"],
+    ['parameters', `function first<T>(a: T, b: T): T { return a; }
+      function read(v: Parameters<typeof first<string>>[1]) { return v.at(0); }`, "read('ab')"],
+    ['last-return', `function get(v: string): { item: string };
+      function get(v: number): { item: number[] };
+      function get(v: any): any { return { item: v }; }
+      function read(v: ReturnType<typeof get>['item']) { return v.at(0); }`, 'read([7])'],
+    ['aliased-signature', `function first<T>(x: T): T { return x; }
+      type F<T> = typeof first<T>;
+      function read(x: Parameters<F<string>>[0], y: ReturnType<F<number[]>>) { return [x.at(0), y.at(0)]; }`, "read('ab', [7])"],
+    ['instantiated-overload', `function get<T>(v: T): number[];
+      function get(): string;
+      function get(v?: unknown): string | number[] { return v === undefined ? 'ab' : [7]; }
+      function read(v: ReturnType<typeof get<string>>) { return v.at(0); }`, "read(get<string>('ab'))"],
+  ]) {
+    yield { ...snippet(`overload-instantiation/${ name }`, `(() => { ${ declarations } return ${ expression }; })()`), ts: true, strip: true };
+  }
+}
+
 function * generateConditionalMappedTypes() {
   for (const [name, source, receiver, value] of [
     ['array-length-only', "type V = Pick<string[], 'length'>; type R = V extends unknown[] ? string : number[];", 'v', '[7]'],
@@ -29499,4 +29578,5 @@ export function * generate() {
   yield * generateConditionalMappedTypes();
   yield * generateTupleAndArrayElements();
   yield * generateArrayGuardMutations();
+  yield * generateOverloadInstantiations();
 }

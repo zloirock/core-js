@@ -1,3 +1,3 @@
-const config: { items: string[] } = getConfig();
-const x: typeof config.items = config.items;
+declare const config: { items: string[] };
+declare const x: typeof config.items;
 x.at(-1);

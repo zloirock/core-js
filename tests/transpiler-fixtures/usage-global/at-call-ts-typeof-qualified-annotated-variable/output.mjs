@@ -1,6 +1,6 @@
 import "core-js/modules/es.array.at";
-const config: {
+declare const config: {
   items: string[];
-} = getConfig();
-const x: typeof config.items = config.items;
+};
+declare const x: typeof config.items;
 x.at(-1);

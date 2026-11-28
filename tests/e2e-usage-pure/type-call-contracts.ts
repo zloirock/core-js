@@ -97,3 +97,68 @@ QUnit.test('function results follow their actual slots and receiver', assert => 
   }
   assert.same(shadow([7]).at(0), 'a');
 });
+
+QUnit.test('public overloads and explicit type arguments select instance helpers', assert => {
+  function pick(key: 'name'): string;
+  function pick(key: 'values'): number[];
+  function pick(key: 'name' | 'values'): string | number[] { return key === 'name' ? 'ab' : [42]; }
+  function read(): { v: number[] };
+  function read(): { v: any } { return { v: [3] }; }
+  assert.same(read().v.at(0), 3);
+  const stored = read();
+  (stored as { v: any }).v = 'xy';
+  assert.same(stored.v.at(0), 'x');
+
+  const shared: { v: number[] | string } = { v: [5] };
+  function borrow() { return shared; }
+  function replace(box: typeof shared) { box.v = 'xy'; }
+  assert.same(borrow().v.at(0), 5);
+  replace(borrow());
+  assert.same(shared.v.at(0), 'x');
+
+  function selected(flag: boolean): { v: number[] };
+  function selected(flag: boolean): { v: any } { return flag ? shared : { v: [9] }; }
+  assert.same(selected(true).v.at(0), 'x');
+  assert.same(selected(false).v.at(0), 9);
+
+  const api: { pick(key: 'name'): string } & { pick(key: 'values'): number[] } = { pick };
+  assert.same(api.pick('values').at(0), 42);
+  assert.same(api.pick('name').at(-1), 'b');
+
+  function last<T>(a: T, b: T): T { return b; }
+  assert.same(last<number[] | string>([7], 'xy').at(-1), 'y');
+  assert.same(last<number[] | string>('xy', [7]).at(0), 7);
+
+  function second<T, U>(a: T, b: U, ...rest: unknown[]): U { return b; }
+  const tuple = ['x', 'yz'] as const;
+  assert.same(second(...tuple, [7]).at(0), 'y');
+  const writable: [string, string | number[]] = ['x', 'yz'];
+  writable[1] = [31];
+  assert.same(second(...writable, 'tail').at(0), 31);
+
+  class Box<T> {
+    *values<T>(value: T): Generator<T> { yield value; }
+  }
+  for (const value of new Box<number[]>().values('abc')) assert.same(value.at(-1), 'c');
+});
+
+QUnit.test('generic inference follows spread positions and writes before yield', assert => {
+  function pick<T>(a: T, b: { v: T } = { v: a }, ...tail: unknown[]): { v: T } { return b; }
+  function read(xs: any[]) { return pick('ab', ...xs, { v: 'cd' }).v.at(0); }
+  assert.same(read([]), 'c');
+  assert.same(read([{ v: [29] }]), 29);
+
+  class Box {
+    *values<T>(x: T, update = (x = JSON.parse('[37]'))) { yield x; }
+  }
+  for (const value of new Box().values('ab')) assert.same(value.at(0), 37);
+  for (const value of new Box().values('ab', 'keep')) assert.same(value.at(0), 'a');
+});
+
+QUnit.test('type calls: a returned property forwards the actual argument', assert => {
+  function wrap<T>(x: T): { v: T } { return { v: x }; }
+  assert.same(wrap({ a: 1, at() { return this.a; } }).v.at(), 1);
+  assert.same(wrap(Object.assign([7], { a: 1 })).v.at(0), 7);
+  function adopt(x: any): { v: any } { Object.setPrototypeOf(x, Array.prototype); return { v: x }; }
+  assert.same(adopt({ 0: 11, length: 1 }).v.at(0), 11);
+});

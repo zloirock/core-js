@@ -839,6 +839,7 @@ export function createBindingAnalysis({
     const disposition = positionDisposition(parent, refNode, refPath?.parentPath);
     if (disposition === POSITION_CONSUMES) return 'trivial';
     if (disposition === POSITION_FORWARDS && parent?.type === 'ThrowStatement') return 'carrier';
+    if (parent?.type === 'ReturnStatement' || parent?.type === 'ArrowFunctionExpression' && parent.body === refNode) return 'carrier';
     // a `for...of` head is deliberately NOT in that list: it invokes `o[Symbol.iterator]()`, and an
     // own iterator is free to yield `this`. with no own iterator to invoke the loop throws before it
     // binds anything, so the holder stays local here and the method-aware wrapper draws the line

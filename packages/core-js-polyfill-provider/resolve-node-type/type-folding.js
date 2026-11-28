@@ -34,10 +34,21 @@ import {
   isTypeObject,
 } from './base.js';
 import {
-  composeModifierDeltas, isUnionType, modifierWrapperDelta, topKeywordAnnotationKind, typeRefName, unionAnnotationOf, withMemberModifiers,
+  composeModifierDeltas,
+  constructorSignatures,
+  isUnionType,
+  modifierWrapperDelta,
+  topKeywordAnnotationKind,
+  typeRefName,
+  unionAnnotationOf,
+  withMemberModifiers,
 } from './ast-shapes.js';
 import {
-  classConstructorFunction, getTypeArgs, isTupleRestElement, tupleBounds, tupleElements, unwrapTupleMember,
+  getTypeArgs,
+  isTupleRestElement,
+  tupleBounds,
+  tupleElements,
+  unwrapTupleMember,
 } from '../helpers/ast-patterns.js';
 
 export function createTypeFolding({
@@ -51,9 +62,12 @@ export function createTypeFolding({
   applyAliasSubstDeep,
   peelStructurePreservingWrapper,
   followTypeAliasChain,
+  swapAliasToTSTypeQueryWithSubst,
   extractElementAnnotation,
   resolveTypeQueryBinding,
   pickLastAmbientOverload,
+  buildCallSiteSubst,
+  buildParentClassSubst,
   findClassPathForTypeReference,
   peelTSParenthesized,
   unwrapTypeAnnotation,
@@ -141,8 +155,25 @@ export function createTypeFolding({
   function utilityArgumentSignature(typeRef, scope) {
     const arg = getTypeArgs(typeRef)?.params?.[0];
     const peeled = peelTSParenthesized(unwrapTypeAnnotation(arg));
-    const { node: aliased, subst } = followTypeAliasChain(peeled, scope);
-    return { arg, signature: aliased ? peelTSParenthesized(aliased) : peeled, subst };
+    const chain = followTypeAliasChain(peeled, scope);
+    const argQuery = swapAliasToTSTypeQueryWithSubst(peeled, scope, chain);
+    return { arg: argQuery, signature: peelTSParenthesized(chain.node ?? peeled), subst: chain.subst };
+  }
+
+  // The tuple holds parameter declarations. Substitute in their annotation slots, including rest.
+  function instantiatedParameters(params, subst) {
+    const runtime = dropLeadingThisParam(params);
+    if (!runtime) return runtime;
+    return runtime.map(slot => {
+      const { param } = effectiveParam(slot);
+      if (!param?.typeAnnotation) return slot;
+      // Parameter properties and initializers wrap the annotated slot in a constructor.
+      // Parameters<> observes just that slot, with an initializer making it optional.
+      const wrapper = slot.type === 'TSParameterProperty' ? slot.parameter : slot;
+      if (param === slot && !subst) return slot;
+      return { ...param, optional: param.optional || wrapper.type === 'AssignmentPattern',
+        typeAnnotation: applyAliasSubstDeep(param.typeAnnotation, subst) };
+    });
   }
 
   function resolveParametersParams(typeRef, scope) {
@@ -155,27 +186,23 @@ export function createTypeFolding({
     const { arg, signature: inline, subst: aliasSubst } = utilityArgumentSignature(typeRef, scope);
     const inlineKind = name === 'Parameters' ? 'TSFunctionType' : 'TSConstructorType';
     if (inline?.type === inlineKind || (name === 'Parameters' && inline?.type === 'FunctionTypeAnnotation')) {
-      const params = dropLeadingThisParam(functionTypeParams(inline));
-      // a GENERIC alias binds its own parameters on the hop (`type F<T> = (a: T) => void`), so the
-      // binding is carried into each parameter's ANNOTATION - the list elements are parameter nodes,
-      // and a deep-subst handed the node itself leaves the free `T` sitting inside untouched
-      if (!params || !aliasSubst) return params;
-      return params.map(param => param?.typeAnnotation
-        ? { ...param, typeAnnotation: applyAliasSubstDeep(param.typeAnnotation, aliasSubst) } : param);
+      return instantiatedParameters(functionTypeParams(inline), aliasSubst);
     }
     if (arg?.type !== 'TSTypeQuery') return null;
     // overloaded `typeof fn`: select the LAST ambient head's params (TS canonical signature),
     // matching ReturnType's selection. no-op for classes / non-overloaded subjects
     let current = pickLastAmbientOverload(resolveTypeQueryBinding(arg, scope), arg, scope);
+    let subst = current?.node && buildCallSiteSubst(current.node, arg, scope);
     let depth = MAX_DEPTH;
     while (depth-- && current?.node) {
       // `Parameters<typeof fn>` drops the leading `this` pseudo-param (TS-level), so the tuple index
       // aligns with the runtime params - return the this-dropped list (no-op for ctors, which can't
       // declare `this`)
-      if (current.node.params) return dropLeadingThisParam(current.node.params);
-      const ctor = classConstructorFunction(current.node);
-      if (ctor) return dropLeadingThisParam(ctor.params);
+      const ctor = current.node.params ? null : constructorSignatures(current.node).at(-1);
+      const params = current.node.params ?? ctor?.params;
+      if (params) return instantiatedParameters(params, subst);
       if (!t.isClass(current.node) || !current.node.superClass) return null;
+      const child = current;
       const superClassPath = current.get('superClass');
       const superNode = superClassPath.node;
       // an ambient `declare class` parent has no runtime value: babel's `resolveRuntimeExpression`
@@ -191,6 +218,7 @@ export function createTypeFolding({
         current = findClassPathForTypeReference(
           { type: 'TSTypeReference', typeName: superNode }, superClassPath.scope ?? scope);
       } else current = runtimeSuper;
+      if (current?.node) subst = buildParentClassSubst(child, current, subst, child.scope);
     }
     return null;
   }
@@ -215,7 +243,9 @@ export function createTypeFolding({
     const current = arg?.type === 'TSTypeQuery' ? pickLastAmbientOverload(resolveTypeQueryBinding(arg, scope), arg, scope) : null;
     if (!current?.node) return undefined;
     const { params } = current.node;
-    return hasLeadingThisParam(params) ? params[0].typeAnnotation ?? null : null;
+    if (!hasLeadingThisParam(params)) return null;
+    const annotation = params[0].typeAnnotation;
+    return annotation ? applyAliasSubstDeep(annotation, buildCallSiteSubst(current.node, arg, scope)) : null;
   }
 
   // a tuple slot's own `?` already arrives as a source-level TSOptionalType, so an ABSENT wrapper

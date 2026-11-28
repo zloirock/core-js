@@ -11,11 +11,11 @@ import { callArgumentPaths } from './base.js';
 //   resolveOne(overload)         -> the resolved return type, or null
 //   getReturnAnnotation(overload)-> the raw return annotation (for the nullable check on a null resolveOne)
 export function createOverloadFold({ resolveNodeType, isNullableOrNeverAnnotation, unwrapTypeAnnotation, foldUnionTypes }) {
-  return function foldOverloadReturns(overloads, getParams, resolveOne, getReturnAnnotation, callPath) {
+  return function foldOverloadReturns(overloads, getParams, resolveOne, getReturnAnnotation, callPath, ordered = true) {
     const { selected, candidates } =
       discriminateOverloads(overloads, getParams, callArgumentPaths(callPath), resolveNodeType);
     const returns = [];
-    for (const ov of selected ? [selected] : candidates) {
+    for (const ov of selected && ordered ? [selected] : candidates) {
       const r = resolveOne(ov);
       if (r) {
         returns.push(r);

@@ -1,7 +1,4 @@
-// literal-arg annotation bridge boundaries: only trivially-typed literals bridge (objects
-// and functions stay opaque - generic); a template with expressions is still a string and
-// OVERRIDES a mismatched default; an explicit type-arg wins over the bridge; an array
-// literal bridges container precision with an inert element slot
+// A forwarded field keeps the actual argument family when its structural type is ambiguous.
 type Wrap<T> = { v: T; };
 declare const n: number;
 function w<T = number[]>(x: T): Wrap<T> { return { v: x } as any; }

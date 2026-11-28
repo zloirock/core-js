@@ -15,10 +15,8 @@ import "core-js/modules/es.set.symmetric-difference";
 import "core-js/modules/es.set.union";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-// TS type annotations on class-method signatures (`m(x: Map): Set`) must be scanned for
-// global references, on a par with annotations on plain function expressions.
 class Foo {
   m(x: Map<string, number>): Set<string> {
-    return new Set();
+    throw new Error();
   }
 }

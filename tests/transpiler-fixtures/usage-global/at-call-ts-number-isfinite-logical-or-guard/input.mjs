@@ -2,5 +2,5 @@
 // `string | number`, and `at` injects from the string arm, the only one carrying it
 function foo(x: string | number) {
   // @ts-expect-error the member read is the probe, and the right answer is a type without it
-  return Number.isFinite(x) || x.at(-1);
+  return Number.isFinite(x) || [x.at(-1), x.toFixed(2)];
 }

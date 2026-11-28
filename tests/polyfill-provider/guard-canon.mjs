@@ -913,6 +913,18 @@ for (const [source, collapsible] of [
     { aliasCtx, resolvePure, guardedProbe: guard.probe }), collapsible);
 });
 
+runBoth('returned getter exposes its parameter only to type reads',
+  'function wrap(x) { void x; return { data: x, get v() { return x; } }; }',
+  (adapter, program, label) => {
+    const fn = adapter.pickPath(program, 'FunctionDeclaration').node;
+    const storage = calleeYieldedContainer(fn);
+    const reads = calleeYieldedContainer(fn, { typeRead: true });
+    check(`${ label }/storage keys`, storage.slots.map(([keys]) => keys.join('.')).join(','), 'data');
+    check(`${ label }/read keys`, reads.slots.map(([keys]) => keys.join('.')).join(','), 'data,v');
+    check(`${ label }/getter still holds a reference outside the data slot`, storage.confined.has(0), false);
+    check(`${ label }/both reads forward the same parameter`, reads.confined.has(0), true);
+  });
+
 // Adding candidate parameters must not repeat the returned-container body's occurrence walk.
 for (const literal of ['{ p0 }', '[p0]']) {
   runBoth(`yielded container/one occurrence walk/${ literal }`, 'function seed() {}', (adapter, _program, label) => {

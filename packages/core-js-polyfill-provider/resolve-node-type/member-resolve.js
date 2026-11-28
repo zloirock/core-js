@@ -45,12 +45,16 @@ import {
   isUnionType,
   memberTypeQuery,
 } from './ast-shapes.js';
+import { isCallShape } from '../detect-usage/resolve.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
 import {
   arrayLiteralSlotValue,
   bindingLoopAnchor,
   cachedContainerPaths,
   calleeYieldedContainer,
+  callArgumentPathAt,
+  objectLevelPairedProperty,
+  resolveCallArgumentCoords,
   climbTransparentWrapperPath,
   findNearestVarScopeOwner,
   liveSourceIdentifierPaths,
@@ -150,10 +154,13 @@ export function createMemberResolve({
   findNameAnnotation,
   bindingAnnotationPath,
   findExpressionAnnotation,
+  resolveOverloadMember,
   withLookupPath,
   functionTypeReturnAnnotation,
   applyAliasSubstDeep,
   shadowMethodTypeParams,
+  applyCallSiteSubst,
+  dropTypeParamSubst,
   foldUnionTypes,
   foldOverloadReturns,
   followTypeAliasChain,
@@ -358,52 +365,24 @@ export function createMemberResolve({
     return null;
   }
 
-  // the callable member's PARAMETER list (parallel to memberCallReturnAnnotation): a method carries it
-  // on the member, an ESTree method on its `.value` function, a function-typed property on the
-  // function TYPE - and babel 7 spells a type's list `parameters`. the ONE reader of that slot, so a
-  // predicate bound through a class method or a function-typed property finds its argument on both
-  // parsers. a class FIELD holding a function is property-shaped and answers null: its value is not
-  // a member signature here (class-object-member resolves what such a call returns). the `?? null`
-  // tails normalise a missing slot to the null this contract promises, matching the shapes below
-  // that answer null outright - a caller testing the result may not have to tell the two apart
-  function memberCallParams(member) {
+  // ESTree methods own their signature under .value. A callable property owns it on
+  // its function type, including that function's type parameters.
+  function memberCallSignature(member) {
     switch (member.type) {
       case 'TSMethodSignature':
       case 'ClassMethod':
       case 'ClassPrivateMethod':
-      case 'TSDeclareMethod':
-        return member.params ?? member.parameters ?? null;
+      case 'TSDeclareMethod': return member;
       case 'TSAbstractMethodDefinition':
-      case 'MethodDefinition':
-        return member.value.params ?? null;
-      case 'TSPropertySignature':
-        return functionTypeParams(unwrapTypeAnnotation(member.typeAnnotation));
-      case 'ObjectTypeProperty':
-        return functionTypeParams(unwrapTypeAnnotation(member.value));
+      case 'MethodDefinition': return member.value;
+      case 'TSPropertySignature': return unwrapTypeAnnotation(member.typeAnnotation);
+      case 'ObjectTypeProperty': return unwrapTypeAnnotation(member.value);
     }
     return null;
   }
 
-  // the callable member's signature-local `<T>` type-parameters (parallel to memberCallReturnAnnotation). a
-  // METHOD signature (`take<T>(): T`) carries them on the member; a PROPERTY whose type is a function
-  // (`take: <T>(x: T) => T`) carries them on the FUNCTION TYPE annotation, not the member - so shadowing
-  // `member.typeParameters` alone misses the fn-type-property shape
-  function memberCallTypeParameters(member) {
-    switch (member.type) {
-      case 'TSMethodSignature':
-      case 'ClassMethod':
-      case 'ClassPrivateMethod':
-      case 'TSDeclareMethod':
-        return member.typeParameters;
-      case 'TSAbstractMethodDefinition':
-      case 'MethodDefinition':
-        return member.value?.typeParameters;
-      case 'TSPropertySignature':
-        return unwrapTypeAnnotation(member.typeAnnotation)?.typeParameters;
-      case 'ObjectTypeProperty':
-        return unwrapTypeAnnotation(member.value)?.typeParameters;
-    }
-    return null;
+  function memberCallParams(member) {
+    return functionTypeParams(memberCallSignature(member)) ?? null;
   }
 
   // resolve a method call's return type from a single (non-union) annotation by walking its members
@@ -415,9 +394,23 @@ export function createMemberResolve({
   //      matching overloads; convergent -> one type, divergent -> null (generic) - a type-specific
   //      Maybe picked off one arm would throw on a foreign return
   function resolveMemberCallReturnFromAnnotation({ annotation, name, scope, resolve, depth, subst, callPath }) {
-    const members = getTypeMembers({ objectType: annotation, scope, depth });
+    function matches(member) {
+      return keyMatchesName(member.key, name, scope, member.computed) && isCallableMemberShape(member);
+    }
+    const intersection = annotation.type === 'TSIntersectionType' || annotation.type === 'IntersectionTypeAnnotation';
+    const sources = intersection ? new Set() : null;
+    const members = getTypeMembers({
+      objectType: intersection ? applySubst(annotation, subst) : annotation, scope, depth,
+      onPart: intersection ? (part, source) => { if (part.some(matches)) sources.add(source); } : undefined,
+    });
     if (!members) return null;
-    const matchingMembers = members.filter(m => keyMatchesName(m.key, name, scope, m.computed) && isCallableMemberShape(m));
+    // If only a union contributes this method, preserve each arm's own overload ordering.
+    // Unrelated union members cannot widen an otherwise ordered intersection.
+    if (sources?.size === 1 && !sources.has(null)) {
+      return resolveMemberCallReturn({ annotation: sources.values().next().value, name, scope, resolve, depth: depth + 1, callPath });
+    }
+    const matchingMembers = members.filter(matches);
+    const ordered = !sources || sources.size <= 1;
     // apply subst so generic alias method returns (`type Box<T> = { get(): T[] }`) bind T
     // through every nested shape (arrays/tuples/unions), not just top-level references. but a method
     // that declares its OWN `<T>` shadows the outer alias's `T`: remap those signature-local params
@@ -431,21 +424,25 @@ export function createMemberResolve({
     function substitutedReturn(member) {
       const returnAnnotation = memberCallReturnAnnotation(member);
       if (!returnAnnotation) return null;
-      const memberSubst = subst ? shadowMethodTypeParams(memberCallTypeParameters(member), subst) : null;
+      const memberSubst = subst ? shadowMethodTypeParams(memberCallSignature(member)?.typeParameters, subst) : null;
       return memberSubst ? applyAliasSubstDeep(unwrapTypeAnnotation(returnAnnotation), memberSubst) : returnAnnotation;
     }
     return foldOverloadReturns(matchingMembers, memberCallParams, member => {
+      const signature = memberCallSignature(member);
+      if (callPath && signature?.typeParameters?.params?.length) {
+        const raw = unwrapTypeAnnotation(memberCallReturnAnnotation(member));
+        const result = applySubst(raw, dropTypeParamSubst(signature.typeParameters, subst));
+        if (result) {
+          const inferred = applyCallSiteSubst(result, { node: signature, scope }, callPath);
+          if (inferred) return inferred;
+        }
+      }
       const substituted = substitutedReturn(member);
       return substituted ? resolve(substituted) : null;
-    }, substitutedReturn, callPath);
+    }, substitutedReturn, callPath, ordered);
   }
 
-  // union/intersection method calls - for `x: A | B` or `x: A & B` calling `x.foo()`,
-  // resolve in each branch. union folds per-branch return types; intersection takes the FIRST
-  // branch that resolves. DELIBERATELY unlike the property side (`findTypeMember`), which folds
-  // every constituent into a composite: the call signatures of an intersection form an ordered
-  // overload list, so the first arm that accepts the call is the TS-faithful selection. do not
-  // "unify" the two - folding here would resolve a call against a signature TS never selects
+  // Each union alternative must support the call. Its own overloads are selected together.
   // `chain` is the caller's already-walked result for the TOP annotation, when it has one - the
   // walk is pure in (annotation, scope) and unmemoized, so re-running it here can only reproduce
   // it. only depth 0 can be handed one; every recursion peels a different branch and walks its own
@@ -479,17 +476,8 @@ export function createMemberResolve({
       }
       return result;
     }
-    if (aliased?.type === 'TSIntersectionType' || aliased?.type === 'IntersectionTypeAnnotation') {
-      for (const branch of aliased.types) {
-        const branchResult = recurse(peelBranch(branch));
-        if (branchResult) return branchResult;
-      }
-      return null;
-    }
-    // generic alias body landing on `T[keyof T]` (or similar computed shape) - getTypeMembers
-    // doesn't handle the shape directly. expand manually: get T's structural members, build
-    // a synthetic TSUnionType of their value annotations, then recurse self so union dispatch
-    // fires per branch. covers `Pick<T> = T[keyof T]` style aliases
+    // An intersection contributes one ordered overload set. getTypeMembers substitutes each
+    // constituent's own type arguments before the shared selector sees its parameter and result.
     return resolveMemberCallReturnFromAnnotation({
       annotation: aliased ?? annotation, name, scope, resolve, depth, subst, callPath,
     });
@@ -497,7 +485,7 @@ export function createMemberResolve({
 
   // --- Typed-member dispatcher ---
 
-  function resolveTypedMember(objectPath, name, callPath) {
+  function resolveTypedMember(objectPath, name, callPath, readPath = objectPath) {
     let annotation, scope;
     let anchorPath = null;
     if (t.isIdentifier(objectPath.node)) {
@@ -535,12 +523,28 @@ export function createMemberResolve({
         anchorPath = info.path ?? null;
       }
     }
-    if (!annotation) return null;
-    // same reason as the member-chain walk: the annotation was WRITTEN where the binding is, so
-    // the names inside it have to resolve there too
-    return anchorPath
-      ? withLookupPath(anchorPath, () => resolveMemberOnAnnotation({ annotation, scope, objectPath, name, callPath }))
-      : resolveMemberOnAnnotation({ annotation, scope, objectPath, name, callPath });
+    const called = isCallShape(objectPath.node);
+    if (!annotation && !called) return null;
+    // Resolve type names where their declaration was written.
+    function project(value, owner) {
+      return resolveMemberOnAnnotation({ annotation: value, scope: owner, objectPath, name, callPath });
+    }
+    const member = annotation && (anchorPath
+      ? withLookupPath(anchorPath, () => project(annotation, scope)) : project(annotation, scope));
+    if (member || !called) return member || null;
+    const overloaded = resolveOverloadMember(objectPath, name, project);
+    if (overloaded || callPath || unwrapRuntimeExpr(readPath.node) !== objectPath.node) return overloaded;
+    // A structural annotation can describe both an object literal and an array. On a
+    // fresh call result, the stored argument keeps its family across simple observations.
+    // Passing it to another consumer can change its prototype.
+    const callee = resolveRuntimeExpression(objectPath.get('callee')).node;
+    const yielded = callee?.returnType && calleeYieldedContainer(callee, {
+      confined: true, typeRead: true, unwrap: unwrapRuntimeExpr,
+    });
+    if (!yielded?.slots.length) return null;
+    const value = objectLevelPairedProperty(yielded.literal, name)?.match.value;
+    const argument = forwardedArgument(objectPath, yielded.slots, value);
+    return argument?.node ? resolveNodeType(argument) : null;
   }
 
   // the annotation-rooted half of `resolveTypedMember`, split out so a predicate-guard
@@ -845,14 +849,13 @@ export function createMemberResolve({
   // proves hold their arguments in its slots (`calleeYieldedContainer`), so a slot naming one of
   // them reads that call's argument
   const callFreshLiterals = new WeakMap();
-  // the ARGUMENT path a fresh literal's slot holds where the slot names such a parameter, or null:
-  // the literal's own value is the slot's otherwise, and so is one behind a spread argument
-  function freshLiteralSlotArgument(literalNode, valueNode) {
-    const fresh = callFreshLiterals.get(literalNode);
-    const at = valueNode?.type === 'Identifier' ? fresh?.params.get(valueNode.name) : undefined;
-    if (at === undefined) return null;
-    const args = fresh.callPath.get('arguments');
-    return args.slice(0, at + 1).some(argument => argument.node?.type === 'SpreadElement') ? null : args[at] ?? null;
+  // Match the returned reference itself: a same-named binding inside a getter can be different.
+  function forwardedArgument(callPath, slots, value) {
+    const source = unwrapRuntimeExpr(value);
+    if (source?.type !== 'Identifier') return null;
+    const slot = slots?.find(entry => entry[2] === source);
+    const coords = slot && resolveCallArgumentCoords(callPath.node.arguments, slot[1], isMutatedStatic);
+    return coords && callArgumentPathAt(cachedContainerPaths(callPath, 'arguments'), coords);
   }
   // the object literal PATH a resolved value stands for: the literal itself, the one a member
   // spine names, or the one a CALL yields - so every hop reads off the shape the source wrote
@@ -888,10 +891,10 @@ export function createMemberResolve({
     const returned = statements ? last.get('argument') : body;
     const literal = resolveRuntimeExpression(returned);
     if (literal?.node?.type !== 'ObjectExpression') return null;
-    const yielded = calleeYieldedContainer(fn, { unwrap: unwrapRuntimeExpr });
-    const params = dropLeadingThisParam(fn.params);
+    const yielded = calleeYieldedContainer(fn, { typeRead: true, unwrap: unwrapRuntimeExpr });
     callFreshLiterals.set(literal.node, {
-      returned, params: new Map(yielded?.literal === literal.node ? yielded.slots.map(([, at]) => [params[at].name, at]) : []), callPath,
+      returned, callPath, slots: yielded?.literal === literal.node ? yielded.slots : null,
+      confined: yielded?.confined.size === dropLeadingThisParam(fn.params).length,
     });
     return literal;
   }
@@ -955,8 +958,12 @@ export function createMemberResolve({
       const fresh = callFreshLiterals.get(spine.node);
       if (fresh && pathSlotWritten(fresh.returned, [name])) return null;
       const argument = fresh
-        ? freshLiteralSlotArgument(spine.node, walkObjectLiteralPropertyPath(spine, name)?.node) : null;
-      if (argument?.node) return unionHints ? null : resolveNodeType(argument);
+        ? forwardedArgument(fresh.callPath, fresh.slots, walkObjectLiteralPropertyPath(spine, name)?.node) : null;
+      if (argument?.node) {
+        if (unionHints || callPath) return null;
+        const value = resolveNodeType(argument);
+        return fresh.confined || value?.primitive ? value : null;
+      }
       const flowResult = resolveObjectFieldFlow(spine, name, callPath, unionHints, !callPath)
         ?? (!unionHints && (isGetterFreshLiteral(spine.node) || callFreshLiterals.has(spine.node))
           ? resolveObjectMember(spine, name, callPath) : null);
@@ -1008,8 +1015,11 @@ export function createMemberResolve({
         if (valueType) return valueType;
       }
     }
+    // Both the implementation and its overloads describe the result before any writes through a saved holder.
+    if (isCallShape(objectPath.node) && objectPath.node !== originalObjectPath.node
+      && pathSlotWritten(originalObjectPath, [name])) return null;
     // try typed member on resolved path first, then on original path (in case resolvePath lost annotation)
-    const typed = resolveTypedMember(objectPath, name, callPath)
+    const typed = resolveTypedMember(objectPath, name, callPath, originalObjectPath)
       || (objectPath !== originalObjectPath ? resolveTypedMember(originalObjectPath, name, callPath) : null);
     if (typed) return typed;
     // structural predicate narrow: `isF(v)` proves `v` matches interface F inside the

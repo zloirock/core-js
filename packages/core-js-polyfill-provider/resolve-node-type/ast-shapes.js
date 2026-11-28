@@ -11,11 +11,13 @@ import {
   isQualifiedNameNode,
   isDeferredContextStep,
   isTypeAnnotationWrapper,
+  peelSequenceTail,
   peelTSParenthesized,
   unwrapParens,
 } from '../helpers/ast-patterns.js';
 import {
   dropLeadingThisParam,
+  isDefinitelyObject,
   literalNodeValue,
   MODIFIER_WRAPPER_DELTAS,
   PRIMITIVE_HINTS,
@@ -449,7 +451,7 @@ function primitiveTypeKind(type) {
 // (estree regex `Literal`, `null`) cannot be spelled by a TSLiteralType param, so it does not
 // discriminate - yields undefined like any other non-literal shape
 function overloadLiteralValue(node) {
-  const value = literalNodeValue(unwrapParens(node));
+  const value = literalNodeValue(peelSequenceTail(unwrapParens(node), { step: unwrapParens }));
   return value !== null && typeof value !== 'object' ? value : undefined;
 }
 
@@ -508,6 +510,12 @@ function overloadArgVerdict(params, argLiterals, argKinds) {
   return verdict;
 }
 
+// Explicit type arguments admit signatures with that arity and a default for each omitted type parameter.
+export function acceptsTypeArgumentCount(signature, count) {
+  const params = signature.typeParameters?.params;
+  return !!params && count <= params.length && params.slice(count).every(param => param.default);
+}
+
 // TS overload discrimination by args - FIRST-MATCH faithful, LITERAL-aware. answers with both
 // halves the callers need:
 //   - `selected`: the arm TS provably picks (exact arity, every param a keyword matching the
@@ -524,6 +532,8 @@ export function discriminateOverloads(overloads, getParams, argPaths, resolveNod
   return discriminateOverloadsByArgs(overloads, getParams, argPaths.map(a => a.node),
     argPaths.map(a => {
       const type = resolveNodeType(a);
+      // An object cannot select a primitive overload. Its structural interface may still be unknown.
+      if (isDefinitelyObject(type)) return 'object';
       // A non-null assertion narrows the TS overload argument, but must not erase the
       // runtime marker used by optional-chain and fallback decisions elsewhere.
       let node = unwrapParens(a.node);
@@ -535,6 +545,8 @@ export function discriminateOverloads(overloads, getParams, argPaths, resolveNod
 // the kind a literal argument NODE carries on its own (`'a'` is a string, `1n` a bigint) - what a
 // caller without paths to resolve can still say about a slot; a non-literal node says nothing
 export function literalArgKind(node) {
+  node = unwrapParens(node);
+  if (node?.type === 'ArrayExpression' || node?.type === 'ObjectExpression') return 'object';
   const value = overloadLiteralValue(node);
   return value === undefined ? null : primitiveTypeKind(typeof value);
 }
@@ -546,6 +558,14 @@ export function literalArgKind(node) {
 export function isImplementationSignature(fnNode) {
   const body = fnNode.body ?? fnNode.value?.body;
   return !!body && body.type !== 'TSEmptyBodyFunctionExpression';
+}
+
+// Type utilities and calls see the public constructor signatures. Value analysis still uses
+// the implementation body, which may accept arguments that no public head admits.
+export function constructorSignatures(node) {
+  const constructors = node.body?.body?.filter(member => member.kind === 'constructor')
+    .map(member => member.value ?? member) ?? [];
+  return constructors.length > 1 ? constructors.filter(fn => !isImplementationSignature(fn)) : constructors;
 }
 
 // TypeScript hoists a signature with any literal-typed parameter before testing its arguments,

@@ -482,6 +482,7 @@ export default function createPlugin(options) {
     getPackages: () => packages,
     parameterCallSites: (...args) => typeResolvers.parameterCallSites(...args),
     collectBindingReferences: (...args) => typeResolvers.collectBindingReferences(...args),
+    returnedObjectStaysLocal: (...args) => typeResolvers.returnedObjectStaysLocal(...args),
     resolveConstantSelection: (...args) => typeResolvers.resolveConstantSelection(...args),
   });
   const typeResolvers = createResolveNodeType(nodeType, types, {

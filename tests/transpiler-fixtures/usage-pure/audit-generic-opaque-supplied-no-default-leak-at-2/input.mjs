@@ -1,3 +1,3 @@
-// channel: explicit type-arg, present but unresolvable
-function makeExplicit<T = number[]>(): T { return [] as any; }
-makeExplicit<string[]>().at(0);
+// An explicit string overrides an array default.
+declare function makeExplicit<T = number[]>(): T;
+makeExplicit<string>().at(0);

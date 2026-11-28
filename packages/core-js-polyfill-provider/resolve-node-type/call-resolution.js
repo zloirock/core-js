@@ -35,21 +35,29 @@
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 import { MAX_DEPTH, $Object, callArgumentPaths, canonicalArrayIndex, dropLeadingThisParam } from './base.js';
 import {
+  acceptsTypeArgumentCount,
   collectQualifiedSegments,
+  constructorSignatures,
   discriminateOverloads,
   isObjectTypeLiteral,
   isTypeReferenceNode,
   isUnionType,
   unionAnnotationOf,
   typeRefName,
+  keywordPrimitiveKind,
   TS_NUMBER_TYPE,
   TS_UNKNOWN_TYPE,
   openTypeArg,
 } from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
 import {
-  classConstructorFunction,
+  arrayLiteralSlotValue,
   cleanDestructureAliasWrites,
+  flattenBranchingValueNodes,
+  isBareUndefinedIdentifier,
+  isNullLiteralNode,
+  isVoidExpression,
+  objectLiteralSlotMember,
   pathOfNode,
   forOfHeadElements,
   getCallSiteTypeArgs,
@@ -60,6 +68,7 @@ import {
   peelTSParenthesized,
   positionalPathAt,
   bindingDeclaratorNode,
+  memberChainKeys,
   reachingReassignmentValueNode,
   prologueEndIndex,
   unwrapExpressionChain,
@@ -72,7 +81,19 @@ const { hasOwn } = Object;
 // the annotation shapes that describe `new X()` - the only ones whose return is an INSTANCE type
 const CONSTRUCT_SIGNATURE_TYPES = new Set(['TSConstructorType', 'TSConstructSignatureDeclaration']);
 
+const LITERAL_ARG_ANNOTATIONS = {
+  StringLiteral: Object.freeze({ type: 'TSStringKeyword' }),
+  TemplateLiteral: Object.freeze({ type: 'TSStringKeyword' }),
+  NumericLiteral: TS_NUMBER_TYPE,
+  BigIntLiteral: Object.freeze({ type: 'TSBigIntKeyword' }),
+  BooleanLiteral: Object.freeze({ type: 'TSBooleanKeyword' }),
+  ArrayExpression: Object.freeze({ type: 'TSArrayType', elementType: TS_UNKNOWN_TYPE }),
+};
+const primitiveArgAnnotations = new Map(Object.values(LITERAL_ARG_ANNOTATIONS).map(node => [keywordPrimitiveKind(node), node]));
+
 export function createCallResolution({
+  visitInferenceArguments,
+  resolveCallArgType,
   t,
   babelNodeType,
   getScopeBinding,
@@ -87,6 +108,7 @@ export function createCallResolution({
   hasParamTypeRef = null,
   resolveNodeType,
   resolveRuntimeExpression,
+  resolvePath,
   resolveReturnType,
   applyCallSiteSubst,
   withLookupPath,
@@ -96,6 +118,9 @@ export function createCallResolution({
   arrayElementType,
   foldOverloadReturns,
   findAmbientFunctionPaths,
+  findFunctionOverloads,
+  pathSlotWritten,
+  collectReturnPaths,
   findOverloadsForName,
   resolveFromMemberExpression,
   resolveKnownStaticReturnType,
@@ -220,18 +245,9 @@ export function createCallResolution({
         ? resolveAmbientFunctionReturn(headName, resolved.scope ?? callee.scope, callee.parentPath) : undefined;
       if (ambient !== undefined) return foldHeadAgainstImplementation(ambient, resolved, callee);
       const result = resolveReturnType(resolved, callee.parentPath);
-      // A nullable signature can be wider than the argument a local function actually returns.
-      const fn = resolved.node;
-      if (result?.mayBeNullish && fn.body && !fn.async && !fn.generator) {
-        const statements = t.isBlockStatement(fn.body) ? fn.body.body : null;
-        const last = statements?.at(-1);
-        if (statements && (last?.type !== 'ReturnStatement' || prologueEndIndex(statements) !== statements.length - 1)) return result;
-        const value = unwrapRuntimeExpr(statements ? last.argument : fn.body);
-        if (value?.type === 'Identifier' && fn.params.every(param => param.type === 'Identifier')) {
-          const index = dropLeadingThisParam(fn.params).findLastIndex(param => param.name === value.name);
-          const arg = index === -1 ? null : positionalPathAt(callArgumentPaths(callee.parentPath), index, isMutatedStatic);
-          if (arg) return resolveNodeType(arg) ?? result;
-        }
+      if (result?.mayBeNullish || (!result && resolved.node.typeParameters)) {
+        const argument = returnedArgument(resolved.node, callee.parentPath);
+        if (argument) return resolveNodeType(argument) ?? result;
       }
       return result;
     }
@@ -840,6 +856,7 @@ export function createCallResolution({
   function resetExpressionAnnotationCache() {
     expressionAnnotationCache = new WeakMap();
     constructionTypeArgsCache = new WeakMap();
+    overloadReturnHolders = new WeakMap();
   }
 
   function identifierAnnotation(path, depth) {
@@ -955,12 +972,7 @@ export function createCallResolution({
         }
       }
       if (fnPath && isFunctionLike(fnPath.node) && fnPath.node.returnType) {
-        // explicit `<...>` args; argument inference fallback (`makeBox(arr)` lifts arr's
-        // annotation onto T). without subst, generic return `{value: T}` leaks unsubstituted
-        const subst = inferCallSiteSubst(fnPath.node, path, depth, fnPath.scope) ?? buildCallSiteSubst(fnPath.node, path.node, path.scope);
-        const rawReturn = unwrapTypeAnnotation(fnPath.node.returnType);
-        const annotation = subst ? applyAliasSubstDeep(rawReturn, subst) : rawReturn;
-        return annotationAt(annotation, fnPath);
+        return declaredCallAnnotation(fnPath, path, depth);
       }
       // typed method call `w.inner.value()`: only function-shaped annotations produce a
       // return type. non-function property annotations bail to keep downstream chains sound
@@ -985,6 +997,125 @@ export function createCallResolution({
     return null;
   }
 
+  // A direct return of an unchanged parameter can be narrower than the call's declared type.
+  function returnedArgument(fn, call) {
+    if (!fn.body || fn.async || fn.generator || fn.params.some(param => param.type !== 'Identifier')) return null;
+    const statements = t.isBlockStatement(fn.body) ? fn.body.body : null;
+    const last = statements?.at(-1);
+    if (statements && (last?.type !== 'ReturnStatement' || prologueEndIndex(statements) !== statements.length - 1)) return null;
+    const value = unwrapRuntimeExpr(statements ? last.argument : fn.body);
+    if (value?.type !== 'Identifier') return null;
+    const index = dropLeadingThisParam(fn.params).findLastIndex(param => param.name === value.name);
+    return index === -1 ? null : positionalPathAt(callArgumentPaths(call), index, isMutatedStatic);
+  }
+
+  // Substitute the call's arguments into the signature in its own declaration scope.
+  function declaredCallAnnotation(fnPath, callPath, depth, args = getCallSiteTypeArgs(callPath.node), scope = callPath.scope) {
+    const fn = ambientSignatureNode(fnPath.node);
+    if (!fn.returnType) return null;
+    const inferred = args ? null : inferCallSiteSubst(fn, callPath, depth, fnPath.scope);
+    const subst = inferred ?? buildSubstMap(fn.typeParameters?.params, args?.params, scope);
+    const annotation = unwrapTypeAnnotation(fn.returnType);
+    return annotationAt(subst ? applyAliasSubstDeep(annotation, subst) : annotation, fnPath);
+  }
+
+  // Follow only the value actually returned. A fresh holder can copy a field from a shared one.
+  // At an opaque producer we cannot exclude returning an object the file already changed.
+  function returnFieldMayChange(value, keys, site, members) {
+    let remaining = MAX_DEPTH;
+    function visitReturns(fn, path) {
+      const { sites } = overloadBody(fn);
+      return !sites || sites.some(expression => visit(expression.node, path, expression));
+    }
+    function visit(node, path, anchor) {
+      return flattenBranchingValueNodes([node]).some(arm => {
+        if (--remaining < 0) return true;
+        const { root, keys: prefix } = memberChainKeys(arm);
+        if (prefix.length) return prefix.includes(null) || visit(root, [...prefix, ...path], anchor);
+        if (t.isIdentifier(root)) {
+          const ref = pathOfNode(anchor, root);
+          if (!ref || pathSlotWritten(ref, path)) return true;
+          const binding = getScopeBinding({ scope: ref.scope, name: root.name, path: ref });
+          if (!binding) return !isBareUndefinedIdentifier(root);
+          if (!binding.constant) return true;
+          if (binding.kind === 'param') return path.length > 0;
+          const declaration = binding.path;
+          const init = declaration.node.type === 'VariableDeclarator' && declaration.node.init;
+          return init ? visit(init, path, declaration) : path.length > 0;
+        }
+        if (t.isCallExpression(root)) {
+          const call = pathOfNode(anchor, root);
+          const callee = call?.get('callee');
+          if (!callee || isMemberLike(callee)) return true;
+          const fn = resolveRuntimeExpression(callee);
+          if (!fn?.node || !isFunctionLike(fn.node) || fn.node.async || fn.node.generator || !fn.node.body) return true;
+          const arg = returnedArgument(fn.node, call);
+          return arg ? visit(arg.node, path, arg) : visitReturns(fn, path);
+        }
+        if (!path.length) return false;
+        if (t.isObjectExpression(root)) {
+          const member = objectLiteralSlotMember(root, path[0], 'get', members);
+          if (!member) return true;
+          const tail = path.slice(1);
+          if (member.kind === 'get') {
+            const getter = pathOfNode(anchor, member.value ?? member);
+            return !getter || visitReturns(getter, tail);
+          }
+          return visit(member.value, tail, anchor);
+        }
+        if (t.isArrayExpression(root)) {
+          const element = arrayLiteralSlotValue(root, path[0]);
+          return !element || visit(element, path.slice(1), anchor);
+        }
+        return !isNullLiteralNode(root) && !isVoidExpression(root);
+      });
+    }
+    return visit(value, keys, site);
+  }
+
+  // Index returned expressions per body. Reaching the traversal limit leaves the proof open.
+  let overloadReturnHolders = new WeakMap();
+  function overloadBody(fn) {
+    const body = fn.get('body');
+    let entry = overloadReturnHolders.get(body.node);
+    if (!entry) {
+      let complete = true;
+      const sites = t.isBlockStatement(body.node)
+        ? collectReturnPaths(body, () => { complete = false; }).map(statement => statement.get('argument'))
+        : [body];
+      entry = { sites: complete ? sites : null, written: new Map(), members: new WeakMap() };
+      overloadReturnHolders.set(body.node, entry);
+    }
+    return entry;
+  }
+
+  function returnedMemberWritten(fn, key, call) {
+    if (!fn.node.body) return false;
+    const entry = overloadBody(fn);
+    if (!entry.written.has(key)) {
+      entry.written.set(key, !entry.sites || entry.sites.some(site => returnFieldMayChange(site.node, [key], site, entry.members)));
+    }
+    if (!entry.written.get(key)) return false;
+    const arg = returnedArgument(fn.node, call);
+    return !arg || returnFieldMayChange(arg.node, [key], arg, entry.members);
+  }
+
+  // A broad implementation can hide a precise member shared by the applicable public signatures.
+  function resolveOverloadMember(call, key, project) {
+    const target = resolvePath(call.get('callee'));
+    // A saved instantiation selects the same overloads as explicit arguments at the call.
+    const instantiated = target.node.type === 'TSInstantiationExpression';
+    const fn = instantiated ? resolvePath(target.get('expression')) : target;
+    let heads = findFunctionOverloads(fn);
+    if (!heads.length || returnedMemberWritten(fn, key, call)) return null;
+    const args = getCallSiteTypeArgs(call.node) ?? (instantiated ? getTypeArgs(target.node) : undefined);
+    if (args) heads = heads.filter(head => acceptsTypeArgumentCount(head.node, args.params.length));
+    return foldOverloadReturns(heads, head => head.node.params, head => {
+      const info = declaredCallAnnotation(head, call, 0, args, instantiated ? target.scope : call.scope);
+      return info && withLookupPath(head, () => project(info.annotation, info.scope));
+    }, head => head.node.returnType, call);
+  }
+
   // call-site explicit type args (`makeBox<number>()`) -> {paramName -> argNode}
   // `scope` threads to buildSubstMap's capture-avoidance: an explicit instantiation arg that is a
   // bare reference colliding with a function type-param name (`fn<T, U>` called `<X, T>`) is resolved
@@ -1005,49 +1136,45 @@ export function createCallResolution({
   // bridge it as an inert keyword node so the subst keeps the runtime ground truth. an
   // array literal maps to Array-of-unknown: container-level receiver precision, inert
   // element slot. objects / calls stay null (structural / unknowable here)
-  const LITERAL_ARG_ANNOTATIONS = {
-    StringLiteral: Object.freeze({ type: 'TSStringKeyword' }),
-    TemplateLiteral: Object.freeze({ type: 'TSStringKeyword' }),
-    NumericLiteral: TS_NUMBER_TYPE,
-    BigIntLiteral: Object.freeze({ type: 'TSBigIntKeyword' }),
-    BooleanLiteral: Object.freeze({ type: 'TSBooleanKeyword' }),
-    ArrayExpression: Object.freeze({ type: 'TSArrayType', elementType: TS_UNKNOWN_TYPE }),
-  };
   function literalArgAnnotation(node) {
     return node ? LITERAL_ARG_ANNOTATIONS[babelNodeType(node)] ?? null : null;
   }
 
   // infer T -> argAnnotation from runtime arg annotations when caller omits `<...>`
   // (`makeBox(arr)` with `function makeBox<T>(t: T)`). limited to direct `T` param shapes
-  // (no container wrappers); SpreadElement bails whole inference since positional mapping breaks
+  // and homogeneous rest elements. A shifted slot contributes only its guaranteed common family.
   function inferCallSiteSubst(fnNode, callPath, depth, scope) {
     if (getTypeArgs(callPath.node)?.params?.length) return null;
     const fnTypeParams = fnNode.typeParameters?.params;
     if (!fnTypeParams?.length) return null;
-    const paramNames = new Set(fnTypeParams.map(typeParamName).filter(Boolean));
-    const args = callArgumentPaths(callPath);
-    // a spread breaks the positional arg->param mapping, so positional inference is
-    // skipped - but the fill below must still run OPAQUE-guarded: TS infers the param
-    // from the spread element, so bailing to the unguarded default fill (the caller's
-    // `?? buildCallSiteSubst`) leaked a declared default (`<T = number[]>`) onto a
-    // foreign runtime value. with a spread, ANY param position may be fed by it
-    const hasSpread = args.some(a => a.node?.type === 'SpreadElement');
-    // drop the leading `this` pseudo-param so param annotations align with the call args
-    const params = dropLeadingThisParam(fnNode.params);
+    const paramsByName = new Map(fnTypeParams.map(p => [typeParamName(p), p]));
+    const inferred = new Map();
+    const { supplied, uncertain } = visitInferenceArguments(fnNode, callPath, (annotation, arg, isRest, possible) => {
+      const name = typeRefName(isRest ? arrayElementType(annotation, scope) : annotation);
+      const declared = name && paramsByName.get(name);
+      if (!declared) return false;
+      let argAnnot;
+      if (!arg?.node || arg.node.type === 'SpreadElement') {
+        // A single open spread can be empty and leave a fixed parameter at its default.
+        const type = arg?.node && isRest ? resolveCallArgType(arg) : possible;
+        // Alternative values can share a family without sharing a literal, element type or scope.
+        if (type && !type.mayBeNullish) argAnnot = type.primitive
+          ? primitiveArgAnnotations.get(type.type)
+          : type.constructor === 'Array' ? LITERAL_ARG_ANNOTATIONS.ArrayExpression : null;
+      } else {
+        const argInfo = findExpressionAnnotation(arg, depth + 1);
+        argAnnot = inferredLiteralAnnotation(declared, arg, scope, depth + 1)
+          ?? (argInfo?.annotation && unwrapTypeAnnotation(argInfo.annotation))
+          ?? literalArgAnnotation(arg.node);
+      }
+      const choices = inferred.get(name);
+      if (choices) choices.push(argAnnot ?? OPAQUE_TYPE_ARG);
+      else inferred.set(name, [argAnnot ?? OPAQUE_TYPE_ARG]);
+      return true;
+    });
     const subst = new Map();
-    const limit = hasSpread ? 0 : Math.min(params.length, args.length);
-    for (let i = 0; i < limit; i++) {
-      if (!params[i] || !args[i]) continue;
-      const { param } = effectiveParam(params[i]);
-      const paramAnnotation = unwrapTypeAnnotation(param?.typeAnnotation);
-      const name = paramAnnotation && typeRefName(paramAnnotation);
-      if (!name || !paramNames.has(name) || subst.has(name)) continue;
-      const argInfo = findExpressionAnnotation(args[i], depth + 1);
-      const declared = fnTypeParams.find(p => typeParamName(p) === name);
-      const argAnnot = inferredLiteralAnnotation(declared, args[i], scope, depth + 1)
-        ?? (argInfo?.annotation && unwrapTypeAnnotation(argInfo.annotation))
-        ?? literalArgAnnotation(args[i].node);
-      if (argAnnot) subst.set(name, argAnnot);
+    for (const [name, choices] of inferred) {
+      subst.set(name, choices.includes(OPAQUE_TYPE_ARG) ? OPAQUE_TYPE_ARG : unionAnnotationOf(choices));
     }
     // fill un-inferred params from their declared defaults so a partial inference doesn't
     // shadow `f<T, U = T[]>(t: T)` defaults at the call site. without this the `??` to
@@ -1059,12 +1186,16 @@ export function createCallResolution({
     // a param annotation whose call arg is present binds the inert unknown node instead
     for (const p of fnTypeParams) {
       const name = typeParamName(p);
-      if (!name || subst.has(name)) continue;
-      const singleName = new Set([name]);
-      const argConstrained = !!hasParamTypeRef && params.some((prm, i) => (hasSpread || i < args.length)
-        && hasParamTypeRef(effectiveParam(prm).param, singleName, 0));
-      if (argConstrained) subst.set(name, OPAQUE_TYPE_ARG);
-      else if (p.default) subst.set(name, p.default);
+      if (!name) continue;
+      const slots = subst.has(name) ? uncertain : supplied;
+      if (slots.length) {
+        const singleName = new Set([name]);
+        if (slots.some(prm => hasParamTypeRef?.(effectiveParam(prm).param, singleName, 0))) {
+          subst.set(name, OPAQUE_TYPE_ARG);
+          continue;
+        }
+      }
+      if (!subst.has(name) && p.default) subst.set(name, p.default);
     }
     return subst.size ? subst : null;
   }
@@ -1083,9 +1214,14 @@ export function createCallResolution({
     if (spelled) return spelled;
     let args = constructionTypeArgsCache.get(newPath.node);
     if (!args) {
-      const ctor = classConstructorFunction(classNode);
-      const inherited = !ctor && (classNode.superClass || heritageClause(classNode)) && callArgumentPaths(newPath).length;
-      const subst = inherited ? null
+      const signatures = constructorSignatures(classNode);
+      let [ctor] = signatures;
+      if (signatures.length > 1) {
+        const { selected, candidates } = discriminateOverloads(signatures, fn => fn.params, callArgumentPaths(newPath), resolveNodeType);
+        ctor = selected ?? (candidates.length === 1 ? candidates[0] : null);
+      }
+      const open = !ctor && (signatures.length || (classNode.superClass || heritageClause(classNode)) && callArgumentPaths(newPath).length);
+      const subst = open ? null
         : inferCallSiteSubst({ typeParameters: classNode.typeParameters, params: ctor?.params ?? [] }, newPath, 0, classPath.scope);
       args = params.map(param => subst?.get(typeParamName(param)) ?? openTypeArg(param));
       constructionTypeArgsCache.set(newPath.node, args);
@@ -1104,6 +1240,7 @@ export function createCallResolution({
     functionTypeReturnAnnotation,
     shadowedAliasReturnAnnotation,
     findExpressionAnnotation,
+    resolveOverloadMember,
     resolveIndexSignatureValue,
     indexAccessKeyKind,
     buildCallSiteSubst,

@@ -1,13 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-import _at from "@core-js/pure/actual/instance/at";
-import _includes from "@core-js/pure/actual/instance/includes";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
-var _ref, _ref2, _ref3, _ref4, _ref5;
-// literal-arg annotation bridge boundaries: only trivially-typed literals bridge (objects
-// and functions stay opaque - generic); a template with expressions is still a string and
-// OVERRIDES a mismatched default; an explicit type-arg wins over the bridge; an array
-// literal bridges container precision with an inert element slot
+var _ref, _ref2, _ref3;
+// A forwarded field keeps the actual argument family when its structural type is ambiguous.
 type Wrap<T> = {
   v: T;
 };
@@ -18,16 +13,16 @@ function w<T = number[]>(x: T): Wrap<T> {
   } as any;
 }
 // @ts-expect-error the member read is the probe, and the right answer is a type without it
-_at(_ref = w({
+w({
   a: 1
-}).v).call(_ref, 0);
+}).v.at(0);
 // @ts-expect-error the member read is the probe, and the right answer is a type without it
-_includes(_ref2 = w(() => 1).v).call(_ref2, 1);
-_atMaybeString(_ref3 = w(`a${n}b`).v).call(_ref3, 0);
-_includesMaybeString(_ref4 = w<string>('abc' as any).v).call(_ref4, 'c');
+w(() => 1).v.includes(1);
+_atMaybeString(_ref = w(`a${n}b`).v).call(_ref, 0);
+_includesMaybeString(_ref2 = w<string>('abc' as any).v).call(_ref2, 'c');
 function ws<T = string>(x: T): Wrap<T> {
   return {
     v: x
   } as any;
 }
-_atMaybeArray(_ref5 = ws([new Date()]).v).call(_ref5, 0);
+_atMaybeArray(_ref3 = ws([new Date()]).v).call(_ref3, 0);

@@ -51,6 +51,7 @@ import {
   reassignmentReachesUsage,
   propertyInstallsPrototype,
   unwrapExpressionChain,
+  findNearestVarScopeOwner,
   unwrapRuntimeExpr,
   walkAstChildren,
   isDestructurePattern,
@@ -66,6 +67,7 @@ import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 
 // eslint-disable-next-line max-statements -- factory of the escape / closure analysis
 export function createClosureAnalysis({
+  returnedObjectStaysLocal,
   resolveComputedKeyName,
   installedMethodWriteReceiver,
   resolveStaticCalleePair,
@@ -340,6 +342,14 @@ export function createClosureAnalysis({
     };
   }
 
+  function returnKeepsHolder(path, value, object, fields) {
+    const parent = path.node;
+    if (fields.length || parent.type !== 'ReturnStatement'
+      && !(parent.type === 'ArrowFunctionExpression' && unwrapRuntimeExpr(parent.body) === value.node)) return false;
+    const fn = parent.type === 'ArrowFunctionExpression' ? parent : findNearestVarScopeOwner(path)?.node;
+    return returnedObjectStaysLocal(fn, path, object.node);
+  }
+
   // Follow a literal or one of its references through value carriers. Keep the literal as the
   // method-analysis anchor and compose its existing field path when a carrier is itself stored.
   // Exact-object bindings join receiverClosure; a carrier's own bindings do not alias its contents.
@@ -502,7 +512,8 @@ export function createClosureAnalysis({
         // callee decides, through the call-slot decision both walks share (`callArgumentEscapes`)
         default: {
           const disposition = positionDisposition(parent, valuePath.node, parentPath);
-          if (disposition !== POSITION_INSPECTS) return disposition === POSITION_CONSUMES ? local() : null;
+          if (disposition !== POSITION_INSPECTS) return disposition === POSITION_CONSUMES
+            || returnKeepsHolder(parentPath, valuePath, objectPath, fieldPath) ? local() : null;
           // A non-mutating call can still expose values INSIDE its argument (Object.assign,
           // Object.values, or a dispatched array method). Its direct-argument proof does not
           // cover the nested object's slots, so only the object itself can use that proof.

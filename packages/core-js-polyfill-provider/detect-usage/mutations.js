@@ -41,6 +41,7 @@ import {
   CLASS_DATA_FIELD_TYPES,
   CLASS_FIELD_TYPES,
   classConstructorFunction,
+  objectLiteralSlotMember,
   classMayReplaceInstance,
   classReachesItselfUnnamed,
   classStaticCallSlot,
@@ -115,6 +116,7 @@ import {
   jsxIdentifierReferencesBinding,
   kebabToCamel,
   literalIdentifierSlots,
+  literalValueAt,
   LOCAL_MEMBER_CALLEES,
   memberChainKeys,
   memberKeyName,
@@ -2608,45 +2610,6 @@ function forwardedValuePositions(node) {
     case 'AwaitExpression': return [node.argument];
   }
   return null;
-}
-
-// Reading or writing an accessor uses its own half of the final property descriptor.
-// A later data property or spread ends an earlier getter/setter pair.
-// An unknown computed key may redefine any slot, so it blocks an earlier descriptor proof.
-// Read-only batches may share a caller-owned index; live AST queries leave it uncached.
-function objectLiteralSlotMember(container, key, accessor = null, cache = null) {
-  let { properties } = container;
-  if (cache) {
-    let slots = cache.get(container);
-    if (!slots) {
-      cache.set(container, slots = new Map());
-      for (const prop of properties) {
-        const name = prop.type === 'SpreadElement' ? null : synthSlotName(prop);
-        if (name === null) {
-          slots.clear();
-          continue;
-        }
-        let members = slots.get(name);
-        if (!members) slots.set(name, members = []);
-        // Only the final data member or getter/setter pair can survive redefinition.
-        const last = members.at(-1);
-        if ((prop.kind !== 'get' && prop.kind !== 'set') || (last?.kind !== 'get' && last?.kind !== 'set')) {
-          members.length = 0;
-        } else if (last.kind === prop.kind) members.pop();
-        else if (members.length === 2) members.shift();
-        members.push(prop);
-      }
-    }
-    properties = slots.get(key) ?? [];
-  }
-  let member = findObjectKeyBeforeSpread(properties, prop => cache || (synthSlotName(prop) ?? key) === key, key);
-  if (member && synthSlotName(member) === null) return null;
-  if (accessor && member?.kind === (accessor === 'get' ? 'set' : 'get')) {
-    const preceding = findObjectKeyBeforeSpread(properties.slice(0, properties.indexOf(member)),
-      prop => !cache && synthSlotName(prop) === null || (cache || synthSlotName(prop) === key) && prop.kind !== member.kind, key);
-    member = preceding?.kind === accessor && synthSlotName(preceding) !== null ? preceding : null;
-  }
-  return member;
 }
 
 // the value ONE key reads off a container this census can index - an object or array literal, or a
@@ -7568,6 +7531,29 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
     }
   }
 
+  function recordReturnedContainer(node) {
+    const pending = handedOutValues(node);
+    let owner;
+    while (pending.length) {
+      const value = installedWriteValue(pending.pop());
+      if (!value) continue;
+      if (value.type === 'Identifier') {
+        owner ??= node.type === 'ArrowFunctionExpression' ? node
+          : currentScopes.findLast(scope => FUNCTION_LIKE_NODE_TYPES.has(scope.type));
+        recordSlotWrite(value.name, [null], null, currentScopes, null, { returnedBy: owner });
+      } else if (getFallbackBranchSlots(value) || value.type === 'AssignmentExpression' && VALUE_FLOW_ASSIGN_OPS.has(value.operator)) {
+        for (const arm of flattenBranchingValueNodes([value])) pending.push(arm);
+      } else if (isMemberAccessNode(value)) {
+        const { root, keys } = memberChainKeys(value);
+        // A direct read from a fresh literal returns only the selected data property.
+        const slot = (root.type === 'ObjectExpression' || root.type === 'ArrayExpression') && !keys.includes(null)
+          && literalValueAt(root, keys, {}, true)?.node;
+        if (slot) pending.push(slot);
+        else recordEscapedContainers([value]);
+      } else recordEscapedContainers([value]);
+    }
+  }
+
   // a PATTERN over a LITERAL init re-homes exactly the members that land on an IDENTIFIER binding
   // (`const [a] = [box]` makes `a` the container itself), so those values escape. a NESTED pattern
   // keeps unpacking - a read - so it recurses only where its value is itself a literal; a nested
@@ -8255,8 +8241,10 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
         break;
       }
       case 'ReturnStatement':
-      case 'YieldExpression':
       case 'ArrowFunctionExpression':
+        recordReturnedContainer(node);
+        break;
+      case 'YieldExpression':
       case 'ExportDefaultDeclaration':
       case 'ExportNamedDeclaration':
       case 'PropertyDefinition':
@@ -9805,6 +9793,7 @@ export function createDetectionAdapter({
   getMutationRoots = () => null,
   parameterCallSites = null,
   collectBindingReferences = null,
+  returnedObjectStaysLocal = () => false,
   resolveConstantSelection = null,
 }, buildHostMembers) {
   const callWriteSummaries = new WeakMap();
@@ -10168,6 +10157,11 @@ export function createDetectionAdapter({
           // reads, rest-only captures and arguments-object access keep the escape.
           const selected = prefix === key && escapes?.length && escapes.every(escape => {
             if (escape?.aliased) return false;
+            if (escape?.returnedBy) {
+              return keyPath.length === 1 && heldContainers(ownerNode, usagePath).every(
+                source => returnedObjectStaysLocal(escape.returnedBy, usagePath, source, keyPath[0]),
+              );
+            }
             const callee = escape?.call && CALL_CALLEES.get(index.programNode)?.get(escape.call);
             if (!callee) return false;
             // The indexed callee owns its syntax proof; each invocation only pairs

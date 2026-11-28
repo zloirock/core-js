@@ -128,11 +128,13 @@ export function createTypeAnnotationResolve({
   resolveInnerType,
   effectiveParam,
   resolveParametersParams,
+  withTypeReferenceScope,
   resolveThisParamAnnotation,
   resolveAnnotationInContext,
   resolveNonNullableAnnotation,
   resolveAwaitedAnnotation,
   resolveReturnTypeFromTypeQuery,
+  swapAliasToTSTypeQueryWithSubst,
   resolveTypeQueryBinding,
   declaredTypeofTarget,
   spelledTypeArgsOf,
@@ -442,7 +444,10 @@ export function createTypeAnnotationResolve({
       case 'ThisParameterType': {
         const thisAnn = resolveThisParamAnnotation(node, scope);
         if (thisAnn === undefined) return null;
-        return thisAnn ? resolveArgInner(thisAnn) : new $Object('Object');
+        const annotation = unwrapTypeAnnotation(thisAnn);
+        return annotation ? withTypeReferenceScope(annotation, scope, at => resolveAnnotationInContext({
+          node: annotation, scope: at, depth, typeParamMap, seen,
+        })) : new $Object('Object');
       }
       case 'OmitThisParameter':
         return new $Object('Function');
@@ -474,7 +479,7 @@ export function createTypeAnnotationResolve({
         return resolveAwaitedAnnotation({ node: arg, scope, depth, typeParamMap, seen });
       }
       case 'ReturnType': {
-        const arg = firstArg();
+        const arg = swapAliasToTSTypeQueryWithSubst(firstArg(), scope);
         if (!arg) return null;
         // TSTypeQuery (`ReturnType<typeof fn>`) routes through runtime-binding lookup.
         // direct function type alias (`type Fn = () => T; ReturnType<Fn>`) has no typeof -
@@ -490,7 +495,7 @@ export function createTypeAnnotationResolve({
       }
       case 'InstanceType': {
         // a query whose path spells a class's type (`X as typeof Y`) instantiates THAT class
-        const arg = firstArg();
+        const arg = swapAliasToTSTypeQueryWithSubst(firstArg(), scope);
         const target = arg ? declaredTypeofTarget(arg, scope) : null;
         const resolved = target ? resolveTypeQueryBinding(target.node, target.scope) : null;
         if (!(t.isClass(resolved?.node) || isAmbientClassNode(resolved?.node))) return null;
@@ -747,7 +752,7 @@ export function createTypeAnnotationResolve({
     const quasi = singleQuasiString(literalIndex);
     if (quasi !== null) {
       const member = findTypeMember({ objectType, key: quasi, scope });
-      return member ? resolveTypeAnnotation(member, scope, depth + 1) : null;
+      return member ? withTypeReferenceScope(member, scope, at => resolveTypeAnnotation(member, at, depth + 1)) : null;
     }
     const literal = literalTypeValueNode(indexType);
     if (!literal) return null;
@@ -763,7 +768,7 @@ export function createTypeAnnotationResolve({
       member = findTupleElement(objectType, literal.value, scope)
         ?? findTypeMember({ objectType, key: String(literal.value), scope });
     }
-    return member ? resolveTypeAnnotation(member, scope, depth + 1) : null;
+    return member ? withTypeReferenceScope(member, scope, at => resolveTypeAnnotation(member, at, depth + 1)) : null;
   }
 
   function resolveTypeAnnotation(node, scope, depth = 0, seen = null) {

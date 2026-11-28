@@ -178,10 +178,10 @@ function isNamespaceDeclaration(node) {
   return node.type === 'TSModuleDeclaration';
 }
 
-function statementContainer(path) {
+function statementContainerPath(path) {
   const parent = path.parentPath;
   return parent?.node?.type === 'ExportNamedDeclaration' || parent?.node?.type === 'ExportDefaultDeclaration'
-    ? parent.parentPath?.node : parent?.node;
+    ? parent.parentPath : parent;
 }
 
 function isValueDeclarator(node) {
@@ -570,7 +570,7 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
     if (!isFunctionOrClassDeclaration(binding.node) && binding.node.type !== 'TSEnumDeclaration') return false;
     const ns = findFirstDecl({ name, scope, leafMatch: isNamespaceDeclaration });
     const path = declarationPath(ns, scope);
-    return path && statementContainer(path) === statementContainer(binding);
+    return path && statementContainerPath(path)?.node === statementContainerPath(binding)?.node;
   }
 
   function findNamespacedValuePath(segments, scope) {
@@ -841,6 +841,16 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
     isClassLikeDeclaration,
     findAmbientDeclarationPath,
     findAmbientFunctionPaths,
+    // A resolved function has public overloads only in its own statement list. Looking up
+    // its name at the call site can select a shadow, including one inside the implementation.
+    findFunctionOverloads(path) {
+      const { node } = path;
+      if (!t.isFunctionDeclaration(node) || !node.body || !node.id) return [];
+      const owner = statementContainerPath(path);
+      // The scope index also includes declarations from nested global augmentations.
+      const heads = scopeAmbientIndex(owner, isAmbientFunctionNode)?.get(node.id.name);
+      return heads?.filter(head => statementContainerPath(head)?.node === owner.node) ?? [];
+    },
     findAmbientClassPath,
     findNamespacedFunctionPath,
     findNamespacedValuePath,

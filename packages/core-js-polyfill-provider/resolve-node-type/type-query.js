@@ -18,9 +18,9 @@
 //
 // Service object is heavy (~20 entries) but the deps are pure factory function decls
 // (hoisted) and upstream cluster outputs; no late binding needed
-import { STATEMENT_LIST_HOST_TYPES, TRANSPARENT_EXPR_WRAPPER_TYPES } from '../helpers/ast-patterns.js';
+import { getTypeArgs, STATEMENT_LIST_HOST_TYPES, TRANSPARENT_EXPR_WRAPPER_TYPES } from '../helpers/ast-patterns.js';
 import { $Object, MAX_DEPTH } from './base.js';
-import { TS_UNKNOWN_TYPE, collectQualifiedSegments, isConstAssertionType } from './ast-shapes.js';
+import { TS_UNKNOWN_TYPE, acceptsTypeArgumentCount, collectQualifiedSegments, isConstAssertionType } from './ast-shapes.js';
 import { isAmbientClassNode, isAmbientFunctionNode, isAmbientFunctionOrClassNode } from './name-resolution.js';
 
 // nearest ancestor holding `path` in a statement LIST - the unit an overload set lives in.
@@ -45,6 +45,7 @@ export function createTypeQuery({
   enumIsNearestValue,
   namespaceValueVisible,
   withLookupPath,
+  withTypeReferenceScope,
   resolveEnumMemberType,
   isFunctionOrClassDeclaration,
   isFunctionLike,
@@ -391,10 +392,10 @@ export function createTypeQuery({
     // same-named declaration nested inside that scope SHADOWS those heads instead of overloading
     // them, so an escaped outer set must not displace the inner subject
     if (statementContainer(overloads[0]) !== statementContainer(resolved)) return resolved;
-    // ambient head: only retarget when there's a LATER head (count > 1, since `resolved`
-    // is itself one of the entries). impl: ANY ambient heads supersede the impl body
-    const minHeadsForRetarget = isAmbientFunctionNode(resolved.node) ? 2 : 1;
-    return overloads.length >= minHeadsForRetarget ? overloads.at(-1) : resolved;
+    const count = getTypeArgs(param)?.params?.length;
+    if (!count) return overloads.at(-1);
+    // An instantiation expression first drops heads with incompatible type-argument arity.
+    return overloads.findLast(head => acceptsTypeArgumentCount(head.node, count)) ?? null;
   }
 
   // `depth` accumulates across the re-entries below so a self-referential return type
@@ -420,7 +421,8 @@ export function createTypeQuery({
       // recovered path's scope chain doesn't reach it on estree, so `Local` would bail to generic
       if (subst) {
         const substituted = applyAliasSubstDeep(unwrapTypeAnnotation(ret), subst);
-        return withLookupPath(resolved, () => resolveTypeAnnotation(substituted, queryScope, depth + 1));
+        return withLookupPath(resolved, () => withTypeReferenceScope(substituted, resolved.scope,
+          at => resolveTypeAnnotation(substituted, at, depth + 1)));
       }
       // an unannotated function is typed by the values it returns: a concrete one asserted to a wider
       // union keeps its own family (an accepted boundary - such a return type is annotated instead)

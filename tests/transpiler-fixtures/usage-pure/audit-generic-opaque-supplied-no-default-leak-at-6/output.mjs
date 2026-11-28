@@ -6,7 +6,7 @@ var _ref;
 type Wrap<T> = {
   v: T;
 };
-function wrapIt<T = string>(x: T): Wrap<T> {
+function wrapIt<T = number[]>(x: T): Wrap<T> {
   return {
     v: x
   } as any;

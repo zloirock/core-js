@@ -1,17 +1,13 @@
-// `ConstructorParameters<typeof Derived>` recovers the ambient super class by a TYPE lookup of the
-// `extends` name. that lookup must anchor at the CLASS, not at the reference site: an unrelated
-// local `Base` shadowing the name there would resolve the element type to the wrong constructor
-// and pick the wrong instance helper for it
+import "core-js/modules/es.array.at";
+// The inherited signature belongs to Derived's outer Base.
 declare class Base {
   constructor(a: number[]);
 }
 class Derived extends Base {}
 function shadowed() {
-  // @ts-expect-error an overload head without its implementation is the shape under test
   class Base {
-    constructor(b: string);
+    constructor(b: string) {}
   }
   type P = ConstructorParameters<typeof Derived>;
-  const picked: P[0] = null!;
-  return picked.at(0);
+  return (picked: P[0]) => picked.at(0);
 }

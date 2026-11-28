@@ -25,22 +25,25 @@
 //   reset()                                          - reset the sidecar arg-path WeakMap
 //
 // Private closures (not in the service object's return): `hasTypeParamReference`,
-// `innerTypeParamName`, `bindTypeParam`, `buildTypeParamMap`, `resolveCallArgType`,
+// `innerTypeParamName`, `buildTypeParamMap`,
 // `resolveDirectParam`, `resolvePatternParam`, `resolveParamType`, `resolveBodyExpr`,
 // `wrapAsyncPromise`, `applyCallSiteSubst`, `findBindingParam`, `paramHasOverridingArg`,
 // `hasAnyParamTypeRef`, `isStructuralAnnotation`.
 import {
   MAX_DEPTH, firstTypeParamIsInner, $Object, $Primitive,
-  argIndexForParam, callArgumentPaths, canonicalArrayIndex, dropLeadingThisParam,
+  argIndexForParam, callArgumentPaths, canonicalArrayIndex,
 } from './base.js';
-import { isTypeQueryOverImportType, typeRefName } from './ast-shapes.js';
+import { isTypeQueryOverImportType, isUnionType, typeRefName } from './ast-shapes.js';
 import {
   argumentOverridesSlot,
   effectiveArgsLength,
   getCallSiteTypeArgs,
   getTypeArgs,
+  isTupleRestElement,
+  unwrapTupleMember,
   patternSlotTarget,
   patternSlotHasDefault,
+  pathIsInside,
   positionalPathAt,
   peelSkippableWrapperPath,
   peelTSParenthesized,
@@ -50,6 +53,8 @@ import {
 import { EXIT_STATEMENTS, nodeAlwaysExits } from './exit-analysis.js';
 
 export function createReturnType({
+  visitInferenceArguments,
+  argumentSkipsDefault,
   settleValue,
   getScopeBinding,
   t,
@@ -64,14 +69,17 @@ export function createReturnType({
   resolveNodeType,
   resolvePath,
   resolveInnerType,
-  resolveRuntimeIterableElement,
+  resolveCallArgType,
   resolveTypeAnnotation,
   substituteTypeParams,
+  buildCallSiteSubst,
+  withTypeReferenceScope,
   generatorTypeParams,
   classSubstInner,
   shadowMethodTypeParams,
   dropTypeParamSubst,
   isNullableOrNever,
+  isNullableOrNeverAnnotation,
   elementContainerType,
   commonType,
   foldUnionTypes,
@@ -96,17 +104,6 @@ export function createReturnType({
 
   function reset() {
     typeParamArgPaths = new WeakMap();
-  }
-
-  // spread-aware call-arg type. `resolveNodeType(SpreadElement)` returns null (the
-  // spread node isn't in the expression dispatch), so for `fn(...arr)` against a
-  // positional `t: T` slot the iterable's element type is what fills T. mirrors the
-  // rest-param spread handling and is shared by `resolveParamType` and
-  // `buildTypeParamMap`'s phase-1 direct/rest paths
-  function resolveCallArgType(arg) {
-    return arg.node?.type === 'SpreadElement'
-      ? resolveRuntimeIterableElement(arg.get('argument'))
-      : resolveNodeType(arg);
   }
 
   // direct named param (`function f(x)` / `function f(x: T = 0)`): return the call
@@ -183,14 +180,17 @@ export function createReturnType({
     return null;
   }
 
+  function parameterIndexAt(site, fnPath) {
+    while (site?.parentPath && site.parentPath.node !== fnPath.node) site = site.parentPath;
+    return fnPath.node.params.indexOf(site?.node);
+  }
+
   // Use the declaration site: a catch or nested function may bind the same spelling.
   function findBindingParam(binding, fnPath) {
     if (binding.kind !== 'param') return null;
-    let site = binding.path;
-    while (site?.parentPath && site.parentPath.node !== fnPath.node) site = site.parentPath;
-    const index = fnPath.node.params.indexOf(site?.node);
+    const index = parameterIndexAt(binding.path, fnPath);
     if (index === -1) return null;
-    const param = site.node;
+    const param = fnPath.node.params[index];
     const name = binding.identifier?.name ?? binding.name;
     const pattern = patternSlotTarget(param.type === 'RestElement' ? param.argument : param);
     if (pattern?.type === 'Identifier') return pattern.name === name ? { index, param, name } : null;
@@ -294,7 +294,7 @@ export function createReturnType({
   // shadow them. this is handled per-TryStatement, not globally - returns outside
   // a try-finally are unaffected. a return the build never reaches is none: one in
   // the dead arm of an `if` it decides, or after a statement that always leaves its list
-  function collectReturnPaths(blockPath) {
+  function collectReturnPaths(blockPath, onDepthLimit) {
     function getChildren(path, key) {
       return Array.isArray(path.node[key]) ? path.get(key) : [path.get(key)];
     }
@@ -308,7 +308,11 @@ export function createReturnType({
       return result;
     }
     function collect(path, depth = 0) {
-      if (depth > MAX_DEPTH || !path.node || t.isFunction(path.node)) return [];
+      if (depth > MAX_DEPTH) {
+        onDepthLimit?.();
+        return [];
+      }
+      if (!path.node || t.isFunction(path.node)) return [];
       if (t.isReturnStatement(path.node)) return [path];
       const { node } = path;
       if (node.type === 'TryStatement') {
@@ -529,6 +533,15 @@ export function createReturnType({
     if (annotation.type === 'TSArrayType' || annotation.type === 'ArrayTypeAnnotation') {
       return typeRefName(annotation.elementType);
     }
+    // A homogeneous tuple also infers its single parameter from the argument's element type.
+    const elements = annotation.type === 'TSTupleType' || annotation.type === 'TupleTypeAnnotation' ? tupleElements(annotation) : null;
+    if (elements?.length) {
+      const names = elements.map(element => {
+        const member = unwrapTupleMember(element);
+        return typeRefName(isTupleRestElement(element) ? member.elementType ?? getTypeArgs(member)?.params?.[0] : member);
+      });
+      return names.every(name => name === names[0]) ? names[0] : null;
+    }
     // Container<T>: Set<T>, Promise<T>, Iterator<T>, Array<T>, ReadonlyArray<T>, etc.
     if (refName && firstTypeParamIsInner(refName)) {
       const typeArgs = getTypeArgs(annotation)?.params;
@@ -537,102 +550,50 @@ export function createReturnType({
     return null;
   }
 
-  // commit a phase-1 type-param binding when the name is in the target set, unbound,
-  // and a non-null resolution exists. returns whether the binding was actually written
-  // (caller uses the bool to gate side records like `argPaths`)
-  function bindTypeParam(name, typeParamNames, typeParamMap, resolved) {
-    if (!name || !typeParamNames.has(name) || typeParamMap.has(name) || !resolved) return false;
-    typeParamMap.set(name, resolved);
-    return true;
-  }
-
   // Map<string, Type> of type parameter bindings inferred from call-site arguments
-  function buildTypeParamMap(typeParamNames, fnPath, callPath) {
+  function buildTypeParamMap(paramsByName, fnPath, callPath) {
     const typeParamMap = new Map();
     const argPaths = new Map();
     typeParamArgPaths.set(typeParamMap, argPaths);
-    const suppliedOpaqueParams = new Set();
-    // phase 0: explicit type arguments at call site: foo<string>(...)
-    const callTypeArgs = getCallSiteTypeArgs(callPath.node)?.params;
-    if (callTypeArgs) {
-      // the sole caller already required `fnPath.node.typeParameters?.params?.length`, and this
-      // phase runs FIRST on a fresh map - so neither an absent param list nor an already-bound name
-      // can be seen here
-      const fnTypeParams = fnPath.node.typeParameters.params;
-      for (let i = 0; i < fnTypeParams.length && i < callTypeArgs.length; i++) {
-        const name = typeParamName(fnTypeParams[i]);
-        if (name) {
-          const resolved = resolveTypeAnnotation(callTypeArgs[i], callPath.scope);
-          if (resolved) typeParamMap.set(name, resolved);
-          // a PRESENT explicit type-arg that resolves to nothing is still SUPPLIED: record
-          // it so the name binds opaque after phase 1 (whose call-ARG inference may yet
-          // recover the runtime ground truth, e.g. a union type-arg with a concrete arg)
-          else suppliedOpaqueParams.add(name);
-        }
+    function bind(name, resolved, arg) {
+      if (!name || !paramsByName.has(name)) return;
+      if (typeParamMap.has(name)) {
+        // The result can come from either argument. A property or tuple-slot projection
+        // cannot use just the first path, even when both values have the same family.
+        const previous = typeParamMap.get(name);
+        typeParamMap.set(name, previous && resolved ? commonType(previous, resolved) : null);
+        argPaths.delete(name);
+      } else {
+        typeParamMap.set(name, resolved);
+        if (arg?.node && arg.node.type !== 'SpreadElement') argPaths.set(name, arg);
       }
     }
-    const args = callArgumentPaths(callPath);
-    // drop the leading `this` pseudo-param so param annotations align with the call args (this side
-    // reads annotations only, no AST params path - the dropped list is enough)
-    const params = dropLeadingThisParam(functionTypeParams(fnPath.node));
-    // phase-0 explicit type-args that were PRESENT but unresolvable: they bind opaque after
-    // phase 1 unless the arg inference recovered a concrete type
-    // phase 1: match param annotations against type parameter names
-    const inferredLength = Math.min(params.length, args.length);
-    for (let i = 0; i < inferredLength; i++) {
-      const { param, isRest } = effectiveParam(params[i]);
-      const paramAnnotation = unwrapTypeAnnotation(param.typeAnnotation);
-      if (!paramAnnotation) continue;
-      const name = typeRefName(paramAnnotation);
-      const innerName = innerTypeParamName(paramAnnotation, name);
-      // rest-only generic `function fn<T>(...xs: T[])` - annotation is T[] or Array<T>, bind T
-      // to the element type of the first rest-arg. spread-call `fn(...arr)` passes `args[0]`
-      // as a SpreadElement whose overall type IS the array - `resolveCallArgType` unwraps
-      // once to get the element. no more params possible after rest, so break regardless
+    const { supplied, uncertain } = visitInferenceArguments(fnPath.node, callPath, (annotation, arg, isRest, possible) => {
+      const arms = isUnionType(annotation) ? annotation.types.filter(arm => !isNullableOrNeverAnnotation(arm)) : null;
+      const direct = arms?.length === 1 ? arms[0] : annotation;
+      const name = typeRefName(direct);
+      const innerName = innerTypeParamName(direct, name);
       if (isRest) {
-        bindTypeParam(innerName, typeParamNames, typeParamMap, resolveCallArgType(args[i]));
-        break;
-      }
-      // direct: param type is exactly T. for `fn(...arr)` against `t: T`, T binds
-      // to the iterable element (handled inside `resolveCallArgType`). without that
-      // path, T falls through to phase 2's default/constraint and loses precision.
-      // argPath records the actual call arg for `getTypeParamArgPath` consumers;
-      // SpreadElement isn't a single-value path that indexed-access peek can inspect
-      const arg = args[i];
-      const declared = fnPath.node.typeParameters.params.find(p => typeParamName(p) === name);
-      const literal = inferredLiteralAnnotation(declared, arg, fnPath.scope);
-      if (bindTypeParam(name, typeParamNames, typeParamMap,
-        literal ? resolveTypeAnnotation(literal, callPath.scope) : resolveCallArgType(arg))) {
-        if (arg.node?.type !== 'SpreadElement') argPaths.set(name, arg);
-        continue;
-      }
-      // container wrapper: param type is T[], Array<T>, Set<T>, Promise<T>, etc.
-      bindTypeParam(innerName, typeParamNames, typeParamMap, resolveInnerType(resolveNodeType(arg)));
-      // a SPREAD contributes an unknown NUMBER of values, so every later param/arg pairing is
-      // off by an amount this phase cannot know (`pick(...arr, nums)` may land `nums` on any
-      // param, or on none). the spread's own pairing above still stands - stop before the
-      // shifted ones rather than bind them to the wrong argument, which would key a narrow to
-      // a type the value may never have
-      if (arg.node?.type === 'SpreadElement') break;
-    }
-    // phase 1.5: a supplied-but-opaque type-param binds opaque (null) so the phase-2
-    // default AND the type-param-declaration fallback inside `substTypeRefAsType` both
-    // stand down - the default would emit a type-specific Maybe on a foreign runtime value
-    // (an ie:11 throw). two supply channels: a phase-0 explicit type-arg that resolved to
-    // nothing, and a type-param referenced ANYWHERE in a param annotation whose call arg
-    // is PRESENT (the DEEP walker drives this - a shallow name/inner check missed union /
-    // tuple / nested / fn-type references)
-    for (const name of suppliedOpaqueParams) {
-      if (!typeParamMap.has(name)) typeParamMap.set(name, null);
-    }
-    for (const name of typeParamNames) {
-      if (typeParamMap.has(name)) continue;
+        if (!paramsByName.has(innerName)) return false;
+        bind(innerName, resolveCallArgType(arg));
+      } else if (paramsByName.has(name)) {
+        const declared = paramsByName.get(name);
+        const literal = inferredLiteralAnnotation(declared, arg, fnPath.scope);
+        bind(name, literal ? resolveTypeAnnotation(literal, callPath.scope) : arg ? resolveCallArgType(arg) : possible, arg);
+      } else if (paramsByName.has(innerName)) {
+        bind(innerName, resolveInnerType(arg?.node ? resolveNodeType(arg) : possible));
+      } else return false;
+      return true;
+    });
+    // A supplied argument may mention a parameter inside a nested annotation. If inference
+    // could not bind it, its declaration default cannot stand in for the runtime argument.
+    for (const name of paramsByName.keys()) {
+      const slots = typeParamMap.has(name) ? uncertain : supplied;
+      if (slots.length === 0) continue;
       const singleName = new Set([name]);
-      const suppliedLength = Math.min(params.length, args.length);
-      for (let i = 0; i < suppliedLength; i++) {
-        if (!hasParamTypeRef(effectiveParam(params[i]).param, singleName, 0)) continue;
+      if (slots.some(slot => hasParamTypeRef(effectiveParam(slot).param, singleName, 0))) {
         typeParamMap.set(name, null);
-        break;
+        argPaths.delete(name);
       }
     }
     // phase 2: default / constraint fallback for unresolved type params (TS binds to `default`
@@ -672,37 +633,67 @@ export function createReturnType({
   function applyCallSiteSubst(annotationNode, fnPath, callPath) {
     const typeParams = fnPath.node.typeParameters?.params;
     if (!typeParams?.length) return null;
-    const typeParamNames = new Set();
-    for (const p of typeParams) typeParamNames.add(typeParamName(p));
-    if (!hasTypeParamReference(annotationNode, typeParamNames, 0)) return null;
-    const typeParamMap = buildTypeParamMap(typeParamNames, fnPath, callPath);
+    const paramsByName = new Map();
+    for (const p of typeParams) paramsByName.set(typeParamName(p), p);
+    if (!hasTypeParamReference(annotationNode, paramsByName, 0)) return null;
+    if (getCallSiteTypeArgs(callPath.node)?.params?.length) {
+      // Keep the spelled type tree: a mixed union may have no single family until Extract
+      // or an indexed access projects it. Value arguments cannot replace an explicit type.
+      const subst = buildCallSiteSubst(fnPath.node, callPath.node, callPath.scope);
+      const instantiated = classSubstInner(annotationNode, subst);
+      return withTypeReferenceScope(instantiated, fnPath.scope, at => resolveTypeAnnotation(instantiated, at));
+    }
+    const typeParamMap = buildTypeParamMap(paramsByName, fnPath, callPath);
     if (typeParamMap.size === 0) return null;
     return substituteTypeParams(annotationNode, typeParamMap, fnPath.scope, 0);
+  }
+
+  // A supplied, definitely defined argument skips its default, including writes to an earlier parameter.
+  function parameterUnchangedAtCall(binding, fnPath, callPath) {
+    if (binding.constant) return true;
+    if (!callPath || !binding.constantViolations?.length) return false;
+    const args = callArgumentPaths(callPath);
+    const params = fnPath.get('params');
+    return binding.constantViolations.every(write => {
+      const index = parameterIndexAt(write, fnPath);
+      const param = params[index];
+      if (param?.node.type !== 'AssignmentPattern' || !pathIsInside(write, param.get('right'))) return false;
+      const arg = positionalPathAt(args, argIndexForParam(fnPath.node.params, index), isMutatedStatic);
+      return arg && argumentSkipsDefault(arg);
+    });
   }
 
   // Resolve a function return, inferring generics from call arguments. A virtual receiver
   // uses declaredOnly: an unresolved declared return cannot be replaced by the base body.
   function resolveReturnType(fnPath, callPath, classSubst, depth = 0, declaredOnly = false) {
-    // generator functions return iterators, async generators return async iterators
-    // yield type is extracted from Generator<TYield>/AsyncGenerator<TYield> annotation if present
+    // A method's own type parameters bind at the call even inside Generator<T>; the
+    // surrounding class can substitute only names that the method did not redeclare.
+    const methodTypeParams = fnPath.node.typeParameters;
+    const outer = dropTypeParamSubst(methodTypeParams, classSubst);
     if (fnPath.node.generator) {
       const params = generatorTypeParams(unwrapTypeAnnotation(fnPath.node.returnType), fnPath.scope);
-      // class type-arg subst applies upfront so method-level subst below sees substituted shape
-      const yieldType = classSubstInner(params?.[0], classSubst);
-      let inner = yieldType ? resolveTypeAnnotation(yieldType, fnPath.scope, depth + 1) : null;
-      if (!inner && yieldType && callPath) inner = applyCallSiteSubst(yieldType, fnPath, callPath);
-      // a yield type this layer did not resolve - never written, or written and not representable -
-      // leaves the iterator inner-less, and that absence is the bare shape every element matches.
-      // Two generators whose yields it could not read compared EQUAL and answered TRUE
+      let element = params?.[0];
+      if (!fnPath.node.returnType && !fnPath.node.async && !declaredOnly && fnPath.node.body?.body?.length === 1) {
+        // A single direct yield can use the declared type of an unchanged parameter.
+        // Delegation and async yielding can change the value that the consumer receives.
+        const [statement] = fnPath.node.body.body;
+        const yielded = statement.type === 'ExpressionStatement' && statement.expression;
+        if (yielded?.type === 'YieldExpression' && !yielded.delegate && yielded.argument?.type === 'Identifier') {
+          const { name } = yielded.argument;
+          const binding = getScopeBinding({ scope: fnPath.scope, name, path: fnPath });
+          const parameter = binding && findBindingParam(binding, fnPath)?.param;
+          if (parameter?.type === 'Identifier' && parameterUnchangedAtCall(binding, fnPath, callPath)) {
+            element = unwrapTypeAnnotation(parameter.typeAnnotation);
+          }
+        }
+      }
+      const yieldType = classSubstInner(element, outer);
+      const inferred = yieldType && callPath && applyCallSiteSubst(yieldType, fnPath, callPath);
+      const declared = classSubstInner(element, shadowMethodTypeParams(methodTypeParams, classSubst));
+      const inner = inferred || (declared && resolveTypeAnnotation(declared, fnPath.scope, depth + 1));
       return elementContainerType(new $Object(fnPath.node.async ? 'AsyncIterator' : 'Iterator'), yieldType, inner);
     }
-    // peel TSTypeAnnotation + apply class subst upfront. a method's signature-local `<T>` (`take<T>(): T`)
-    // is bound by the CALL ARGS, not the enclosing class subst, so DROP it from the class subst first - a
-    // same-named method param must not be captured by `C<X>` (-> wrong type-specific Maybe on the foreign
-    // call return, ie:11 throw). dropping (not shadowing) keeps it a bare `T` so call-site inference can bind
-    // it from the args, exactly like a differently-named `<U>`
-    const methodTypeParams = fnPath.node.typeParameters;
-    const callSiteInner = classSubstInner(fnPath.node.returnType, dropTypeParamSubst(methodTypeParams, classSubst));
+    const callSiteInner = classSubstInner(fnPath.node.returnType, outer);
     const isAsync = fnPath.node.async;
     // async normalization: wrap non-Promise results, fall back to bare Promise on null
     function wrap(type) { return wrapAsyncPromise(type, isAsync); }

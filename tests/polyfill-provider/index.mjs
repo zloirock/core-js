@@ -11,6 +11,7 @@ import './unclaimed-flattens.mjs';
 import './resolve-node-type.mjs';
 import './type-query-dag.mjs';
 import './type-call-contracts.mjs';
+import './overload-instantiation.mjs';
 import './conditional-mapped-types.mjs';
 import './awaited-values.mjs';
 import './type-declaration-scopes.mjs';

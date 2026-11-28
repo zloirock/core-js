@@ -9416,13 +9416,18 @@ runBoth('discriminant narrow holds across a switch (no back-edge) when a discrim
 // an anonymous object literal whose VALUE is handed to external code (a return / call argument / default
 // export) can have its fields written from outside, so its `this.<field>` flow must NOT narrow - the
 // escape bails to the empty-closure exclusion. a module-local object (declarator / member-call) narrows
-runBoth('anonymous object this-field flow bails when the object escapes via return',
-  'function f() {\n  return { data: ["x"], read() { return this.data.at(0); } };\n}',
-  (adapter, prog, lbl) => {
-    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
-    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
-    check(`${ lbl } returned anon-object field not narrowed to Array`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
-  });
+for (const [kind, value] of [
+  ['object', '{ data: ["x"], read() { return this.data.at(0); } }'],
+  ['conditional', 'condition ? { data: ["x"], read() { return this.data.at(0); } } : null'],
+]) for (const [use, expected] of [['', 'Array'], ['export { f };', null]]) {
+  runBoth(`returned ${ kind } inside ${ use ? 'an exported' : 'an unused' } function`,
+    `declare const condition: boolean; function f() { return ${ value }; } ${ use }`,
+    (adapter, prog, lbl) => {
+      const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+      const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+      check(`${ lbl } data field`, resolved?.constructor ?? null, expected);
+    });
+}
 
 // a SWITCH discriminant (`switch (b.tag)`) is also invalidated by a write to its discriminant field
 // between the case head and the use - the switch path shares the same write-collection gate as the
@@ -9452,7 +9457,7 @@ runBoth('discriminant narrow drops when the discriminant field is written throug
   });
 
 // an anonymous object also escapes when its value is carried OUT through a container/forwarder whose
-// own value escapes - here the object-property value of a returned object, and a returned conditional
+// own value escapes - here the object-property value of a returned object
 // branch. the escape check climbs value-preserving carriers to the outermost one before deciding
 runBoth('anonymous object this-field flow bails when it escapes as a returned object-property value',
   'function f() {\n  return { box: { data: ["x"], read() { return this.data.at(0); } } };\n}',
@@ -9460,14 +9465,6 @@ runBoth('anonymous object this-field flow bails when it escapes as a returned ob
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
     check(`${ lbl } object-property-value escape not narrowed`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
-  });
-runBoth('anonymous object this-field flow bails when it escapes through a returned conditional branch',
-  'declare const c: boolean;\n'
-  + 'function f() {\n  return c ? { data: ["x"], read() { return this.data.at(0); } } : null;\n}',
-  (adapter, prog, lbl) => {
-    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
-    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
-    check(`${ lbl } conditional-branch escape not narrowed`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
   });
 
 // a container bound to a name escapes when that BINDING leaks (exported / returned / passed) - the carrier
@@ -12272,8 +12269,15 @@ runBoth('resolvable explicit type-arg keeps precision',
     checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
   });
 
-runBoth('deeply-referenced param (union wrapper) with a present arg stays opaque',
+runBoth('deeply-referenced param (union wrapper) with a known Date keeps its family',
   'function f<T = string>(x: T | null): T { return x as any; } const out = f(new Date());',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Date' });
+  });
+
+runBoth('deeply-referenced param (union wrapper) with a present arg stays opaque',
+  'declare const input: any; function f<T = string>(x: T | null): T { return x as any; } const out = f(input);',
   (adapter, prog, lbl) => {
     const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
     check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);

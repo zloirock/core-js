@@ -30,7 +30,7 @@ function twice<T = string>(x: T | null): T {
 }
 // @ts-expect-error the member read is the probe, and the right answer is a type without it
 _at(_ref4 = twice(opaque)).call(_ref4, 0);
-_includes(_ref5 = twice('abc')).call(_ref5, 'b');
+_includesMaybeString(_ref5 = twice('abc')).call(_ref5, 'b');
 // @ts-expect-error a cyclic type tsc refuses is the shape under test
 function cyc<T = T[]>(x: T | null): T {
   return x as any;

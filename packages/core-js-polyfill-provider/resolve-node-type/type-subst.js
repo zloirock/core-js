@@ -449,15 +449,11 @@ export function createTypeSubst({
     return { node, subst, modifiers };
   }
 
-  // generic alias chain ending in TSTypeQuery (`type Q<T> = typeof fn<T>`, `type Q = typeof X`).
-  // returns the post-swap annotation with alias subst applied to the TSTypeQuery, or the
-  // input unchanged when the chain doesn't terminate in TSTypeQuery. shared by
-  // `resolveTypedMember` (member-access dispatch) and `resolveCallReturnTypeFromAnnotation`
-  // (call-return dispatch) - both need the post-alias TSTypeQuery to enter the typeof
-  // branch with concrete instantiation typeParameters
-  function swapAliasToTSTypeQueryWithSubst(annotation, scope) {
+  // Resolve a type query written directly or behind a generic alias. A caller that
+  // also needs the inline signature can reuse its walk and substitutions.
+  function swapAliasToTSTypeQueryWithSubst(annotation, scope, chain) {
     if (!annotation) return annotation;
-    const aliased = followTypeAliasChain(annotation, scope);
+    const aliased = chain ?? followTypeAliasChain(annotation, scope);
     let query = aliased?.node;
     // Flow stores the qualified reference and its type arguments under argument. Keep both
     // before applying alias substitutions so typeof fn<T> retains the instantiated signature.

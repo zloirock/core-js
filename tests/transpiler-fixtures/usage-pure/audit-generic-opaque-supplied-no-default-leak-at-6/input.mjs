@@ -2,5 +2,5 @@
 // (the inference domain reads declared annotations, so literals needed a keyword bridge);
 // an opaque arg through the same chain stays generic
 type Wrap<T> = { v: T; };
-function wrapIt<T = string>(x: T): Wrap<T> { return { v: x } as any; }
+function wrapIt<T = number[]>(x: T): Wrap<T> { return { v: x } as any; }
 wrapIt('abc').v.at(0);

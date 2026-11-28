@@ -1,5 +1,6 @@
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.array.at";
 import "core-js/modules/es.map.constructor";
 import "core-js/modules/es.map.species";
 import "core-js/modules/es.map.get-or-insert";
@@ -13,6 +14,7 @@ import "core-js/modules/es.set.is-subset-of";
 import "core-js/modules/es.set.is-superset-of";
 import "core-js/modules/es.set.symmetric-difference";
 import "core-js/modules/es.set.union";
+import "core-js/modules/es.string.includes";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
 // indexed-access into abstract class members (`Repo['cache']` / `Repo['load']`) resolves to each
@@ -25,4 +27,14 @@ abstract class Repo {
 function use(x: Repo['cache'], f: Repo['load']) {
   x.union(new Set());
   f().getOrInsert('k', 0);
+}
+
+// Both indexed members select their own instance method.
+abstract class Rows {
+  abstract cache: number[];
+  abstract load(): string;
+}
+function read(x: Rows['cache'], f: Rows['load']) {
+  x.at(0);
+  f().includes('k');
 }

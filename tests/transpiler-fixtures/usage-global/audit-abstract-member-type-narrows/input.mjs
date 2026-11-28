@@ -9,3 +9,13 @@ function use(x: Repo['cache'], f: Repo['load']) {
   x.union(new Set());
   f().getOrInsert('k', 0);
 }
+
+// Both indexed members select their own instance method.
+abstract class Rows {
+  abstract cache: number[];
+  abstract load(): string;
+}
+function read(x: Rows['cache'], f: Rows['load']) {
+  x.at(0);
+  f().includes('k');
+}

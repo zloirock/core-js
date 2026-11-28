@@ -43,6 +43,7 @@ export function createTypeResolveDispatch({
   structuralMembers,
   foldUnionTypes,
   foldIntersectionTypes,
+  typeAnswer,
   resolveTypeAnnotation,
   resolveIndexedAccessSubst,
   unwrapTypeAnnotation,
@@ -155,7 +156,8 @@ export function createTypeResolveDispatch({
     return foldUnionTypes(node.types, m => substRecurse({ node: m, typeParamMap, scope, depth, seen }));
   }
   function substIntersectionAsType(node, typeParamMap, scope, depth, seen) {
-    return foldIntersectionTypes(node.types, m => substRecurse({ node: m, typeParamMap, scope, depth, seen }));
+    return typeAnswer(substIntersectionAsType, node, { scope, depth, map: typeParamMap, seen },
+      () => foldIntersectionTypes(node.types, m => substRecurse({ node: m, typeParamMap, scope, depth, seen })));
   }
 
   // function-types collapse to a plain Function regardless of typeparams - shared handler

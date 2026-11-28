@@ -1,7 +1,5 @@
-import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 var _ref;
-// channel: explicit type-arg, present but unresolvable
-function makeExplicit<T = number[]>(): T {
-  return [] as any;
-}
-_atMaybeArray(_ref = makeExplicit<string[]>()).call(_ref, 0);
+// An explicit string overrides an array default.
+declare function makeExplicit<T = number[]>(): T;
+_atMaybeString(_ref = makeExplicit<string>()).call(_ref, 0);

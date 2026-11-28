@@ -1,4 +1,5 @@
 type Container<T> = { items: T[] };
 type Items = Container<string>["items"];
-const x: Items = [];
+declare const x: Items;
 x.at(0);
+x[0].includes("a");

@@ -6021,7 +6021,7 @@ export function patternSlotWritten({ pattern, init, name, ctx }) {
 // stored identity at the final use: even a pure getter can return a fresh object on every read,
 // and an alias captured inside a literal can have its own slot writes. Follow each alias in its
 // declaration scope; a same-named local at the use does not own that captured object.
-function literalValueAt(node, keys, ctx, ownData = false) {
+export function literalValueAt(node, keys, ctx, ownData = false) {
   let cur = node;
   for (let at = 0; at < keys.length; at++) {
     cur = installedWriteValue(cur);
@@ -6911,6 +6911,45 @@ export function findObjectKeyBeforeSpread(properties, matches, key = null) {
   return null;
 }
 
+// Reading or writing an accessor uses its own half of the final property descriptor.
+// A later data property or spread ends an earlier getter/setter pair.
+// An unknown computed key may redefine any slot, so it blocks an earlier descriptor proof.
+// Read-only batches may share a caller-owned index; live AST queries leave it uncached.
+export function objectLiteralSlotMember(container, key, accessor = null, cache = null) {
+  let { properties } = container;
+  if (cache) {
+    let slots = cache.get(container);
+    if (!slots) {
+      cache.set(container, slots = new Map());
+      for (const prop of properties) {
+        const name = prop.type === 'SpreadElement' ? null : synthSlotName(prop);
+        if (name === null) {
+          slots.clear();
+          continue;
+        }
+        let members = slots.get(name);
+        if (!members) slots.set(name, members = []);
+        // Only the final data member or getter/setter pair can survive redefinition.
+        const last = members.at(-1);
+        if ((prop.kind !== 'get' && prop.kind !== 'set') || (last?.kind !== 'get' && last?.kind !== 'set')) {
+          members.length = 0;
+        } else if (last.kind === prop.kind) members.pop();
+        else if (members.length === 2) members.shift();
+        members.push(prop);
+      }
+    }
+    properties = slots.get(key) ?? [];
+  }
+  let member = findObjectKeyBeforeSpread(properties, prop => cache || (synthSlotName(prop) ?? key) === key, key);
+  if (member && synthSlotName(member) === null) return null;
+  if (accessor && member?.kind === (accessor === 'get' ? 'set' : 'get')) {
+    const preceding = findObjectKeyBeforeSpread(properties.slice(0, properties.indexOf(member)),
+      prop => !cache && synthSlotName(prop) === null || (cache || synthSlotName(prop) === key) && prop.kind !== member.kind, key);
+    member = preceding?.kind === accessor && synthSlotName(preceding) !== null ? preceding : null;
+  }
+  return member;
+}
+
 // the continuation for a binding hop whose flat resolve is blocked by a DOMINATING reassignment:
 // the reaching value (the bare binding-alias canon, lifted to container hops) keeps the walk
 // alive; null keeps the flat bail (an indeterminable value, or a method that resolves neither).
@@ -7462,20 +7501,22 @@ export function wrapperLiteralEntries(literal, { propertyNodes = false, keyOf = 
 
 // ... and those that hold a container by NAME: `[keyPath, name, node]` - a nested literal's slots under the
 // path that reaches it - with the identifier the slot spells
-export function literalIdentifierSlots(literal, prefix = []) {
+// A type read may also see a getter returning the parameter. Storage and mutation
+// queries need data slots: assigning to an accessor does not replace its return value.
+export function literalIdentifierSlots(literal, prefix = [], readGetters = false) {
   const slots = [];
-  for (const [key, raw] of wrapperLiteralEntries(literal)) {
-    const value = raw && unwrapRuntimeExpr(raw);
+  for (const [key, raw] of wrapperLiteralEntries(literal, { propertyNodes: readGetters })) {
+    const value = unwrapRuntimeExpr(readGetters && literal.type === 'ObjectExpression' ? objectPropertyReadValue(raw) : raw);
     if (key === null || !value) continue;
     if (value.type === 'Identifier') slots.push([[...prefix, key], value.name, value]);
-    else slots.push(...literalIdentifierSlots(value, [...prefix, key]));
+    else slots.push(...literalIdentifierSlots(value, [...prefix, key], readGetters));
   }
   return slots;
 }
 
 // Increment every queried name in `counts` in one walk, conservatively including nested scopes.
 // Ignore noncomputed property names; a second value reference is distinct from a container slot.
-function identifierOccurrences(node, counts) {
+function identifierOccurrences(node, counts, typeRead) {
   if (!node || typeof node !== 'object' || typeof node.type !== 'string') return;
   if (node.type === 'Identifier') {
     if (counts.has(node.name)) counts.set(node.name, counts.get(node.name) + 1);
@@ -7485,7 +7526,13 @@ function identifierOccurrences(node, counts) {
     // a non-computed KEY spells no reference: `{ value }` names its slot and reads the parameter
     // once, and a member's own property is the same name in another role
     if (!node.computed && (slot === 'key' || slot === 'property')) return;
-    identifierOccurrences(child, counts);
+    // Testing the identity or truthiness of the parameter cannot change its prototype.
+    // Only skip the identifier itself: `void mutate(x)` still hands it to the callee.
+    if (typeRead && (node.type === 'ExpressionStatement' || node.test === child
+      || node.type === 'UnaryExpression' && ['!', 'typeof', 'void'].includes(node.operator)
+      || node.type === 'BinaryExpression' && (node.operator === '===' || node.operator === '!=='))
+      && unwrapRuntimeExpr(child)?.type === 'Identifier') return;
+    identifierOccurrences(child, counts, typeRead);
   });
 }
 
@@ -7512,17 +7559,18 @@ export function invocationNode(node) {
 // the call - per parameter, since a sibling read elsewhere (`log(s)`) lets ITS argument out and no
 // other; the `confined` option asks it of every parameter at once. every other name the literal
 // spells resolves where the callee is DECLARED, so a literal reading a body local answers nothing;
-// so does a parameter the body rebinds, which holds another value by the return
-export function calleeYieldedContainer(callee, { confined = false, unwrap = expr => expr } = {}) {
+// so does a parameter the body rebinds, which holds another value by the return. Type reads count
+// a getter returning the parameter as a slot and allow observations that keep its identity private.
+export function calleeYieldedContainer(callee, { confined = false, typeRead = false, unwrap = expr => expr } = {}) {
   const params = slotParams(callee);
   if (!params) return null;
   const literal = unwrap(singleReturnBodyExpression(callee.body, { preservesBody: true }));
   if (literal?.type !== 'ObjectExpression' && literal?.type !== 'ArrayExpression') return null;
   const index = slotParamIndex(callee, params);
   if (!index) return null;
-  const slots = literalIdentifierSlots(literal).filter(([, name]) => index.has(name));
+  const slots = literalIdentifierSlots(literal, [], typeRead).filter(([, name]) => index.has(name));
   const remaining = new Map(params.map(param => [param.name, 0]));
-  identifierOccurrences(callee.body, remaining);
+  identifierOccurrences(callee.body, remaining, typeRead);
   for (const [, name] of slots) remaining.set(name, remaining.get(name) - 1);
   const confinedParams = new Set([...remaining].filter(([, count]) => count === 0).map(([name]) => index.get(name)));
   if (confined && confinedParams.size !== params.length) return null;
@@ -8246,6 +8294,49 @@ function callableMayExposeCaller(path, ctx, invocation = null) {
   return false;
 }
 
+function closedCallableReferences(callable, adapter) {
+  const outer = peelTransparentExprAncestorPath(callable);
+  const holder = outer.parentPath;
+  const declaration = callable.node.type === 'FunctionDeclaration' || callable.node.type === 'ClassDeclaration' ? callable
+    : holder?.node?.type === 'VariableDeclarator' && holder.node.id.type === 'Identifier'
+      && unwrapRuntimeExpr(holder.node.init) === callable.node ? holder : null;
+  const name = declaration?.node?.id?.name;
+  if (!name) return null;
+  const binding = adapter.getBinding?.({ scope: declaration.parentPath?.scope ?? declaration.scope, name, path: declaration });
+  if (bindingDeclarationPath(binding)?.node !== declaration.node || isReassignedBeyondDeclarator(binding)) return null;
+  // The callable's own scope may bind the same name as a parameter or local.
+  return adapter.collectBindingReferences?.(declaration.parentPath, name, { closed: true });
+}
+
+// A discarded result exposes nothing. Reading through one data property exposes at most
+// its value. A write, method invocation on the holder or unknown consumer keeps it open.
+export function closedReturnRead(callable, adapter) {
+  if (!callable?.node || callable.node.async || callable.node.generator) return false;
+  const refs = closedCallableReferences(callable, adapter);
+  if (!refs || writesPastCeiling(refs)) return false;
+  let selected = true;
+  let checkedBody = false;
+  for (const ref of refs) {
+    if (valueIsDroppedAt(ref) || isTSTypeOnlyIdentifierPath(ref)) continue;
+    const call = immediateInvocationOf(ref);
+    if (!call) return false;
+    if (!checkedBody) {
+      if (referencesArgumentsObject(callable.node) || namedFunctionSelfReferences(callable)
+        || callableMayExposeCaller(callable, { adapter })) return false;
+      checkedBody = true;
+    }
+    if (valueIsDroppedAt(call)) continue;
+    const member = climbTransparentWrapperPath(call).parentPath;
+    const outer = member && climbTransparentWrapperPath(member).parentPath?.node;
+    if (!isMemberAccessNode(member?.node) || unwrapRuntimeExpr(member.node.object) !== call.node
+      || !isMemberAccessNode(outer) || unwrapRuntimeExpr(outer.object) !== member.node) return false;
+    const key = memberReadKeyName(member.node);
+    if (typeof key !== 'string' || selected !== true && selected !== key) return false;
+    selected = key;
+  }
+  return selected;
+}
+
 // A private callable has only its indexed direct invocations. Each invocation must run in
 // the binding's active frame; unknown consumers, escaped construction and cycles decline.
 // The caller supplies the same frame walk for nested closed callers, without a new index.
@@ -8264,16 +8355,7 @@ function closedBodyRunsInFrame(bodyPath, frame, ctx, seen, callCanReenter) {
   if (isClass && (callable.node.superClass || classCarriesDecorators(callable.node)
     || callable.node.body.body.some(member => member.static || member.type === 'StaticBlock'
       || (member.params ?? member.value?.params ?? []).some(param => param.decorators?.length)))) return false;
-  const outer = peelTransparentExprAncestorPath(callable);
-  const holder = outer.parentPath;
-  const declaration = callable.node.type === 'FunctionDeclaration' || callable.node.type === 'ClassDeclaration' ? callable
-    : holder?.node?.type === 'VariableDeclarator' && holder.node.id.type === 'Identifier'
-      && unwrapRuntimeExpr(holder.node.init) === callable.node ? holder : null;
-  const name = declaration?.node?.id?.name;
-  if (!name) return false;
-  const binding = ctx.adapter.getBinding?.({ scope: declaration.parentPath?.scope ?? declaration.scope, name, path: declaration });
-  if (bindingDeclarationPath(binding)?.node !== declaration.node || isReassignedBeyondDeclarator(binding)) return false;
-  const refs = collect(declaration, name, { closed: true });
+  const refs = closedCallableReferences(callable, ctx.adapter);
   if (!refs) return false;
   if (!refs.length) return true;
   if (!isClass && referencesArgumentsObject(callable.node)) return false;

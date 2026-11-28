@@ -9,6 +9,8 @@ import {
   callPairing,
   climbTransparentWrapperPath,
   collectParamBindingNames,
+  closedReturnRead,
+  objectLiteralSlotMember,
   containerSlotWritten,
   findVarOwnerDeclaring,
   forOfHeadElements,
@@ -78,6 +80,8 @@ import {
   TYPE_HINTS,
   TYPEOF_HINT_GROUPS,
   bigIntLiteralValue,
+  callArgumentPaths,
+  dropLeadingThisParam,
   canonicalArrayIndex,
   intersectHintSets,
   isBigIntLiteralNode,
@@ -94,6 +98,7 @@ import {
   literalTypeAnnotation,
   typeRefSegments,
 } from './resolve-node-type/ast-shapes.js';
+import { pairedDefaultArm } from './detect-usage/destructure.js';
 import { isKnownGlobalName, staticReceiverHint } from './detect-usage/globals.js';
 import { computedKeyWellKnownSymbolName, decidedLiveOperandKey, pureEntryTarget, pureInstanceMethod } from './detect-usage/resolve.js';
 import { createAwaited } from './resolve-node-type/awaited.js';
@@ -769,6 +774,7 @@ function createResolveNodeType(babelNodeType, t, {
     isClassLikeDeclaration,
     findAmbientDeclarationPath,
     findAmbientFunctionPaths,
+    findFunctionOverloads,
     findAmbientClassPath,
     findNamespacedFunctionPath,
     findNamespacedValuePath,
@@ -1034,10 +1040,13 @@ function createResolveNodeType(babelNodeType, t, {
     applySubst: (...args) => applySubst(...args),
     applyAliasSubstDeep: (...args) => applyAliasSubstDeep(...args),
     peelStructurePreservingWrapper: (...args) => peelStructurePreservingWrapper(...args),
+    swapAliasToTSTypeQueryWithSubst: (...args) => swapAliasToTSTypeQueryWithSubst(...args),
     followTypeAliasChain: (...args) => followTypeAliasChain(...args),
     extractElementAnnotation: (...args) => extractElementAnnotation(...args),
     resolveTypeQueryBinding: (...args) => resolveTypeQueryBinding(...args),
     pickLastAmbientOverload: (...args) => pickLastAmbientOverload(...args),
+    buildParentClassSubst: (...args) => buildParentClassSubst(...args),
+    buildCallSiteSubst: (...args) => buildCallSiteSubst(...args),
     findClassPathForTypeReference: (...args) => findClassPathForTypeReference(...args),
     peelTSParenthesized,
     unwrapTypeAnnotation,
@@ -1222,6 +1231,120 @@ function createResolveNodeType(babelNodeType, t, {
     return getScopeBinding({ scope, name })?.path ?? null;
   }
 
+  function referencesInScope(binding, path, name, closed) {
+    const owner = binding?.scope?.block ?? binding?.scope?.path?.node;
+    // Another classic script can read a realm-level lexical binding just as an importer can read an export.
+    if (closed && owner?.type === 'Program' && (programTopLevelIsRealm(owner)
+      || bindingAnalysisCluster.isBindingExportedByName(name, findProgramPath(binding.path)))) return null;
+    return binding ? bindingAnalysisCluster.collectBindingReferences(binding, path) : null;
+  }
+
+  function scopedBindingReferences(path, name = path.node.name, { closed = false } = {}) {
+    path = anchorPathScope(path);
+    const binding = getScopeBinding({ scope: path.scope, name, path });
+    return referencesInScope(binding, path, name, closed);
+  }
+  const callerBindings = { getBinding: getScopeBinding, collectBindingReferences: scopedBindingReferences };
+  let returnReads = new WeakMap();
+  let returnSlotMembers = new WeakMap();
+  function returnedObjectStaysLocal(fn, anchor, literal, key = null) {
+    if (!fn || !anchor) return false;
+    const read = memoize(returnReads, fn, () => closedReturnRead(pathOfNode(anchor, fn), callerBindings));
+    if (typeof read !== 'string') return read === true;
+    if (key !== null && key !== read || literal?.type !== 'ObjectExpression') return false;
+    const member = objectLiteralSlotMember(literal, read, null, returnSlotMembers);
+    return !!member && member.kind !== 'get' && member.kind !== 'set';
+  }
+
+  // A closed local tuple of literal values has the same slots as its inline initializer.
+  function spreadArrayPath(spread) {
+    const source = peelSkippableWrapperPath(spread.get('argument'));
+    if (t.isArrayExpression(source.node)) return source;
+    if (!t.isIdentifier(source.node)) return null;
+    const { name } = source.node;
+    const binding = getScopeBinding({ scope: source.scope, name, path: source });
+    const decl = binding?.path;
+    if (!binding?.constant || decl?.parentPath?.node.kind !== 'const' || decl.node.id?.name !== name
+      || (binding.referencePaths ?? binding.references)?.length > 1) return null;
+    const literal = peelSkippableWrapperPath(decl.get('init'));
+    if (!t.isArrayExpression(literal?.node)) return null;
+    const refs = referencesInScope(binding, source, name, true);
+    return refs?.length === 1 && refs[0].node === source.node
+      && literal.node.elements.every(el => isNullLiteralNode(el) || literalExactValue(el) !== null) ? literal : null;
+  }
+
+  // A spread contributes its iterator element to a generic parameter.
+  function resolveCallArgType(arg) {
+    if (!arg?.node) return null;
+    return arg.node.type === 'SpreadElement'
+      ? patternBindingsCluster.resolveRuntimeIterableElement(arg.get('argument'))
+      : resolveNodeType(arg);
+  }
+
+  // Pair both inference routes with runtime arguments. Expand known spreads once. After an
+  // unknown width, a fixed slot is uncertain and a rest slot can receive the whole remaining tail.
+  function visitInferenceArguments(fn, call, visit) {
+    const params = dropLeadingThisParam(functionTypeParams(fn));
+    let args = callArgumentPaths(call);
+    let spread = args.findIndex(arg => arg.node.type === 'SpreadElement');
+    if (spread !== -1 && !isMutatedStatic('Array.prototype', 'Symbol.iterator')) {
+      const pending = [];
+      for (let i = args.length - 1; i >= spread; i--) pending.push(args[i]);
+      args = args.slice(0, spread);
+      spread = -1;
+      while (pending.length) {
+        const arg = pending.pop();
+        if (arg?.node?.type === 'SpreadElement') {
+          const literal = spreadArrayPath(arg);
+          if (literal) {
+            const elements = cachedContainerPaths(literal, 'elements');
+            for (let i = elements.length - 1; i >= 0; i--) pending.push(elements[i]);
+            continue;
+          }
+          if (spread === -1) spread = args.length;
+        }
+        args.push(arg);
+      }
+    }
+    const supplied = spread === -1 && args.length < params.length ? params.slice(0, args.length) : params;
+    const uncertain = [];
+    let end = spread;
+    let common;
+    for (let i = 0; i < supplied.length; i++) {
+      const { param, isRest } = effectiveParam(supplied[i]);
+      const annotation = unwrapTypeAnnotation(param?.typeAnnotation);
+      if (isRest) {
+        if (!annotation) break;
+        for (let j = spread === -1 ? i : Math.min(i, spread); j < args.length; j++) {
+          if (!visit(annotation, args[j], true) && j === spread) uncertain.push(param);
+        }
+        break;
+      }
+      if (spread === -1 || i < spread) {
+        if (annotation) visit(annotation, args[i], false);
+        continue;
+      }
+      if (i === spread && i === args.length - 1) {
+        if (annotation && !visit(annotation, args[i], false)) uncertain.push(param);
+        end = args.length;
+        continue;
+      }
+      // Each ordinary argument guarantees one more slot. Any previous spread can shift
+      // an earlier value into that slot, so retain only their common type.
+      let guaranteed = false;
+      while (end < args.length && !guaranteed) {
+        const arg = args[end++];
+        if (common !== null) {
+          const type = resolveCallArgType(arg);
+          common = type ? commonType(common, type) : null;
+        }
+        guaranteed = arg?.node?.type !== 'SpreadElement';
+      }
+      if (annotation && !visit(annotation, null, false, guaranteed ? common : null)) uncertain.push(param);
+    }
+    return { supplied, uncertain };
+  }
+
   // type-query cluster (`resolveTypeQuery`, `resolveTypeofFromSegments`,
   // `resolveTypeQueryBinding`, `resolveReturnTypeFromTypeQuery`) lives in
   // `resolve-node-type/type-query.js`. instantiation appears below alongside the other
@@ -1319,6 +1442,10 @@ function createResolveNodeType(babelNodeType, t, {
   // `classSubstInner` / etc.) via closure; thunks for `substituteTypeParams` (forward-decl let)
   // and `resolveNodeType`
   const returnTypeCluster = createReturnType({
+    argumentSkipsDefault: path => pairedDefaultArm(path.node, {
+      path, scope: path.scope, adapter: getDecisionAdapter() ?? babelBindingAdapter,
+    }) === 'dead',
+    visitInferenceArguments,
     functionTypeParams: (...args) => functionTypeParams(...args),
     getScopeBinding,
     t,
@@ -1333,14 +1460,17 @@ function createResolveNodeType(babelNodeType, t, {
     resolveNodeType,
     resolvePath,
     resolveInnerType,
-    resolveRuntimeIterableElement: (...args) => patternBindingsCluster.resolveRuntimeIterableElement(...args),
+    resolveCallArgType,
     resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
     substituteTypeParams: (...args) => substituteTypeParams(...args),
+    buildCallSiteSubst: (...args) => buildCallSiteSubst(...args),
+    withTypeReferenceScope,
     generatorTypeParams,
     classSubstInner: (...args) => classSubstInner(...args),
     shadowMethodTypeParams,
     dropTypeParamSubst,
     isNullableOrNever,
+    isNullableOrNeverAnnotation,
     elementContainerType,
     commonType,
     foldUnionTypes,
@@ -2159,6 +2289,7 @@ function createResolveNodeType(babelNodeType, t, {
   // outputs. service deps from `binding-analysis` are already destructured; the rest are
   // factory function decls (hoisted) or pure imports
   const closureAnalysisCluster = createClosureAnalysis({
+    returnedObjectStaysLocal,
     resolveComputedKeyName,
     installedMethodWriteReceiver: (...args) => classFieldsCluster.installedMethodWriteReceiver(...args),
     resolveStaticCalleePair,
@@ -2623,6 +2754,7 @@ function createResolveNodeType(babelNodeType, t, {
     namespaceValueVisible,
     enumIsNearestValue,
     withLookupPath,
+    withTypeReferenceScope,
     resolveEnumMemberType,
     isFunctionOrClassDeclaration,
     isFunctionLike,
@@ -2668,6 +2800,8 @@ function createResolveNodeType(babelNodeType, t, {
   // forward-declared `findExpressionAnnotation` + `buildCallSiteSubst`; typeQuery
   // (instantiated earlier) sees the latter via a thunk
   const callResolutionCluster = createCallResolution({
+    visitInferenceArguments,
+    resolveCallArgType,
     polyfillCallEntry,
     staticPairForEntry,
     instanceDispatcherKey,
@@ -2702,6 +2836,10 @@ function createResolveNodeType(babelNodeType, t, {
     withLookupPath,
     foldOverloadReturns,
     findAmbientFunctionPaths,
+    findFunctionOverloads,
+    pathSlotWritten,
+    collectReturnPaths,
+    resolvePath,
     resolveFromMemberExpression: (...args) => resolveFromMemberExpression(...args),
     resolveKnownStaticReturnType,
     typeFromHint,
@@ -2783,10 +2921,12 @@ function createResolveNodeType(babelNodeType, t, {
     resolveInnerType,
     effectiveParam,
     resolveParametersParams,
+    withTypeReferenceScope,
     resolveThisParamAnnotation,
     resolveAnnotationInContext,
     resolveNonNullableAnnotation,
     resolveAwaitedAnnotation,
+    swapAliasToTSTypeQueryWithSubst,
     resolveReturnTypeFromTypeQuery,
     resolveTypeQueryBinding,
     declaredTypeofTarget,
@@ -2847,6 +2987,7 @@ function createResolveNodeType(babelNodeType, t, {
     findTypeDeclaration,
     declarationPath,
     withLookupPath,
+    withTypeReferenceScope,
     extendsClauseName,
     buildSubstMap,
     buildParentClassSubstFromNodes,
@@ -2862,7 +3003,9 @@ function createResolveNodeType(babelNodeType, t, {
     isUnconstrainedTypeShape,
     pickConditionalBranchVia,
     resolveTypeQueryBinding,
+    pickLastAmbientOverload,
     typeofSource,
+    swapAliasToTSTypeQueryWithSubst,
     declaredTypeofTarget,
     resolveIndexedAccessMemberAnnotationAST,
     buildCallSiteSubst,
@@ -2909,9 +3052,12 @@ function createResolveNodeType(babelNodeType, t, {
     bindingAnnotationPath,
     withLookupPath,
     findExpressionAnnotation,
+    resolveOverloadMember: callResolutionCluster.resolveOverloadMember,
     functionTypeReturnAnnotation,
     applyAliasSubstDeep,
     shadowMethodTypeParams,
+    applyCallSiteSubst: returnTypeCluster.applyCallSiteSubst,
+    dropTypeParamSubst,
     foldUnionTypes,
     foldOverloadReturns,
     followTypeAliasChain,
@@ -3018,6 +3164,7 @@ function createResolveNodeType(babelNodeType, t, {
     elementContainerType,
     foldUnionTypes,
     foldIntersectionTypes,
+    typeAnswer,
     resolveTypeAnnotation,
     resolveIndexedAccessSubst,
     unwrapTypeAnnotation,
@@ -3185,6 +3332,8 @@ function createResolveNodeType(babelNodeType, t, {
   // re-assign to fresh WeakMap in reset, (c) use ONLY node-identity / NodePath as keys -
   // never strings (file paths / type names) which can collide across parses
   function reset(options) {
+    returnReads = new WeakMap();
+    returnSlotMembers = new WeakMap();
     returnTypeCluster.reset();
     typeofGuardsCluster.reset();
     narrowByGuardsCluster.reset();
@@ -4206,15 +4355,8 @@ function createResolveNodeType(babelNodeType, t, {
 
   return {
     // Use the existing declaration-identity reference index for scoped provider decisions.
-    collectBindingReferences(path, name = path.node.name, { closed = false } = {}) {
-      path = anchorPathScope(path);
-      const binding = getScopeBinding({ scope: path.scope, name, path });
-      const owner = binding?.scope?.block ?? binding?.scope?.path?.node;
-      // Another classic script can read a realm-level lexical binding just as an importer can read an export.
-      if (closed && owner?.type === 'Program' && (programTopLevelIsRealm(owner)
-        || bindingAnalysisCluster.isBindingExportedByName(name, findProgramPath(binding.path)))) return null;
-      return binding ? bindingAnalysisCluster.collectBindingReferences(binding, path) : null;
-    },
+    collectBindingReferences: scopedBindingReferences,
+    returnedObjectStaysLocal,
     descendantShadowsStatic: (path, key) => staticFieldShadowable(anchorPathScope(path), key, false, true),
     isObject,
     isString,

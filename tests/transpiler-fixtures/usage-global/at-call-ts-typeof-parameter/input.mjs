@@ -1,4 +1,3 @@
 function process(items: string[]) {
-  const copy: typeof items = [...items];
-  copy.at(-1);
+  return (copy: typeof items) => copy.at(-1);
 }

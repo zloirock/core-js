@@ -558,6 +558,7 @@ function createFilePlugin(api, options, getBabelTargets, caller) {
     getPackages: () => packages,
     parameterCallSites: typeResolvers.parameterCallSites,
     collectBindingReferences: typeResolvers.collectBindingReferences,
+    returnedObjectStaysLocal: typeResolvers.returnedObjectStaysLocal,
     resolveConstantSelection: typeResolvers.resolveConstantSelection,
   });
 

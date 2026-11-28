@@ -45,7 +45,13 @@ import {
   withMemberModifiers,
 } from './ast-shapes.js';
 import {
-  getHeritageTypeArgs, getTypeArgs, staticKeyNames, tupleBounds, tupleElements, unwrapTupleMember,
+  getHeritageTypeArgs,
+  getTypeArgs,
+  staticKeyNames,
+  tupleBounds,
+  tupleElements,
+  unwrapTupleMember,
+  withCanonQuestion,
 } from '../helpers/ast-patterns.js';
 
 export function createTypeMembers({
@@ -65,6 +71,7 @@ export function createTypeMembers({
   findTypeDeclaration,
   declarationPath,
   withLookupPath,
+  withTypeReferenceScope,
   extendsClauseName,
   buildSubstMap,
   buildParentClassSubstFromNodes,
@@ -82,8 +89,10 @@ export function createTypeMembers({
   isUnconstrainedTypeShape,
   pickConditionalBranchVia,
   resolveTypeQueryBinding,
+  pickLastAmbientOverload,
   typeofSource,
   declaredTypeofTarget,
+  swapAliasToTSTypeQueryWithSubst,
   resolveIndexedAccessMemberAnnotationAST,
   buildCallSiteSubst,
   resolveTypeAnnotation,
@@ -175,7 +184,7 @@ export function createTypeMembers({
   // near the depth cap), and the miss direction is a safe under-resolve
   let getTypeMembersCache = new WeakMap();
   function getTypeMembers(args) {
-    if (args.visited) return computeGetTypeMembers(args);
+    if (args.visited || args.onPart) return computeGetTypeMembers(args);
     // a MAX_DEPTH refusal belongs to the CALL, not to the node: the memo is keyed by node and
     // scope only, so caching that null would answer a later SHALLOW lookup of the same node with
     // the deep lookup's bail. take the guard before the cache and leave the slot unfilled
@@ -206,7 +215,26 @@ export function createTypeMembers({
     }))];
   }
 
-  function computeGetTypeMembers({ objectType, scope, depth = 0, visited = undefined }) {
+  // Enumerating members and indexing a returned tuple must project the same public
+  // signature. Type arguments retain their caller scope, other names the declaration scope.
+  function withUtilityTarget(name, objectType, scope, read) {
+    const spelled = peelTSParenthesized(getTypeArgs(objectType)?.params?.[0]);
+    if (!spelled) return null;
+    const { node: arg, scope: argScope } = declaredTypeofTarget(swapAliasToTSTypeQueryWithSubst(spelled, scope), scope);
+    if (arg.type !== 'TSTypeQuery') {
+      const target = name === 'ReturnType' && shadowedAliasReturnAnnotation(arg, argScope);
+      return target ? read(unwrapTypeAnnotation(target), argScope) : null;
+    }
+    const binding = resolveTypeQueryBinding(arg, argScope);
+    const resolved = name === 'ReturnType' ? pickLastAmbientOverload(binding, arg, argScope) : binding;
+    if (!resolved?.node) return null;
+    const target = name === 'InstanceType' ? internedTypeRef(resolved.node.id, getTypeArgs(arg)?.params)
+      : applySubst(unwrapTypeAnnotation(resolved.node.returnType ?? resolved.node.typeAnnotation),
+        buildCallSiteSubst(resolved.node, arg, argScope));
+    return target && withLookupPath(resolved, () => withTypeReferenceScope(target, resolved.scope, at => read(target, at)));
+  }
+
+  function computeGetTypeMembers({ objectType, scope, depth = 0, visited = undefined, onPart }) {
     if (depth > MAX_DEPTH) return null;
     // leading TSParenthesizedType (`({ ... })['k']`) - passthrough to the inner type's members
     // (oxc preserves the wrapper; babel keeps it in member position)
@@ -231,26 +259,42 @@ export function createTypeMembers({
     // union node and return null, dropping every member reachable through B or C
     if (objectType.type === 'TSIntersectionType' || objectType.type === 'IntersectionTypeAnnotation') {
       const all = [];
-      function pushIntersectionPart(node) {
-        let inner = peelTSParenthesized(unwrapTypeAnnotation(node));
-        // a parenthesized `(A | B)` or alias-to-union (`type U = A | B; ... & U`) constituent must be
-        // distributed per-branch: unwrapTypeAnnotation leaves the parens / alias in place, so the union
-        // would slip whole into getTypeMembers (which has no union branch, returns null) and drop every
-        // member reachable through a branch
-        if (!isUnionType(inner)) {
-          const { node: aliased } = followTypeAliasChain(inner, scope);
-          const aliasedInner = aliased && peelTSParenthesized(unwrapTypeAnnotation(aliased));
-          if (aliasedInner && isUnionType(aliasedInner)) inner = aliasedInner;
-        }
-        if (isUnionType(inner)) {
-          for (const branch of inner.types) pushIntersectionPart(branch);
+      const expanded = new Map();
+      let truncated = false;
+      function collect(node, level, alternative) {
+        if (level > MAX_DEPTH) {
+          truncated = true;
           return;
         }
-        const members = getTypeMembers({ objectType: inner, scope, depth: depth + 1, visited });
-        if (members) for (const m of members) all.push(m);
+        const inner = peelTSParenthesized(unwrapTypeAnnotation(node));
+        const alias = followTypeAliasChain(inner, scope);
+        const part = peelTSParenthesized(alias.node ?? inner);
+        if (isUnionType(part) || part.type === 'TSIntersectionType' || part.type === 'IntersectionTypeAnnotation') {
+          // An intersection adds overloads on the same receiver. A union adds alternatives
+          // that need not coexist, even when two signatures accept exactly the same arguments.
+          // Shared generic aliases create fresh AST nodes on substitution. Intern the
+          // result for this lookup before testing the visited set.
+          const substituted = alias.subst ? typeAnswer(collect, part, { scope, map: alias.subst },
+            () => applySubst(part, alias.subst)) : part;
+          const source = alternative ?? (isUnionType(part) ? substituted : null);
+          let seen = expanded.get(source);
+          if (!seen) expanded.set(source, seen = new Set());
+          if (seen.has(substituted)) return;
+          seen.add(substituted);
+          for (const branch of substituted.types) collect(branch, level + 1, source);
+          return;
+        }
+        const members = getTypeMembers({ objectType: inner, scope, depth: level, visited });
+        if (members) {
+          onPart?.(members, alternative);
+          for (const m of members) all.push(m);
+        }
       }
-      for (const part of objectType.types) pushIntersectionPart(part);
-      return all.length ? all : null;
+      withCanonQuestion(() => {
+        for (const part of objectType.types) collect(part, depth + 1, null);
+      });
+      // A missing overload can change which of the collected signatures would win.
+      return all.length && !(onPart && truncated) ? all : null;
     }
     if (objectType.type === 'TSTypeQuery') return typeofMembers(objectType, scope, depth, visited);
     // handle dotted refs (`NS.Data`) by passing the segment path through
@@ -290,37 +334,9 @@ export function createTypeMembers({
     // `InstanceType<typeof Cls>.x` / `ReturnType<typeof fn>.x` -> members of the pointed-to decl
     if (!shadowedByUserType && segments.length === 1
       && (segments[0] === 'InstanceType' || segments[0] === 'ReturnType')) {
-      // peeled like the type-annotation-resolve twin: oxc keeps `ReturnType<(typeof f)>`
-      // arg as TSParenthesizedType where babel strips it
-      const spelled = peelTSParenthesized(getTypeArgs(objectType)?.params?.[0]);
-      if (!spelled) return null;
-      // a query whose path spells a type stands for that type (`const f: Fn`, `X as typeof Y`)
-      const { node: arg, scope: argScope } = declaredTypeofTarget(spelled, scope);
-      // `ReturnType<Fn>.x` where `Fn = () => T` (alias to function type, no typeof) -
-      // follow the alias chain, extract return annotation, fold accumulated subst.
-      // mirrors `resolveNamedType`'s ReturnType branch. `InstanceType<>` always needs
-      // a class binding so the typeof-only path stays
-      if (segments[0] === 'ReturnType' && arg.type !== 'TSTypeQuery') {
-        // extract + shadow the signature-local `<T>` + fold the alias subst (shared with the `ReturnType`
-        // case in type-annotation-resolve), then enumerate the resolved return's members
-        const target = shadowedAliasReturnAnnotation(arg, argScope);
-        return target
-          ? getTypeMembers({ objectType: unwrapTypeAnnotation(target), scope: argScope, depth: depth + 1, visited }) : null;
-      }
-      if (arg.type !== 'TSTypeQuery') return null;
-      const resolved = resolveTypeQueryBinding(arg, argScope);
-      if (!resolved?.node) return null;
-      const target = unwrapTypeAnnotation(segments[0] === 'InstanceType'
-        ? internedTypeRef(resolved.node.id)
-        : resolved.node.returnType ?? resolved.node.typeAnnotation);
-      if (!target) return null;
-      // `typeof fn<Args>` instantiation expression: type-args ride on the inner TSTypeQuery.
-      // fold them into the resolved target so a generic `returnType: InstanceType<T>` sees
-      // the concrete `typeof Cls` (otherwise raw T fails the typeof-only gate on the
-      // recursive InstanceType branch). InstanceType's synthesized class reference has no
-      // type-param to substitute - subst is a no-op there
-      const subst = buildCallSiteSubst(resolved.node, arg, argScope);
-      return getTypeMembers({ objectType: applySubst(target, subst), scope: argScope, depth: depth + 1, visited });
+      return withUtilityTarget(segments[0], objectType, scope, (target, at) => getTypeMembers({
+        objectType: target, scope: at, depth: depth + 1, visited,
+      }));
     }
     // fast path first; only re-walk for the rare interface-merging case
     const declaration = findTypeDeclaration(segments, scope);
@@ -661,12 +677,23 @@ export function createTypeMembers({
       const element = findTupleElement(aliased, index, scope, depth, runtime ? findRuntimeTypeMember : undefined);
       return element && withMarkers(applySubst(element, subst), null, runtime && index >= bounds().min);
     }
-    if (runtime && aliased?.type === 'TSTypeReference') {
+    if (typeRefName(aliased) === 'ReturnType' && canonicalArrayIndex(key) !== null && !findTypeDeclaration('ReturnType', scope)) {
+      const lookup = runtime ? findRuntimeTypeMember : findTypeMember;
+      return withUtilityTarget('ReturnType', applySubst(aliased, subst), scope, (target, at) => lookup({
+        objectType: target, key, scope: at, depth: depth + 1, modifiers,
+      }));
+    }
+    if (aliased?.type === 'TSIndexedAccessType' || aliased?.type === 'IndexedAccessType') {
+      const inner = resolveIndexedAccessMemberAnnotationAST(aliased, scope, depth);
+      const lookup = runtime ? findRuntimeTypeMember : findTypeMember;
+      if (inner) return lookup({ objectType: applySubst(inner, subst), key, scope, depth: depth + 1, modifiers });
+    }
+    if (aliased?.type === 'TSTypeReference') {
       const name = typeRefName(aliased);
       if (name === 'Parameters' || name === 'ConstructorParameters') {
         const index = canonicalArrayIndex(key);
         return index !== null && !findTypeDeclaration(name, scope)
-          ? findTupleElement(aliased, index, scope, depth, findRuntimeTypeMember, modifiers) : null;
+          ? findTupleElement(aliased, index, scope, depth, runtime ? findRuntimeTypeMember : undefined, modifiers) : null;
       }
     }
     const element = aliased?.type === 'ArrayTypeAnnotation' ? aliased.elementType : arrayElementType(aliased, scope);

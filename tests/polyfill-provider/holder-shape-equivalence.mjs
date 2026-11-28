@@ -29,8 +29,10 @@ export const LITERAL = '{ rows: [1, 2], read() { return this.rows.at(0); } }';
 // bug this suite exists to catch, so every such row has to say why the difference is REAL
 export const POSITIONS = [
   // hand-out positions: the value leaves the module or reaches an unknown consumer
-  ['return', 'function f() { return @; }', 'escapes'],
-  ['arrow-body', 'const f = () => (@);', 'escapes'],
+  ['return', 'function f() { return @; }', 'local'],
+  ['arrow-body', 'const f = () => (@);', 'local'],
+  ['return-to-unknown', 'function f() { return @; } sink(f());', 'escapes'],
+  ['arrow-body-exposed', 'const f = () => (@); sink(f);', 'escapes'],
   ['yield', 'function * g() { yield @; }', 'escapes'],
   ['await', 'async function f() { await @; }', 'escapes'],
   ['throw', 'function f() { throw @; }', 'escapes'],
