@@ -207,13 +207,11 @@ QUnit.test('params: generator param default polyfilled, caller overrides', asser
 });
 
 QUnit.test('params: default param polyfill flows through a returned promise', assert => {
-  const async = assert.async();
   function run(list = Array.from('ab')) {
     return Promise.resolve(list);
   }
-  run().then(v => {
+  return run().then(v => {
     assert.deepEqual(v, ['a', 'b']);
-    async();
   });
 });
 

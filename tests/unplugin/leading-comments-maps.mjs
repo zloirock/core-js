@@ -1,6 +1,7 @@
 // File pragmas belong before injected tokens; mappings must still name the original token.
 /* eslint-disable node/no-sync -- Exercise the synchronous transform and parser contracts. */
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { createTestDirectory } from '../transpiler-differential/temporary-directory.mjs';
+import { rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -19,7 +20,7 @@ const options = { version: '4.0', targets: { ie: 11 } };
 const methods = ['entry-global', 'usage-global', 'usage-pure'];
 function linesOf(text) { return text.split(/\r\n|[\n\r\u2028\u2029]/); }
 function entry(method) { return method === 'entry-global' ? 'import "core-js/actual/array/at";\n' : ''; }
-const directory = await mkdtemp(join(import.meta.dirname, '../transpiler-differential/tmp/leading-maps-'));
+const directory = await createTestDirectory('leading-maps-');
 let serial = 0;
 
 function mappedToken(out, token) {

@@ -15,7 +15,7 @@ const { fileURLToPath, pathToFileURL } = require('node:url');
 const { createRequire } = require('node:module');
 
 const { loadBabelOptions } = await import('./fixture-options.mjs');
-const { normalizeFixtureOutput, normalizeMachinePaths } = await import('./fixture-output.mjs');
+const { normalizeDiagnosticPaths, normalizeFixtureOutput, normalizeMachinePaths } = await import('./fixture-output.mjs');
 
 const { FIXTURE_SHARD, collectFixtures, defaultShardCount, emitShardSummary, runShards, shardSlice } =
   await import('./fixture-shards.mjs');
@@ -180,8 +180,8 @@ async function runFixture(directory) {
   let result, error, parserOpts;
   try {
     const transformed = await transformAsync(source, withTransformCwd(options));
-    result = normalizeMachinePaths(transformed.code);
     parserOpts = transformed.options.parserOpts;
+    result = normalizeMachinePaths(transformed.code, { parserOpts });
   } catch (transformError) {
     error = transformError;
   } finally {
@@ -190,9 +190,9 @@ async function runFixture(directory) {
 
   const actualFile = error ? errorFile : outputFile;
   const staleFile = error ? outputFile : errorFile;
-  const actual = error ? normalizeMachinePaths(error.message) : result;
-  const debugOutput = normalizeDriftingTargets(logs.length ? normalizeMachinePaths(logs.join('\n')) : null);
-  const warningsOutput = warns.length ? normalizeMachinePaths(warns.join('\n')) : null;
+  const actual = error ? normalizeDiagnosticPaths(error.message) : result;
+  const debugOutput = normalizeDriftingTargets(logs.length ? normalizeDiagnosticPaths(logs.join('\n')) : null);
+  const warningsOutput = warns.length ? normalizeDiagnosticPaths(warns.join('\n')) : null;
   // Keep the default Babel 8 snapshots exact. Variant comparison and regeneration share
   // the same narrow normalization for enum tails and redundant type parentheses.
   function normalizeCode(code) {
@@ -242,7 +242,7 @@ async function runFixture(directory) {
 
   if (await pathExists(staleFile)) {
     failed++;
-    return echo(red(`${ cyan(label(directory)) } failed: ${ error ? 'unexpected error' : 'expected an error but transform succeeded' }`));
+    return echo(red(`${ cyan(label(directory)) } failed: ${ error ? `unexpected error: ${ actual }` : 'expected an error but transform succeeded' }`));
   }
 
   if (!await pathExists(actualFile)) {

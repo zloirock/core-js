@@ -10,6 +10,8 @@ Node `^22.18.0 || >=24.11.0`, running under `zx` through the `zxi` bootstrap:
 npm run zxi [time] [cd] path/to/script.mjs
 ```
 
+The root composites use the locked npm-run-all2, whose supported Node range is `^22.22.2 || ^24.15.0 || >=26.0.0`. CI also exercises Node 25 outside that dependency's declared range.
+
 That means, inside such a script:
 
 - the `zx` globals are ambient - do not import them

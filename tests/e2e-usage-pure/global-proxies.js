@@ -80,10 +80,8 @@ QUnit.test('effectful proxy keys preserve the guard of a sealed mutation', asser
 
 // === globalThis ===
 QUnit.test('globalThis.Promise', assert => {
-  const async = assert.async();
-  new globalThis.Promise(resolve => resolve(1)).then(v => {
+  return new globalThis.Promise(resolve => resolve(1)).then(v => {
     assert.same(v, 1);
-    async();
   });
 });
 
@@ -154,15 +152,13 @@ QUnit.test('IIFE-proxy Symbol.iterator value-ref: side effect runs once', assert
 });
 
 QUnit.test('IIFE-proxy Promise.resolve: side effect runs once', assert => {
-  const async = assert.async();
   let calls = 0;
-  (() => {
+  return (() => {
     calls++;
     return globalThis;
   })().Promise.resolve(7).then(v => {
     assert.same(calls, 1);
     assert.same(v, 7);
-    async();
   });
 });
 
@@ -427,15 +423,13 @@ QUnit.test('nested IIFE-proxy: side effect runs once', assert => {
 });
 
 QUnit.test('IIFE-proxy with optional hop: side effect runs once', assert => {
-  const async = assert.async();
   let calls = 0;
-  (() => {
+  return (() => {
     calls++;
     return globalThis;
   })()?.Promise.resolve(11).then(v => {
     assert.same(calls, 1);
     assert.same(v, 11);
-    async();
   });
 });
 

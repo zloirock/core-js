@@ -1,4 +1,5 @@
 // Finalization keeps opt-outs on surviving hosts and preserves default/selection effects.
+import { createTestDirectory } from '../transpiler-differential/temporary-directory.mjs';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
@@ -91,7 +92,7 @@ for (const [name, callable, want] of [
 ]) cases.push({ name: `constructed-realm/${ name }`,
   source: `export const effects = []; ${ callable } let r;
     try { r = typeof new A().Array.from; } catch (error) { r = error.name; } export { r };`, want });
-const directory = await fs.mkdtemp(path.join(import.meta.dirname, '../transpiler-differential/tmp/scoped-hosts-'));
+const directory = await createTestDirectory('scoped-hosts-');
 let serial = 0;
 try {
   for (const item of cases) {

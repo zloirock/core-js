@@ -13,10 +13,8 @@ QUnit.test('complex: Object.entries + Object.fromEntries roundtrip', assert => {
 });
 
 QUnit.test('complex: Promise.all with map', assert => {
-  const async = assert.async();
-  Promise.all([1, 2, 3].map(x => Promise.resolve(x * 2))).then(r => {
+  return Promise.all([1, 2, 3].map(x => Promise.resolve(x * 2))).then(r => {
     assert.deepEqual(r, [2, 4, 6]);
-    async();
   });
 });
 
@@ -77,10 +75,8 @@ QUnit.test('complex: polyfill in default parameter', assert => {
 });
 
 QUnit.test('complex: Promise.all with Array.from', assert => {
-  const async = assert.async();
-  Promise.all(Array.from([1, 2, 3], x => Promise.resolve(x * 10))).then(r => {
+  return Promise.all(Array.from([1, 2, 3], x => Promise.resolve(x * 10))).then(r => {
     assert.deepEqual(r, [10, 20, 30]);
-    async();
   });
 });
 
@@ -243,10 +239,8 @@ QUnit.test('complex: alias written in a branch arm of the guard test throws like
   let onSpine;
   // eslint-disable-next-line no-eq-null, no-void -- the lowered guard shape is the case under test
   const settled = (onSpine = globalThis) == null ? void 0 : onSpine.Promise.resolve(3);
-  const async = assert.async();
-  settled.then(v => {
+  return settled.then(v => {
     assert.same(v, 3);
-    async();
   });
 });
 

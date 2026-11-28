@@ -12,7 +12,7 @@ import { loadBabelOptions } from './fixture-options.mjs';
 // of them - `skip:no @core-js plugin in options` - holds the delimiter's own character. The marker
 // then matched nothing at all and the shard's entire verdict set was reported as "produced no
 // result", naming neither the fixture nor the reason. The payload is one line, so `.` cannot leave it
-const MARKER = /@@FIXTURE-SHARD@@(?<json>.*)@@/u;
+const MARKER = /(?:^|\n)@@FIXTURE-SHARD@@(?<json>.*)@@\r?\n?$/u;
 
 export const { FIXTURE_SHARD } = process.env;
 
@@ -37,30 +37,51 @@ function zxCliPath() {
   return path.join(path.dirname(req.resolve('zx/package.json')), bin);
 }
 
+// Project fixtures may link packages. Follow a directory link unless it points back into this walk.
+async function linkedDirectory(directory, ancestors) {
+  try {
+    const target = await fs.realpath(directory);
+    if (!(await fs.stat(target)).isDirectory()) return false;
+    const parents = await Promise.all(ancestors.map(ancestor => fs.realpath(ancestor)));
+    return !parents.includes(target);
+  } catch (error) {
+    if (error.code === 'ENOENT' || error.code === 'ELOOP') return false;
+    throw error;
+  }
+}
+
 // Collect sorted fixture directories for both plugin runners and shared invariants;
 // shard slices must be identical across processes. Validate source size and plugin
 // configuration before either skipping or regeneration can hide an invalid fixture.
-export async function collectFixtures(directory, out = []) {
-  const names = (await fs.readdir(directory)).sort();
-  if (names.includes('input.mjs')) {
+export async function visitFixtures(directory, visit, insideFixture = false, ancestors = []) {
+  const entries = await fs.readdir(directory, { withFileTypes: true });
+  const isFixture = entries.some(entry => entry.name === 'input.mjs');
+  if (isFixture) {
     const source = await fs.readFile(path.join(directory, 'input.mjs'), 'utf8');
     checkFixtureSize(source, directory);
     const options = await loadBabelOptions(directory);
     if (!Array.isArray(options?.plugins) || options.plugins.every(plugin => !Array.isArray(plugin) || plugin[0] !== '@core-js')) {
       throw new Error(`fixture options: ${ directory } must declare plugins: [["@core-js", { ... }]]`);
     }
-    out.push(directory);
-    return out;
+    await visit(directory, source, options);
   }
-  const before = out.length;
-  for (const name of names) {
-    const subdirectory = path.join(directory, name);
-    if ((await fs.stat(subdirectory)).isDirectory()) await collectFixtures(subdirectory, out);
+  const directories = [];
+  ancestors.push(directory);
+  for (const entry of entries) {
+    const subdirectory = path.join(directory, entry.name);
+    if (entry.isDirectory() || (entry.isSymbolicLink() && await linkedDirectory(subdirectory, ancestors))) directories.push(subdirectory);
   }
-  // a directory that is neither a fixture nor a container of one is read by NO runner: the walk
-  // drops it here, so it never reaches a counter, and the reconciliation downstream cannot miss it
-  // either - that check compares counters against what was COLLECTED, and this never was
-  if (out.length === before) throw new Error(`fixture tree: ${ directory } holds no input.mjs and no fixture below it`);
+  let count = Number(isFixture);
+  for (const subdirectory of directories.sort()) count += await visitFixtures(subdirectory, visit, insideFixture || isFixture, ancestors);
+  ancestors.pop();
+  // Fixtures can ship local packages and other test assets alongside their input.
+  if (!insideFixture && !isFixture && !directories.length) throw new Error(`fixture tree: ${ directory } holds no input.mjs and no fixture below it`);
+  return count;
+}
+
+// Shard coordinators retain paths only. A single-pass consumer can use the validated input directly.
+export async function collectFixtures(directory, out = []) {
+  await visitFixtures(directory, fixture => out.push(fixture));
   return out;
 }
 
@@ -105,26 +126,34 @@ export async function runShards({ script, shards, extraEnv = {} }) {
       stdio: ['ignore', 'pipe', 'inherit', 'ipc'],
     });
     let buf = '';
-    child.stdout.on('data', data => { buf += data; });
+    child.stdout.setEncoding('utf8').on('data', data => { buf += data; });
     child.on('error', reject);
-    child.on('exit', (code, signal) => {
+    child.on('close', (code, signal) => {
       const found = MARKER.exec(buf);
       // child output is replayed VERBATIM (minus the marker) - assertion diffs carry
       // meaningful blank lines that a cosmetic collapse would corrupt
       const output = buf.replace(MARKER, '');
-      if (!found) {
-        return reject(new Error(`fixture shard ${ index }/${ shards } produced no result `
+      if (code !== 0 || !found) {
+        return reject(new Error(`fixture shard ${ index }/${ shards } ${ found ? 'exited abnormally' : 'produced no result' } `
           + `(code ${ code }, signal ${ signal })\n${ output }`));
       }
-      resolve({ counts: JSON.parse(found.groups.json), output });
+      try {
+        const counts = JSON.parse(found.groups.json);
+        if (!counts || !Object.hasOwn(counts, 'passed') || Object.values(counts).some(value => !Number.isSafeInteger(value) || value < 0)) {
+          throw new Error('expected non-negative integer counters including passed');
+        }
+        resolve({ counts, output });
+      } catch (error) {
+        reject(new Error(`fixture shard ${ index }/${ shards } reported invalid counters\n${ buf }`, { cause: error }));
+      }
     });
   }));
   const results = await Promise.all(runs);
-  const totals = {};
+  const totals = Object.create(null);
   for (const { counts, output } of results) {
     for (const [key, value] of Object.entries(counts)) totals[key] = (totals[key] ?? 0) + value;
     const trimmed = output.trim();
     if (trimmed) echo(trimmed);
   }
-  return totals;
+  return { ...totals };
 }

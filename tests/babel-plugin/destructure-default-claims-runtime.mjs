@@ -1,4 +1,5 @@
 // Default branches and generated capture reads preserve values, order and claim ownership.
+import { createTestDirectory } from '../transpiler-differential/temporary-directory.mjs';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
@@ -168,7 +169,7 @@ for (const assignment of [false, true]) {
     ['Map', 'function'], ['function'], ['usage-pure']]);
 }
 
-const directory = await fs.mkdtemp(path.join(import.meta.dirname, '../transpiler-differential/tmp/default-claims-'));
+const directory = await createTestDirectory('default-claims-');
 let serial = 0;
 try {
   await fs.writeFile(path.join(directory, 'missing-iterator.mjs'), 'delete Array.prototype[Symbol.iterator];');

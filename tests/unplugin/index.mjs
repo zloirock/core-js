@@ -1,5 +1,5 @@
 import { loadBabelOptions } from '../babel-plugin/fixture-options.mjs';
-import { normalizeMachinePaths } from '../babel-plugin/fixture-output.mjs';
+import { normalizeDiagnosticPaths, normalizeMachinePaths } from '../babel-plugin/fixture-output.mjs';
 import { fixtureMappingsError } from './fixture-source-map.mjs';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
 import { commentSignature, strip } from './structural.mjs';
@@ -14,7 +14,7 @@ import {
   shardSlice,
 } from '../babel-plugin/fixture-shards.mjs';
 import { liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/sfc-shapes.js';
-import { KNOWN_PHASE_IMPORT_DIFFERENCES, phaseImportVerdict, importSources, transformPrePost } from './phase-imports.mjs';
+import { KNOWN_PHASE_IMPORT_DIFFERENCES, phaseImportVerdict, coreJSImports, importSources, transformPrePost } from './phase-imports.mjs';
 
 const { pathExists, readFile, rm, writeFile } = fs;
 const { basename, join } = path;
@@ -49,8 +49,8 @@ async function writeIfChanged(directory, file, content) {
   return true;
 }
 
-function normalize(code) {
-  return normalizeMachinePaths(code).trim();
+function normalize(code, parserOpts) {
+  return normalizeMachinePaths(code, { parserOpts }).trim();
 }
 
 // collapse the debug `Using targets: { ... }` block to a placeholder - mirrors the babel-plugin
@@ -61,16 +61,11 @@ function collapseDriftingTargets(text) {
   return text === null ? text : text.replace(/Using targets: \{[^}]*\}/, 'Using targets: <RESOLVED>');
 }
 
-// the injected-polyfill set for the imports-only loose lanes, BOTH spellings: usage-global
-// writes a BARE `import "core-js/modules/..."` (or a side-effect `require(...)`), usage-pure
-// a DEFAULT import off `@core-js/pure`. the two package names normalize together, as the
-// differential's own extractor does
+// Compare the polyfill dependencies even when sibling plugins rewrite the fixture body.
 function importsOf(text, parseId) {
   const parsed = parseFixtureOrNull(parseId, text);
   if (!parsed) throw new Error('output does not parse for the import-set compare');
-  return JSON.stringify(importSources(parsed.program)
-    .filter(source => /^@?core-js(?:\/pure)?\//u.test(source))
-    .map(source => source.replace('@core-js/pure', 'core-js')).sort());
+  return JSON.stringify(coreJSImports(parsed.program, parseId));
 }
 
 function label(directory) {
@@ -228,7 +223,7 @@ function checkPrePost(directory, source, pluginOptions, testId, single, expected
     echo(red(`${ cyan(name) } pre+post failed: output does not parse for the import comparison`));
     return;
   }
-  const verdict = phaseImportVerdict(name, importSources(before.program), importSources(after.program));
+  const verdict = phaseImportVerdict(name, importSources(before.program, parseId), importSources(after.program, parseId));
   if (verdict.status === 'passed') counts.phasePassed++;
   else if (verdict.status === 'known') {
     counts.phaseKnown++;
@@ -244,7 +239,7 @@ function normalizeFixtureError(error) {
   return error.message.trim().replace(/^\[core-js\] \[input\.ts\] /, '[core-js] ');
 }
 
-async function runErrorFixture(directory, pluginOptions, errorFile) {
+async function runErrorFixture(directory, pluginOptions, errorFile, parserOpts) {
   // use the fixture's real input so runtime-triggered errors (e.g. `shouldInjectPolyfill`
   // throwing during usage resolution) can reach `transform` - a dummy `'x;'` misses them
   const inputPath = join(directory, 'input.mjs');
@@ -258,7 +253,7 @@ async function runErrorFixture(directory, pluginOptions, errorFile) {
     // errors (the shared error.txt then covers both)
     let sidecar = null;
     try {
-      sidecar = normalize(captureTransform(source, pluginOptions, 'input.ts').code);
+      sidecar = normalize(captureTransform(source, pluginOptions, 'input.ts').code, parserOpts);
     } catch { /* fall through to the drop */ }
     if (await writeIfChanged(directory, unpluginOutputFile, sidecar)) counts.rewritten++;
     else counts.regenerated++;
@@ -267,7 +262,7 @@ async function runErrorFixture(directory, pluginOptions, errorFile) {
   if (await pathExists(unpluginOutputFile)) {
     const { code } = captureTransform(source, pluginOptions, 'input.ts');
     checkPrePost(directory, source, pluginOptions, 'input.ts', code);
-    return compareStrict(directory, normalize(code), unpluginOutputFile);
+    return compareStrict(directory, normalize(code, parserOpts), unpluginOutputFile, parserOpts);
   }
   const expected = (await readFile(errorFile, UTF8)).trim()
     // babel wraps `error.message` with a `<filename>: ` prefix (or `unknown file: ` when
@@ -318,7 +313,7 @@ async function checkSideChannels(directory, channels) {
       // runner - never clobber it. record unplugin's divergence in a `<stem>-unplugin.<ext>` variant
       // (assumes babel's base is already current; run the babel OVERWRITE first), drop it on agreement
       const variant = unpluginVariantPath(file);
-      const baseContent = await pathExists(file) ? normalizeExpected(normalize(await readFile(file, UTF8))) : null;
+      const baseContent = await pathExists(file) ? normalizeExpected(normalizeDiagnosticPaths(await readFile(file, UTF8)).trim()) : null;
       const desired = content !== null && baseContent !== null && content !== baseContent ? content : null;
       rewritten = await writeIfChanged(directory, variant, desired) || rewritten;
       continue;
@@ -338,7 +333,7 @@ async function checkSideChannels(directory, channels) {
       fail(directory, `${ basename(expectedFile) } missing: ${ content.split('\n').at(-1) }`);
       return false;
     }
-    const expected = normalizeExpected(normalize(await readFile(expectedFile, UTF8)));
+    const expected = normalizeExpected(normalizeDiagnosticPaths(await readFile(expectedFile, UTF8)).trim());
     if (content === expected) continue;
     fail(directory, `${ basename(expectedFile) } mismatch: ${ content.split('\n').at(-1) || '(empty)' }`);
     return false;
@@ -356,8 +351,8 @@ function compareNormalized(directory, actual, expected) {
 
 // A sidecar holds the whole emitted text, including comments. Only machine paths and
 // surrounding whitespace are normalized; the cross-parser baseline has its structural lane.
-async function compareStrict(directory, actual, directFile) {
-  compareNormalized(directory, actual, normalize(await readFile(directFile, UTF8)));
+async function compareStrict(directory, actual, directFile, parserOpts) {
+  compareNormalized(directory, actual, normalize(await readFile(directFile, UTF8), parserOpts));
 }
 
 // the structural comparator: the unplugin leg is an AST renderer like babel, so the output
@@ -370,7 +365,7 @@ async function compareStrict(directory, actual, directFile) {
 // (environment-dependent targets resolution, the `require` dialect on SFC virtuals) and is
 // byte-held via `compareStrict`; OVERWRITE regenerates the sidecar set from scratch: one is
 // written exactly where the structural (or lane's import-set) compare against babel differs
-async function compareMainOutput({ directory, actual, babelOutput, babelOptions, parseId, abstained, hasUnpluginOutput, unpluginOutputFile, rewritten }) {
+async function compareMainOutput({ directory, source, actual, babelOutput, babelOptions, parseId, abstained, hasUnpluginOutput, unpluginOutputFile, rewritten }) {
   const looseLane = abstained || (babelOptions.plugins ?? []).some(plugin => !(Array.isArray(plugin) && plugin[0] === '@core-js'));
   let agrees;
   if (looseLane) {
@@ -380,7 +375,7 @@ async function compareMainOutput({ directory, actual, babelOutput, babelOptions,
     if (!baselineParsed) return fail(directory, 'babel baseline does not parse for the structural compare');
     const actualParsed = parseFixtureOrNull(parseId, actual);
     if (!actualParsed) return fail(directory, 'output does not parse for the structural compare');
-    agrees = JSON.stringify(strip(actualParsed.program)) === JSON.stringify(strip(baselineParsed.program));
+    agrees = JSON.stringify(strip(actualParsed.program, source)) === JSON.stringify(strip(baselineParsed.program, source));
     // Comments live beside the AST in oxc. Structural equality alone would silently erase
     // the entire claim of a comment fixture, including sidecar creation in overwrite mode.
     agrees &&= JSON.stringify(commentSignature(actualParsed.comments))
@@ -396,7 +391,7 @@ async function compareMainOutput({ directory, actual, babelOutput, babelOptions,
     if (hasUnpluginOutput) return fail(directory, 'stale output-unplugin.mjs: current output agrees with the babel baseline');
     return pass();
   }
-  if (hasUnpluginOutput) return compareStrict(directory, actual, unpluginOutputFile);
+  if (hasUnpluginOutput) return compareStrict(directory, actual, unpluginOutputFile, babelOptions.parserOpts);
   fail(directory, 'differs from the babel baseline (structurally, or by import set on a loose lane)',
     firstDiff(actual, babelOutput));
 }
@@ -434,7 +429,7 @@ async function checkFixture(directory) {
   }
 
   const errorFile = join(directory, 'error.txt');
-  if (await pathExists(errorFile)) return runErrorFixture(directory, pluginOptions, errorFile);
+  if (await pathExists(errorFile)) return runErrorFixture(directory, pluginOptions, errorFile, babelOptions.parserOpts);
 
   const outputFile = join(directory, 'output.mjs');
   if (!await pathExists(outputFile)) {
@@ -446,11 +441,11 @@ async function checkFixture(directory) {
     const testId = inferTestId(babelOptions);
     const source = await readFile(join(directory, 'input.mjs'), UTF8);
     const { code, map, abstained, logs, warns } = captureTransform(source, pluginOptions, testId);
-    const actual = normalize(code);
-    const babelOutput = normalize(await readFile(outputFile, UTF8));
+    const actual = normalize(code, babelOptions.parserOpts);
+    const babelOutput = normalize(await readFile(outputFile, UTF8), babelOptions.parserOpts);
 
-    const debugContent = collapseDriftingTargets(logs.length ? normalize(logs.join('\n')) : null);
-    const warningsContent = warns.length ? normalize(warns.join('\n')) : null;
+    const debugContent = collapseDriftingTargets(logs.length ? normalizeDiagnosticPaths(logs.join('\n')).trim() : null);
+    const warningsContent = warns.length ? normalizeDiagnosticPaths(warns.join('\n')).trim() : null;
     const sideChannels = await checkSideChannels(directory, [
       [join(directory, 'debug.txt'), debugContent, collapseDriftingTargets],
       [join(directory, 'warnings.txt'), warningsContent],
@@ -460,7 +455,7 @@ async function checkFixture(directory) {
     if (!checkOutputParses(directory, code, testId)) return;
     checkPrePost(directory, source, pluginOptions, testId, code);
     await compareMainOutput({
-      directory, actual, babelOutput, babelOptions, parseId: liftSfcLangSuffix(testId), abstained,
+      directory, source, actual, babelOutput, babelOptions, parseId: liftSfcLangSuffix(testId), abstained,
       hasUnpluginOutput, unpluginOutputFile,
       rewritten: sideChannels.rewritten,
     });

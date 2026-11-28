@@ -1,5 +1,6 @@
 // Printing must preserve grammar roles and type/import metadata, including without a rewrite.
 /* eslint-disable max-depth -- Cross syntax/host/stage axes without hiding failures behind shared state. */
+import { createTestDirectory } from '../transpiler-differential/temporary-directory.mjs';
 import { parse } from 'oxc-parser';
 import { runInNewContext } from 'node:vm';
 import { createRequire } from 'node:module';
@@ -67,7 +68,7 @@ const exports = [
   ['arrow-object', 'const read = () => ({ value: 7 } || {}); export const r = [read().value].at(0);', 7],
   ['arrow-new-control', 'const read = () => new (class {})(); export const r = [typeof read()].at(0);', 'object'],
 ];
-const directory = await fs.mkdtemp(path.join(import.meta.dirname, '../transpiler-differential/tmp/printer-boundaries-'));
+const directory = await createTestDirectory('printer-boundaries-');
 let serial = 0;
 try {
   for (const [label, source, tokens] of [

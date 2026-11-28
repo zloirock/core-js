@@ -46,17 +46,15 @@ testBeforeLowering('mutation call channel: a destructured slot of a constructor 
 });
 
 testBeforeLowering('mutation call channel: a destructured slot of an awaited call', assert => {
-  const done = assert.async();
   const descriptor = Object.getOwnPropertyDescriptor(Object, 'values');
   function make() { return [Object, 0]; }
-  (async () => {
+  return (async () => {
     try {
       const [O] = await make();
       O.values = patched;
       assert.same(Object.values({}), 'PATCHED');
     } finally {
       restoreProperty(Object, 'values', descriptor);
-      done();
     }
   })();
 });

@@ -1,27 +1,22 @@
 // Promise: constructor + combinators + instance methods (.catch, .finally)
 QUnit.test('Promise constructor + then', assert => {
-  const async = assert.async();
-  new Promise(resolve => resolve(42)).then(v => {
+  return new Promise(resolve => resolve(42)).then(v => {
     assert.same(v, 42);
-    async();
   });
 });
 
 QUnit.test('Promise.resolve / reject', assert => {
-  const async = assert.async();
-  Promise.resolve(1).then(v => {
+  return Promise.resolve(1).then(v => {
     assert.same(v, 1);
     throw 'err';
   }).catch(error => {
     assert.same(error, 'err');
-    async();
   });
 });
 
 QUnit.test('Promise.race', assert => {
-  const async = assert.async();
   let timer;
-  Promise.race([
+  return Promise.race([
     new Promise(resolve => {
       timer = setTimeout(() => resolve('slow'), 100);
     }),
@@ -30,15 +25,12 @@ QUnit.test('Promise.race', assert => {
     // the slow arm loses by design, and an armed timer keeps node alive for its whole delay
     clearTimeout(timer);
     assert.same(v, 'fast');
-    async();
   });
 });
 
 QUnit.test('Promise.try', assert => {
-  const async = assert.async();
-  Promise.try(() => 42).then(v => {
+  return Promise.try(() => 42).then(v => {
     assert.same(v, 42);
-    async();
   });
 });
 
@@ -47,46 +39,37 @@ QUnit.test('Promise.try', assert => {
 // thenable) must funnel through the returned promise's catch handler rather
 // than surface synchronously
 QUnit.test('Promise.try with synchronous throw', assert => {
-  const async = assert.async();
-  Promise.try(() => { throw new Error('sync-throw'); }).catch(error => {
+  return Promise.try(() => { throw new Error('sync-throw'); }).catch(error => {
     assert.same(error.message, 'sync-throw');
-    async();
   });
 });
 
 QUnit.test('Promise.try with rejecting thenable result', assert => {
-  const async = assert.async();
-  Promise.try(() => Promise.reject(new Error('async-reject'))).catch(error => {
+  return Promise.try(() => Promise.reject(new Error('async-reject'))).catch(error => {
     assert.same(error.message, 'async-reject');
-    async();
   });
 });
 
 QUnit.test('Promise.withResolvers', assert => {
   const { promise, resolve } = Promise.withResolvers();
-  const async = assert.async();
   resolve(99);
-  promise.then(v => {
+  return promise.then(v => {
     assert.same(v, 99);
-    async();
   });
 });
 
 QUnit.test('Promise#finally', assert => {
-  const async = assert.async();
   let finallyCalled = false;
-  Promise.resolve(1).finally(() => {
+  return Promise.resolve(1).finally(() => {
     finallyCalled = true;
   }).then(v => {
     assert.same(v, 1);
     assert.true(finallyCalled);
-    async();
   });
 });
 
 QUnit.test('Promise.allSettled', assert => {
-  const async = assert.async();
-  Promise.allSettled([
+  return Promise.allSettled([
     Promise.resolve(1),
     Promise.reject(new Error('fail')),
     Promise.resolve(3),
@@ -94,19 +77,16 @@ QUnit.test('Promise.allSettled', assert => {
     assert.same(results.length, 3);
     assert.same(results[0].status, 'fulfilled');
     assert.same(results[1].status, 'rejected');
-    async();
   });
 });
 
 QUnit.test('Promise.any', assert => {
-  const async = assert.async();
-  Promise.any([
+  return Promise.any([
     Promise.reject(1),
     Promise.resolve(2),
     Promise.resolve(3),
   ]).then(value => {
     assert.same(value, 2);
-    async();
   });
 });
 
@@ -118,8 +98,7 @@ QUnit.test('Promise.any', assert => {
 // exist). only-success path is covered above; this validates the `.errors`
 // shape + reason propagation specific to the all-rejected branch
 QUnit.test('Promise.any all-rejected returns AggregateError-shaped reason', assert => {
-  const async = assert.async();
-  Promise.any([
+  return Promise.any([
     Promise.reject(new Error('a')),
     Promise.reject(new Error('b')),
     Promise.reject(new Error('c')),
@@ -128,35 +107,28 @@ QUnit.test('Promise.any all-rejected returns AggregateError-shaped reason', asse
     assert.same(error.errors.length, 3);
     assert.same(error.errors[0].message, 'a');
     assert.same(error.errors[2].message, 'c');
-    async();
   });
 });
 
 QUnit.test('Promise.allSettled + chaining', assert => {
-  const async = assert.async();
-  Promise.allSettled([Promise.resolve(1), Promise.reject(2)]).then(results => {
+  return Promise.allSettled([Promise.resolve(1), Promise.reject(2)]).then(results => {
     assert.same(results.find(r => r.status === 'fulfilled').value, 1);
-    async();
   });
 });
 
 QUnit.test('Promise constructor with polyfill inside', assert => {
-  const async = assert.async();
   // eslint-disable-next-line unicorn/prefer-promise-try -- testing
-  new Promise(resolve => {
+  return new Promise(resolve => {
     resolve(Array.from([1, 2, 3]));
   }).then(arr => {
     assert.deepEqual(arr.filter(x => x > 1), [2, 3]);
-    async();
   });
 });
 
 QUnit.test('Promise.all over Set-deduped array, map with Promise.resolve', assert => {
-  const async = assert.async();
   // eslint-disable-next-line unicorn/no-duplicate-set-values -- testing
   const deduped = Array.from(new Set([3, 1, 2, 1, 3]));
-  Promise.all(deduped.map(v => Promise.resolve(v * 2))).then(collected => {
+  return Promise.all(deduped.map(v => Promise.resolve(v * 2))).then(collected => {
     assert.deepEqual(collected, [6, 2, 4]);
-    async();
   });
 });

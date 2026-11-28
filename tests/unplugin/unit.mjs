@@ -5319,7 +5319,6 @@ async function checkParameterDecoratorHostsAnyCode() {
     'audit-anon-escape-destructure-and-slots-assignment-array-pattern-tags-includes',
     'audit-anon-escape-destructure-and-slots-assignment-cells',
     'audit-anon-escape-destructure-and-slots-assignment-codes',
-    'audit-anon-escape-destructure-and-slots-assignment-codes-includes',
     'audit-anon-escape-destructure-and-slots-assignment-nums-at',
     'audit-anon-escape-destructure-and-slots-check',
     'audit-anon-escape-destructure-and-slots-computed-has',

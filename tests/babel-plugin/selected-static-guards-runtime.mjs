@@ -1,5 +1,6 @@
 /* eslint-disable max-depth -- Parser, target and fresh-realm boundaries. */
 // Selected constructors remain candidates after capture; guards preserve the native fallback.
+import { createTestDirectory } from '../transpiler-differential/temporary-directory.mjs';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
@@ -138,7 +139,7 @@ const cases = [
     const root = Function('return this')(); root.selectedStaticReader = F;
     try { return F.read(); } finally { delete root.selectedStaticReader; }`],
 ];
-const directory = await fs.mkdtemp(path.join(import.meta.dirname, '../transpiler-differential/tmp/selected-static-'));
+const directory = await createTestDirectory('selected-static-');
 let serial = 0;
 try {
   for (const [name, body, window] of cases) {

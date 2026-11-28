@@ -419,20 +419,18 @@ QUnit.test('loop: for-in over a polyfill-built object visits its own keys', asse
 });
 
 QUnit.test('loop: chained withResolvers-driven steps resolve in order', assert => {
-  const async = assert.async();
   const out = [];
   function step(value) {
     const { promise, resolve } = Promise.withResolvers();
     resolve(value);
     return promise;
   }
-  step(1).then(a => {
+  return step(1).then(a => {
     out.push(a);
     return step(2);
   }).then(b => {
     out.push(b);
     assert.deepEqual(out, [1, 2]);
-    async();
   });
 });
 

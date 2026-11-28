@@ -1,3 +1,6 @@
+import { parse as parseProgram } from '@babel/parser';
+import { singleQuasiString } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { moduleSpecifiers } from '../unplugin/phase-imports.mjs';
 import { fileURLToPath } from 'node:url';
 
 // A filesystem separator is one backslash. Its spelling in emitted JS strings is two.
@@ -8,9 +11,50 @@ export function slashifyPath(machinePath) {
 const ROOT_URL = new URL('../../', import.meta.url);
 const ROOT_PATH = slashifyPath(fileURLToPath(ROOT_URL));
 
-// Snapshots store the checkout directory as <CWD>/ for both filesystem paths and file URLs.
-export function normalizeMachinePaths(code, rootPath = ROOT_PATH, rootURL = ROOT_URL.href) {
-  return code.replaceAll('\\\\', '/').replaceAll(rootURL, '<CWD>/').replaceAll(rootPath, '<CWD>/');
+// Diagnostics can spell the checkout as a file URL or a native path.
+export function normalizeDiagnosticPaths(text, rootPath = ROOT_PATH, rootURL = ROOT_URL.href) {
+  const windowsRoot = rootPath.replaceAll('/', '\\');
+  return text.replaceAll(rootURL, '<CWD>/').replaceAll(rootPath, '<CWD>/')
+    .replaceAll(windowsRoot.replaceAll('\\', '\\\\'), '<CWD>/').replaceAll(windowsRoot, '<CWD>/')
+    .replaceAll(/<CWD>\/[^\s"')\]]*/gu, part => part.replaceAll('\\\\', '/').replaceAll('\\', '/'));
+}
+
+// Snapshot portability applies only to module specifiers. A user string or raw template
+// can contain exactly the same bytes as a checkout path and must remain observable.
+export function normalizeMachinePaths(code, { rootPath = ROOT_PATH, rootURL = ROOT_URL.href, parserOpts } = {}) {
+  if (!code.includes(rootPath) && !code.includes(rootURL) && !code.includes('\\\\')) return code;
+  const options = { sourceType: 'unambiguous', allowReturnOutsideFunction: true, ...parserOpts, startIndex: 0, startLine: 1, startColumn: 0 };
+  // Without a fixture dialect, JSX and an angle-bracket TS assertion require different parses.
+  let ast;
+  for (const plugins of options.plugins ? [options.plugins] : [['typescript', 'jsx'], ['typescript']]) {
+    try {
+      const parsed = parseProgram(code, { ...options, plugins });
+      if (!parsed.errors.length) {
+        ast = parsed;
+        break;
+      }
+    } catch { /* keep malformed and unsupported source byte-exact */ }
+  }
+  if (!ast) return code;
+  const parts = [];
+  let cursor = 0;
+  // A load in a callee sequence precedes the outer call's specifier in the source.
+  const literals = moduleSpecifiers(ast.program, options.sourceFilename).sort((a, b) => a.start - b.start);
+  for (const literal of literals) {
+    const value = typeof literal?.value === 'string' ? literal.value : singleQuasiString(literal);
+    if (value === null) continue;
+    const { start, end } = literal;
+    let portable = /^(?:[A-Za-z]:[/\\]|\\\\)/u.test(value) ? slashifyPath(value) : value;
+    if (portable.startsWith(rootURL)) portable = `<CWD>/${ portable.slice(rootURL.length) }`;
+    else if (portable.startsWith(rootPath)) portable = `<CWD>/${ portable.slice(rootPath.length) }`;
+    if (portable === value) continue;
+    let escaped = JSON.stringify(portable).slice(1, -1);
+    if (code[start] === "'") escaped = escaped.replaceAll("'", "\\'");
+    else if (code[start] === '`') escaped = escaped.replaceAll('`', '\\`').replaceAll('${', '\\${');
+    parts.push(code.slice(cursor, start + 1), escaped);
+    cursor = end - 1;
+  }
+  return parts.length ? parts.join('') + code.slice(cursor) : code;
 }
 
 // Variant comparisons ignore enum tail commas and redundant type parentheses.

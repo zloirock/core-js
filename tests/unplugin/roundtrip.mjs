@@ -7,7 +7,7 @@
 // does not carry it and neither print writes one - and the output's ES5 grammar is the e2e bundles'.
 // files oxc cannot parse (error fixtures, flow) are out of the printer's contract - they
 // are counted and skipped, with a canary so a skip-everything regression cannot read green
-import { loadBabelOptions } from '../babel-plugin/fixture-options.mjs';
+import { visitFixtures } from '../babel-plugin/fixture-shards.mjs';
 import { parseSync } from 'oxc-parser';
 import { printProgram } from '../../packages/core-js-unplugin/internals/print.js';
 import { isLineBoundDisableDirective } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
@@ -15,14 +15,11 @@ import { inferTestId, parseFixtureOrNull } from './fixture-lang.mjs';
 import { commentPlacements, commentSignature, strip } from './structural.mjs';
 import { liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/sfc-shapes.js';
 
-const { readdir, readFile, stat } = fs;
-const { join } = path;
 const { cyan, green, red } = chalk;
 
-const UTF8 = { encoding: 'utf8' };
 const fixturesDir = path.resolve('../transpiler-fixtures');
 
-const counts = { compared: 0, placed: 0, skippedParse: 0, skippedOptions: 0, failed: 0 };
+const counts = { compared: 0, placed: 0, skippedParse: 0, failed: 0 };
 const failures = [];
 
 function fail(directory, detail) {
@@ -104,31 +101,14 @@ function checkFixture(directory, testId, rawSource) {
   }
 }
 
-async function walk(directory) {
-  const entries = await readdir(directory);
-  if (entries.includes('input.mjs')) {
-    const babelOptions = await loadBabelOptions(directory);
-    if (!babelOptions) {
-      counts.skippedOptions++;
-      return;
-    }
-    const source = await readFile(join(directory, 'input.mjs'), UTF8);
-    // SFC virtual ids carry the parser dialect in their query - the same lift the plugin
-    // and the fixture runner share; without it every SFC fixture parse-skips silently
-    checkFixture(path.relative(fixturesDir, directory), liftSfcLangSuffix(inferTestId(babelOptions)), source);
-    return;
-  }
-  for (const entry of entries) {
-    const full = join(directory, entry);
-    if ((await stat(full)).isDirectory()) await walk(full);
-  }
-}
-
-await walk(fixturesDir);
+await visitFixtures(fixturesDir, (directory, source, babelOptions) => {
+  // Lift SFC virtual ids to the same dialect as the transform and fixture gates.
+  checkFixture(path.relative(fixturesDir, directory), liftSfcLangSuffix(inferTestId(babelOptions)), source);
+});
 
 for (const line of failures) echo`${ red('FAIL') } ${ line }`;
 if (counts.failed > failures.length) echo`${ red(`... and ${ counts.failed - failures.length } more failures`) }`;
-echo`\nRoundtrip: ${ green(counts.compared) } compared, ${ green(counts.placed) } comments placed, ${ cyan(counts.skippedParse) } unparsable skipped, ${ cyan(counts.skippedOptions) } optionless skipped, ${ counts.failed ? red(counts.failed) : green(0) } failed`;
+echo`\nRoundtrip: ${ green(counts.compared) } compared, ${ green(counts.placed) } comments placed, ${ cyan(counts.skippedParse) } unparsable skipped, ${ counts.failed ? red(counts.failed) : green(0) } failed`;
 // corpus-presence canary: a walk or parse regression that skips the corpus must not read green
 if (counts.compared < 8000) throw new Error(`roundtrip corpus collapsed: only ${ counts.compared } fixtures compared`);
 // ... and the placement compare is shown to see a move on a control rather than trusted to: a comment

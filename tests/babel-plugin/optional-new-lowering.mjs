@@ -1,5 +1,6 @@
 // Optional calls used as constructors keep their grouping without obstructing await/yield lowering.
 /* eslint-disable max-depth -- Cross the native/host/legacy and lowering runtime axes. */
+import { createTestDirectory } from '../transpiler-differential/temporary-directory.mjs';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
@@ -13,7 +14,7 @@ const { transformAsync } = requireBabel('@babel/core');
 const { traverseFast } = requireBabel('@babel/types');
 const { check, checkTruthy, fail, finish } = createChecker('optional-new-lowering');
 const lowerings = ['regenerator', 'optional-chaining'].map(name => requireBabel(`@babel/plugin-transform-${ name }`));
-const directory = await fs.mkdtemp(path.join(import.meta.dirname, '../transpiler-differential/tmp/optional-new-'));
+const directory = await createTestDirectory('optional-new-');
 let serial = 0;
 const cases = [
   ['yield-argument', `function* read(arr) { return new (arr.flat?.(yield 1))(7); }

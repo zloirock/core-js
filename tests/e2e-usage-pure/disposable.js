@@ -54,13 +54,11 @@ QUnit.test('AsyncDisposableStack: constructor exists', assert => {
 });
 
 QUnit.test('AsyncDisposableStack: disposeAsync', assert => {
-  const async = assert.async();
   const log = [];
   const stack = new AsyncDisposableStack();
   stack.defer(() => log.push('async-deferred'));
-  stack.disposeAsync().then(() => {
+  return stack.disposeAsync().then(() => {
     assert.deepEqual(log, ['async-deferred']);
-    async();
   });
 });
 
@@ -96,13 +94,8 @@ QUnit.test('using: Symbol.dispose class returning polyfill-built data', assert =
   assert.same(disposed, 1);
 });
 
-// `await using` runtime: companion to the sync `using` test above. async-dispose
-// resource must run on block exit AND be awaited before control resumes past the
-// enclosing async function. `Symbol.asyncDispose` returns a thenable; the runtime
-// awaits it implicitly. existence-only check in `Symbol.asyncDispose exists`
-// above doesn't exercise the await-on-exit semantics
+// A disposer that starts at block exit but settles later must delay the next statement.
 QUnit.test('await using: Symbol.asyncDispose awaits on block exit', assert => {
-  const async = assert.async();
   const log = [];
   class AsyncLock {
     async [Symbol.asyncDispose]() {
@@ -111,15 +104,13 @@ QUnit.test('await using: Symbol.asyncDispose awaits on block exit', assert => {
     }
   }
   async function run() {
-    await using lock = new AsyncLock();
-    // touch `lock` so the binding isn't flagged unused while keeping the test's
-    // focus on the implicit-disposal sequencing rather than method calls
-    log.push(lock instanceof AsyncLock ? 'body' : 'body-mismatch');
+    {
+      await using lock = new AsyncLock();
+      log.push(lock instanceof AsyncLock ? 'body' : 'body-mismatch');
+    }
+    log.push('after');
   }
-  run().then(() => {
-    // disposal ran AFTER the body and BEFORE the .then() callback - log order
-    // pins the await-on-exit contract
-    assert.deepEqual(log, ['body', 'disposed']);
-    async();
+  return run().then(() => {
+    assert.deepEqual(log, ['body', 'disposed', 'after']);
   });
 });

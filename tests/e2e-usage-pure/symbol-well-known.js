@@ -97,17 +97,15 @@ QUnit.test('Symbol.iterator call on Map', assert => {
 // Testing them in pure mode would just exercise the host runtime, not the
 // polyfill - leaving polyfill-specific surfaces for the remaining tests
 QUnit.test('Symbol.asyncIterator: AsyncIterator.prototype exposes the key', assert => {
-  const async = assert.async();
   // `AsyncIterator.from([...])` returns an AsyncIterator whose prototype defines
   // `[Symbol.asyncIterator]` (returns the iterator itself). exercising the
   // polyfilled Symbol via the AsyncIterator entry point keeps the source
   // compatible with the e2e lint policy (no `async function*` syntax)
   const asyncIt = AsyncIterator.from(['first', 'second']);
   const reAccessed = asyncIt[Symbol.asyncIterator]();
-  reAccessed.next().then(step => {
+  return reAccessed.next().then(step => {
     assert.same(step.value, 'first');
     assert.false(step.done);
-    async();
   });
 });
 

@@ -483,7 +483,6 @@ QUnit.test('invocation slots: every spelling yields the container its callee bui
 });
 
 QUnit.test('invocation slots: an await yields the callee container unless it is a thenable', assert => {
-  const done = assert.async();
   function make() {
     return [Array];
   }
@@ -492,13 +491,12 @@ QUnit.test('invocation slots: an await yields the callee container unless it is 
     return { then(resolve) { resolve({ k: { from: () => 'THEN' } }); }, k: Array };
   }
   // eslint-disable-next-line es/no-async-functions -- safe
-  (async () => {
+  return (async () => {
     // eslint-disable-next-line no-unused-vars -- retain the original native pattern while checking its independent effects and neighbours
     const [{ from }] = await make();
     const { k: { from: viaThen } } = await thenable();
     assert.same(viaThen([1]), 'THEN');
     assert.same((await thenable()).k.from([1]), 'THEN');
-    done();
   })();
 });
 

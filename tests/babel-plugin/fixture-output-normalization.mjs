@@ -1,7 +1,7 @@
 import { equal, notEqual, ok } from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
-import { normalizeFixtureOutput, normalizeMachinePaths } from './fixture-output.mjs';
+import { normalizeDiagnosticPaths, normalizeFixtureOutput, normalizeMachinePaths } from './fixture-output.mjs';
 
 for (const [directory, windows] of [
   ['D:/a/core-js/core-js/', true],
@@ -15,8 +15,40 @@ for (const [directory, windows] of [
     [`import "${ file.href }?mode=raw#part";`, 'import "<CWD>/packages/example%23.js?mode=raw#part";'],
     [`require("${ directory }packages/example.js");`, 'require("<CWD>/packages/example.js");'],
     [sibling, sibling],
-  ]) equal(normalizeMachinePaths(source, directory, url), expected);
+  ]) equal(normalizeMachinePaths(source, { rootPath: directory, rootURL: url }), expected);
 }
+
+const windowsPath = String.raw`D:\repo\module.js`;
+const moduleLiteral = JSON.stringify(windowsPath);
+for (const original of [
+  `const data = ${ moduleLiteral };`,
+  `const text = 'import ' + ${ moduleLiteral };`,
+  `// require(${ moduleLiteral })`,
+  'const raw = String.raw`a\\\\b`;',
+  `obj.require(${ moduleLiteral });`,
+  `function receive(require) { return require(${ moduleLiteral }); }`,
+  `function receive(require) { return require?.(${ moduleLiteral }); }`,
+  `with ({ require: deliver }) require(${ moduleLiteral });`,
+]) equal(normalizeMachinePaths(original), original);
+const nestedLoads = `(require(${ moduleLiteral }), require)(${ moduleLiteral });`;
+equal(normalizeMachinePaths(nestedLoads), nestedLoads.replaceAll(moduleLiteral, '"D:/repo/module.js"'));
+// eslint-disable-next-line no-template-curly-in-string -- literal template source for the parser
+const fixedTemplate = 'import(`D:/repo/file\\`\\${name}.js`);';
+equal(normalizeMachinePaths(fixedTemplate, { rootPath: 'D:/repo/' }), fixedTemplate.replace('D:/repo/', '<CWD>/'));
+// eslint-disable-next-line no-template-curly-in-string -- the path depends on a runtime substitution
+const dynamicTemplate = 'import(`D:/repo/${name}.js`);';
+equal(normalizeMachinePaths(dynamicTemplate, { rootPath: 'D:/repo/' }), dynamicTemplate);
+const grouped = `(require)((${ moduleLiteral }));`;
+equal(normalizeMachinePaths(grouped, { parserOpts: { createParenthesizedExpressions: true } }), grouped.replace(moduleLiteral, '"D:/repo/module.js"'));
+for (const source of [`export * from ${ moduleLiteral };`, `import(${ moduleLiteral });`, `require(${ moduleLiteral });`, `require?.(${ moduleLiteral });`]) {
+  equal(normalizeMachinePaths(source), source.replace(moduleLiteral, '"D:/repo/module.js"'));
+}
+equal(normalizeMachinePaths(`const marker = ${ moduleLiteral }; import(${ moduleLiteral });`),
+  `const marker = ${ moduleLiteral }; import("D:/repo/module.js");`);
+for (const syntax of ['const a = <number>x;', 'const a = <div />;']) {
+  equal(normalizeMachinePaths(`import ${ moduleLiteral }; ${ syntax }`), `import "D:/repo/module.js"; ${ syntax }`);
+}
+equal(normalizeDiagnosticPaths(windowsPath, 'D:/repo/'), '<CWD>/module.js');
 
 const { BABEL_REQUIRE_FROM } = process.env;
 const requireBabel = BABEL_REQUIRE_FROM

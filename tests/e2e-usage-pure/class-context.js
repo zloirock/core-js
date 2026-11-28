@@ -76,10 +76,8 @@ QUnit.test('class: super.resolve in extends Promise', assert => {
       return super.resolve(v * 2);
     }
   }
-  const async = assert.async();
-  MyPromise.resolveDouble(21).then(v => {
+  return MyPromise.resolveDouble(21).then(v => {
     assert.same(v, 42);
-    async();
   });
 });
 

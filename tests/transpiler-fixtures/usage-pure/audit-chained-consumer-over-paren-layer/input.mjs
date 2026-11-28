@@ -1,14 +1,10 @@
-// a CHAINED consumer above the dispatch makes the outer emission re-spell the receiver, so the nav
-// inside it is rendered by the hop-collapse channel rather than by the receiver render. the two
-// spellings are equivalent - the guarded value is nullish on exactly the same branch, and both
-// dereference it plainly afterwards - so the emitters differ in SHAPE here and the sidecar records
-// which one each produces
+// Both emitters guard window, then read .list outside the optional chain.
+// A missing window must still throw on that read, including under a chained consumer.
 globalThis.chainLayerBox = { n: 4, list: ['ab', 'cd'] };
 export const chained = (globalThis.window?.self.chainLayerBox).list?.at(0).includes('a');
 export const chainedTwice = (globalThis.window?.self.chainLayerBox).list?.at(0).includes('a').includes('a');
 
-// the same layer WITHOUT a chained consumer keeps both emitters on the receiver render, which folds
-// the plain hop into the alternate - the negative that pins the chaining as the discriminator
+// The same guard and plain read also apply without a chained consumer.
 export const unchained = (globalThis.window?.self.chainLayerBox).list?.at(0);
 export const unchainedPlain = (globalThis.window?.self.chainLayerBox).list.at(0);
 export const unchainedCarrier = (globalThis.window?.self.chainLayerBox).list?.at(0) ?? [];

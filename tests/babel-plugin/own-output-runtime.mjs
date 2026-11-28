@@ -1,5 +1,6 @@
 // Repeated passes preserve captures, evaluation order and already extracted bindings.
 // Foreign Babel temporaries must still receive their missing instance polyfills.
+import { createTestDirectory } from '../transpiler-differential/temporary-directory.mjs';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
@@ -61,7 +62,7 @@ for (const [index, host] of hosts.entries()) {
     ${ body.replace('({ from, ...rest } = Array)', '(effects.push("receiver"), { from, ...rest } = Array)') }
     export const r = from([5])[0];`, 5, effects]);
 }
-const directory = await fs.mkdtemp(path.join(import.meta.dirname, '../transpiler-differential/tmp/own-output-'));
+const directory = await createTestDirectory('own-output-');
 let serial = 0;
 try {
   for (const [name, source, value, effects = []] of cases) {

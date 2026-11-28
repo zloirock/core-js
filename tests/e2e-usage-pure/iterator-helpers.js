@@ -73,10 +73,8 @@ QUnit.test('Iterator.from + Iterator#windows', assert => {
 });
 
 QUnit.test('Iterator.from + Iterator#toAsync', assert => {
-  const async = assert.async();
-  Iterator.from([1, 2, 3]).toAsync().toArray().then(arr => {
+  return Iterator.from([1, 2, 3]).toAsync().toArray().then(arr => {
     assert.deepEqual(arr, [1, 2, 3]);
-    async();
   });
 });
 
@@ -111,26 +109,20 @@ QUnit.test('Iterator.from: map + filter + drop + take chain', assert => {
 // `Iterator.from(arr).toAsync()` lives on the sync iterator class and isn't the
 // surface that exercises AsyncIterator's own prototype methods
 QUnit.test('AsyncIterator#map', assert => {
-  const async = assert.async();
-  AsyncIterator.from([1, 2, 3]).map(x => x * 10).toArray().then(arr => {
+  return AsyncIterator.from([1, 2, 3]).map(x => x * 10).toArray().then(arr => {
     assert.deepEqual(arr, [10, 20, 30]);
-    async();
   });
 });
 
 QUnit.test('AsyncIterator#filter + take chain', assert => {
-  const async = assert.async();
-  AsyncIterator.from([1, 2, 3, 4, 5]).filter(x => x % 2).take(2).toArray().then(arr => {
+  return AsyncIterator.from([1, 2, 3, 4, 5]).filter(x => x % 2).take(2).toArray().then(arr => {
     assert.deepEqual(arr, [1, 3]);
-    async();
   });
 });
 
 QUnit.test('AsyncIterator#forEach', assert => {
-  const async = assert.async();
   const collected = [];
-  AsyncIterator.from([1, 2, 3]).forEach(x => collected.push(x)).then(() => {
+  return AsyncIterator.from([1, 2, 3]).forEach(x => collected.push(x)).then(() => {
     assert.deepEqual(collected, [1, 2, 3]);
-    async();
   });
 });

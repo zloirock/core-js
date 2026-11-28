@@ -89,24 +89,20 @@ QUnit.test('chain: Iterator helpers', assert => {
 
 // promise chain
 QUnit.test('chain: Promise.resolve -> then -> catch -> finally', assert => {
-  const async = assert.async();
   let finallyRan = false;
-  Promise.resolve(1)
+  return Promise.resolve(1)
     .then(v => v + 1)
     .then(v => { assert.same(v, 2); return v; })
     .catch(() => assert.true(false, 'should not reject'))
     .finally(() => { finallyRan = true; })
     .then(() => {
       assert.true(finallyRan);
-      async();
     });
 });
 
 QUnit.test('chain: Promise.resolve -> then with Array method', assert => {
-  const async = assert.async();
-  Promise.resolve([3, 1, 2]).then(arr => arr.toSorted()).then(sorted => {
+  return Promise.resolve([3, 1, 2]).then(arr => arr.toSorted()).then(sorted => {
     assert.deepEqual(sorted, [1, 2, 3]);
-    async();
   });
 });
 
@@ -191,10 +187,8 @@ QUnit.test('chain: const { from } = Array; from(...).filter(...).findLast(...)',
 
 QUnit.test('chain: const { fromAsync } = Array; fromAsync(...).then(arr => arr.at(-1))', assert => {
   const { fromAsync } = Array;
-  const async = assert.async();
-  fromAsync([10, 20, 30]).then(arr => {
+  return fromAsync([10, 20, 30]).then(arr => {
     assert.same(arr.at(-1), 30);
-    async();
   });
 });
 

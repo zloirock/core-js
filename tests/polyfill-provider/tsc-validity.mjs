@@ -15,7 +15,7 @@ import { createVirtualFileSystem } from 'typescript/unstable/fs';
 import { fileURLToPath } from 'node:url';
 import { parseSync } from 'oxc-parser';
 import { createChecker, scenarioOrigin, scenarioSources, suiteTscIntents } from './harness.mjs';
-import { loadBabelOptions } from '../babel-plugin/fixture-options.mjs';
+import { collectFixtures, visitFixtures } from '../babel-plugin/fixture-shards.mjs';
 
 const { check, checkDeep, fail, finish, pass } = createChecker('tsc-validity');
 
@@ -180,19 +180,6 @@ try {
 
   const FIXTURES = fileURLToPath(new URL('../transpiler-fixtures/', import.meta.url));
 
-  // a directory holding `input.mjs` is a fixture, any other one groups fixtures
-  async function collectFixtures(directory, found = []) {
-    if (await fs.pathExists(path.join(directory, 'input.mjs'))) {
-      found.push(directory);
-      return found;
-    }
-    for (const name of (await fs.readdir(directory)).sort()) {
-      const entry = path.join(directory, name);
-      if ((await fs.stat(entry)).isDirectory()) await collectFixtures(entry, found);
-    }
-    return found;
-  }
-
   // the file `tsc` reads a fixture as, from the options the babel leg parses it with: TypeScript only
   // through the `typescript` parser plugin, under the extension its filename names - a declaration file,
   // a CommonJS `.cts`, an SFC block's `lang` - or else `.ts`, and `.tsx` beside the `jsx` plugin. null for
@@ -205,18 +192,17 @@ try {
     return `/fixtures/input${ named || (plugins.has('jsx') ? '.tsx' : '.ts') }`;
   }
 
-  const fixtures = await collectFixtures(FIXTURES);
   const fixtureCounts = { checked: 0, plain: 0, other: 0 };
-  for (const directory of fixtures) {
-    const file = fixtureFile(await loadBabelOptions(directory) ?? {});
+  const fixtureCount = await visitFixtures(FIXTURES, (directory, source, options) => {
+    const file = fixtureFile(options);
     if (!file) {
       fixtureCounts.other++;
-      continue;
+      return;
     }
-    const { typescript, markersWithoutReason, checked } = readSource(await fs.readFile(path.join(directory, 'input.mjs'), 'utf8'), file);
+    const { typescript, markersWithoutReason, checked } = readSource(source, file);
     if (!typescript) {
       fixtureCounts.plain++;
-      continue;
+      return;
     }
     const label = `transpiler-fixtures/${ path.relative(FIXTURES, directory).replaceAll('\\', '/') }`;
     reportMarkers(label, markersWithoutReason);
@@ -224,7 +210,7 @@ try {
     fixtureCounts.checked++;
     if (rejected.length) fail(label, `tsc rejects the input:\n    ${ rejected.join('\n    ') }`);
     else pass();
-  }
+  });
 
   const { cyan } = chalk;
   echo(`tsc-validity: ${ cyan(counts.checked) } TS sources checked, ${ cyan(counts.suiteReasoned) } under a suite reason, ${
@@ -233,7 +219,7 @@ try {
     cyan(fixtureCounts.other) } parsed as Flow or JavaScript`);
   check('tsc-validity: every scenario source is counted once', counts.checked + counts.suiteReasoned + counts.plain + counts.flow,
     scenarioSources.length);
-  check('tsc-validity: every fixture is counted once', fixtureCounts.checked + fixtureCounts.plain + fixtureCounts.other, fixtures.length);
+  check('tsc-validity: every fixture is counted once', fixtureCounts.checked + fixtureCounts.plain + fixtureCounts.other, fixtureCount);
 
   // --- Leg controls ---
   // every leg shown to fire on a control rather than trusted to: a leg that died would pass every source
@@ -295,9 +281,12 @@ try {
   }
   const walkRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'core-js-tsc-validity-'));
   try {
-    for (const fixture of ['flat', 'flat/inner', 'group/nested', 'group/deeper/nested']) await fs.outputFile(path.join(walkRoot, fixture, 'input.mjs'), '');
-    checkDeep('tsc-validity: the walk collects a fixture at any depth and stops at one',
-      (await collectFixtures(walkRoot)).map(directory => path.relative(walkRoot, directory).replaceAll('\\', '/')), ['flat', 'group/deeper/nested', 'group/nested']);
+    for (const fixture of ['flat', 'flat/inner', 'group/nested', 'group/deeper/nested']) {
+      await fs.outputFile(path.join(walkRoot, fixture, 'input.mjs'), '');
+      await fs.writeJson(path.join(walkRoot, fixture, 'options.json'), { plugins: [['@core-js', {}]] });
+    }
+    checkDeep('tsc-validity: the walk collects a fixture at any depth, including below a fixture',
+      (await collectFixtures(walkRoot)).map(directory => path.relative(walkRoot, directory).replaceAll('\\', '/')), ['flat', 'flat/inner', 'group/deeper/nested', 'group/nested']);
   } finally {
     await fs.remove(walkRoot);
   }

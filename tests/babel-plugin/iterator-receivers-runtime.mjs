@@ -1,5 +1,6 @@
 /* eslint-disable max-depth -- Cross parser, target and isolated-realm boundaries. */
 // A helper consumes one source read; optional boundaries and Symbol selections stay live.
+import { createTestDirectory } from '../transpiler-differential/temporary-directory.mjs';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
@@ -221,7 +222,7 @@ const cases = [
     true, false, false,
   ],
 ];
-const directory = await fs.mkdtemp(path.join(import.meta.dirname, '../transpiler-differential/tmp/iterator-receivers-'));
+const directory = await createTestDirectory('iterator-receivers-');
 let serial = 0;
 try {
   for (const [name, body, window, noSymbol, nativeTargets] of cases) {

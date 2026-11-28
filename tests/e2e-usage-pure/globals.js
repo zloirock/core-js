@@ -5,10 +5,8 @@ import { restoreProperty } from '../helpers/restore-property.cjs';
 QUnit.test('globals: Promise', assert => {
   const p = new Promise(resolve => resolve(42));
   assert.true(p instanceof Promise);
-  const async = assert.async();
-  p.then(v => {
+  return p.then(v => {
     assert.same(v, 42);
-    async();
   });
 });
 

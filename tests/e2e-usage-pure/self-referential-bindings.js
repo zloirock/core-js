@@ -58,7 +58,6 @@ QUnit.test('self-referential bindings: a pattern init calling its own binding', 
 
 /* eslint-disable es/no-async-functions -- transpiled by babel */
 QUnit.test('self-referential bindings: an awaited factory returning a call of its own binding', assert => {
-  const async = assert.async();
   async function load() {
     async function make() {
       return at();
@@ -66,9 +65,8 @@ QUnit.test('self-referential bindings: an awaited factory returning a call of it
     const { at } = await make();
     return at;
   }
-  load().then(() => 'resolved', () => 'rejected').then(outcome => {
+  return load().then(() => 'resolved', () => 'rejected').then(outcome => {
     assert.same(outcome, 'rejected');
-    async();
   });
 });
 /* eslint-enable es/no-async-functions -- the rest is synchronous */

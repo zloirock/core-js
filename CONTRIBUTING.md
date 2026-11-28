@@ -22,7 +22,7 @@ There are always some ["help wanted" issues](https://github.com/zloirock/core-js
 - Add TypeScript definitions for both versions, [see below](#typescript-type-definitions), and bind them to the module with a `// @types:` comment - `npm run types-coverage` requires it or the explicit `// @no-types` opt-out.
 - Add unit tests to [`tests/unit-global`](./tests/unit-global) and [`tests/unit-pure`](./tests/unit-pure).
 - Add tests of entry points to [`tests/entries/unit.mjs`](./tests/entries/unit.mjs).
-- Regenerate the shared transpiler fixtures where the new entry changes their output, babel first: `OVERWRITE=1 npm run test-babel-plugin`, then `OVERWRITE=1 npm run test-unplugin`.
+- Regenerate the shared transpiler fixtures where the new entry changes their output, in runner order: `OVERWRITE=1 npm run test-babel-plugin`, `OVERWRITE=1 npm run test-babel-plugin-v7`, then `OVERWRITE=1 npm run test-unplugin`.
 - Make sure that you are following [our coding style](#style-and-standards) and [all tests](#testing) pass.
 - Document it in [site documentation](./docs/web/docs/), list the new page in [`docs/web/docs/menu.json`](./docs/web/docs/menu.json) - a page missing from it is reachable only by its URL - add the feature to the list in [README.md](./README.md), and describe the change in [CHANGELOG.md](./CHANGELOG.md).
 
@@ -212,6 +212,7 @@ You can run parts of the test case separately:
   npm run test-babel-plugin-unit-v7     # babel-plugin internals unit against @babel/core@7
   npm run test-unplugin                 # unplugin shared transpiler fixtures
   npm run test-unplugin-unit            # unplugin internals (unit)
+  npm run test-unplugin-roundtrip       # parse, print and reparse the unchanged fixture inputs
   npm run test-e2e-usage-pure           # end-to-end usage-pure bundles in NodeJS (builds them first; Karma leg is separate)
   npm run test-transpiler-differential  # generated corpus: 3-way native == babel == unplugin + import-set parity + stripped-realm oracle; scope it with `pure` and/or `babel` / `unplugin`
   npm run test-transpiler-integration   # every supported bundler across methods and phases, runtime-verified

@@ -150,10 +150,8 @@ QUnit.test('try/catch: polyfill in catch block', assert => {
 
 // promise handlers
 QUnit.test('promise: polyfill in catch handler', assert => {
-  const async = assert.async();
-  Promise.reject(new Error('fail')).catch(error => {
+  return Promise.reject(new Error('fail')).catch(error => {
     assert.true(error.message.includes('fail'));
-    async();
   });
 });
 

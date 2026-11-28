@@ -1,7 +1,7 @@
 import { deepEqual, equal, notEqual, ok, throws } from 'node:assert/strict';
 import { parseSync } from 'oxc-parser';
 import { commentSignature, strip } from './structural.mjs';
-import { phaseImportVerdict, importSources, transformPrePost } from './phase-imports.mjs';
+import { phaseImportVerdict, coreJSImports, importSources, transformPrePost } from './phase-imports.mjs';
 import { parseFixture, parseFixtureOrNull } from './fixture-lang.mjs';
 
 for (const id of ['input.js', 'input.cjs', 'input.cts']) {
@@ -28,6 +28,8 @@ export { default as from } from '@core-js/pure/actual/array/from';
 import old = require('@core-js/pure/actual/map');
 const text = 'import "core-js/modules/fake"'; // require('core-js/modules/comment')
 object.require('core-js/modules/member'); import 'another-package';
+function consume(require) { return require('not-a-dependency'); }
+function nested({ require: load }) { return (require)(('wrapped')); }
 import 'core-js/actual/map'; import '/vendor/core-js/modules/es.array.at.js';
 require('polyfill-alias/actual/array/at');
 `;
@@ -37,7 +39,21 @@ deepEqual(importSources(parseSync('input.ts', phaseImportsSource).program), [
   '@core-js/pure/actual/array/from', '@core-js/pure/actual/array/instance/at', '@core-js/pure/actual/map',
   'another-package', 'core-js/actual/map', 'core-js/modules/es.array.at', 'core-js/modules/es.array.includes', 'core-js/modules/es.promise.constructor',
   'polyfill-alias/actual/array/at',
+  'wrapped',
 ]);
+
+const packages = parseFixture('input.js', "import 'core-js'; import '@core-js/pure'; import 'core-js-fake'; import '@core-js/pure-x';");
+deepEqual(coreJSImports(packages.program), ['@core-js/pure', 'core-js']);
+for (const [code, expected] of [
+  ["with (require('outside')) { require('inside'); }", ['outside']],
+  ["{ const require = load; require('local'); } require('host');", ['host']],
+  ["require('host'); var require = wrap(require); require('custom'); module.exports = 1;", ['host']],
+  ["var require; require('host');", ['host']],
+  ["function f(x=require('host')) { var require = custom; require('local'); }", ['host']],
+  ["(0, require)('host'); require = load; require('custom');", ['host']],
+  // eslint-disable-next-line no-template-curly-in-string -- the interpolated source is not a static dependency
+  ['import(`one`); require(`two`); require(`unknown-${name}`);', ['one', 'two']],
+]) deepEqual(importSources(parseFixture('input.cjs', code).program, 'input.cjs'), expected);
 
 const recordedPhaseDifference = new Map([['fixture', { added: ['extra'], missing: ['lost'] }]]);
 for (const [name, expected, actual, status] of [
@@ -74,12 +90,12 @@ for (const failurePass of ['pre', 'post']) {
   deepEqual(seen, failurePass === 'pre' ? ['pre'] : ['pre', 'post']);
 }
 
-function identity(source) {
+function identity(source, original = '') {
   // eslint-disable-next-line node/no-sync -- fixture comparisons use the synchronous parser
   const parsed = parseSync('input.ts', source, { sourceType: 'module' });
   equal(parsed.errors.filter(error => error.severity === 'Error').length, 0);
   const before = JSON.stringify(parsed.program);
-  const normalized = strip(parsed.program);
+  const normalized = strip(parsed.program, original);
   equal(JSON.stringify(parsed.program), before); // Comment-placement checks still need the original tree.
   equal(JSON.stringify(strip(parsed.program.body)), JSON.stringify(strip(structuredClone(parsed.program.body))));
   return JSON.stringify([normalized, commentSignature(parsed.comments)]);
@@ -142,6 +158,33 @@ for (const [left, right] of [
   ['const _ref = 1; function f() { type F = ([x]?: number[]) => void; } use(_ref);',
     'const _ref2 = 1; function f() { type F = ([x]?: number[]) => void; } use(_ref2);'],
 ]) notEqual(identity(left), identity(right));
+
+// Public and authored names stay observable even with a generated-looking spelling.
+for (const [left, right] of [
+  ['export const _ref = 1;', 'export const _ref2 = 1;'],
+  ['export const { value: _ref } = x;', 'export const { value: _ref2 } = x;'],
+  ['let _ref = 1; (eval)("_ref");', 'let _ref2 = 1; (eval)("_ref");'],
+  ['export default function _ref() {}', 'export default function _ref2() {}'],
+  ['export default class _ref {}', 'export default class _ref2 {}'],
+  ['const _ref = () => 1; use(_ref.name);', 'const _ref2 = () => 1; use(_ref2.name);'],
+  ['let _ref; _ref = class {}; use(_ref.name);', 'let _ref2; _ref2 = class {}; use(_ref2.name);'],
+]) notEqual(identity(left), identity(right));
+const authored = 'function f(_ref) { return _ref; }';
+notEqual(identity(authored, authored), identity(authored.replaceAll('_ref', '_ref2'), authored));
+notEqual(identity('String.raw`a\\x62`'), identity('String.raw`ab`'));
+const shorthand = '({ __proto__ })';
+const setter = '({ __proto__: __proto__ })';
+notEqual(identity(shorthand), identity(setter));
+equal(identity('({ x })'), identity('({ x: x })'));
+equal(identity('const { __proto__ } = x;'), identity('const { __proto__: __proto__ } = x;'));
+const proto = { field: 1 };
+// eslint-disable-next-line id-match -- this binding exercises the shorthand spelling.
+function objectLiteral(__proto__) { return [{ __proto__ }, { __proto__: __proto__ }]; }
+const [own, inherited] = objectLiteral(proto);
+equal(Object.getPrototypeOf(own), Object.prototype);
+equal(Object.hasOwn(own, '__proto__'), true);
+equal(Object.getPrototypeOf(inherited), proto);
+equal(Object.hasOwn(inherited, '__proto__'), false);
 
 // Each binding's sites are collected once, even when many references resolve to it.
 const { set } = WeakMap.prototype;

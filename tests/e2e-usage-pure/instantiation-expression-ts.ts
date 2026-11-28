@@ -32,11 +32,9 @@ QUnit.test('instantiation-ts: logical in the slot calls the chosen operand', ass
 });
 
 QUnit.test('instantiation-ts: awaited value in the slot is the callee', async assert => {
-  const done = assert.async();
   const target = (n: number) => [n, [2]].flat();
   const result = ((await Promise.resolve(target))<string>)(1);
   assert.deepEqual(result, [1, 2], 'a dropped paren awaits the CALL of the unresolved promise');
-  done();
 });
 
 QUnit.test('instantiation-ts: yielded value in the slot is the callee', assert => {
@@ -131,7 +129,6 @@ QUnit[typeof E2E_DETECT_LOWERED === 'undefined' ? 'test' : 'skip']('instantiatio
 // its parens, and this bundle lowers to ES5 - an early paren here does not fail an assertion, it
 // aborts the build, so the file compiling at all is half the lock and the values are the other half
 QUnit.test('instantiation-ts: parens owed inside an awaited slot survive the lowering', async assert => {
-  const done = assert.async();
   const target = (n: number) => [n, [2]].flat();
   const holder = { member: target };
 
@@ -140,7 +137,6 @@ QUnit.test('instantiation-ts: parens owed inside an awaited slot survive the low
   let counter = 0;
   assert.same(typeof ((counter++)<never>), 'number', 'a fusing operand keeps its parens too');
   assert.same(counter, 1);
-  done();
 });
 
 // negatives: the shapes the slot accepts bare must keep working untouched

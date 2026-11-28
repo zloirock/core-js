@@ -44,10 +44,8 @@ QUnit.test('callback: String.fromCodePoint in map', assert => {
 });
 
 QUnit.test('callback: Promise.resolve in map + Promise.all', assert => {
-  const async = assert.async();
-  Promise.all([1, 2, 3].map(Promise.resolve, Promise)).then(r => {
+  return Promise.all([1, 2, 3].map(Promise.resolve, Promise)).then(r => {
     assert.deepEqual(r, [1, 2, 3]);
-    async();
   });
 });
 

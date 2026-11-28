@@ -38,12 +38,10 @@ QUnit.test('mutated-statics: a written slot of a constructor-yielded container w
 });
 
 QUnit.test('mutated-statics: a written slot of an awaited container wins', assert => {
-  const done = assert.async();
   function make() { return [Object, 0]; }
-  (async () => {
+  return (async () => {
     const w = await make();
     w[0] = { entries: () => 'AWAITED' };
     assert.same(w[0].entries({}), 'AWAITED');
-    done();
   })();
 });

@@ -52,22 +52,18 @@ QUnit.test('esnext: Iterator.zipKeyed', assert => {
 });
 
 QUnit.test('esnext: Promise.allKeyed', assert => {
-  const async = assert.async();
-  Promise.allKeyed({ a: Promise.resolve(1), b: Promise.resolve(2) }).then(result => {
+  return Promise.allKeyed({ a: Promise.resolve(1), b: Promise.resolve(2) }).then(result => {
     assert.same(result.a, 1);
     assert.same(result.b, 2);
-    async();
   });
 });
 
 QUnit.test('esnext: Promise.allSettledKeyed', assert => {
-  const async = assert.async();
-  Promise.allSettledKeyed({ a: Promise.resolve(1), b: Promise.reject(2) }).then(result => {
+  return Promise.allSettledKeyed({ a: Promise.resolve(1), b: Promise.reject(2) }).then(result => {
     assert.same(result.a.status, 'fulfilled');
     assert.same(result.a.value, 1);
     assert.same(result.b.status, 'rejected');
     assert.same(result.b.reason, 2);
-    async();
   });
 });
 
@@ -105,24 +101,20 @@ QUnit.test('esnext: Map.groupBy with object keys, Array.from over result Map', a
 // exercise it through destructured aliases; this covers the full-qualified
 // `Array.fromAsync(...)` static-call path AND the async-iterable input branch
 QUnit.test('esnext: Array.fromAsync over sync iterable', assert => {
-  const async = assert.async();
-  Array.fromAsync([1, 2, 3]).then(arr => {
+  return Array.fromAsync([1, 2, 3]).then(arr => {
     assert.deepEqual(arr, [1, 2, 3]);
-    async();
   });
 });
 
 QUnit.test('esnext: Array.fromAsync over async iterable with map callback', assert => {
-  const async = assert.async();
   // async-iterable input via `AsyncIterator.from([...])` (pure-mode entry to the
   // async-helper pipeline; wraps a sync iterable so each value resolves through
   // Promise.resolve per spec). avoids `async function*` syntax that the e2e
   // lint policy forbids. each yielded value awaits through iteration before the
   // map callback applies
   const asyncIt = AsyncIterator.from([1, 2, 3]);
-  Array.fromAsync(asyncIt, x => x * 10).then(arr => {
+  return Array.fromAsync(asyncIt, x => x * 10).then(arr => {
     assert.deepEqual(arr, [10, 20, 30]);
-    async();
   });
 });
 

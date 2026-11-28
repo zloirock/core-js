@@ -162,15 +162,13 @@ QUnit.test('object: computed-name method polyfills its body', assert => {
 });
 
 QUnit.test('object: shorthand method returns a polyfilled combinator promise', assert => {
-  const async = assert.async();
   const api = {
     all(values) {
       return Promise.all(values.map(v => Promise.resolve(v)));
     },
   };
-  api.all([1, 2, 3]).then(r => {
+  return api.all([1, 2, 3]).then(r => {
     assert.deepEqual(r, [1, 2, 3]);
-    async();
   });
 });
 

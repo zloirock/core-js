@@ -6,9 +6,7 @@ const { chromium, firefox, webkit } = require('playwright');
 // runner both the launch and that navigation regularly need more than Playwright's own 30 seconds
 const TIMEOUT = 6e4;
 
-async function close(launcher, log) {
-  const browser = launcher._browser;
-  launcher._browser = null;
+async function close(browser, log) {
   if (!browser) return;
   try {
     await browser.close();
@@ -27,32 +25,36 @@ function createLauncher(displayName, browserType) {
 
     this.name = this.displayName = displayName;
 
+    let current;
     this.on('start', async url => {
+      const attempt = {};
+      current = attempt;
       try {
-        this._browser = await browserType.launch({ headless: true, timeout: TIMEOUT });
-        // karma can give up and kill the launcher while the browser is still starting: the kill
-        // finds nothing to close, and the browser that arrives after it would be left running
-        if (this.state !== this.STATE_BEING_CAPTURED) {
-          await close(this, log);
+        const browser = await browserType.launch({ headless: true, timeout: TIMEOUT });
+        // A timed-out launch can resolve after Karma has started a fresh capture.
+        if (current !== attempt) {
+          await close(browser, log);
           return;
         }
-        const page = await this._browser.newPage();
-        await page.goto(url, { timeout: TIMEOUT });
+        attempt.browser = browser;
+        const page = await browser.newPage();
+        if (current === attempt) await page.goto(url, { timeout: TIMEOUT });
       } catch (error) {
-        // the capture also fails when karma runs out of patience and kills the browser itself -
-        // that launcher has reported `done` already, and a second report spends another retry
-        if (this.state !== this.STATE_BEING_CAPTURED) return;
+        if (current !== attempt || this.state !== this.STATE_BEING_CAPTURED) return;
         log.error(error);
-        // karma considers a launcher that reported `done` already killed, so a browser left
-        // running by a failed capture would survive the restart and race the next attempt
-        await close(this, log);
-        this._done('failure');
+        const { browser } = attempt;
+        attempt.browser = null;
+        await close(browser, log);
+        if (current === attempt && this.state === this.STATE_BEING_CAPTURED) this._done('failure');
       }
     });
 
     this.on('kill', async done => {
-      await close(this, log);
-      this._done();
+      const attempt = current;
+      const stopped = {};
+      current = stopped;
+      await close(attempt?.browser, log);
+      if (current === stopped) this._done();
       queueMicrotask(done);
     });
   }

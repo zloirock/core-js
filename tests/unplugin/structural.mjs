@@ -4,7 +4,7 @@
 // builders keep `raw` trustworthy instead, and only where it is needed), paren nodes (value
 // AND type level - the printer normalizes to the minimal structural set), statement-list
 // `EmptyStatement`s (semantics-free in a LIST; a loop's empty BODY is a node field and
-// survives), the `shorthand` flag, nested-sequence grouping
+// survives), ordinary property shorthand, nested-sequence grouping
 // (`(a, (b, c))` == `(a, b, c)` - babel's generator flattens it on reprint), and a sealed
 // chain under an OPTIONAL continuation (`(a?.b)?.()` == `a?.b?.()` - runtime-equal for
 // every nullish split, and babel prints the unsealed spelling; a seal under a NON-optional
@@ -18,6 +18,7 @@
 // is compared. One map spans the program, so statement splits cannot erase reference identity.
 // Only declared bindings and their references rename; property names and free names stay exact.
 import { traverse } from 'estree-toolkit';
+import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 
 const MINTED_NAME = /^_(?:ref|unused)\d*$/;
 let mintedNames = null;
@@ -36,24 +37,42 @@ function canonicalMinted(node) {
   return mintedNames.get(binding);
 }
 
-export function strip(node) {
-  if (node?.type !== 'Program') return stripNode(node);
+// Declarations, defaults and assignments can give an anonymous function or class its .name.
+function namesFunction({ key, parent }) {
+  if (key === 'id' && parent.type !== 'VariableDeclarator') return true;
+  const value = unwrapRuntimeExpr(key === 'id' ? parent.init : key === 'left' ? parent.right : null);
+  return value?.type === 'ArrowFunctionExpression'
+    || ((value?.type === 'FunctionExpression' || value?.type === 'ClassExpression') && !value.id);
+}
+
+// A roundtrip has no generated names. Only a host comparison supplies the original input.
+export function strip(node, source) {
+  if (node?.type !== 'Program' || source === undefined || source.includes('\\u')) return stripNode(node);
+  const authored = new Set(source.match(/_(?:ref|unused)\d*/gu));
+  const publicIds = node.body.filter(item => item.type === 'ExportNamedDeclaration' && item.declaration)
+    .flatMap(({ declaration }) => declaration.declarations?.map(item => item.id) ?? [declaration.id]).filter(Boolean);
+  let observable = false;
   mintedNames = new Map();
   const bindings = new WeakMap();
   try {
     try {
       traverse(node, {
         $: { scope: true },
+        WithStatement() { observable = true; },
         Identifier(path) {
-          if (!MINTED_NAME.test(path.node.name)) return;
+          if (path.node.name === 'eval') observable = true;
+          if (!MINTED_NAME.test(path.node.name) || authored.has(path.node.name)) return;
           const binding = path.scope.getBinding(path.node.name);
           if (!binding || bindings.has(binding.identifierPath.node)) return;
+          const id = binding.identifierPath.node;
+          if (publicIds.some(item => item.start <= id.start && id.end <= item.end)
+            || namesFunction(binding.identifierPath) || binding.constantViolations.some(namesFunction)) return;
           for (const site of [binding.identifierPath, ...binding.references, ...binding.constantViolations]) {
             bindings.set(site.node, binding);
           }
         },
       });
-      mintedBindings = bindings;
+      if (!observable) mintedBindings = bindings;
     } catch {
       // Scope crawling does not support every TS signature. Keep all names exact on failure.
     }
@@ -75,7 +94,7 @@ function sequenceItems(expressions) {
 function statementList(nodes) {
   return nodes.filter(item => item?.type !== 'EmptyStatement').flatMap(node => {
     if (node.type === 'VariableDeclaration') {
-      if (node.kind === 'var' && node.declarations.every(item => !item.init && item.id.type === 'Identifier' && MINTED_NAME.test(item.id.name))) {
+      if (node.kind === 'var' && node.declarations.every(item => !item.init && mintedBindings?.has(item.id))) {
         return [{ ...node, declarations: node.declarations.toSorted((a, b) => a.id.name.localeCompare(b.id.name, 'en')) }];
       }
       return node.declarations.map(declaration => ({ ...node, declarations: [declaration] }));
@@ -126,6 +145,20 @@ function stripNode(node) {
       if (key === 'start' || key === 'end' || key === 'loc' || key === 'range' || key === 'raw' || key === 'shorthand') continue;
       const value = Array.isArray(node[key]) && (key === 'body' || node.type === 'SwitchCase' && key === 'consequent')
         ? statementList(node[key]) : node[key];
+      if (node.type === 'TemplateElement' && key === 'value') {
+        // A tag observes the template's raw spelling even when the cooked strings match.
+        out[key] = { cooked: value.cooked, raw: value.raw };
+        continue;
+      }
+      if (node.type === 'ObjectExpression' && key === 'properties') {
+        out[key] = value.map(property => {
+          const result = strip(property);
+          if (property.type === 'Property' && property.kind === 'init' && !property.shorthand && !property.method && !property.computed
+            && (property.key.name ?? property.key.value) === '__proto__') result.protoSetter = true;
+          return result;
+        });
+        continue;
+      }
       out[key] = key === 'name' && node.type === 'Identifier' ? canonicalMinted(node) : strip(value);
     }
     return out;

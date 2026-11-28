@@ -6,7 +6,7 @@ import { createHash, hash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { parse } from '@babel/parser';
 import parserPackage from '@babel/parser/package.json' with { type: 'json' };
-import { getOuterBindingIdentifiers } from '@babel/types';
+import { getOuterBindingIdentifiers, traverseFast } from '@babel/types';
 import typesPackage from '@babel/types/package.json' with { type: 'json' };
 
 const { cyan, green, red } = chalk;
@@ -175,14 +175,19 @@ function namedFunctionOf(node, isDefault) {
   return null;
 }
 
-function indexSource({ source, file, entries }) {
-  let ast;
+// A malformed working file still leaves the rest of the review index available.
+function parseSource(source, file) {
   try {
-    ast = parse(source, { sourceType: 'module', errorRecovery: true });
+    return parse(source, { sourceType: 'module', errorRecovery: true });
   } catch (error) {
     console.error(red(`parse failed: ${ file } - ${ error.message }`));
-    return;
+    return null;
   }
+}
+
+function indexSource({ source, file, entries }) {
+  const ast = parseSource(source, file);
+  if (!ast) return;
   const { body } = ast.program;
   const { names, defaultExport } = collectExports(body);
   const moduleDeclarations = new Set(body.map(statement => statement.declaration ?? statement));
@@ -478,10 +483,30 @@ const WRAPPER_TYPE_LITERALS = [
 ];
 const CANON_HOME = 'helpers/ast-patterns.js';
 
-// a `while` whose whole condition is a null test plus one canon set - the peel body below it makes
-// the loop a re-spelling of a canon function, whatever it names its cursor
-const BARE_SET_LOOP = /^\s*(?:[\w$.?]+ && )?[\w$.?]*has\([\w$.?]*\.type\)\s*$/;
-const DESCENDS = /=\s*[\w$.?]+\.expression\b|\.get\('expression'\)/;
+// A canonical peel tests and advances the same cursor. Extra predicates or work keep a loop distinct.
+function isWrapperPeel(loop) {
+  const guard = loop.test.type === 'LogicalExpression' && loop.test.operator === '&&' && loop.test.left;
+  const test = guard ? loop.test.right : loop.test;
+  const { callee } = test;
+  if (test.type !== 'CallExpression' || callee.computed || callee.property?.name !== 'has'
+    || !WRAPPER_SET_NAMES.includes(callee.object?.name) || test.arguments.length !== 1) return false;
+  const [argument] = test.arguments;
+  if (argument.computed || argument.property?.name !== 'type') return false;
+  const receiver = argument.object;
+  const cursor = receiver.type === 'Identifier' ? receiver.name
+    : !receiver.computed && receiver.property?.name === 'node' && receiver.object.name;
+  if (!cursor || (guard && guard.name !== cursor
+    && (guard.computed || guard.object?.name !== cursor || guard.property?.name !== 'node'))) return false;
+  const statements = loop.body.type === 'BlockStatement' ? loop.body.body : [loop.body];
+  const assignment = statements[0]?.expression;
+  if (statements.length !== 1 || assignment?.type !== 'AssignmentExpression' || assignment.operator !== '='
+    || assignment.left.name !== cursor) return false;
+  const rhs = assignment.right;
+  return rhs.type === 'MemberExpression' && receiver.name === cursor && (!guard || guard.name === cursor)
+      && !rhs.computed && rhs.object.name === cursor && rhs.property.name === 'expression'
+    || rhs.type === 'CallExpression' && !rhs.callee.computed && rhs.callee.object?.name === cursor
+      && rhs.callee.property?.name === 'get' && rhs.arguments.length === 1 && rhs.arguments[0].value === 'expression';
+}
 
 // sites walking a wrapper set by hand. two shapes, and both are invisible to `delta` - they add no
 // symbol: a LOOP that peels a canon set (a canon function already spells it), and a hand-written
@@ -494,17 +519,20 @@ async function commandSets() {
   const hits = [];
   const scanned = files.filter(name => !name.endsWith(CANON_HOME));
   for (const file of scanned) {
-    const lines = (await fs.readFile(file, 'utf8')).split('\n');
+    const source = await fs.readFile(file, 'utf8');
+    const lines = source.split('\n');
+    if (source.includes('while') && WRAPPER_SET_NAMES.some(name => source.includes(name))) {
+      const ast = parseSource(source, file);
+      if (ast) traverseFast(ast.program, node => {
+        if (node.type === 'WhileStatement' && isWrapperPeel(node)) {
+          const { line } = node.loc.start;
+          hits.push({ file, line, what: 'loop re-derives a canon peel', text: lines[line - 1].trim() });
+        }
+      });
+    }
     for (const [index, line] of lines.entries()) {
       if (/^\s*(?:\/\/|\*)/.test(line)) continue;
       const pair = `${ line }\n${ lines[index + 1] ?? '' }`;
-      const loop = line.match(/while \((?<condition>[^)]*)\)/);
-      const condition = loop?.groups?.condition ?? '';
-      if (loop && WRAPPER_SET_NAMES.some(name => condition.includes(name))
-        && BARE_SET_LOOP.test(condition) && DESCENDS.test(`${ pair }\n${ lines[index + 2] ?? '' }`)) {
-        hits.push({ file, line: index + 1, what: 'loop re-derives a canon peel', text: line.trim() });
-        continue;
-      }
       // only a single wrapper-ness QUESTION counts - a disjunction of type tests. a `case` group
       // or a set literal enumerates types for their own handling and is not a peel
       if (!pair.includes('||') || /(?:^|\n)\s*case /.test(pair)) continue;
@@ -563,22 +591,31 @@ async function commandDelta(raw = 'HEAD') {
   const refA = rawA || 'HEAD';
   const refB = rawB === undefined ? undefined : rawB || 'HEAD';
   const scope = ['--', ...PACKAGES];
-  const diffed = await $({ nothrow: true, quiet: true })`git diff --name-only -z ${ refB ? [refA, refB] : [refA] } ${ scope }`;
+  const diffed = await $({ nothrow: true, quiet: true })`git diff --name-status -z --find-renames ${ refB ? [refA, refB] : [refA] } ${ scope }`;
   if (diffed.exitCode !== 0) {
     console.error(red(`git diff failed: ${ diffed.stderr.trim().split('\n', 1)[0] }`));
     process.exitCode = 1;
     return;
   }
-  let files = diffed.stdout.split('\0');
+  const paths = new Map();
+  const fields = diffed.stdout.split('\0');
+  for (let i = 0; fields[i];) {
+    const status = fields[i++];
+    const before = fields[i++];
+    const after = status.startsWith('R') || status.startsWith('C') ? fields[i++] : before;
+    if (status !== 'D' && /\.m?js$/u.test(after)) paths.set(after, status === 'A' || status.startsWith('C') || !/\.m?js$/u.test(before) ? null : before);
+  }
   if (!refB) {
-    // a brand-new untracked helper file is invisible to `git diff`, and is all added symbols
-    files = files.concat((await $({ quiet: true })`git ls-files -z --others --exclude-standard ${ scope }`).stdout.split('\0'));
+    const untracked = await $({ quiet: true })`git ls-files -z --others --exclude-standard ${ scope }`;
+    for (const file of untracked.stdout.split('\0')) {
+      if (/\.m?js$/u.test(file)) paths.set(file, file);
+    }
   }
   const index = await loadIndex();
   const added = [];
-  const scoped = [...new Set(files.filter(entry => /\.m?js$/u.test(entry)))].sort();
-  for (const file of scoped) {
-    const before = symbolsOf(await gitSource(refA, file), file);
+  for (const file of Array.from(paths.keys()).sort()) {
+    const prior = paths.get(file);
+    const before = symbolsOf(prior ? await gitSource(refA, prior) : null, file);
     const source = refB ? await gitSource(refB, file) : await fs.pathExists(file) ? await fs.readFile(file, 'utf8') : null;
     for (const [key, entry] of symbolsOf(source, file)) {
       if (before.has(key)) continue;

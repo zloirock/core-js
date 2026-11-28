@@ -40,10 +40,8 @@ QUnit.test('transform: super two static calls in one class', assert => {
       return Promise.all([super.resolve(a), super.resolve(b)]);
     }
   }
-  const async = assert.async();
-  MyPromise.both(1, 2).then(r => {
+  return MyPromise.both(1, 2).then(r => {
     assert.deepEqual(r, [1, 2]);
-    async();
   });
 });
 
@@ -106,12 +104,10 @@ QUnit.test('transform: generator + spread + for-of', assert => {
 // --- async + optional + polyfill ---
 
 QUnit.test('transform: async + optional chaining + polyfill', assert => {
-  const async = assert.async();
-  (async () => {
+  return (async () => {
     const data = await Promise.resolve({ items: [3, 1, 2] });
     assert.deepEqual(data?.items?.toSorted(), [1, 2, 3]);
     assert.same(null?.items?.toSorted(), undefined);
-    async();
   })();
 });
 
@@ -151,14 +147,12 @@ QUnit.test('transform: class + optional + for-of + template literal', assert => 
 // --- promise chain + array polyfill chain ---
 
 QUnit.test('transform: Promise.all + Array.from + filter + at', assert => {
-  const async = assert.async();
-  Promise.all([
+  return Promise.all([
     Promise.resolve(5),
     Promise.resolve(2),
     Promise.resolve(8),
   ]).then(results => {
     assert.same(Array.from(results).findLast(x => x > 3), 8);
-    async();
   });
 });
 
@@ -180,11 +174,9 @@ QUnit.test('transform: custom iterable + spread + for-of', assert => {
 // --- nested async + destructuring + polyfill ---
 
 QUnit.test('transform: nested async calls + destructuring', assert => {
-  const async = assert.async();
-  (async () => {
+  return (async () => {
     const { resolve } = Promise;
     const [a, b] = await Promise.all([resolve(10), resolve(20)]);
     assert.same(a + b, 30);
-    async();
   })();
 });

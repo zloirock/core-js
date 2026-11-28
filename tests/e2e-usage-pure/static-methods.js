@@ -44,29 +44,23 @@ QUnit.test('static: Map.groupBy', assert => {
 });
 
 QUnit.test('static: Promise.all', assert => {
-  const async = assert.async();
-  Promise.all([Promise.resolve(1), Promise.resolve(2)]).then(r => {
+  return Promise.all([Promise.resolve(1), Promise.resolve(2)]).then(r => {
     assert.deepEqual(r, [1, 2]);
-    async();
   });
 });
 
 QUnit.test('static: Promise.allSettled', assert => {
-  const async = assert.async();
-  Promise.allSettled([Promise.resolve(1), Promise.reject(2)]).then(r => {
+  return Promise.allSettled([Promise.resolve(1), Promise.reject(2)]).then(r => {
     assert.same(r[0].status, 'fulfilled');
     assert.same(r[0].value, 1);
     assert.same(r[1].status, 'rejected');
     assert.same(r[1].reason, 2);
-    async();
   });
 });
 
 QUnit.test('static: Promise.any', assert => {
-  const async = assert.async();
-  Promise.any([Promise.reject(1), Promise.resolve(2)]).then(r => {
+  return Promise.any([Promise.reject(1), Promise.resolve(2)]).then(r => {
     assert.same(r, 2);
-    async();
   });
 });
 
@@ -128,10 +122,8 @@ QUnit.test('static: Array.of edge cases', assert => {
 });
 
 QUnit.test('static: Array.fromAsync with mapFn', assert => {
-  const async = assert.async();
-  Array.fromAsync([1, 2, 3], x => x * 10).then(arr => {
+  return Array.fromAsync([1, 2, 3], x => x * 10).then(arr => {
     assert.deepEqual(arr, [10, 20, 30]);
-    async();
   });
 });
 

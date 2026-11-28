@@ -1,4 +1,5 @@
 // Reparsed guards preserve native reads, iterator order and dead-value import liveness.
+import { createTestDirectory } from '../transpiler-differential/temporary-directory.mjs';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
@@ -39,7 +40,7 @@ const cases = [
     const { at } = (null == root.window ? void 0 : root).items;
     export const r = at.call(root.items, -1); export const effects = [];`, 7],
 ];
-const directory = await fs.mkdtemp(path.join(import.meta.dirname, '../transpiler-differential/tmp/own-guards-'));
+const directory = await createTestDirectory('own-guards-');
 let serial = 0;
 try {
   for (const [name, source, value, effects = [], discarded = false, windowSensitive = true] of cases) {

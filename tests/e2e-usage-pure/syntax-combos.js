@@ -238,11 +238,9 @@ QUnit.test('syntax: logical assignment with polyfill', assert => {
 // --- async + polyfill ---
 
 QUnit.test('syntax: async function with Promise.all', assert => {
-  const async = assert.async();
-  (async () => {
+  return (async () => {
     const r = await Promise.all([Promise.resolve(1), Promise.resolve(2)]);
     assert.deepEqual(r, [1, 2]);
-    async();
   })();
 });
 
@@ -314,10 +312,8 @@ QUnit.test('syntax: multiple destructuring declarators', assert => {
   const { from } = Array;
   const { resolve } = Promise;
   assert.deepEqual(from([1]), [1]);
-  const async = assert.async();
-  resolve(42).then(v => {
+  return resolve(42).then(v => {
     assert.same(v, 42);
-    async();
   });
 });
 
@@ -473,13 +469,11 @@ QUnit.test('syntax: class constructor init with polyfill', assert => {
 // --- promise + for-of ---
 
 QUnit.test('syntax: async for-of array with polyfill', assert => {
-  const async = assert.async();
-  (async () => {
+  return (async () => {
     const items = await Promise.resolve([10, 20, 30]);
     const result = [];
     for (const v of items) result.push(v);
     assert.same(result.at(-1), 30);
-    async();
   })();
 });
 

@@ -404,10 +404,8 @@ QUnit.test('destructuring: an array-wrapped static key precedes its binding', as
 
 QUnit.test('destructuring: const { resolve, all } = Promise', assert => {
   const { resolve, all } = Promise;
-  const async = assert.async();
-  all([resolve(1), resolve(2)]).then(r => {
+  return all([resolve(1), resolve(2)]).then(r => {
     assert.deepEqual(r, [1, 2]);
-    async();
   });
 });
 
@@ -451,10 +449,8 @@ QUnit.test('destructuring: const { setPrototypeOf } = Reflect', assert => {
 
 QUnit.test('destructuring: const { fromAsync } = Array', assert => {
   const { fromAsync } = Array;
-  const async = assert.async();
-  fromAsync([1, 2, 3], x => x * 10).then(arr => {
+  return fromAsync([1, 2, 3], x => x * 10).then(arr => {
     assert.deepEqual(arr, [10, 20, 30]);
-    async();
   });
 });
 
@@ -519,10 +515,8 @@ QUnit.test('destructuring: renamed binding', assert => {
 // from globalThis proxy
 QUnit.test('destructuring: from globalThis', assert => {
   const { Promise: P } = globalThis;
-  const async = assert.async();
-  P.resolve(42).then(v => {
+  return P.resolve(42).then(v => {
     assert.same(v, 42);
-    async();
   });
 });
 
@@ -2772,11 +2766,9 @@ QUnit.test('destructuring: SE-key global-ctor alias re-polyfills member read', a
   const log = [];
   const { [(log.push('se'), 'Promise')]: P } = globalThis;
   assert.same(`${ log }`, 'se');
-  const async = assert.async();
-  P.allSettled([Promise.resolve(1), Promise.reject(2)]).then(r => {
+  return P.allSettled([Promise.resolve(1), Promise.reject(2)]).then(r => {
     assert.same(r[0].status, 'fulfilled');
     assert.same(r[1].status, 'rejected');
-    async();
   });
 });
 
@@ -2816,11 +2808,9 @@ QUnit.test('destructuring: multi-element nested-instance overwrite is last-wins'
 QUnit.test('destructuring: let-bound global-ctor alias re-polyfills member read', assert => {
   // eslint-disable-next-line prefer-const -- `let` is the binding kind under test (a const alias already worked)
   let { Promise: P } = globalThis;
-  const async = assert.async();
-  P.allSettled([Promise.resolve(1), Promise.reject(2)]).then(r => {
+  return P.allSettled([Promise.resolve(1), Promise.reject(2)]).then(r => {
     assert.same(r[0].status, 'fulfilled');
     assert.same(r[1].status, 'rejected');
-    async();
   });
 });
 
@@ -3226,11 +3216,10 @@ QUnit.test('destructuring: tagged-template tag on a guarded alias static binds t
     (c ? ({ Promise: P } = globalThis) : 0);
     return P.all`x`;
   }
+  let pending;
   if (live) {
-    const async = assert.async();
-    viaTag(true).then(value => {
+    pending = viaTag(true).then(value => {
       assert.deepEqual(value, ['x']);
-      async();
     });
   } else {
     assert.throws(() => viaTag(true), TypeError);
@@ -3248,6 +3237,7 @@ QUnit.test('destructuring: tagged-template tag on a guarded alias static binds t
   assert.same(typeof result.promise.then, 'function');
   assert.same(typeof result.resolve, 'function');
   assert.same(typeof result.reject, 'function');
+  return pending;
 });
 
 // an UNCLAIMED destructure (no polyfillable prop) over a proxy-hop receiver collapses the hop

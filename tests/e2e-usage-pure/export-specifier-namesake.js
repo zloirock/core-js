@@ -4,10 +4,8 @@ const Promise = { local: true };
 export { Promise };
 
 QUnit.test('export specifier: a global namesake stays local while the realm constructor runs', assert => {
-  const async = assert.async();
   assert.true(Promise.local);
-  new globalThis.Promise(resolve => resolve(7)).then(value => {
+  return new globalThis.Promise(resolve => resolve(7)).then(value => {
     assert.same(value, 7);
-    async();
   });
 });

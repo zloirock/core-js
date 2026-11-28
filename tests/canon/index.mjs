@@ -87,6 +87,16 @@ try {
   const { added } = await canon(['delta', 'HEAD'], 1);
   deepEqual(added.map(({ file, name, line }) => [file, name, line]), [[unicode, 'trackedEdit', 3]]);
 
+  await run`git add -- ${ unicode }`;
+  await commit();
+  const moved = `${ pkg }/renamed \u03BB.mjs`;
+  await run`git mv -- ${ unicode } ${ moved }`;
+  deepEqual((await canon(['delta', 'HEAD'])).added, []);
+  await fs.appendFile(path.join(directory, moved), 'export function afterMove() {}\n');
+  await run`git add -- ${ moved }`;
+  await commit();
+  deepEqual((await canon(['delta', 'HEAD^..HEAD'], 1)).added.map(({ file, name }) => [file, name]), [[moved, 'afterMove']]);
+
   const bindings = `${ pkg }/bindings.mjs`;
   await write(bindings, [
     'export function loadFeature(savedData) { return savedData; }',
@@ -129,6 +139,22 @@ try {
   deepEqual(delta.added.filter(entry => entry.name.endsWith('Data')).map(entry => entry.name), [
     'moduleData', 'hoistedData', 'savedData', 'patternData',
   ]);
+  const peels = `${ pkg }/peels.js`;
+  await write(peels, [
+    'while (TS_EXPR_WRAPPERS.has(n.type)) n = n.expression;',
+    'while (p?.node && TRANSPARENT_EXPR_WRAPPER_TYPES.has(p.node.type)) {',
+    '  p = p.get("expression");',
+    '}',
+    'while (TS_EXPR_WRAPPERS.has(n.type) && keep(n)) n = n.expression;',
+    'while (TS_EXPR_WRAPPERS.has(n.type)) walk(n); n = n.expression;',
+    'const example = "while (TS_EXPR_WRAPPERS.has(n.type)) n = n.expression";',
+    'while (ready() && TS_EXPR_WRAPPERS.has(n.type)) n = n.expression;',
+    'while (n.node && TS_EXPR_WRAPPERS.has(n.type)) n = n.expression;',
+    'while (TS_EXPR_WRAPPERS.has(p.node.type)) p = p.expression;',
+    'while (TS_EXPR_WRAPPERS.has(other.type)) n = n.expression;',
+    'while (TS_EXPR_WRAPPERS.has(n.type)) { n = n.expression; log(); }',
+  ].join('\n'));
+  deepEqual((await canon(['sets'])).hits.filter(hit => hit.file === peels).map(hit => hit.line), [1, 2]);
 } finally {
   await fs.remove(directory);
 }

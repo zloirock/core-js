@@ -1,3 +1,4 @@
+import './launcher-retry.mjs';
 import { start } from './helpers.mjs';
 
 for (const files of [

@@ -1,5 +1,6 @@
 /* eslint-disable max-depth -- Cross parser, phase and realm boundaries. */
 // Optional keys, nested receiver effects and delete references retain native semantics.
+import { createTestDirectory } from '../transpiler-differential/temporary-directory.mjs';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
@@ -178,7 +179,7 @@ const cases = [
     false,
   ],
 ];
-const directory = await fs.mkdtemp(path.join(import.meta.dirname, '../transpiler-differential/tmp/guarded-keys-'));
+const directory = await createTestDirectory('guarded-keys-');
 let serial = 0;
 try {
   for (const [name, body, window, ts = false] of cases) {

@@ -273,11 +273,9 @@ QUnit.test('control-flow: early return in one branch carries a polyfill, other b
 });
 
 QUnit.test('control-flow: rejection caught around a polyfilled combinator', assert => {
-  const async = assert.async();
-  Promise.any([Promise.reject(new Error('a')), Promise.reject(new Error('b'))])
+  return Promise.any([Promise.reject(new Error('a')), Promise.reject(new Error('b'))])
     .catch(error => {
       assert.deepEqual(error.errors.map(e => e.message), ['a', 'b']);
-      async();
     });
 });
 
