@@ -5,7 +5,7 @@ import plugin from '../../packages/core-js-babel-plugin/index.js';
 import createUnplugin from '../../packages/core-js-unplugin/internals/plugin.js';
 import { collectPrePassSites as collectBabelPrePassSites, createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { collectPrePassSites, createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
-import { collectFileCensus, unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { collectFileCensus, moduleFormatReducer, resolveModuleFormat, unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { moduleDefaultSource, resolveInlineCalleeFunction } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { beginMutationPrePass, mutationShapesReducer, mutationSiteVisitors } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 
@@ -93,6 +93,95 @@ for (const [label, source] of rows) runBoth(label, source, (parser, program, nam
   check(`${ name }: scoped slot`, mutated?.has('Array.from'), true);
   const coarse = makeAdapter({ method: 'usage-global', getMutationRoots: () => census.mutationRoots });
   check(`${ name }: gate covers slot`, coarse.isMutatedStaticSlot('Array', 'from'), true);
+});
+
+// A returned namespace may be unknown to the global census while the property a write
+// changes is still known. The resolver must distinguish a patched predicate from a sibling.
+for (const [store, expected, constructor = 'Array', predicate = 'isArray'] of [
+  ['owner().other = patched;', 'array'],
+  ['Array.hasParent = patched;', 'array'],
+  ['Array.prototype.hasParent = patched;', 'array'],
+  ['const C = Array; C.hasParent = patched;', 'array'],
+  ['const P = Array.prototype; P.hasParent = patched;', 'array'],
+  ['Array.other = patched; Number.isFinite = patched;', 'array'],
+  ['Number.isFinite = patched;', 'number', 'Number', 'isInteger'],
+  ['Number.isFinite = patched;', null, 'Number', 'isFinite'],
+  ['Number.isArray = patched;', 'array'],
+  ['const C = flag ? Array : globalThis; C.isArray = patched;', null],
+  ['const { C } = { C: Array }; C.isArray = patched;', null],
+  ['const { C } = { C: Array }; Reflect.set(C, "isArray", patched);', null],
+  ['function patch(Number) { Number.isArray = patched; } patch(Array);', null],
+  ['globalThis.Number = Array; Number.isArray = patched;', null],
+  ['owner().isArray = patched;', null],
+  ['owner()[key] = patched;', null],
+  ['realm().Array = replacement;', null],
+  ['Reflect.set(owner(), key, patched);', null],
+  ['owner().other = patched;', 'error', 'RangeError', 'isError'],
+  ['owner().other = patched; Error.isError = patched;', null, 'RangeError', 'isError'],
+]) for (const receiver of [constructor, `globalThis.${ constructor }`]) {
+  const source = `function owner() { return Array; } function realm() { return globalThis; } ${ store }
+    function read(refs) { return ${ receiver }.${ predicate }(refs) && refs.includes(3); }`;
+  runBoth(`guard after ${ store } / ${ receiver }.${ predicate }`, source, (parser, program, name) => {
+    const { mutationRoots } = collectFileCensus(program.node, [mutationShapesReducer()]);
+    const makeAdapter = parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter;
+    const adapter = makeAdapter({ method: 'usage-global', getMutationRoots: () => mutationRoots });
+    const resolver = parser.makeResolver({ isMutatedStatic: adapter.isMutatedStaticSlot });
+    const member = parser.pickPath(program, 'MemberExpression', path => path.node.property.name === 'includes');
+    check(name, resolver.toHint(resolver.resolvePropertyObjectType(member)), expected);
+  });
+}
+// The stored constructor reaches a mutation through the same function object only.
+for (const [label, store, entry] of [
+  ['one carrier', 'function C() {} C.prototype = Array; C.prototype.isArray = patch;', 'instance/includes'],
+  ['saved outside the carrier scope',
+    'const saved = Array; { function C() {} C.prototype = saved; C.prototype.isArray = patch; }', 'instance/includes'],
+  ['namesakes', '{ function C() {} C.prototype = Array; } { function C() {} C.prototype.isArray = patch; }', 'array/instance/includes'],
+]) for (const [host, transform] of transforms) {
+  const output = await transform(`${ store } export function test(x) { return Array.isArray(x) && x.includes(1); }`);
+  check(`${ host } / ${ label } / includes`, output.includes(`"@core-js/pure/full/${ entry }"`), true);
+}
+// A call on a value returned from another function is only a possible store if its
+// callee can write. Keep the same argument in the positive and negative controls.
+for (const [label, init, prelude, open, filename = 'input.cjs'] of [
+  ['fresh exports', '(this && this.read) || function (x) { return x; }', '', false],
+  ['classic receiver', '(this && this.read) || function (x) { return x; }', '', true, 'script.js'],
+  ['populated exports', '(this && this.read) || function (x) { return x; }', 'this.read = Reflect.set;', true],
+  ['separate pattern binding', '(this && this.read) || (x => x)', 'function other(obj, key) { const { [key]: read } = obj; return read; }', false],
+  ['inert loader prefix', '(this && this.read) || (x => x)', '(0, require)("core-js/modules/es.object.to-string");', false],
+  ['writer before load', '(this && this.read) || (x => x)', '(this.read = Reflect.set, require)("core-js/modules/es.object.to-string");', true],
+  ['local alternatives', 'flag ? x => x : x => typeof x', '', false],
+  ['externally written script binding', 'flag ? x => x : x => typeof x', 'function replace() { globalThis.read = Reflect.set; }', true, 'script.js'],
+  ['argument writer', 'flag ? x => x : (object, key, value) => { object[key] = value; }', '', true],
+  ['bound reader', 'flag ? Reflect.get.bind() : (object, key) => object[key]', '', false],
+  ['export beside a bound reader', 'flag ? Reflect.get.bind() : (o, k) => o[k]', 'exports.copy = 1;', false],
+  ['patched reader', 'flag ? Reflect.get.bind() : (object, key) => object[key]', 'Reflect.get = Reflect.set;', true],
+  ['bound store', 'flag ? Object.assign.bind() : x => x', '', true],
+]) runBoth(`helper ${ label }`, `${ prelude } var read = ${ init }; function keep(x) { return x; }
+  function invoke(x) { var source = keep(x); read(source, "isArray", replacement); }`, (parser, path, name) => {
+  const program = path.node;
+  const { mutationRoots } = collectFileCensus(program, [
+    moduleFormatReducer(moduleFormat => resolveModuleFormat({ id: filename, program, declaredSourceType: 'script', moduleFormat })),
+    mutationShapesReducer(),
+  ]);
+  const create = parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter;
+  const adapter = create({ method: 'usage-global', getMutationRoots: () => mutationRoots });
+  check(`${ name }: possible predicate write`, adapter.isMutatedStaticSlot('Array', 'isArray', { typeGuard: true }), open);
+  check(`${ name }: known static return`, adapter.isMutatedStaticSlot('Object', 'keys'), open);
+});
+// A second source can supply a writer even when the other assignment selects only readers.
+for (const [label, uses] of [
+  ['argument', 'function install(read) { read(target, "isArray", patch); } install(Reflect.set);'],
+  ['destructured writer', 'function install(obj) { const { read } = obj; read(target, "isArray", patch); } install({ read: Reflect.set });'],
+  ['assigned outer writer', '({ write: read } = { write: Reflect.set }); read(target, "isArray", patch);'],
+  ['catch', 'try { throw Reflect.set; } catch (read) { read(target, "isArray", patch); }'],
+  ['late function', 'read = (object, key, value) => { object[key] = value; }; read(target, "isArray", patch);'],
+  ['declared loop head', 'for (var read of readers) {} read(target, "isArray", patch);'],
+]) runBoth(`incoming helper / ${ label }`, `var read = flag ? x => x : function () {}; function keep(x) { return x; }
+  const target = keep(Array); ${ uses }`, (parser, path, name) => {
+  const { mutationRoots } = collectFileCensus(path.node, [mutationShapesReducer()]);
+  const create = parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter;
+  const adapter = create({ method: 'usage-global', getMutationRoots: () => mutationRoots });
+  check(`${ name }: predicate may be replaced`, adapter.isMutatedStaticSlot('Array', 'isArray', { typeGuard: true }), true);
 });
 // Direct assignments already record their parent. Delete and update also record their
 // member path; a target in a pattern or for-head still needs its own member visitor.

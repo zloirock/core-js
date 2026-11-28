@@ -11352,6 +11352,66 @@ function * generateGuardForms() {
   }
 }
 
+function * generateArrayGuardMutations() {
+  yield { ...snippet('guard-forms/prototype-method', `(() => {
+    var Parent = (function () {
+      function Parent() {}
+      Parent.prototype.hasParent = function (parent) {
+        var refs = this.refs;
+        return Array.isArray(refs) && refs.includes(parent);
+      };
+      return Parent;
+    }());
+    var instance = new Parent();
+    instance.refs = ["ab"];
+    var found = instance.hasParent("ab");
+    instance.refs = "ab";
+    return [found, instance.hasParent("ab")];
+  })()`), strip: true };
+  yield { ...snippet('guard-forms/selected-reader', `(() => {
+    const read = typeof Symbol === 'function' ? value => value : value => String(value);
+    const keep = value => value;
+    const errors = keep(['needle']);
+    const refs = read(errors);
+    return [Array.isArray(refs) && refs.includes('needle'), Object.keys({ ok: 1 }).every(key => key === 'ok')];
+  })()`), strip: true };
+  for (const [route, store] of [
+    ['selected-namespace', 'const C = flag ? Array : globalThis; C.isArray = patch;'],
+    ['destructured-namespace', 'const { C } = { C: Array }; C.isArray = patch;'],
+    ['invoked-store', 'const { C } = { C: Array }; const put = Reflect.set; put(C, "isArray", patch);'],
+    ['stored-namespace', 'function Local() {} Local.prototype = Array; Local.prototype.isArray = patch;'],
+    ['stored-outer-alias', 'const saved = Array; { function Local() {} Local.prototype = saved; Local.prototype.isArray = patch; }'],
+  ]) yield {
+    name: `guard-forms/patched-predicate/${ route }`, strip: true, isolated: true,
+    code: `function read(value) { return Array.isArray(value) && value.includes('ab'); }
+      function install(flag) { const patch = value => typeof value === 'string'; ${ store } }
+      install(true);
+      export const r = read('cab') && !read(['ab']);
+      export const effects = [];`,
+  };
+  for (const [id, loader, invoke = "read(target, 'isArray', value => typeof value === 'string');", prefix = ''] of [
+    ['direct', 'require'],
+    ['inert-prefix', '(0, require)'],
+    ['writing-prefix', '(this.read = Reflect.set, require)'],
+    ['optional-writing-prefix', '(this.read = Reflect.set, require)?.'],
+    ['computed-guard', '(this.read = Reflect.set, require)', 'read(target, JSON.parse(\'"isArray"\'), value => typeof value === \'string\');'],
+    ['copied-guard', '(this.read = Object.assign, require)', "read(target, { isArray: value => typeof value === 'string' });"],
+    ['writer-closure', "(this.read = ctor => { ctor.isArray = value => typeof value === 'string'; }, require)", 'read(target);'],
+    ['second-argument', "(this.read = (_, ctor) => { ctor.isArray = value => typeof value === 'string'; }, require)", 'read(0, target);'],
+    ['unrelated-binding', "(this.read = (_, ctor) => { ctor.isArray = value => typeof value === 'string'; }, require)", 'read(0, target);',
+      'function other(obj, key) { const { [key]: read } = obj; return read; }\n'],
+  ]) yield {
+    name: `guard-forms/commonjs-helper/${ id }`, sourceType: 'script', isolated: true, strip: true,
+    code: `${ prefix }${ loader }('core-js/modules/es.object.to-string');
+      var read = (this && this.read) || function (value) { return value; };
+      function keep(value) { return value; }
+      var target = keep(Array);
+      ${ invoke }
+      function has(value) { return Array.isArray(value) && value.includes('ab'); }
+      module.exports = { r: [has('cab'), has(['ab'])], effects: [] };`,
+  };
+}
+
 // TS two-head predicate calls an ambiguous argument (`y: any`) cannot pin to one arm: the arms
 // narrow together only where they agree, and whatever they disagree on (the nominal, the members,
 // the type arguments) must not be taken from the first arm. every call runs on a value the SECOND
@@ -29438,4 +29498,5 @@ export function * generate() {
   yield * generateNumericUpdateReads(true);
   yield * generateConditionalMappedTypes();
   yield * generateTupleAndArrayElements();
+  yield * generateArrayGuardMutations();
 }

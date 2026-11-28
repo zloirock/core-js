@@ -3058,6 +3058,7 @@ function createResolveNodeType(babelNodeType, t, {
     arrayGuardHasLocalInputs,
     blockAlwaysExits,
     canFallThrough,
+    KNOWN_CONSTRUCTORS,
     KNOWN_STATIC_TYPE_GUARDS,
     babelBindingAdapter,
     staticPairFromPolyfillBinding,

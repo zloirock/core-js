@@ -13,6 +13,7 @@ import {
   isSloppyAtPath,
   moduleFormatReducer,
   moduleFormatMarkers,
+  programHasModuleThis,
   programTopLevelIsRealm,
   resolveModuleFormat,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
@@ -238,6 +239,24 @@ for (const [label, id, source, declaredSourceType, importStyleOption, sourceType
     }, { sourceType, importStyle });
   });
 }
+
+// A UMD file can choose a CommonJS export at runtime and still execute as a classic script.
+for (const [label, source, moduleThis] of [
+  ['direct export', 'module.exports = 1;', true],
+  ['export property', "Object.defineProperty(exports, 'value', { value: 1 });", true],
+  ['optional definer', "const Object = null; Object?.defineProperty(exports, 'value', {});", false],
+  ['optional define call', "const Object = {}; Object.defineProperty?.(exports, 'value', {});", false],
+  ['conditional export', "if (typeof module !== 'undefined') module.exports = 1;", false],
+  ['deferred export', 'function publish() { module.exports = 1; }', false],
+  ['short-circuited export', "typeof module === 'object' && (module.exports = 1);", false],
+  ['shadowed export', "const module = {}; module.exports = 1; require('./dep');", false],
+  ['local loader alone', "require('./dep');", false],
+]) runBoth(`module receiver: ${ label }`, source, (adapter, path, name) => {
+  const program = path.node;
+  const format = resolveModuleFormat({ id: '/dist.js', program });
+  check(`${ name }/CommonJS spelling`, format.importStyle, 'require');
+  check(`${ name }/module receiver`, programHasModuleThis(program), moduleThis);
+});
 
 // A subsequent pass can see a lowered tree under the same Program identity.
 runBoth('fresh census replaces earlier module markers', 'export const value = 3;', (adapter, prog, label) => {

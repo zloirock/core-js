@@ -46,6 +46,7 @@ import './mutation-cases/a-container-re-homed-onto-a-member-stops-being-trusted.
 import './mutation-cases/a-container-returned-out-of-a-function-stops-being-trusted.js';
 import './mutation-cases/object-assign-owns-the-slots-it-names.js';
 import './mutation-cases/direct-writes-keep-callable-identity.js';
+import './mutation-cases/selected-predicate-writer.js';
 import './mutation-cases/missing-static-activates-its-installer.js';
 import './mutation-cases/a-replaced-reflect-apply-observes-the-original-argument.js';
 import './mutation-cases/a-replaced-prototype-invoker-observes-the-original-argument.js';

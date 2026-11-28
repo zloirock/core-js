@@ -11250,9 +11250,9 @@ export function createDeclaredNameIndex(names = null) {
       for (let index = scopes.length - 1; index >= 0; index--) if (declaring.has(scopes[index])) return scopes[index];
       return declaring.has(null) ? null : undefined;
     },
-    // ... and the existence question over the same scope lattice.
+    // Without a scope chain the question covers the whole file.
     declares(name, scopes) {
-      return this.resolve(name, scopes) !== undefined;
+      return scopes ? this.resolve(name, scopes) !== undefined : declaredIn.has(name);
     },
   };
 }
@@ -15242,9 +15242,10 @@ const DEFINE_PROPERTY_KEYS = new Set(['defineProperty', 'defineProperties']);
 
 // a define-property call whose target is the CommonJS export object, as the free name that object
 // is rooted at - else null, in the same vocabulary `commonJSAssignRootName` answers in
-function definePropertyOnExportsRootName(expression) {
+function definePropertyOnExportsRootName(expression, requireArguments = false) {
   if (expression?.type !== 'CallExpression' && expression?.type !== 'OptionalCallExpression') return null;
   const callee = unwrapExpr(expression.callee);
+  if (requireArguments && (expression.optional || callee?.optional)) return null;
   const definer = isMemberAccessNode(callee) && DEFINE_PROPERTY_KEYS.has(memberKeyName(callee))
     && (isNamedIdent(unwrapExpr(callee.object), 'Object') || isNamedIdent(unwrapExpr(callee.object), 'Reflect'));
   if (!definer) return null;
@@ -15295,6 +15296,7 @@ export function moduleFormatReducer(onResult = null) {
   // nothing else
   const declarations = createDeclaredNameIndex(CJS_WRAPPER_PARAM_NAMES);
   const evidence = [];
+  let requiredExports;
   let esm = false;
   let nestedAwait = false;
 
@@ -15320,6 +15322,19 @@ export function moduleFormatReducer(onResult = null) {
     }
   }
 
+  let census;
+  function publish() {
+    if (!census) {
+      // A shadowed wrapper name supplies no CommonJS evidence.
+      const hasCJS = evidence.some(({ name, frame }) => !declarations.declares(name, frame.scopes));
+      const hasRequiredExport = !!requiredExports && [...requiredExports].some(([name, scopes]) => !declarations.declares(name, scopes));
+      const moduleFormat = { hasLiveESM: esm, hasCJS, nestedAwait, hasRequiredExport };
+      census = { moduleFormat };
+      onResult?.(moduleFormat);
+    }
+    return census;
+  }
+
   return {
     visit(node, frame) {
       declarations.record(node, frame);
@@ -15335,19 +15350,20 @@ export function moduleFormatReducer(onResult = null) {
         if (frame.atTopLevel) esm = true;
         else nestedAwait = true;
       }
+      // An optional export in a UMD branch selects a spelling, but the classic-script arm
+      // still runs with the global receiver. Only an unconditional export requires a host.
+      if (node.type === 'ExpressionStatement' && frame.parentNode?.type === 'Program') {
+        const expr = unwrapRuntimeExpr(node.expression);
+        const name = expr?.type === 'AssignmentExpression' && isMemberAccessNode(unwrapRuntimeExpr(expr.left))
+          ? commonJSAssignRootName(expr.left) : definePropertyOnExportsRootName(expr, true);
+        if (name) (requiredExports ??= new Map()).set(name, frame.scopes);
+      }
       const name = commonJSEvidenceName(node, frame);
       if (name) evidence.push({ name, frame });
     },
-    result() {
-      // an evidence site counts only while nothing between it and the file root declares the name
-      // it reads: `function f(module) { module.exports = 1 }` spells the author's own object, and
-      // widening the scan to the whole file is exactly what makes that shadow load-bearing
-      const cjs = evidence.some(({ name, frame }) => !declarations.declares(name, frame.scopes));
-      const moduleFormat = { hasLiveESM: esm, hasCJS: cjs, nestedAwait };
-      // Publish before subsequent reducers resolve facts that depend on the file's strictness.
-      onResult?.(moduleFormat);
-      return { moduleFormat };
-    },
+    // The mutation census needs the host receiver while it prepares its own result.
+    prepare: publish,
+    result: publish,
   };
 }
 
@@ -15360,18 +15376,20 @@ const MODULE_FORMAT_CACHE = new WeakMap();
 // both, and that mixture is what no injection spelling can make loadable
 export function moduleFormatMarkers(program, observed = null) {
   if (!program || typeof program !== 'object') return { hasLiveESM: false, hasCJS: false };
-  let markers = MODULE_FORMAT_CACHE.get(program);
-  if (!markers || observed) {
-    const { hasLiveESM, hasCJS, nestedAwait } = observed ?? collectFileCensus(program, [moduleFormatReducer()]).moduleFormat;
+  let facts = MODULE_FORMAT_CACHE.get(program);
+  if (!facts || observed) {
+    const census = observed ?? collectFileCensus(program, [moduleFormatReducer()]).moduleFormat;
+    const { hasLiveESM, hasCJS, nestedAwait, hasRequiredExport } = census;
     // the census answered every await its frames can see; only a file carrying one they read as
     // NESTED pays the canonical walk, which additionally reaches the class definition-time slots
-    markers = {
+    const markers = {
       hasLiveESM: hasLiveESM || (nestedAwait && (program.body ?? []).some(containsTopLevelAwait)),
       hasCJS,
     };
-    MODULE_FORMAT_CACHE.set(program, markers);
+    facts = { markers, hasRequiredExport };
+    MODULE_FORMAT_CACHE.set(program, facts);
   }
-  return markers;
+  return facts.markers;
 }
 
 // does the body spell CommonJS and nothing that only a Module can spell? the emitters' shorthand
@@ -15402,6 +15420,12 @@ function programIsScript(program) {
 // scoped usage and capture queries, which share this answer with the escape census.
 export function programTopLevelIsRealm(program) {
   return PROGRAM_FORMAT.get(program)?.realmTopLevel === true;
+}
+
+// An extension, host or source marker identifies a module even when a parser accepts
+// plain scripts as modules. A standalone census has no evidence about the receiver.
+export function programHasModuleThis(program) {
+  return PROGRAM_FORMAT.get(program)?.moduleThis === true;
 }
 
 // A subsequent classic script can reach top-level lexical bindings and sloppy block functions.
@@ -15482,7 +15506,9 @@ export function resolveModuleFormat({
   // object's slot. Webpack-family modules always have a module wrapper.
   const realmTopLevel = !moduleType && !markers.hasCJS && !markers.hasLiveESM && !extensionGoal
     && declaredSourceType !== 'commonjs' && (sourceType === 'script' || mayRunAsScript);
-  PROGRAM_FORMAT.set(program, { sourceType, realmTopLevel });
+  const moduleThis = !!(extensionGoal || moduleType || markers.hasLiveESM || MODULE_FORMAT_CACHE.get(program).hasRequiredExport
+    || declaredSourceType === 'commonjs');
+  PROGRAM_FORMAT.set(program, { sourceType, realmTopLevel, moduleThis });
   // does the file's own live ESM OUTLIVE this pass? Only a caller knows: `entry-global` removes the
   // entry imports it recognises and nothing else does, so it hands in the test and everyone else
   // hands in nothing. Evidence that is not a top-level statement - `import.meta`, top-level await -

@@ -97,6 +97,7 @@ export function createTypeofGuards({
   arrayGuardHasLocalInputs,
   blockAlwaysExits,
   canFallThrough,
+  KNOWN_CONSTRUCTORS,
   KNOWN_STATIC_TYPE_GUARDS,
   babelBindingAdapter,
   staticPairFromPolyfillBinding,
@@ -127,7 +128,14 @@ export function createTypeofGuards({
     const method = getMemberProperty(peeled);
     if (method !== null) {
       const constructor = builtInNamedBy(unwrapRuntimeExpr(peeled.object), scope, hostPath);
-      if (!constructor || babelBindingAdapter.isMutatedStatic(constructor, method, { node: peeled, path: hostPath })) return null;
+      if (!lookupNested(KNOWN_STATIC_TYPE_GUARDS, constructor, method)) return null;
+      const read = { node: peeled, path: hostPath, typeGuard: true };
+      if (babelBindingAdapter.isMutatedStatic(constructor, method, read)) return null;
+      // Error subclasses inherit isError. A write on the family that supplies the
+      // same predicate invalidates its use through the derived constructor too.
+      const family = KNOWN_CONSTRUCTORS[constructor]?.new?.type;
+      if (family && family !== constructor && lookupNested(KNOWN_STATIC_TYPE_GUARDS, family, method)
+        && babelBindingAdapter.isMutatedStatic(family, method, read)) return null;
       return { constructor, method };
     }
     return peeled.type === 'Identifier' && scope

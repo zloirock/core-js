@@ -1,5 +1,5 @@
 import { pushMultimap } from '../helpers/pattern-matching.js';
-import { pureImportSubpath } from '../helpers/path-normalize.js';
+import { coreJSImportSubpath, pureImportSubpath } from '../helpers/path-normalize.js';
 // Monkey-patch detection: canonicalizes patched receivers through the SAME resolution canons the
 // read side uses (`resolveObjectName` for names, `walkStaticReceiverChain` for static containers,
 // `reassignmentValueNodes` for the alias value union), so the mutation set and the substitution
@@ -160,6 +160,8 @@ import {
   NON_WRITABLE_VALUE_GLOBALS,
   POSSIBLE_GLOBAL_OBJECTS,
   PRIMITIVE_LITERAL_TYPES,
+  programHasModuleThis,
+  programPrologueEndIndex,
   programTopLevelIsRealm,
   valueIsDroppedAt,
   propertyKeyName,
@@ -210,6 +212,7 @@ import {
   patternEdgeSide,
   withReentrantQuestion,
 } from '../helpers/ast-patterns.js';
+import { localEntryPrefix } from './entries.js';
 import {
   callYieldedContainer,
   decidedSelectionValue,
@@ -270,6 +273,10 @@ const ARRAY_REPOSITIONING_METHODS = new Set(Object.entries(knownBuiltInReturnTyp
   .filter(([, hint]) => (Array.isArray(hint) ? hint[0] : hint)?.mutatesElements)
   .map(([name]) => name));
 
+// A replacement can be written through an alias whose name says nothing about its value.
+const STATIC_GUARD_SLOTS = new Set(Object.entries(knownBuiltInReturnTypes.staticTypeGuards)
+  .flatMap(([name, guards]) => [name, ...Object.keys(guards)]));
+
 // value shapes that cannot reach a built-in constructor through the resolver: primitives,
 // derived expressions, fresh instances and function values. everything ELSE marks the bound
 // name as a potential alias (over-fire is just one wasted traverse)
@@ -284,6 +291,50 @@ const INERT_VALUE_TYPES = new Set([
   'BinaryExpression',
   'UpdateExpression',
 ]);
+
+// A CommonJS module starts with a fresh exports object; ESM starts with undefined.
+// Before any user code runs, a named read off that receiver cannot supply a mutator.
+function initialModuleHelperValues(program, packages) {
+  const helpers = new Set();
+  if (!programHasModuleThis(program)) return helpers;
+  const { body } = program;
+  for (let i = programPrologueEndIndex(body); i < body.length; i++) {
+    const statement = body[i];
+    if (statement.type === 'FunctionDeclaration') continue;
+    // A previous pass can have loaded polyfills here. An indirect require can run user code first.
+    const load = statement.type === 'ExpressionStatement' ? requireCallSource(statement.expression, undefined, program)
+      : statement.type === 'ImportDeclaration' && !statement.specifiers.length ? statement.source.value : null;
+    if (load && coreJSImportSubpath(load, packages)?.startsWith('modules/') && !localEntryPrefix(statement).length) continue;
+    if (statement.type !== 'VariableDeclaration') break;
+    for (const { id, init } of statement.declarations) {
+      if (id.type !== 'Identifier') return helpers;
+      const value = unwrapRuntimeExpr(init);
+      if (!value || FN_NODE_TYPES.has(value.type) || PRIMITIVE_LITERAL_TYPES.has(value.type)) continue;
+      const left = unwrapRuntimeExpr(value.left);
+      const member = unwrapRuntimeExpr(left?.right);
+      if (value.type !== 'LogicalExpression' || value.operator !== '||' || !FN_NODE_TYPES.has(unwrapRuntimeExpr(value.right)?.type)
+        || left?.type !== 'LogicalExpression' || left.operator !== '&&' || unwrapRuntimeExpr(left.left)?.type !== 'ThisExpression'
+        || !isMemberAccessNode(member) || unwrapRuntimeExpr(member.object)?.type !== 'ThisExpression' || memberKeyName(member) === null
+        || Object.hasOwn(Object.prototype, memberKeyName(member)) || member.computed && mayHaveSideEffects(member.property)) return helpers;
+      helpers.add(value);
+    }
+  }
+  return helpers;
+}
+
+// A bound reader takes no arguments ahead of the caller's. Reflect.get reads a
+// property; it has no single return type in the registry. Keep invokers and stores open.
+function isBoundStaticReader(node, declared) {
+  const binding = boundInvocation(node);
+  if (!binding || binding.argsUnknown || binding.args.length) return false;
+  const member = binding.callee;
+  if (!isMemberAccessNode(member) || member.object.type !== 'Identifier') return false;
+  const owner = member.object.name;
+  const key = memberKeyName(member);
+  if ((owner !== 'Object' && owner !== 'Reflect') || declared.declares(owner)) return false;
+  const hint = knownGlobalCallReturn(owner, [key]);
+  return owner === 'Reflect' && key === 'get' || !!hint?.inert && !hint.mutatesArgument && !hint.exposesArgument;
+}
 
 // a root the walk could not reach at all: it rules NOTHING out, so the point query opens on it
 function unnameableRoot() {
@@ -7292,15 +7343,32 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
   const mutationCandidateNodes = collectMutationSites ? new Set() : null;
   let currentMutationSite;
   let markTopLevelThis = false;
+  const scopesWithStores = new WeakMap();
+  const suppliedCallees = new Set();
   function pushTarget(node, { installsUnknownKeys = false, bareCallee = null } = {}) {
     if (!node) return;
     const mutatorCall = installsUnknownKeys ? currentMutationSite : null;
+    // A local function that writes or forwards its arguments can itself be the writer.
+    // Stamp each enclosing scope once, including deferred nested functions.
+    if (mutatorCall || node.type !== 'Identifier') {
+      const writer = bareCallee ?? true;
+      for (let i = currentScopes.length - 1; i >= 0; i--) {
+        const scope = currentScopes[i];
+        const previous = scopesWithStores.get(scope);
+        if (previous === true || previous === writer) break;
+        scopesWithStores.set(scope, previous === undefined ? writer : true);
+        if (scope.type === 'FunctionDeclaration' && scope.id && scope.id.name !== writer) suppliedCallees.add(scope.id.name);
+      }
+    }
     targets.push(mutationCandidateNodes ? {
       node, site: currentMutationSite, scopes: currentScopes,
       viaTopLevelThis: markTopLevelThis, mutatorCall, bareCallee,
-    } : { node, viaTopLevelThis: markTopLevelThis, mutatorCall, bareCallee });
+    } : { node, viaTopLevelThis: markTopLevelThis, mutatorCall, bareCallee, scopes: bareCallee === null ? null : currentScopes });
   }
-  const valueBound = new Set();
+  // A selection can hold only ordinary functions. Keep its arms until the census knows
+  // all declarations and writes. Any other source of the same name keeps the call open.
+  const valueBound = new Map();
+  let patternCallees;
   // names this file binds to a FUNCTION literal - the only callees the scoped stage's inline-call
   // canon can follow to a return value, so the only ones a call-rooted chain may not rule out
   const functionBound = new Set();
@@ -7373,10 +7441,11 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
   // in its clause's, a function / class / import name in the scope around it (a class is a
   // container of statics too)
   function declareOwnBindings(node) {
-    if (FUNCTION_LIKE_NODE_TYPES.has(node.type)) {
-      for (const param of node.params ?? []) walkPatternIdentifiers(param, id => declare(id.name, node));
-    } else if (node.type === 'CatchClause' && node.param) {
-      walkPatternIdentifiers(node.param, id => declare(id.name, node));
+    if (FUNCTION_LIKE_NODE_TYPES.has(node.type) || node.type === 'CatchClause') {
+      for (const param of node.params ?? [node.param]) walkPatternIdentifiers(param, id => {
+        declare(id.name, node);
+        suppliedCallees.add(id.name);
+      });
     } else if (node.type === 'ImportDeclaration') {
       for (const specifier of node.specifiers ?? []) {
         if (!specifier.local?.name) continue;
@@ -7637,6 +7706,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
   const aliasSourceRoot = new Map();
   let restCopies;
   let exposedAliases;
+  let methodsFromThis;
 
   // the map is flat and scope-blind, so one name may be recorded from several declarations and
   // several writes (`a ||= box` keeps what `a` already held). those are ALTERNATIVES, not a
@@ -7644,6 +7714,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
   // Own each list: one call can supply several pattern bindings, which must not share a mutable
   // sink. Appending then costs only the new sources, not the accumulated fan of all prior calls.
   function recordAliasSource(name, sources) {
+    if (sources?.some(source => source.thisRooted && source.keys.length === 1)) (methodsFromThis ??= new Set()).add(name);
     const known = aliasSourceRoot.get(name);
     if (known === null) return;
     if (!exposedAliases && sources?.some(source => source.keys?.at(-1) === 'prototype')) exposedAliases = new Set();
@@ -7753,7 +7824,8 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
         if (!nodes) containerBound.set(id.name, nodes = []);
         nodes.push(container);
       } else {
-        valueBound.add(id.name);
+        if (getFallbackBranchSlots(value) && valueBound.get(id.name) !== true) pushMultimap(valueBound, id.name, value);
+        else valueBound.set(id.name, true);
         // an alias stands for whatever its source value names (`const O = Object`, `const R =
         // globalThis.Reflect`); a source the naming rule cannot follow answers for itself, so
         // there is no shape to pre-filter here
@@ -7761,29 +7833,35 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
       }
     } else if (isDestructurePattern(id)) {
       // pattern slots pair positionally / by key downstream - flat over-approximation here
-      recordPatternSlots(id, null, value);
+      recordPatternSlots(id, null, value, declaratorNode ? declarationScopeIn(kind, currentScopes) : undefined);
     }
   }
 
   // an object-pattern slot extracts the property its KEY names, so that key is what the slot can
   // stand for (`const { Object: O } = globalThis` makes O the `Object` namespace). a positional or
   // computed slot names nothing the gate can follow, and keeps the point query open
-  function recordPatternSlots(pattern, names, source) {
+  function recordPatternSlots(pattern, names, source, owner) {
     if (!pattern || typeof pattern !== 'object') return;
     switch (pattern.type) {
       case 'Identifier':
-        valueBound.add(pattern.name);
+        // A destructured declaration supplies only its own binding. An assignment
+        // can write an outer binding, so keep it open until scoped resolution.
+        if (owner === undefined) valueBound.set(pattern.name, true);
+        else {
+          (patternCallees ??= createDeclaredNameIndex()).recordName(pattern.name, owner);
+          if (!valueBound.has(pattern.name)) valueBound.set(pattern.name, undefined);
+        }
         recordAliasSource(pattern.name, names);
         return;
       case 'ObjectPattern':
         for (const prop of pattern.properties ?? []) {
           // The copy is fresh, but a write through one of its members can reach the original value.
           if (prop.type === 'RestElement') {
-            recordPatternSlots(prop, null, null);
+            recordPatternSlots(prop, null, null, owner);
             continue;
           }
           const key = prop.computed ? null : propertyKeyName(prop);
-          recordPatternSlots(prop.value, key === null ? null : [key], null);
+          recordPatternSlots(prop.value, key === null ? null : [key], null, owner);
         }
         return;
       case 'ArrayPattern': {
@@ -7796,16 +7874,16 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
         for (let i = 0; i < (pattern.elements?.length ?? 0); i++) {
           const slotSource = elements ? elements[i] : null;
           recordPatternSlots(pattern.elements[i], elements
-            ? (slotSource ? sourceRoots(slotSource) : []) : fallback, null);
+            ? (slotSource ? sourceRoots(slotSource) : []) : fallback, null, owner);
         }
         return;
       }
       case 'AssignmentPattern':
-        recordPatternSlots(pattern.left, names, null);
+        recordPatternSlots(pattern.left, names, null, owner);
         return;
       case 'RestElement':
         if (pattern.argument.type === 'Identifier') (restCopies ??= new Set()).add(pattern.argument.name);
-        recordPatternSlots(pattern.argument, null, null);
+        recordPatternSlots(pattern.argument, null, null, owner);
         return;
       default: {
         // a MEMBER target inside a pattern (`({ a: obj.Map } = src)`) binds NOTHING - it is a
@@ -7814,7 +7892,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
         if (pattern.type === 'MemberExpression' || pattern.type === 'OptionalMemberExpression') return;
         // a wrapper around a target keeps the binding underneath it
         const peeled = unwrapRuntimeExpr(pattern);
-        if (peeled !== pattern) recordPatternSlots(peeled, names, source);
+        if (peeled !== pattern) recordPatternSlots(peeled, names, source, owner);
       }
     }
   }
@@ -7988,7 +8066,9 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
       return;
     }
     // ... a name head over an iterable no literal spells holds whatever it hands out
-    if (!head && unwrapRuntimeExpr(node.left)?.type === 'Identifier') valueBound.add(unwrapRuntimeExpr(node.left).name);
+    const binding = head?.id ?? unwrapRuntimeExpr(node.left);
+    if (!elements && binding) walkPatternIdentifiers(binding, id => suppliedCallees.add(id.name));
+    if (!head && binding?.type === 'Identifier') valueBound.set(binding.name, true);
     if (!head || !elements) {
       recordEscapedContainers([node.right], currentScopes, null, node);
       return;
@@ -8016,7 +8096,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
         } else {
           recordEscapedContainers([element], currentScopes, null, node);
           // Every alternative supplies a value and its alias roots, just as a single element.
-          valueBound.add(head.id.name);
+          valueBound.set(head.id.name, true);
           recordAliasSource(head.id.name, sourceRoots(element));
         }
       }
@@ -8147,7 +8227,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
         if (globalProxyNameFromImportSource(node.source?.value, packages)) {
           for (const s of node.specifiers ?? []) {
             if ((bindsModuleDefault(s) || s.type === 'ImportNamespaceSpecifier') && s.local?.name) {
-              valueBound.add(s.local.name);
+              valueBound.set(s.local.name, true);
               proxyGlobalBound.add(s.local.name);
             }
           }
@@ -8158,7 +8238,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
         // the TS require-import twin of the case above; adapter-less reducer reads the
         // module-reference string directly
         if (tsImportEqualsProxyName(node, null, packages, programNode)) {
-          valueBound.add(node.id.name);
+          valueBound.set(node.id.name, true);
           proxyGlobalBound.add(node.id.name);
         }
         break;
@@ -8233,6 +8313,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
   // questions and conflating them cost a live narrow in each direction
   const rootNames = new Set();
   const globalSlots = new Set();
+  let guardWrites = null;
   let prototypeWrites;
   let exposedPrototypes;
 
@@ -8371,6 +8452,12 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
     return held.container ? null : held;
   }
 
+  function recordGuardWrite(key, owner) {
+    let owners = guardWrites?.get(key);
+    if (!owners) (guardWrites ??= new Map()).set(key, owners = new Set());
+    owners.add(owner);
+  }
+
   // record what ONE firing write target replaces; false where the walk cannot tell and the caller
   // must open the point query
   function publishWrite(root, mutatorCall) {
@@ -8396,6 +8483,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
     }
     for (const name of receiver) {
       rootNames.add(name);
+      if (mutatorCall && Object.hasOwn(knownBuiltInReturnTypes.staticTypeGuards, name)) recordGuardWrite(null, name);
       if (name.endsWith('.prototype')) {
         (prototypeWrites ??= new Set()).add(mutatorCall ?? writtenKey);
         if (writtenKey === '__proto__') (exposedPrototypes ??= new Set()).add(name);
@@ -8449,18 +8537,72 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
       const roots = collectGateRoots(param.right, [], programNode);
       for (const root of roots) if (root.thisRooted) root.viaTopLevelThis = false;
       walkPatternIdentifiers(param.left, id => {
-        valueBound.add(id.name);
+        valueBound.set(id.name, true);
         recordAliasSource(id.name, roots);
       });
     }
-    let open = false;
+    let initialHelpers;
+    let otherStores;
+    // Classify a selection only when it actually occurs as a bare callee. Cache
+    // the verdict after all writes, including writes to a namesake, have arrived.
+    function mutatorSource(name, scopes) {
+      const values = valueBound.get(name);
+      if (importBound.has(name) || patternCallees?.declares(name, values === undefined ? null : scopes)) return true;
+      if (!Array.isArray(values)) return values;
+      const aliases = aliasValues.get(name);
+      if (suppliedCallees.has(name)
+        || aliases?.some(({ rawValue }) => FN_NODE_TYPES.has(rawValue?.type) && scopesWithStores.has(rawValue))) {
+        valueBound.set(name, true);
+        return true;
+      }
+      let source = false;
+      for (const value of values) {
+        const arms = value.operator === '||' && FN_NODE_TYPES.has(unwrapRuntimeExpr(value.right)?.type)
+          && (initialHelpers ??= initialModuleHelperValues(programNode, packages)).has(value) ? [unwrapRuntimeExpr(value.right)]
+          : flattenBranchingValueNodes([value], { andRightOnly: true });
+        if (!arms.every(arm => {
+          if (FN_NODE_TYPES.has(arm.type)) return !scopesWithStores.has(arm);
+          if (!isBoundStaticReader(arm, declared)) return false;
+          source = 'bound';
+          return true;
+        })) {
+          source = true;
+          break;
+        }
+      }
+      valueBound.set(name, source);
+      return source;
+    }
+    let openKeys;
     for (const { node, site, scopes, viaTopLevelThis, mutatorCall, bareCallee } of targets) {
-      // a BARE callee reaches the mutators only through a binding that HOLDS one - an extracted
-      // or destructured `Object.defineProperty`, or an import of its pure entry. a callee this
-      // file binds to nothing of the sort (`foo(bar())`, in half of real files) classifies as no
-      // mutator in the scoped stage either, so its arguments are no mutation targets
-      if (bareCallee !== null && !valueBound.has(bareCallee) && !importBound.has(bareCallee)) continue;
-      for (const root of collectGateRoots(node, [], programNode)) {
+      if (bareCallee !== null) {
+        const source = mutatorSource(bareCallee, scopes);
+        if (source === undefined || source === false && programHasModuleThis(programNode)) continue;
+        // A write could replace the reader, its bind or a classic script's global binding.
+        if (source !== true && !(otherStores ??= targets.some(target => {
+          if (target.mutatorCall) return target.bareCallee === null || mutatorSource(target.bareCallee) === true;
+          const key = isMemberAccessNode(target.node) ? memberKeyName(target.node) : target.node.name;
+          return typeof key !== 'string' || key === 'bind' || key === 'prototype' || key === '__proto__' || isKnownGlobalName(key)
+            || hasOwnStaticDefinition('Object', key) || hasOwnStaticDefinition('Reflect', key)
+            || !programHasModuleThis(programNode) && isMemberAccessNode(target.node) && valueBound.has(key);
+        }))) continue;
+      }
+      // An ordinary call can pass the alias without writing it. Bound and extracted
+      // mutators contribute their actual stores when the callee census finishes.
+      const callee = mutatorCall?.callee;
+      const mutatorKey = callee && memberKeyName(callee);
+      const writesMembers = !callee || callee.computed && mutatorKey === null
+        || OBJECT_MUTATORS.has(mutatorKey) || REFLECT_MUTATORS.has(mutatorKey);
+      const roots = collectGateRoots(node, [], programNode);
+      // A method supplied by the receiver can write to any argument. Positions zero
+      // and three already have their own records for Object and Reflect mutators.
+      if (methodsFromThis?.has(bareCallee) && mutatorCall.arguments.length > 1) {
+        const { args } = mutationCallArguments(mutatorCall);
+        if (node === args[0]) for (let i = 1; i < args.length; i++) {
+          if (i !== 3) collectGateRoots(args[i], roots, programNode);
+        }
+      }
+      for (const root of roots) {
         root.viaTopLevelThis = viaTopLevelThis;
         const firstKey = root.keys[0] ?? null;
         // a `this`-rooted target fires when the key nearest the root is built-in-shaped, or
@@ -8513,12 +8655,25 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
             mutationCandidateNodes.add(node);
           }
         }
+        // The final key survives an uncertain receiver. Only a direct, unshadowed global
+        // can exclude a write to that same key on a different constructor.
+        const leaf = root.keys.length ? root.keys.at(-1) : root.name;
+        const key = mutatorCall || root.unnameable || leaf === '__proto__' ? null : leaf;
+        if (writesMembers && (fires || key !== null && root.keys.length) && (key === null || STATIC_GUARD_SLOTS.has(key))) {
+          const direct = root.keys.length === (mutatorCall ? 0 : 1) && isKnownGlobalName(root.name)
+            && !POSSIBLE_GLOBAL_OBJECTS.has(root.name) && !declared.declares(root.name);
+          recordGuardWrite(key, direct ? root.name : null);
+        }
         if (!fires) continue;
         hasMutationShapes = true;
-        if (!publishWrite(root, mutatorCall)) open = true;
+        if (!publishWrite(root, mutatorCall)) {
+          // Even an unknown receiver writes only its named property. A mutator or an
+          // unreadable target leaves the written key unknown too.
+          (openKeys ??= new Set()).add(mutatorCall ? null : root.keys.at(-1) ?? null);
+        }
       }
     }
-    mutationRoots = { names: rootNames, globalSlots, open, restCopies };
+    mutationRoots = { names: rootNames, globalSlots, open: !!openKeys, openKeys, guardWrites, restCopies };
     RECORDED_MUTATION_ROOTS.set(programNode, mutationRoots);
   }
 
@@ -8559,6 +8714,9 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
       });
       const store = builtins?.get(node);
       const writes = store && explicitStoreWrites(store);
+      if (writes) for (const { key } of writes.entries) {
+        if (key === null || STATIC_GUARD_SLOTS.has(key) || key === '__proto__') recordGuardWrite(key === '__proto__' ? null : key, null);
+      }
       // Resolve a prototype store's keys only after the census has identified the callee.
       if (prototypeWrites?.delete(node)) {
         const entries = writes?.entries.length ? writes.entries
@@ -8815,6 +8973,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
     if (prototypeWrites && !prototypeWrites.has('__proto__') && [...prototypeWrites].every(key => typeof key === 'string')) {
       mutationRoots.prototypeKeys = prototypeWrites;
     }
+    mutationRoots.guardWrites = guardWrites;
     stampContainers(containers, writtenContainerSlots, containerSlotIndex);
     return {
       hasMutationShapes,
@@ -9163,6 +9322,11 @@ function expandMutatorArguments(args, ctx) {
 
 function mutatorEntries(namespace, method, args, ctx) {
   if (!args[0]) return [];
+  if (!namespace) {
+    // An extracted method of an unknown `this` can replace predicates on the
+    // constructor handed to it, even when the call never spells their keys.
+    return args.map(targetNode => ({ targetNode, predicatesOnly: true }));
+  }
   // the mutator NAME itself is unreadable (`Object[m](Array, ...)`, an extracted `const fn =
   // Object[m]`): it can be any mutator, so every argument that can host a mutation deopts
   // whole - including a possible `Reflect.set` receiver slot
@@ -9219,7 +9383,7 @@ function bareCalleeStaticPairs(callee, ctx) {
     // possible mutator - the caller deopts the call's mutation hosts whole
     const method = mutationKeyName(member.property, member.computed, ctx);
     const namespace = peeledNamespaceName(member.object, ctx);
-    if (namespace) pairs.push({ namespace, method });
+    if (namespace || unwrapRuntimeExpr(member.object)?.type === 'ThisExpression') pairs.push({ namespace, method });
   }
   // a require-style pure binding's declarator init is the require CALL itself - neither a
   // member nor an identifier source; the import-entry canon answers for the binding name
@@ -9293,7 +9457,7 @@ function paramDefaultValues({ identNode, binding, ctx }) {
 // Promise = self.Promise`) the copy installs the replacement's value - re-record the skipped
 // slots against the COMPLETE set, iterating because one re-recorded slot can invalidate
 // another skip's receiver
-function createMutationSiteHandler({ adapter, mutated, resolveStaticKey = null, restCopies }) {
+function createMutationSiteHandler({ rootNode, adapter, mutated, resolveStaticKey = null, restCopies }) {
   const pendingIdentitySkips = [];
   // the write behind every recorded key, by key - null where a key stands for no write it can place -
   // and the path it stands at (`slotReadPrecedesItsWrites`)
@@ -9313,7 +9477,9 @@ function createMutationSiteHandler({ adapter, mutated, resolveStaticKey = null, 
   const pastCeilingFans = new WeakMap();
   function resolveTargetOnce(targetNode, path) {
     if (resolved.has(targetNode)) return resolved.get(targetNode);
-    const names = resolveMutationSite({ targetNode, scope: path.scope, adapter, path, resolveStaticKey, pastCeilingFans, restCopies });
+    const names = resolveMutationSite({
+      programNode: rootNode, targetNode, scope: path.scope, adapter, path, resolveStaticKey, pastCeilingFans, restCopies,
+    });
     resolved.set(targetNode, names);
     return names;
   }
@@ -9334,10 +9500,12 @@ function createMutationSiteHandler({ adapter, mutated, resolveStaticKey = null, 
         recordHere(mutatedStaticKey('globalThis', entry.globalSlotKey));
         continue;
       }
-      const { targetNode, keys } = entry;
+      const { targetNode, predicatesOnly } = entry;
       const { names, receiverDeopts } = resolveTargetOnce(targetNode, path);
       const nativeWrite = adapter.isOptedOut?.(targetNode, true);
       for (const name of names) {
+        const keys = predicatesOnly ? Object.keys(knownBuiltInReturnTypes.staticTypeGuards[name] ?? {}) : entry.keys;
+        if (predicatesOnly && !keys.length) continue;
         // A disabled write lands on the native constructor. Retain that identity throughout
         // the file, including reads before the write and aliases captured ahead of it.
         if (nativeWrite) {
@@ -9355,7 +9523,7 @@ function createMutationSiteHandler({ adapter, mutated, resolveStaticKey = null, 
         }
         else addReceiverDeopt(recordHere, name, recordUnplaced);
       }
-      for (const name of receiverDeopts) addReceiverDeopt(recordHere, name, recordUnplaced);
+      if (!predicatesOnly) for (const name of receiverDeopts) addReceiverDeopt(recordHere, name, recordUnplaced);
     }
   }
   function finalizeMutationSet() {
@@ -9494,7 +9662,7 @@ export function beginMutationPrePass({ rootNode, adapter, census = null, resolve
     return { mutated, handleSite: null, finalize: null };
   }
   const { handleSite, finalizeMutationSet, sites } = createMutationSiteHandler({
-    adapter, mutated, resolveStaticKey, restCopies: RECORDED_MUTATION_ROOTS.get(rootNode)?.restCopies,
+    rootNode, adapter, mutated, resolveStaticKey, restCopies: RECORDED_MUTATION_ROOTS.get(rootNode)?.restCopies,
   });
   MUTATION_WRITE_SITES.set(mutated, sites);
   // the pass runs before the census it builds is visible, so a decision it asks may take a slot the census
@@ -10273,7 +10441,20 @@ export function createDetectionAdapter({
       if (read?.inheritedGetter && roots?.exposedPrototypes?.has(object)) return true;
       if (method === 'usage-pure') return adapter.isMutatedStatic(object, key, read);
       if (!roots) return false;
-      return roots.open || roots.names.has(object) && (!read?.inheritedGetter || !object.endsWith('.prototype')
+      if (read?.typeGuard && roots.guardWrites !== undefined) {
+        const writes = roots.guardWrites;
+        if (roots.openKeys?.has(null) || roots.globalSlots.has(object)) return true;
+        if (!writes) return false;
+        for (const slot of [key, object, null]) for (const owner of writes.get(slot) ?? []) {
+          if (owner === null || owner === object || roots.globalSlots.has(owner) || writes.get(owner)?.has(null)) return true;
+        }
+        return false;
+      }
+      // An opaque write to another named property leaves a global constructor slot intact.
+      const open = roots.open && (!(isCanonicalGlobalObject(object) && isKnownGlobalName(key))
+        || !roots.openKeys || roots.openKeys.has(null) || roots.openKeys.has('__proto__')
+        || roots.openKeys.has(key) || roots.openKeys.has(object));
+      return open || roots.names.has(object) && (!read?.inheritedGetter || !object.endsWith('.prototype')
         || !roots.prototypeKeys || key === MUTATED_STATIC_PINNED || roots.prototypeKeys.has(key))
         || (!isCanonicalGlobalObject(object) && roots.globalSlots.has(object))
         || (POSSIBLE_GLOBAL_OBJECTS.has(object) && roots.globalSlots.has(key));
@@ -10568,7 +10749,8 @@ function copiedSlotMutationNames(name, [key, ...tail], { scope, adapter, path })
 // hop - `Array[k].x = v` could have patched anything under Array); the handler deopts them
 // whole. Each alias leaf carries the scope of its initializer or reassignment in `thisPath`.
 function resolveMutationSite({
-  targetNode, scope: siteScope, adapter: siteAdapter, path: sitePath, resolveStaticKey = null, pastCeilingFans = new WeakMap(), restCopies,
+  programNode, targetNode, scope: siteScope, adapter: siteAdapter, path: sitePath, resolveStaticKey = null,
+  pastCeilingFans = new WeakMap(), restCopies,
 }) {
   const names = new Set();
   const receiverDeopts = new Set();
@@ -10792,6 +10974,21 @@ function resolveMutationSite({
     }
     if (parts.keys.length && parts.rootNode.type === 'Identifier' && restCopies?.has(parts.rootNode.name)) {
       for (const ctor of copiedSlotMutationNames(parts.rootNode.name, parts.keys, ctx)) names.add(ctor);
+    }
+    // Select writes by the carrier's binding before following a saved constructor.
+    // The initializer of its alias can live outside the carrier's scope.
+    const carrier = parts.rootNode;
+    const aliases = CTOR_ALIAS_INITS.get(programNode);
+    const written = carrier.type === 'Identifier' && ALIAS_SCOPE_FACTS.get(aliases)?.receiverWrites;
+    if (written?.size) {
+      const owner = aliasBindingKey(aliases, carrier.name, aliasReferenceScopes(aliases, carrier));
+      const slots = written.get(owner);
+      if (slots && parts.keys.some((_, at) => slots.has(JSON.stringify(parts.keys.slice(0, at + 1))))) {
+        for (const value of chainSlotValues(aliases, leaf, escapeWalkStateFor(written), written, null, true).values) {
+          const name = realmGlobalName(programNode, value);
+          if (name) names.add(name);
+        }
+      }
     }
     if (parts.keys.slice(0, -1).some(key => !POSSIBLE_GLOBAL_OBJECTS.has(key))) return;
     for (const { node: valueLeaf, thisPath: leafAnchor } of chainRootValueLeaves(parts.rootNode, thisPath, ctx)) {
